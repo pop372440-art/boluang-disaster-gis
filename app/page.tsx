@@ -27,7 +27,7 @@ const CustomToggle = ({ label, active, onClick, dotColor = '#38bdf8' }: any) => 
 export default function BoLuangDashboard() {
   const [mounted, setMounted] = useState(false);
 
-  // 🎛️ State แผงควบคุม
+  // 🎛️ State แผงควบคุมด้านซ้าย
   const [tmdWeather, setTmdWeather] = useState(true);
   const [tmdRain, setTmdRain] = useState(true);
   const [pm25, setPm25] = useState(true);
@@ -36,11 +36,11 @@ export default function BoLuangDashboard() {
   
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   
-  // ✅ 4 เลเยอร์หลัก (เปิดเป็นค่าเริ่มต้น)
-  const [showBoluang, setShowBoluang] = useState(true);   // ขอบเขตตำบล (boluang.json)
-  const [showBlock, setShowBlock] = useState(true);       // ขอบเขตหมู่บ้าน 13 สี (block.json)
-  const [showParcel, setShowParcel] = useState(false);    // แปลงที่ดิน (parcel.json)
-  const [landslide, setLandslide] = useState(false);      // ดินถล่ม (boluang_landslide_risk.json)
+  // ✅ 4 เลเยอร์หลักตามที่คุณกำหนด (เปิดไว้เป็นค่าเริ่มต้น)
+  const [showBoluang, setShowBoluang] = useState(true);   // boluang.json (เส้นขอบหนา)
+  const [showBlock, setShowBlock] = useState(true);       // block.json (13 หมู่บ้าน)
+  const [showParcel, setShowParcel] = useState(true);     // parcel.json (แปลงที่ดิน)
+  const [landslide, setLandslide] = useState(true);       // boluang_landslide_risk.json (ดินถล่ม)
 
   const [citizenReport, setCitizenReport] = useState(false);
   const [hotspot, setHotspot] = useState(true);
@@ -48,11 +48,9 @@ export default function BoLuangDashboard() {
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [showWeatherPopup, setShowWeatherPopup] = useState(false);
 
-  // 📡 ข้อมูล API
+  // 📡 ข้อมูล API & GeoJSON
   const [realWeatherData, setRealWeatherData] = useState<any>(null);
   const [realAqiData, setRealAqiData] = useState<any>(null);
-
-  // 📂 ไฟล์ GeoJSON (อ้างอิงแค่ 4 ไฟล์ที่คุณส่งมา)
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
   const [geoParcel, setGeoParcel] = useState<any>(null);
@@ -67,36 +65,40 @@ export default function BoLuangDashboard() {
 
   useEffect(() => {
     setMounted(true);
+
+    // โหลดสภาพอากาศ
     const fetchRealtimeData = async () => {
       try {
         const weatherRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=18.1633&longitude=98.3744&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&timezone=Asia%2FBangkok');
         setRealWeatherData((await weatherRes.json()).current);
         const aqiRes = await fetch('https://air-quality-api.open-meteo.com/v1/air-quality?latitude=18.1633&longitude=98.3744&current=pm2_5,aqi&timezone=Asia%2FBangkok');
         setRealAqiData((await aqiRes.json()).current);
-      } catch (error) { console.error(error); }
+      } catch (error) { console.error("API Fetch Error:", error); }
     };
     fetchRealtimeData();
 
-    // 🚀 โหลดไฟล์ GeoJSON แบบเช็คความถูกต้อง
+    // 🚀 โหลดไฟล์ GeoJSON แบบสุดยอดความปลอดภัย (Fail-Safe)
     const ts = Date.now(); 
     const loadGeoJSON = async (url: string, setter: any, name: string) => {
       try {
-        const res = await fetch(url);
+        // ใช้ cache: 'no-store' ป้องกัน Vercel ล็อกไฟล์เก่า
+        const res = await fetch(url, { cache: 'no-store' });
         if (res.ok) {
-          const data = await res.json();
+          let data = await res.json();
+          // ถ้าข้อมูลมาเป็น Array ให้แปลงเป็น FeatureCollection ให้ถูกหลัก Leaflet
+          if (Array.isArray(data)) data = { type: "FeatureCollection", features: data };
           if (data && data.features) {
             setter(data);
-            console.log(`✅ สำเร็จ: โหลดไฟล์ ${name} เรียบร้อย (${data.features.length} polygons)`);
+            console.log(`✅ โหลดสำเร็จ: ${name} (${data.features.length} พื้นที่)`);
           } else {
-            console.warn(`❌ ผิดพลาด: ไฟล์ ${name} ไม่ใช่ GeoJSON (อาจเป็น TopoJSON หรือโหลดมาผิด)`);
+            console.warn(`❌ รูปแบบ GeoJSON ไม่ถูกต้อง: ${name}`);
           }
         } else {
-          console.warn(`❌ ไม่พบไฟล์: ${name} (Error 404) -> กรุณาตรวจสอบชื่อไฟล์`);
+          console.warn(`❌ ไม่พบไฟล์ (Error ${res.status}): ${name} -> ตรวจสอบการสะกดชื่อไฟล์ให้ตรง 100%`);
         }
-      } catch (e) { console.error(`Error fetching ${url}:`, e); }
+      } catch (e) { console.error(`🚨 Error โหลดไฟล์ ${name}:`, e); }
     };
 
-    // ต้องแน่ใจว่าไฟล์ชื่อ boluang.json และ block.json ตรงเป๊ะนะครับ
     loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang, 'boluang.json');
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock, 'block.json'); 
     loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel, 'parcel.json');
@@ -104,14 +106,14 @@ export default function BoLuangDashboard() {
 
   }, []);
 
-  // 🛡️ อัลกอริทึมสร้างป้ายชื่อ 13 หมู่บ้านภาษาไทย (ประมวลผลจาก block.json)
+  // 🛡️ อัลกอริทึมป้ายชื่อแบบปลอดภัย ไม่พังแม้ Properties แหว่ง
   const villageLabels = useMemo(() => {
     const vMap: Record<string, { sumLat: number, sumLng: number, count: number }> = {};
-
     if (geoBlock && geoBlock.features) {
       geoBlock.features.forEach((f: any) => {
-        let name = f.properties.own_villag || f.properties.name_th || f.properties.vil_name || f.properties.name || f.properties.zone_name;
-        if (!name) name = `หมู่ที่ ${f.properties.zone_id || f.properties.id || '-'}`;
+        const props = f.properties || {}; // ป้องกัน properties หาย
+        let name = props.own_villag || props.name_th || props.vil_name || props.name || props.zone_name;
+        if (!name) name = `หมู่ที่ ${props.zone_id || props.id || 'ไม่ระบุ'}`;
         
         let cName = name.replace(/^(บ้าน|บ\.|หมู่ที่\s*\d+|หมู่\s*\d+)/, '').replace(/\s+/g, '');
         
@@ -153,7 +155,6 @@ export default function BoLuangDashboard() {
         }
       });
     }
-
     return Object.keys(vMap).map(name => ({
       name: name,
       lat: vMap[name].sumLat / vMap[name].count,
@@ -169,25 +170,20 @@ export default function BoLuangDashboard() {
       if (zoom !== syncData.current.zoom) return;
       const initialPoint = mapRef.project(syncData.current, zoom);
       const currentPoint = mapRef.project(mapRef.getCenter(), zoom);
-      const newX = initialPoint.x - currentPoint.x;
-      const newY = initialPoint.y - currentPoint.y;
-      transformRef.current = { x: newX, y: newY };
-      setTransform({ x: newX, y: newY });
+      setTransform({ x: initialPoint.x - currentPoint.x, y: initialPoint.y - currentPoint.y });
       setIframeState(prev => ({ ...prev, lat: mapRef.getCenter().lat, lng: mapRef.getCenter().lng })); 
     };
     const onZoomEnd = () => {
       const center = mapRef.getCenter(); const zoom = mapRef.getZoom();
       syncData.current = { lat: center.lat, lng: center.lng, zoom: zoom };
       setIframeState({ lat: center.lat, lng: center.lng, zoom: zoom });
-      transformRef.current = { x: 0, y: 0 }; setTransform({ x: 0, y: 0 });
+      setTransform({ x: 0, y: 0 });
     };
     const onMoveEnd = () => {
-      if (typeof window !== 'undefined' && (Math.abs(transformRef.current.x) > window.innerWidth * 0.6 || Math.abs(transformRef.current.y) > window.innerHeight * 0.6)) {
-        const center = mapRef.getCenter(); const zoom = mapRef.getZoom();
-        syncData.current = { lat: center.lat, lng: center.lng, zoom: zoom };
-        setIframeState({ lat: center.lat, lng: center.lng, zoom: zoom });
-        transformRef.current = { x: 0, y: 0 }; setTransform({ x: 0, y: 0 });
-      }
+      const center = mapRef.getCenter(); const zoom = mapRef.getZoom();
+      syncData.current = { lat: center.lat, lng: center.lng, zoom: zoom };
+      setIframeState({ lat: center.lat, lng: center.lng, zoom: zoom });
+      setTransform({ x: 0, y: 0 });
     };
     mapRef.on('move', onMove); mapRef.on('moveend', onMoveEnd); mapRef.on('zoomend', onZoomEnd);
     return () => { mapRef.off('move', onMove); mapRef.off('moveend', onMoveEnd); mapRef.off('zoomend', onZoomEnd); };
@@ -225,22 +221,23 @@ export default function BoLuangDashboard() {
   }, [L]);
 
   // =========================================================================
-  // 🎨 STYLES (สีสันสุดอลังการ)
+  // 🎨 STYLES (ตั้งค่าสีให้เด่นชัดที่สุด)
   // =========================================================================
-  const styleBoluang = { color: '#0ea5e9', weight: 4, fillOpacity: 0 }; 
+  const styleBoluang = { color: '#0ea5e9', weight: 4.5, fillOpacity: 0 }; 
   const styleParcel = { color: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
-  const styleLandslide = (feature: any) => ({ color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', weight: 1, fillOpacity: 0.4 });
+  const styleLandslide = (feature: any) => ({ color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', weight: 1, fillOpacity: 0.5 });
 
-  // 13 สีสัน สำหรับ block.json
+  // 13 สีสัน สำหรับ block.json อย่างปลอดภัย
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
   const getBlockStyle = (feature: any) => {
-    const name = feature?.properties?.own_villag || feature?.properties?.name_th || feature?.properties?.name || feature?.properties?.id || "0";
+    const props = feature?.properties || {};
+    const name = props.own_villag || props.name_th || props.name || props.id || "0";
     const colorIndex = String(name).length % BLOCK_COLORS.length;
     return {
-      fillColor: feature?.properties?.fill || BLOCK_COLORS[colorIndex], 
+      fillColor: props.fill || BLOCK_COLORS[colorIndex], 
       weight: 1.5,      
       color: '#ffffff',  
-      fillOpacity: 0.35, 
+      fillOpacity: 0.4,  // ดันสีให้ทึบขึ้น จะได้เห็นชัดเจน
       dashArray: '4, 4'
     };
   };
@@ -253,19 +250,13 @@ export default function BoLuangDashboard() {
         .leaflet-bar a { background-color: #0f172a !important; color: #fff !important; border: 1px solid #1e293b !important; border-radius: 8px !important; }
         .leaflet-bar a:hover { background-color: #1e293b !important; }
         .leaflet-div-icon { background: transparent !important; border: none !important; }
-        .leaflet-control-attribution { 
-          background: rgba(15, 23, 42, 0.7) !important; color: #cbd5e1 !important; 
-          backdrop-filter: blur(4px); border-top-left-radius: 6px; padding: 2px 8px !important;
-          font-family: 'Kanit', sans-serif !important; font-size: 10px !important;
-        }
-        .leaflet-control-attribution a { color: #38bdf8 !important; text-decoration: none; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
       `}} />
 
       {/* ========================================================
-          🗺️ MAP BACKGROUND & GIS LAYERS (จัดชั้น Layer สมบูรณ์แบบ)
+          🗺️ MAP BACKGROUND & GIS LAYERS (จัดชั้น Layer อย่างสมบูรณ์แบบ)
       ======================================================== */}
       <div className="absolute inset-0 z-0 bg-[#0b1120] overflow-hidden">
         
@@ -280,21 +271,22 @@ export default function BoLuangDashboard() {
           <MapContainer center={[18.1633, 98.3744]} zoom={12} maxZoom={20} zoomControl={false} className="w-full h-full" ref={setMapRef}>
             <ZoomControl position="topleft" />
 
-            {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} attribution='&copy; OpenStreetMap &copy; CARTO' />}
-            {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} attribution='&copy; Google Maps' />}
+            {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
+            {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} />}
             
             {/* 🌟 ลำดับ Z-Index: ยิ่งอยู่ข้างล่างยิ่งลอยอยู่บนสุด */}
-            {/* 1. ดินถล่ม (ล่างสุด) */}
-            {landslide && geoLandslideRisk && <GeoJSON key={`landslide-${geoLandslideRisk?.features?.length}`} data={geoLandslideRisk} style={styleLandslide} />}
             
-            {/* 2. แปลงที่ดิน */}
-            {showParcel && geoParcel && <GeoJSON key={`parcel-${geoParcel?.features?.length}`} data={geoParcel} style={styleParcel} />}
+            {/* 1. แปลงที่ดิน (parcel.json) */}
+            {showParcel && geoParcel && <GeoJSON key={`parcel-${JSON.stringify(geoParcel).length}`} data={geoParcel} style={styleParcel} />}
             
-            {/* 3. ขอบเขต 13 หมู่บ้าน (block.json) */}
-            {showBlock && geoBlock && <GeoJSON key={`block-${geoBlock?.features?.length}`} data={geoBlock} style={getBlockStyle} />}
+            {/* 2. ดินถล่ม (boluang_landslide_risk.json) */}
+            {landslide && geoLandslideRisk && <GeoJSON key={`landslide-${JSON.stringify(geoLandslideRisk).length}`} data={geoLandslideRisk} style={styleLandslide} />}
             
-            {/* 4. ขอบเขตตำบลบ่อหลวง (เส้นหนาชั้นบนสุด) */}
-            {showBoluang && geoBoluang && <GeoJSON key={`boluang-${geoBoluang?.features?.length}`} data={geoBoluang} style={styleBoluang} />}
+            {/* 3. ขอบเขต 13 หมู่บ้าน (block.json) - อยู่บนสุดจะคลุมสวยๆ */}
+            {showBlock && geoBlock && <GeoJSON key={`block-${JSON.stringify(geoBlock).length}`} data={geoBlock} style={getBlockStyle} />}
+            
+            {/* 4. ขอบเขตตำบลบ่อหลวง (boluang.json) - เส้นหนาสุดตีล้อมกรอบนอกสุด */}
+            {showBoluang && geoBoluang && <GeoJSON key={`boluang-${JSON.stringify(geoBoluang).length}`} data={geoBoluang} style={styleBoluang} />}
             
             {/* 🌟 ป้ายชื่อภาษาไทย 13 หมู่บ้าน */}
             {mounted && showBlock && L && villageLabels.map((village, idx) => {
@@ -358,6 +350,9 @@ export default function BoLuangDashboard() {
         </div>
       </header>
 
+      {/* ========================================================
+          📍 แถบข้อมูลแผนที่ด้านล่างซ้าย
+      ======================================================== */}
       <div className="absolute bottom-6 left-6 z-40 flex flex-col space-y-2 pointer-events-auto">
         <button className="w-8 h-8 bg-[#0c1427]/90 border border-[#1e293b] rounded-lg flex items-center justify-center text-white hover:bg-[#1e293b] shadow-lg backdrop-blur-md transition-colors">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
