@@ -37,7 +37,7 @@ export default function BoLuangDashboard() {
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   
   const [showBoluang, setShowBoluang] = useState(true);   // boluang.json
-  const [showBlock, setShowBlock] = useState(true);       // block.json
+  const [showBlock, setShowBlock] = useState(true);       // block.json (13 หมู่บ้าน)
   const [showParcel, setShowParcel] = useState(false);    // parcel.json
   const [landslide, setLandslide] = useState(true);       // boluang_landslide_risk.json
 
@@ -92,10 +92,10 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslideRisk);
   }, []);
 
-  // 🛡️ จัดฟอร์แมตชื่อหมู่บ้าน
+  // 🛡️ ฟังก์ชันจัดระเบียบชื่อหมู่บ้านให้สวยงาม
   const formatVillageName = (rawName: any) => {
     if (!rawName) return 'พื้นที่หมู่บ้าน';
-    const safeName = String(rawName);
+    const safeName = String(rawName); 
     let cName = safeName.replace(/^(บ้าน|บ\.|หมู่ที่\s*\d+|หมู่\s*\d+)/, '').replace(/\s+/g, '');
     
     if (cName.includes('บ่อหลวง')) cName = 'บ้านบ่อหลวง';
@@ -117,39 +117,42 @@ export default function BoLuangDashboard() {
     return cName;
   };
 
-  // 🖱️ ผูก Event แบบ Minimalist (ซ่อนสีตอนปกติ สว่างตอน Hover)
+  // 🖱️ ผูก Event แบบตามรูปอ้างอิงของคุณ 100%
   const onEachBlockFeature = (feature: any, layer: any) => {
     const props = feature?.properties || {};
     const rawName = props.own_villag || props.name_th || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || ''}`;
     const villageName = formatVillageName(rawName);
 
-    // สีตั้งต้นของหมู่บ้านนั้นๆ (ดึงมาเก็บไว้ใช้ตอน Hover)
     const colorIndex = String(rawName).length % BLOCK_COLORS.length;
-    const highlightColor = props.fill || BLOCK_COLORS[colorIndex];
+    const defaultColor = props.fill || BLOCK_COLORS[colorIndex];
 
-    layer.bindTooltip(`
-      <div class="px-2.5 py-1 text-[13px] font-bold text-[#1e293b] bg-white/95 border border-[#cbd5e1] rounded shadow-lg">
-        📍 ${villageName}
-      </div>
-    `, { sticky: true, direction: 'auto', className: 'custom-map-tooltip' });
+    // ป้ายชื่อ (Tooltip) สีขาวล้วน ตัวหนังสือสีดำ ตามแบบรูปตัวอย่าง
+    layer.bindTooltip(villageName, { 
+      sticky: true, 
+      direction: 'auto', 
+      className: 'village-hover-tooltip' 
+    });
 
+    // เอฟเฟกต์เวลาเอาเมาส์ชี้
     layer.on({
       mouseover: (e: any) => {
         const targetLayer = e.target;
-        // 🌟 ตอนเอาเมาส์ชี้ -> ให้สีสว่างขึ้น และเส้นขอบชัดขึ้น
         targetLayer.setStyle({ 
-          weight: 2.5, 
-          color: highlightColor, // ใช้สีหมู่บ้านมาเป็นสีเส้นขอบ
-          fillOpacity: 0.25      // ให้เห็นสีพื้นหลังจางๆ
+          weight: 3,                 // เส้นขอบหนาขึ้น
+          color: '#ffffff',          // เส้นขอบทึบสีขาว (เหมือนในรูป)
+          fillColor: defaultColor, 
+          fillOpacity: 0.6,          // สีพื้นหลังทึบขึ้นให้เห็นชัดเจน
+          dashArray: ''              // เปลี่ยนเป็นเส้นทึบ (Solid Line)
         });
+        targetLayer.bringToFront();  // ดันพื้นที่นี้ขึ้นมาหน้าสุด ขอบขาวจะได้ไม่โดนทับ
       },
       mouseout: (e: any) => {
         const targetLayer = e.target;
-        // 🌟 ตอนเอาเมาส์ออก -> กลับไปโปร่งใสแทบ 100% เส้นประบางๆ
         targetLayer.setStyle({ 
-          weight: 1, 
-          color: 'rgba(255, 255, 255, 0.3)', // เส้นขาวโปร่งแสง
-          fillOpacity: 0.02                  // แทบไม่มีสีพื้นหลัง
+          weight: 1.5, 
+          color: 'rgba(255, 255, 255, 0.3)', // กลับไปเป็นเส้นประสีขาวบางๆ
+          fillOpacity: 0.12,  
+          dashArray: '3, 3'
         });
       }
     });
@@ -216,12 +219,10 @@ export default function BoLuangDashboard() {
   // =========================================================================
   // 🎨 STYLES แบบ MINIMALIST
   // =========================================================================
-  // ขอบเขตตำบล: ใช้เส้นสีฟ้าทึบ หนานิดนึง เพื่อตีกรอบนอกสุดให้ชัด
   const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0 }; 
   const styleParcel = { color: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
   const styleLandslide = (feature: any) => ({ color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', weight: 1, fillOpacity: 0.4 });
 
-  // ขอบเขตหมู่บ้าน 13 สีสัน: ตั้งค่า Default ให้ "ซ่อน" (เห็นแค่เส้นประบางๆ)
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
   const getBlockStyle = (feature: any) => {
     const props = feature?.properties || {};
@@ -229,10 +230,10 @@ export default function BoLuangDashboard() {
     const colorIndex = String(name).length % BLOCK_COLORS.length;
     return {
       fillColor: props.fill || BLOCK_COLORS[colorIndex], 
-      weight: 1,      
-      color: 'rgba(255, 255, 255, 0.3)',  // เส้นประสีขาวจางๆ
-      fillOpacity: 0.02,                  // โปร่งใส 98%
-      dashArray: '5, 5'
+      weight: 1.5,      
+      color: 'rgba(255, 255, 255, 0.3)',  
+      fillOpacity: 0.12,                  
+      dashArray: '3, 3'
     };
   };
 
@@ -244,9 +245,20 @@ export default function BoLuangDashboard() {
         .leaflet-bar a { background-color: #0f172a !important; color: #fff !important; border: 1px solid #1e293b !important; border-radius: 8px !important; }
         .leaflet-bar a:hover { background-color: #1e293b !important; }
         .leaflet-div-icon { background: transparent !important; border: none !important; }
-        /* สไตล์ Tooltip แบบ Minimal สะอาดตา */
-        .leaflet-tooltip.custom-map-tooltip { background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
-        .leaflet-tooltip-pane .leaflet-tooltip { margin-top: -10px; }
+        
+        /* 🌟 ปรับแต่งกล่อง Tooltip ให้เหมือนรูปตัวอย่าง (สีขาวสะอาดตา) */
+        .leaflet-tooltip.village-hover-tooltip { 
+          background-color: #ffffff !important; 
+          color: #0f172a !important; 
+          border: 1px solid #cbd5e1 !important; 
+          font-family: inherit !important; 
+          font-size: 13px !important; 
+          font-weight: 600 !important; 
+          padding: 5px 12px !important; 
+          border-radius: 6px !important; 
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
+        }
+        
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
@@ -275,7 +287,7 @@ export default function BoLuangDashboard() {
             {showParcel && geoParcel && <GeoJSON key={`parcel-${JSON.stringify(geoParcel).length}`} data={geoParcel} style={styleParcel} />}
             {landslide && geoLandslideRisk && <GeoJSON key={`landslide-${JSON.stringify(geoLandslideRisk).length}`} data={geoLandslideRisk} style={styleLandslide} />}
             
-            {/* ขอบเขต 13 หมู่บ้าน (ซ่อนสีพื้น โชว์ตอน Hover) */}
+            {/* 🌟 ขอบเขต 13 หมู่บ้าน (Hover โชว์ชื่อ + เปลี่ยนสีขอบเป็นสีขาวหนา) */}
             {showBlock && geoBlock && <GeoJSON key={`block-${JSON.stringify(geoBlock).length}`} data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
             
             {/* ขอบเขตตำบลบ่อหลวง (เส้นหนาชั้นบนสุด) */}
@@ -410,7 +422,7 @@ export default function BoLuangDashboard() {
           </button>
           <div className="w-[320px] bg-[#0c1427]/95 border border-[#1e293b] rounded-xl shadow-2xl p-5 backdrop-blur-xl h-[calc(100vh-140px)] overflow-y-auto custom-scrollbar">
             <div className="flex items-start space-x-3 mb-3">
-              <div className="mt-1 text-[#56b6c2]"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" /></svg></div>
+              <div className="mt-1 text-[#56b6c2]"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" /></svg></div>
               <div className="w-full">
                 <h2 className="text-[16px] font-semibold tracking-wide text-white">Layers</h2>
                 <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">เปิด/ปิด ขอบเขตความรับผิดชอบและชั้นข้อมูลระดับเทศบาล</p>
