@@ -116,30 +116,29 @@ export default function BoLuangDashboard() {
     return cName;
   };
 
-  // 🖱️ Event สำหรับจุดเสี่ยงดินถล่ม (โชว์ข้อมูลด้วยการ "คลิก" เท่านั้น)
+  // 🖱️ Event สำหรับจุดเสี่ยงดินถล่ม (Hover แล้วแสดง Tooltip ทันที ไม่ต้องคลิก)
   const onEachLandslideFeature = (feature: any, layer: any) => {
     const props = feature?.properties || {};
     
-    // ดึงข้อมูลตามที่คุณส่งรูปมา
-    const areaName = props.tam_nam_t || 'ต.บ่อหลวง';
+    // ดึงข้อมูลตามที่มีในไฟล์
+    const areaName = props.tam_nam_t || 'ต.บ่อหลวง'; // ใช้ตำบลไปก่อนเพราะไม่มีชื่อหมู่บ้าน
     const riskClass = props.class || '-';
     const riskLevel = props.ls_desth || props.LS_DESTH || 'ไม่ระบุ';
 
-    // ใช้ bindPopup แทน bindTooltip เพื่อให้ต้อง "คลิก" ถึงจะแสดงข้อมูล
-    layer.bindPopup(`
-      <div class="p-1 font-sans">
-        <div class="font-bold text-[14px] text-[#ea580c] mb-1.5 border-b border-gray-200 pb-1 flex items-center">
+    // เปลี่ยนมาใช้ bindTooltip ให้แสดงตอนชี้เมาส์
+    layer.bindTooltip(`
+      <div class="px-4 py-3 text-[12px] text-[#0f172a] bg-white/95 border-2 border-[#ea580c] rounded-xl shadow-xl font-sans min-w-[200px]">
+        <div class="font-bold text-[14px] text-[#ea580c] mb-2 border-b border-gray-200 pb-1.5 flex items-center">
           <span class="mr-1.5">⚠️</span> พื้นที่เสี่ยงดินถล่ม
         </div>
-        <div class="grid grid-cols-[70px_1fr] gap-x-2 gap-y-1 text-[12px] mt-1.5">
+        <div class="grid grid-cols-[80px_1fr] gap-x-2 gap-y-1.5 mt-2">
           <span class="text-gray-500 font-semibold">พื้นที่:</span> <span class="font-bold text-gray-800">${areaName}</span>
           <span class="text-gray-500 font-semibold">ระดับ (Class):</span> <span class="font-bold text-red-600">${riskClass}</span>
           <span class="text-gray-500 font-semibold">ความเสี่ยง:</span> <span class="font-bold text-[#ea580c]">${riskLevel}</span>
         </div>
       </div>
-    `, { className: 'custom-landslide-popup' });
+    `, { sticky: true, direction: 'auto', className: 'custom-map-tooltip' });
 
-    // เพิ่มเอฟเฟกต์สีสว่างขึ้นเวลาเอาเมาส์พาดผ่าน (ให้รู้ว่ากดได้)
     layer.on({
       mouseover: (e: any) => {
         const targetLayer = e.target;
@@ -279,7 +278,7 @@ export default function BoLuangDashboard() {
   // ขอบเขตตำบล (ล่างสุด ให้เมาส์ทะลุผ่าน)
   const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0, interactive: false }; 
 
-  // ดินถล่ม (เปลี่ยน interactive เป็น true แล้ว เพื่อให้ "คลิก" ได้)
+  // ดินถล่ม (interactive: true ให้รับเมาส์)
   const styleLandslide = (feature: any) => ({ 
     color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', 
     fillColor: feature.properties?.class === 1 ? '#ef4444' : '#f97316', 
@@ -326,10 +325,6 @@ export default function BoLuangDashboard() {
         }
 
         .leaflet-tooltip.custom-map-tooltip { background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
-        
-        /* ตัดขอบขาวของ Popup กล่องคลิกให้ออกมาสวยงาม */
-        .leaflet-popup.custom-landslide-popup .leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
-        .leaflet-popup.custom-landslide-popup .leaflet-popup-tip { box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
 
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -360,7 +355,7 @@ export default function BoLuangDashboard() {
             {/* 2. ขอบเขต 13 หมู่บ้าน (ย้ายมาอยู่ข้างล่าง เพื่อให้จุดดินถล่มลอยอยู่เหนือหมู่บ้าน) */}
             {showBlock && geoBlock && <GeoJSON key="block-layer" data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
             
-            {/* 3. ดินถล่ม (ลอยขึ้นมาเหนือหมู่บ้าน เพื่อให้คลิกติด และแสดง Popup) */}
+            {/* 3. ดินถล่ม (ลอยขึ้นมาเหนือหมู่บ้าน ชี้แล้วโชว์ Tooltip ทันที) */}
             {landslide && geoLandslideRisk && <GeoJSON key="landslide-layer" data={geoLandslideRisk} style={styleLandslide} onEachFeature={onEachLandslideFeature} />}
             
             {/* 4. แปลงที่ดิน (ลอยอยู่บนสุด ซูมเข้าไปชี้แล้วขึ้นป้ายชื่อเจ้าของทันที!) */}
@@ -495,7 +490,7 @@ export default function BoLuangDashboard() {
           </button>
           <div className="w-[320px] bg-[#0c1427]/95 border border-[#1e293b] rounded-xl shadow-2xl p-5 backdrop-blur-xl h-[calc(100vh-140px)] overflow-y-auto custom-scrollbar">
             <div className="flex items-start space-x-3 mb-3">
-              <div className="mt-1 text-[#56b6c2]"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" /></svg></div>
+              <div className="mt-1 text-[#56b6c2]"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" /></svg></div>
               <div className="w-full">
                 <h2 className="text-[16px] font-semibold tracking-wide text-white">Layers</h2>
                 <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">เปิด/ปิด ขอบเขตความรับผิดชอบและชั้นข้อมูลระดับเทศบาล</p>
@@ -536,7 +531,7 @@ export default function BoLuangDashboard() {
                 <div className="flex items-center mb-4"><div className="flex items-center text-[10px] text-[#f97316] tracking-widest font-semibold"><span className="mr-2">🚨</span> HAZARD & REPORTS</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
                 <div className="space-y-4 pl-1">
                   <CustomToggle label="จุดแจ้งปัญหาประชาชน (สีแดง)" active={citizenReport} onClick={() => setCitizenReport(!citizenReport)} dotColor="#ef4444" />
-                  <CustomToggle label="จุดเสี่ยงดินถล่ม (คลิกเพื่อดูระดับ)" active={landslide} onClick={() => setLandslide(!landslide)} dotColor="#eab308" />
+                  <CustomToggle label="จุดเสี่ยงดินถล่ม (ชี้เพื่อดูระดับ)" active={landslide} onClick={() => setLandslide(!landslide)} dotColor="#eab308" />
                   <CustomToggle label="จุดความร้อน Hotspot (สีส้ม)" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#f97316" />
                 </div>
               </div>
