@@ -60,7 +60,6 @@ export default function BoLuangDashboard() {
   const [iframeState, setIframeState] = useState({ lat: 18.1633, lng: 98.3744, zoom: 12 });
   const [transform, setTransform] = useState({ x: 0, y: 0 });
   const syncData = useRef({ lat: 18.1633, lng: 98.3744, zoom: 12 });
-  const transformRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     setMounted(true);
@@ -117,7 +116,7 @@ export default function BoLuangDashboard() {
     return cName;
   };
 
-  // 🖱️ ผูก Event แบบตามรูปอ้างอิงของคุณ 100%
+  // 🖱️ ผูก Event ลื่นไหล
   const onEachBlockFeature = (feature: any, layer: any) => {
     const props = feature?.properties || {};
     const rawName = props.own_villag || props.name_th || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || ''}`;
@@ -126,31 +125,29 @@ export default function BoLuangDashboard() {
     const colorIndex = String(rawName).length % BLOCK_COLORS.length;
     const defaultColor = props.fill || BLOCK_COLORS[colorIndex];
 
-    // ป้ายชื่อ (Tooltip) สีขาวล้วน ตัวหนังสือสีดำ ตามแบบรูปตัวอย่าง
     layer.bindTooltip(villageName, { 
       sticky: true, 
       direction: 'auto', 
       className: 'village-hover-tooltip' 
     });
 
-    // เอฟเฟกต์เวลาเอาเมาส์ชี้
     layer.on({
       mouseover: (e: any) => {
         const targetLayer = e.target;
         targetLayer.setStyle({ 
-          weight: 3,                 // เส้นขอบหนาขึ้น
-          color: '#ffffff',          // เส้นขอบทึบสีขาว (เหมือนในรูป)
+          weight: 3,                 
+          color: '#ffffff',          
           fillColor: defaultColor, 
-          fillOpacity: 0.6,          // สีพื้นหลังทึบขึ้นให้เห็นชัดเจน
-          dashArray: ''              // เปลี่ยนเป็นเส้นทึบ (Solid Line)
+          fillOpacity: 0.6,          
+          dashArray: ''              
         });
-        targetLayer.bringToFront();  // ดันพื้นที่นี้ขึ้นมาหน้าสุด ขอบขาวจะได้ไม่โดนทับ
+        targetLayer.bringToFront();  // ดันพื้นที่นี้ขึ้นมาหน้าสุด 
       },
       mouseout: (e: any) => {
         const targetLayer = e.target;
         targetLayer.setStyle({ 
           weight: 1.5, 
-          color: 'rgba(255, 255, 255, 0.3)', // กลับไปเป็นเส้นประสีขาวบางๆ
+          color: 'rgba(255, 255, 255, 0.3)', 
           fillOpacity: 0.12,  
           dashArray: '3, 3'
         });
@@ -187,7 +184,6 @@ export default function BoLuangDashboard() {
 
   const windyMapUrl = `https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=%C2%B0C&metricWind=km/h&zoom=${iframeState.zoom}&overlay=${windyType}&product=ecmwf&level=surface&lat=${iframeState.lat}&lon=${iframeState.lng}&detailLat=${iframeState.lat}&detailLon=${iframeState.lng}&marker=false`;
 
-  // 📍 Custom Markers
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
   const weatherIcon = useMemo(() => {
     if (!L) return null;
@@ -217,12 +213,15 @@ export default function BoLuangDashboard() {
   }, [L]);
 
   // =========================================================================
-  // 🎨 STYLES แบบ MINIMALIST
+  // 🎨 STYLES (ป้องกันการบล็อกเมาส์ด้วย interactive: false)
   // =========================================================================
-  const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0 }; 
-  const styleParcel = { color: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
-  const styleLandslide = (feature: any) => ({ color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', weight: 1, fillOpacity: 0.4 });
+  
+  // 🚨 ใส่ interactive: false ให้เลเยอร์ที่ไม่ต้องการชี้ เพื่อให้เมาส์ทะลุผ่านไปหาหมู่บ้านได้!
+  const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0, interactive: false }; 
+  const styleParcel = { color: '#4ade80', weight: 1, fillOpacity: 0.2, interactive: false }; 
+  const styleLandslide = (feature: any) => ({ color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', weight: 1, fillOpacity: 0.4, interactive: false });
 
+  // เลเยอร์ 13 หมู่บ้าน (ปล่อย interactive เป็น true ตามค่าเริ่มต้น เพื่อรับการคลิก/ชี้)
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
   const getBlockStyle = (feature: any) => {
     const props = feature?.properties || {};
@@ -246,7 +245,6 @@ export default function BoLuangDashboard() {
         .leaflet-bar a:hover { background-color: #1e293b !important; }
         .leaflet-div-icon { background: transparent !important; border: none !important; }
         
-        /* 🌟 ปรับแต่งกล่อง Tooltip ให้เหมือนรูปตัวอย่าง (สีขาวสะอาดตา) */
         .leaflet-tooltip.village-hover-tooltip { 
           background-color: #ffffff !important; 
           color: #0f172a !important; 
@@ -264,9 +262,6 @@ export default function BoLuangDashboard() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
       `}} />
 
-      {/* ========================================================
-          🗺️ MAP BACKGROUND & GIS LAYERS
-      ======================================================== */}
       <div className="absolute inset-0 z-0 bg-[#0b1120] overflow-hidden">
         
         <div 
@@ -283,15 +278,15 @@ export default function BoLuangDashboard() {
             {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
             {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} />}
             
-            {/* 🌟 ลำดับ Z-Index */}
-            {showParcel && geoParcel && <GeoJSON key={`parcel-${JSON.stringify(geoParcel).length}`} data={geoParcel} style={styleParcel} />}
-            {landslide && geoLandslideRisk && <GeoJSON key={`landslide-${JSON.stringify(geoLandslideRisk).length}`} data={geoLandslideRisk} style={styleLandslide} />}
+            {/* 🌟 ลำดับ Z-Index (ใช้คีย์สั้นๆ ลดการกระตุกเวลาซูมเข้าออก) */}
+            {showParcel && geoParcel && <GeoJSON key="parcel-layer" data={geoParcel} style={styleParcel} />}
+            {landslide && geoLandslideRisk && <GeoJSON key="landslide-layer" data={geoLandslideRisk} style={styleLandslide} />}
             
-            {/* 🌟 ขอบเขต 13 หมู่บ้าน (Hover โชว์ชื่อ + เปลี่ยนสีขอบเป็นสีขาวหนา) */}
-            {showBlock && geoBlock && <GeoJSON key={`block-${JSON.stringify(geoBlock).length}`} data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
+            {/* ขอบเขต 13 หมู่บ้าน (Hover โชว์ชื่อ + เปลี่ยนสีขอบ) */}
+            {showBlock && geoBlock && <GeoJSON key="block-layer" data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
             
-            {/* ขอบเขตตำบลบ่อหลวง (เส้นหนาชั้นบนสุด) */}
-            {showBoluang && geoBoluang && <GeoJSON key={`boluang-${JSON.stringify(geoBoluang).length}`} data={geoBoluang} style={styleBoluang} />}
+            {/* ขอบเขตตำบลบ่อหลวง (เส้นหนาชั้นบนสุด แต่เจาะทะลุได้) */}
+            {showBoluang && geoBoluang && <GeoJSON key="boluang-layer" data={geoBoluang} style={styleBoluang} />}
 
             {/* Markers ต่างๆ */}
             {mounted && tmdWeather && weatherIcon && <Marker position={[18.1633, 98.3744]} icon={weatherIcon} eventHandlers={{ click: () => setShowWeatherPopup(true) }} />}
