@@ -37,7 +37,7 @@ export default function BoLuangDashboard() {
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   
   const [showBoluang, setShowBoluang] = useState(true);   // boluang.json
-  const [showBlock, setShowBlock] = useState(true);       // block.json (13 หมู่บ้าน - แบบ Hover โชว์ชื่อ)
+  const [showBlock, setShowBlock] = useState(true);       // block.json (13 หมู่บ้าน)
   const [showParcel, setShowParcel] = useState(false);    // parcel.json
   const [landslide, setLandslide] = useState(true);       // boluang_landslide_risk.json
 
@@ -92,10 +92,12 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslideRisk);
   }, []);
 
-  // 🛡️ ฟังก์ชันจัดระเบียบชื่อหมู่บ้านให้สวยงาม สำหรับระบบ Hover Tooltip
-  const formatVillageName = (rawName: string) => {
+  // 🛡️ ฟังก์ชันจัดระเบียบชื่อหมู่บ้านให้สวยงาม (แก้ไข Type Error สำหรับ Vercel แล้ว 100%)
+  const formatVillageName = (rawName: any) => {
     if (!rawName) return 'พื้นที่หมู่บ้าน';
-    let cName = rawName.replace(/^(บ้าน|บ\.|หมู่ที่\s*\d+|หมู่\s*\d+)/, '').replace(/\s+/g, '');
+    const safeName = String(rawName); // แปลงเป็น String ชัวร์ๆ ป้องกัน Vercel Error
+    let cName = safeName.replace(/^(บ้าน|บ\.|หมู่ที่\s*\d+|หมู่\s*\d+)/, '').replace(/\s+/g, '');
+    
     if (cName.includes('บ่อหลวง')) cName = 'บ้านบ่อหลวง';
     else if (cName.includes('พะแวน')) cName = 'บ้านบ่อพะแวน';
     else if (cName.includes('สะแง')) cName = 'บ้านบ่อสะแง๋';
@@ -110,7 +112,8 @@ export default function BoLuangDashboard() {
     else if (cName.includes('แม่ลาย')) cName = 'บ้านแม่ลาย';
     else if (cName.includes('พุย')) cName = 'บ้านพุย';
     else if (cName.includes('เตียนอาง') || cName.includes('เดียนอาง')) cName = 'บ้านเตียนอาง';
-    else cName = `บ้าน${name.replace(/^บ้าน/, '')}`;
+    else cName = `บ้าน${cName}`; // ✅ แก้ไขบั๊กตัวแปร name.replace ที่ทำให้ Vercel พังแล้ว
+
     return cName;
   };
 
@@ -139,6 +142,63 @@ export default function BoLuangDashboard() {
       }
     });
   };
+
+  // 🛡️ อัลกอริทึมคำนวณจุดกึ่งกลางหมู่บ้าน (แก้ไขป้องกัน Vercel Error)
+  const villageLabels = useMemo(() => {
+    const vMap: Record<string, { sumLat: number, sumLng: number, count: number }> = {};
+    if (geoBlock && geoBlock.features) {
+      geoBlock.features.forEach((f: any) => {
+        const props = f.properties || {};
+        let rawName = props.own_villag || props.name_th || props.vil_name || props.name || props.zone_name;
+        if (!rawName) rawName = `หมู่ที่ ${props.zone_id || props.id || 'ไม่ระบุ'}`;
+        
+        const safeName = String(rawName);
+        let cName = safeName.replace(/^(บ้าน|บ\.|หมู่ที่\s*\d+|หมู่\s*\d+)/, '').replace(/\s+/g, '');
+        
+        if (cName.includes('บ่อหลวง')) cName = 'บ้านบ่อหลวง';
+        else if (cName.includes('พะแวน')) cName = 'บ้านบ่อพะแวน';
+        else if (cName.includes('สะแง')) cName = 'บ้านบ่อสะแง๋';
+        else if (cName.includes('แม่หืด')) cName = 'บ้านแม่หืด';
+        else if (cName.includes('อมขูด')) cName = 'บ้านอมขูด';
+        else if (cName.includes('แม่สะนาม')) cName = 'บ้านแม่สะนาม';
+        else if (cName.includes('กิ่วลม')) cName = 'บ้านกิ่วลม';
+        else if (cName.includes('วังกอง')) cName = 'บ้านวังกอง';
+        else if (cName === 'ขุน' || cName.includes('บ้านขุน')) cName = 'บ้านขุน';
+        else if (cName.includes('นาฟ่อน')) cName = 'บ้านนาฟ่อน';
+        else if (cName.includes('แม่ลายเหนือ')) cName = 'บ้านแม่ลายเหนือ';
+        else if (cName.includes('แม่ลาย')) cName = 'บ้านแม่ลาย';
+        else if (cName.includes('พุย')) cName = 'บ้านพุย';
+        else if (cName.includes('เตียนอาง') || cName.includes('เดียนอาง')) cName = 'บ้านเตียนอาง';
+        else cName = `บ้าน${cName}`; // ✅ ป้องกัน Vercel Type Error
+
+        let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+        const extractCoords = (coords: any[]) => {
+          if (!coords) return;
+          if (typeof coords[0] === 'number') {
+            if (coords[1] < minLat) minLat = coords[1];
+            if (coords[1] > maxLat) maxLat = coords[1];
+            if (coords[0] < minLng) minLng = coords[0];
+            if (coords[0] > maxLng) maxLng = coords[0];
+          } else if (Array.isArray(coords)) {
+            coords.forEach(extractCoords);
+          }
+        };
+        extractCoords(f.geometry?.coordinates);
+
+        if (minLat !== Infinity) {
+          if (!vMap[cName]) vMap[cName] = { sumLat: 0, sumLng: 0, count: 0 };
+          vMap[cName].sumLat += (minLat + maxLat) / 2;
+          vMap[cName].sumLng += (minLng + maxLng) / 2;
+          vMap[cName].count += 1;
+        }
+      });
+    }
+    return Object.keys(vMap).map(name => ({
+      name: name,
+      lat: vMap[name].sumLat / vMap[name].count,
+      lng: vMap[name].sumLng / vMap[name].count
+    }));
+  }, [geoBlock]);
 
   // 🧠 กลไกซิงค์ 2 แผนที่
   useEffect(() => {
@@ -205,7 +265,7 @@ export default function BoLuangDashboard() {
   const styleParcel = { color: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
   const styleLandslide = (feature: any) => ({ color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', weight: 1, fillOpacity: 0.4 });
 
-  // 13 สีสัน สำหรับ block.json (ปรับความโปร่งใสเหลือ 0.12 เพื่อความสะอาดตา ไม่บังเลเยอร์อื่น)
+  // 13 สีสัน สำหรับ block.json (โปร่งใส 0.12)
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
   const getBlockStyle = (feature: any) => {
     const props = feature?.properties || {};
@@ -215,7 +275,7 @@ export default function BoLuangDashboard() {
       fillColor: props.fill || BLOCK_COLORS[colorIndex], 
       weight: 1.5,      
       color: '#ffffff',  
-      fillOpacity: 0.12,  // โปร่งใสสบายตา ไม่บังเลเยอร์อื่น
+      fillOpacity: 0.12,  
       dashArray: '3, 3'
     };
   };
@@ -228,7 +288,7 @@ export default function BoLuangDashboard() {
         .leaflet-bar a { background-color: #0f172a !important; color: #fff !important; border: 1px solid #1e293b !important; border-radius: 8px !important; }
         .leaflet-bar a:hover { background-color: #1e293b !important; }
         .leaflet-div-icon { background: transparent !important; border: none !important; }
-        /* ซ่อนกรอบพื้นหลัง Tooltip เดิมของ Leaflet */
+        /* ซ่อนกรอบ Tooltip สีขาวเดิมของ Leaflet ให้ใสปิ๊ง */
         .leaflet-tooltip.custom-map-tooltip { background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
         .leaflet-tooltip-pane .leaflet-tooltip { margin-top: -10px; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
@@ -313,7 +373,7 @@ export default function BoLuangDashboard() {
       </header>
 
       {/* ========================================================
-          📍 แอดมิน / แผงควบคุมด้านซ้าย (WEATHER & AIR)
+          📍 แผงควบคุมด้านซ้าย (WEATHER & AIR)
       ======================================================== */}
       <aside className="absolute top-24 left-4 z-40 w-[340px] bg-[#0c1427]/95 border border-[#1e293b] rounded-2xl shadow-2xl p-6 backdrop-blur-xl pointer-events-auto">
         <div className="flex items-center space-x-3 mb-2">
