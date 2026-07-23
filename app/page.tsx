@@ -37,8 +37,8 @@ export default function BoLuangDashboard() {
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   
   const [showBoluang, setShowBoluang] = useState(true);   // boluang.json
-  const [showBlock, setShowBlock] = useState(true);       // block.json (13 หมู่บ้าน)
-  const [showParcel, setShowParcel] = useState(false);    // parcel.json (แปลงที่ดิน)
+  const [showBlock, setShowBlock] = useState(true);       // block.json
+  const [showParcel, setShowParcel] = useState(true);     // parcel.json (เปิดไว้ดูเลย)
   const [landslide, setLandslide] = useState(true);       // boluang_landslide_risk.json
 
   const [citizenReport, setCitizenReport] = useState(false);
@@ -91,7 +91,7 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslideRisk);
   }, []);
 
-  // 🛡️ จัดระเบียบชื่อ 13 หมู่บ้าน
+  // 🛡️ จัดระเบียบชื่อหมู่บ้าน
   const formatVillageName = (rawName: any) => {
     if (!rawName) return 'พื้นที่หมู่บ้าน';
     const safeName = String(rawName); 
@@ -155,27 +155,41 @@ export default function BoLuangDashboard() {
     });
   };
 
-  // 🖱️ Event สำหรับ แปลงที่ดินรายบุคคล (Hover)
+  // 🖱️ Event สำหรับ แปลงที่ดินรายบุคคล (ดึงข้อมูลตามที่คุณวงไว้)
   const onEachParcelFeature = (feature: any, layer: any) => {
     const props = feature?.properties || {};
-    // ดึงรหัสแปลงที่ดินจากไฟล์ ถ้าไม่มีให้แสดงคำว่า 'ไม่ระบุ'
-    const parcelId = props.id || props.PARCEL_NO || props.parcel_no || props.code || 'ไม่ระบุ';
+    
+    // ดึงตัวแปรจากไฟล์ JSON ตามรูปที่คุณส่งมา
+    const parcelCode = props.parcel_cod || props.id || props.PARCEL_NO || '-';
+    const ownerName = props.owner || (props.own_fname ? `${props.own_fname} ${props.own_lname || ''}` : 'ไม่ระบุชื่อ');
+    const village = props.own_villag || 'ไม่ระบุ';
+    const landType = props.land_type || '-';
 
+    // สร้าง Tooltip สวยๆ แบบมีโครงสร้าง
     layer.bindTooltip(`
-      <div class="px-2.5 py-1 text-[12px] font-medium text-[#10b981] bg-[#0f172a]/95 border border-[#10b981] rounded-md shadow-lg">
-        📄 แปลงที่ดิน: ${parcelId}
+      <div class="px-4 py-3 text-[12px] text-[#0f172a] bg-white/95 border-2 border-[#10b981] rounded-xl shadow-xl font-sans min-w-[200px]">
+        <div class="font-bold text-[14px] text-[#10b981] mb-2 border-b border-gray-200 pb-1.5 flex items-center">
+          <span class="mr-1.5">📄</span> รหัสแปลง: ${parcelCode}
+        </div>
+        <div class="grid grid-cols-[60px_1fr] gap-x-2 gap-y-1.5 mt-2">
+          <span class="text-gray-500 font-semibold">เจ้าของ:</span> <span class="font-bold text-gray-800">${ownerName}</span>
+          <span class="text-gray-500 font-semibold">หมู่บ้าน:</span> <span class="text-gray-700">${village}</span>
+          <span class="text-gray-500 font-semibold">ประเภท:</span> <span class="text-gray-700">${landType}</span>
+        </div>
       </div>
     `, { sticky: true, direction: 'auto', className: 'custom-map-tooltip' });
 
     layer.on({
       mouseover: (e: any) => {
         const targetLayer = e.target;
-        targetLayer.setStyle({ weight: 2, color: '#10b981', fillOpacity: 0.5 });
+        // เวลาชี้ให้แปลงที่ดินเป็นสีเขียวทึบขอบสว่าง
+        targetLayer.setStyle({ weight: 2.5, color: '#10b981', fillColor: '#34d399', fillOpacity: 0.7 });
         targetLayer.bringToFront(); 
       },
       mouseout: (e: any) => {
         const targetLayer = e.target;
-        targetLayer.setStyle({ weight: 1, color: '#4ade80', fillOpacity: 0.15 });
+        // เวลาเอาเมาส์ออก ให้กลับไปสีเขียวจางๆ
+        targetLayer.setStyle({ weight: 1, color: '#4ade80', fillColor: '#4ade80', fillOpacity: 0.2 });
       }
     });
   };
@@ -245,8 +259,8 @@ export default function BoLuangDashboard() {
   const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0, interactive: false }; 
   const styleLandslide = (feature: any) => ({ color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', weight: 1, fillOpacity: 0.4, interactive: false });
 
-  // แปลงที่ดิน Default (Interactive เปิดอยู่เพื่อรับ Hover)
-  const styleParcel = { color: '#4ade80', weight: 1, fillOpacity: 0.15 }; 
+  // แปลงที่ดิน สีเขียวสะท้อนแสงนิดๆ ให้ดูต่างจากป่า
+  const styleParcel = { color: '#4ade80', fillColor: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
 
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
   const getBlockStyle = (feature: any) => {
@@ -271,6 +285,7 @@ export default function BoLuangDashboard() {
         .leaflet-bar a:hover { background-color: #1e293b !important; }
         .leaflet-div-icon { background: transparent !important; border: none !important; }
         
+        /* Tooltip หมู่บ้าน */
         .leaflet-tooltip.village-hover-tooltip { 
           background-color: #ffffff !important; 
           color: #0f172a !important; 
@@ -283,6 +298,7 @@ export default function BoLuangDashboard() {
           box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
         }
 
+        /* Tooltip แปลงที่ดิน ลบกรอบขาวเดิมทิ้ง */
         .leaflet-tooltip.custom-map-tooltip { background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
         
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
@@ -314,11 +330,11 @@ export default function BoLuangDashboard() {
             {/* 2. ดินถล่ม (ให้ทะลุผ่านเมาส์ได้) */}
             {landslide && geoLandslideRisk && <GeoJSON key="landslide-layer" data={geoLandslideRisk} style={styleLandslide} />}
             
-            {/* 3. ขอบเขต 13 หมู่บ้าน (รับ Hover แต่ถ้ามีแปลงที่ดินทับอยู่ จะส่งเมาส์ต่อให้แปลงที่ดิน) */}
+            {/* 3. ขอบเขต 13 หมู่บ้าน */}
             {showBlock && geoBlock && <GeoJSON key="block-layer" data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
             
-            {/* 4. แปลงที่ดิน (ลอยอยู่บนสุด รับเมาส์ก่อนใครเพื่อน ซูมเข้าไปชี้ได้เลย!) */}
-            {showParcel && geoParcel && <GeoJSON key="parcel-layer" data={geoParcel} style={styleParcel} onEachFeature={onEachParcelFeature} />}
+            {/* 4. แปลงที่ดิน (ลอยอยู่บนสุด ซูมเข้าไปชี้แล้วขึ้นป้ายชื่อเจ้าของทันที!) */}
+            {showParcel && geoParcel && <GeoJSON key={`parcel-layer-${JSON.stringify(geoParcel).length}`} data={geoParcel} style={styleParcel} onEachFeature={onEachParcelFeature} />}
 
             {/* Markers ต่างๆ */}
             {mounted && tmdWeather && weatherIcon && <Marker position={[18.1633, 98.3744]} icon={weatherIcon} eventHandlers={{ click: () => setShowWeatherPopup(true) }} />}
