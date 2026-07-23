@@ -37,7 +37,7 @@ export default function BoLuangDashboard() {
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   
   const [showBoluang, setShowBoluang] = useState(true);   // boluang.json
-  const [showBlock, setShowBlock] = useState(true);       // block.json (13 หมู่บ้าน)
+  const [showBlock, setShowBlock] = useState(true);       // block.json
   const [showParcel, setShowParcel] = useState(false);    // parcel.json
   const [landslide, setLandslide] = useState(true);       // boluang_landslide_risk.json
 
@@ -92,10 +92,10 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslideRisk);
   }, []);
 
-  // 🛡️ ฟังก์ชันจัดระเบียบชื่อหมู่บ้านให้สวยงาม (แก้ไข Type Error สำหรับ Vercel แล้ว 100%)
+  // 🛡️ จัดฟอร์แมตชื่อหมู่บ้าน
   const formatVillageName = (rawName: any) => {
     if (!rawName) return 'พื้นที่หมู่บ้าน';
-    const safeName = String(rawName); // แปลงเป็น String ชัวร์ๆ ป้องกัน Vercel Error
+    const safeName = String(rawName);
     let cName = safeName.replace(/^(บ้าน|บ\.|หมู่ที่\s*\d+|หมู่\s*\d+)/, '').replace(/\s+/g, '');
     
     if (cName.includes('บ่อหลวง')) cName = 'บ้านบ่อหลวง';
@@ -112,93 +112,48 @@ export default function BoLuangDashboard() {
     else if (cName.includes('แม่ลาย')) cName = 'บ้านแม่ลาย';
     else if (cName.includes('พุย')) cName = 'บ้านพุย';
     else if (cName.includes('เตียนอาง') || cName.includes('เดียนอาง')) cName = 'บ้านเตียนอาง';
-    else cName = `บ้าน${cName}`; // ✅ แก้ไขบั๊กตัวแปร name.replace ที่ทำให้ Vercel พังแล้ว
+    else cName = `บ้าน${cName}`;
 
     return cName;
   };
 
-  // 🖱️ ผูก Event เมื่อเอาเมาส์ชี้ (Hover) ที่แต่ละแปลงหมู่บ้านใน block.json
+  // 🖱️ ผูก Event แบบ Minimalist (ซ่อนสีตอนปกติ สว่างตอน Hover)
   const onEachBlockFeature = (feature: any, layer: any) => {
     const props = feature?.properties || {};
     const rawName = props.own_villag || props.name_th || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || ''}`;
     const villageName = formatVillageName(rawName);
 
-    // ผูก Tooltip ให้แสดงชื่อเมื่อชี้เมาส์
+    // สีตั้งต้นของหมู่บ้านนั้นๆ (ดึงมาเก็บไว้ใช้ตอน Hover)
+    const colorIndex = String(rawName).length % BLOCK_COLORS.length;
+    const highlightColor = props.fill || BLOCK_COLORS[colorIndex];
+
     layer.bindTooltip(`
-      <div class="px-2.5 py-1 text-[13px] font-bold text-[#fcd34d] bg-[#0f172a]/95 border border-[#fcd34d] rounded-md shadow-lg">
+      <div class="px-2.5 py-1 text-[13px] font-bold text-[#1e293b] bg-white/95 border border-[#cbd5e1] rounded shadow-lg">
         📍 ${villageName}
       </div>
     `, { sticky: true, direction: 'auto', className: 'custom-map-tooltip' });
 
-    // เอฟเฟกต์เวลาเอาเมาส์ชี้ ให้เส้นขอบหนาขึ้นและสว่างขึ้น
     layer.on({
       mouseover: (e: any) => {
         const targetLayer = e.target;
-        targetLayer.setStyle({ weight: 3, color: '#fcd34d', fillOpacity: 0.35 });
+        // 🌟 ตอนเอาเมาส์ชี้ -> ให้สีสว่างขึ้น และเส้นขอบชัดขึ้น
+        targetLayer.setStyle({ 
+          weight: 2.5, 
+          color: highlightColor, // ใช้สีหมู่บ้านมาเป็นสีเส้นขอบ
+          fillOpacity: 0.25      // ให้เห็นสีพื้นหลังจางๆ
+        });
       },
       mouseout: (e: any) => {
         const targetLayer = e.target;
-        targetLayer.setStyle({ weight: 1.5, color: '#ffffff', fillOpacity: 0.12 });
+        // 🌟 ตอนเอาเมาส์ออก -> กลับไปโปร่งใสแทบ 100% เส้นประบางๆ
+        targetLayer.setStyle({ 
+          weight: 1, 
+          color: 'rgba(255, 255, 255, 0.3)', // เส้นขาวโปร่งแสง
+          fillOpacity: 0.02                  // แทบไม่มีสีพื้นหลัง
+        });
       }
     });
   };
-
-  // 🛡️ อัลกอริทึมคำนวณจุดกึ่งกลางหมู่บ้าน (แก้ไขป้องกัน Vercel Error)
-  const villageLabels = useMemo(() => {
-    const vMap: Record<string, { sumLat: number, sumLng: number, count: number }> = {};
-    if (geoBlock && geoBlock.features) {
-      geoBlock.features.forEach((f: any) => {
-        const props = f.properties || {};
-        let rawName = props.own_villag || props.name_th || props.vil_name || props.name || props.zone_name;
-        if (!rawName) rawName = `หมู่ที่ ${props.zone_id || props.id || 'ไม่ระบุ'}`;
-        
-        const safeName = String(rawName);
-        let cName = safeName.replace(/^(บ้าน|บ\.|หมู่ที่\s*\d+|หมู่\s*\d+)/, '').replace(/\s+/g, '');
-        
-        if (cName.includes('บ่อหลวง')) cName = 'บ้านบ่อหลวง';
-        else if (cName.includes('พะแวน')) cName = 'บ้านบ่อพะแวน';
-        else if (cName.includes('สะแง')) cName = 'บ้านบ่อสะแง๋';
-        else if (cName.includes('แม่หืด')) cName = 'บ้านแม่หืด';
-        else if (cName.includes('อมขูด')) cName = 'บ้านอมขูด';
-        else if (cName.includes('แม่สะนาม')) cName = 'บ้านแม่สะนาม';
-        else if (cName.includes('กิ่วลม')) cName = 'บ้านกิ่วลม';
-        else if (cName.includes('วังกอง')) cName = 'บ้านวังกอง';
-        else if (cName === 'ขุน' || cName.includes('บ้านขุน')) cName = 'บ้านขุน';
-        else if (cName.includes('นาฟ่อน')) cName = 'บ้านนาฟ่อน';
-        else if (cName.includes('แม่ลายเหนือ')) cName = 'บ้านแม่ลายเหนือ';
-        else if (cName.includes('แม่ลาย')) cName = 'บ้านแม่ลาย';
-        else if (cName.includes('พุย')) cName = 'บ้านพุย';
-        else if (cName.includes('เตียนอาง') || cName.includes('เดียนอาง')) cName = 'บ้านเตียนอาง';
-        else cName = `บ้าน${cName}`; // ✅ ป้องกัน Vercel Type Error
-
-        let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
-        const extractCoords = (coords: any[]) => {
-          if (!coords) return;
-          if (typeof coords[0] === 'number') {
-            if (coords[1] < minLat) minLat = coords[1];
-            if (coords[1] > maxLat) maxLat = coords[1];
-            if (coords[0] < minLng) minLng = coords[0];
-            if (coords[0] > maxLng) maxLng = coords[0];
-          } else if (Array.isArray(coords)) {
-            coords.forEach(extractCoords);
-          }
-        };
-        extractCoords(f.geometry?.coordinates);
-
-        if (minLat !== Infinity) {
-          if (!vMap[cName]) vMap[cName] = { sumLat: 0, sumLng: 0, count: 0 };
-          vMap[cName].sumLat += (minLat + maxLat) / 2;
-          vMap[cName].sumLng += (minLng + maxLng) / 2;
-          vMap[cName].count += 1;
-        }
-      });
-    }
-    return Object.keys(vMap).map(name => ({
-      name: name,
-      lat: vMap[name].sumLat / vMap[name].count,
-      lng: vMap[name].sumLng / vMap[name].count
-    }));
-  }, [geoBlock]);
 
   // 🧠 กลไกซิงค์ 2 แผนที่
   useEffect(() => {
@@ -259,13 +214,14 @@ export default function BoLuangDashboard() {
   }, [L]);
 
   // =========================================================================
-  // 🎨 STYLES
+  // 🎨 STYLES แบบ MINIMALIST
   // =========================================================================
-  const styleBoluang = { color: '#0ea5e9', weight: 4.5, fillOpacity: 0 }; 
+  // ขอบเขตตำบล: ใช้เส้นสีฟ้าทึบ หนานิดนึง เพื่อตีกรอบนอกสุดให้ชัด
+  const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0 }; 
   const styleParcel = { color: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
   const styleLandslide = (feature: any) => ({ color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', weight: 1, fillOpacity: 0.4 });
 
-  // 13 สีสัน สำหรับ block.json (โปร่งใส 0.12)
+  // ขอบเขตหมู่บ้าน 13 สีสัน: ตั้งค่า Default ให้ "ซ่อน" (เห็นแค่เส้นประบางๆ)
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
   const getBlockStyle = (feature: any) => {
     const props = feature?.properties || {};
@@ -273,10 +229,10 @@ export default function BoLuangDashboard() {
     const colorIndex = String(name).length % BLOCK_COLORS.length;
     return {
       fillColor: props.fill || BLOCK_COLORS[colorIndex], 
-      weight: 1.5,      
-      color: '#ffffff',  
-      fillOpacity: 0.12,  
-      dashArray: '3, 3'
+      weight: 1,      
+      color: 'rgba(255, 255, 255, 0.3)',  // เส้นประสีขาวจางๆ
+      fillOpacity: 0.02,                  // โปร่งใส 98%
+      dashArray: '5, 5'
     };
   };
 
@@ -288,7 +244,7 @@ export default function BoLuangDashboard() {
         .leaflet-bar a { background-color: #0f172a !important; color: #fff !important; border: 1px solid #1e293b !important; border-radius: 8px !important; }
         .leaflet-bar a:hover { background-color: #1e293b !important; }
         .leaflet-div-icon { background: transparent !important; border: none !important; }
-        /* ซ่อนกรอบ Tooltip สีขาวเดิมของ Leaflet ให้ใสปิ๊ง */
+        /* สไตล์ Tooltip แบบ Minimal สะอาดตา */
         .leaflet-tooltip.custom-map-tooltip { background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
         .leaflet-tooltip-pane .leaflet-tooltip { margin-top: -10px; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
@@ -319,7 +275,7 @@ export default function BoLuangDashboard() {
             {showParcel && geoParcel && <GeoJSON key={`parcel-${JSON.stringify(geoParcel).length}`} data={geoParcel} style={styleParcel} />}
             {landslide && geoLandslideRisk && <GeoJSON key={`landslide-${JSON.stringify(geoLandslideRisk).length}`} data={geoLandslideRisk} style={styleLandslide} />}
             
-            {/* ขอบเขต 13 หมู่บ้าน พร้อมฟังก์ชัน Hover แสดงชื่อ */}
+            {/* ขอบเขต 13 หมู่บ้าน (ซ่อนสีพื้น โชว์ตอน Hover) */}
             {showBlock && geoBlock && <GeoJSON key={`block-${JSON.stringify(geoBlock).length}`} data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
             
             {/* ขอบเขตตำบลบ่อหลวง (เส้นหนาชั้นบนสุด) */}
@@ -371,6 +327,22 @@ export default function BoLuangDashboard() {
           <span className="mr-2">📍</span> GIS Layers • Bo Luang
         </div>
       </header>
+
+      {/* ========================================================
+          📍 แถบข้อมูลแผนที่ด้านล่างซ้าย
+      ======================================================== */}
+      <div className="absolute bottom-6 left-6 z-40 flex flex-col space-y-2 pointer-events-auto">
+        <button className="w-8 h-8 bg-[#0c1427]/90 border border-[#1e293b] rounded-lg flex items-center justify-center text-white hover:bg-[#1e293b] shadow-lg backdrop-blur-md transition-colors">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+        </button>
+        <div className="flex items-center space-x-4 bg-[#0c1427]/90 border border-[#1e293b] rounded-lg px-4 py-2 text-[10px] text-gray-400 shadow-lg backdrop-blur-md">
+          <div>Base map: <span className="text-white font-medium">Windy Weather + Dark Matter</span></div>
+          <div>CRS: <span className="text-[#38bdf8] font-medium">WGS84</span></div>
+          <div className="font-mono text-white bg-[#0f172a] px-2 py-0.5 rounded border border-gray-700">
+            {iframeState.lat.toFixed(4)}° N, {iframeState.lng.toFixed(4)}° E
+          </div>
+        </div>
+      </div>
 
       {/* ========================================================
           📍 แผงควบคุมด้านซ้าย (WEATHER & AIR)
@@ -438,7 +410,7 @@ export default function BoLuangDashboard() {
           </button>
           <div className="w-[320px] bg-[#0c1427]/95 border border-[#1e293b] rounded-xl shadow-2xl p-5 backdrop-blur-xl h-[calc(100vh-140px)] overflow-y-auto custom-scrollbar">
             <div className="flex items-start space-x-3 mb-3">
-              <div className="mt-1 text-[#56b6c2]"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" /></svg></div>
+              <div className="mt-1 text-[#56b6c2]"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" /></svg></div>
               <div className="w-full">
                 <h2 className="text-[16px] font-semibold tracking-wide text-white">Layers</h2>
                 <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">เปิด/ปิด ขอบเขตความรับผิดชอบและชั้นข้อมูลระดับเทศบาล</p>
