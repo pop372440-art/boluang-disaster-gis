@@ -38,7 +38,7 @@ export default function BoLuangDashboard() {
   
   const [showBoluang, setShowBoluang] = useState(true);   // boluang.json
   const [showBlock, setShowBlock] = useState(true);       // block.json
-  const [showParcel, setShowParcel] = useState(true);     // parcel.json (เปิดไว้ดูเลย)
+  const [showParcel, setShowParcel] = useState(true);     // parcel.json
   const [landslide, setLandslide] = useState(true);       // boluang_landslide_risk.json
 
   const [citizenReport, setCitizenReport] = useState(false);
@@ -116,7 +116,44 @@ export default function BoLuangDashboard() {
     return cName;
   };
 
-  // 🖱️ Event สำหรับ 13 หมู่บ้าน (Hover)
+  // 🖱️ Event สำหรับจุดเสี่ยงดินถล่ม (โชว์ข้อมูลด้วยการ "คลิก" เท่านั้น)
+  const onEachLandslideFeature = (feature: any, layer: any) => {
+    const props = feature?.properties || {};
+    
+    // ดึงข้อมูลตามที่คุณส่งรูปมา
+    const areaName = props.tam_nam_t || 'ต.บ่อหลวง';
+    const riskClass = props.class || '-';
+    const riskLevel = props.ls_desth || props.LS_DESTH || 'ไม่ระบุ';
+
+    // ใช้ bindPopup แทน bindTooltip เพื่อให้ต้อง "คลิก" ถึงจะแสดงข้อมูล
+    layer.bindPopup(`
+      <div class="p-1 font-sans">
+        <div class="font-bold text-[14px] text-[#ea580c] mb-1.5 border-b border-gray-200 pb-1 flex items-center">
+          <span class="mr-1.5">⚠️</span> พื้นที่เสี่ยงดินถล่ม
+        </div>
+        <div class="grid grid-cols-[70px_1fr] gap-x-2 gap-y-1 text-[12px] mt-1.5">
+          <span class="text-gray-500 font-semibold">พื้นที่:</span> <span class="font-bold text-gray-800">${areaName}</span>
+          <span class="text-gray-500 font-semibold">ระดับ (Class):</span> <span class="font-bold text-red-600">${riskClass}</span>
+          <span class="text-gray-500 font-semibold">ความเสี่ยง:</span> <span class="font-bold text-[#ea580c]">${riskLevel}</span>
+        </div>
+      </div>
+    `, { className: 'custom-landslide-popup' });
+
+    // เพิ่มเอฟเฟกต์สีสว่างขึ้นเวลาเอาเมาส์พาดผ่าน (ให้รู้ว่ากดได้)
+    layer.on({
+      mouseover: (e: any) => {
+        const targetLayer = e.target;
+        targetLayer.setStyle({ weight: 2.5, fillOpacity: 0.8 });
+        targetLayer.bringToFront(); 
+      },
+      mouseout: (e: any) => {
+        const targetLayer = e.target;
+        targetLayer.setStyle({ weight: 1.5, fillOpacity: 0.5 });
+      }
+    });
+  };
+
+  // 🖱️ Event สำหรับ 13 หมู่บ้าน
   const onEachBlockFeature = (feature: any, layer: any) => {
     const props = feature?.properties || {};
     const rawName = props.own_villag || props.name_th || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || ''}`;
@@ -134,38 +171,24 @@ export default function BoLuangDashboard() {
     layer.on({
       mouseover: (e: any) => {
         const targetLayer = e.target;
-        targetLayer.setStyle({ 
-          weight: 3,                 
-          color: '#ffffff',          
-          fillColor: defaultColor, 
-          fillOpacity: 0.6,          
-          dashArray: ''              
-        });
+        targetLayer.setStyle({ weight: 3, color: '#ffffff', fillColor: defaultColor, fillOpacity: 0.6, dashArray: '' });
         targetLayer.bringToFront(); 
       },
       mouseout: (e: any) => {
         const targetLayer = e.target;
-        targetLayer.setStyle({ 
-          weight: 1.5, 
-          color: 'rgba(255, 255, 255, 0.3)', 
-          fillOpacity: 0.12,  
-          dashArray: '3, 3'
-        });
+        targetLayer.setStyle({ weight: 1.5, color: 'rgba(255, 255, 255, 0.3)', fillOpacity: 0.12, dashArray: '3, 3' });
       }
     });
   };
 
-  // 🖱️ Event สำหรับ แปลงที่ดินรายบุคคล (ดึงข้อมูลตามที่คุณวงไว้)
+  // 🖱️ Event สำหรับ แปลงที่ดินรายบุคคล
   const onEachParcelFeature = (feature: any, layer: any) => {
     const props = feature?.properties || {};
-    
-    // ดึงตัวแปรจากไฟล์ JSON ตามรูปที่คุณส่งมา
     const parcelCode = props.parcel_cod || props.id || props.PARCEL_NO || '-';
     const ownerName = props.owner || (props.own_fname ? `${props.own_fname} ${props.own_lname || ''}` : 'ไม่ระบุชื่อ');
     const village = props.own_villag || 'ไม่ระบุ';
     const landType = props.land_type || '-';
 
-    // สร้าง Tooltip สวยๆ แบบมีโครงสร้าง
     layer.bindTooltip(`
       <div class="px-4 py-3 text-[12px] text-[#0f172a] bg-white/95 border-2 border-[#10b981] rounded-xl shadow-xl font-sans min-w-[200px]">
         <div class="font-bold text-[14px] text-[#10b981] mb-2 border-b border-gray-200 pb-1.5 flex items-center">
@@ -182,13 +205,11 @@ export default function BoLuangDashboard() {
     layer.on({
       mouseover: (e: any) => {
         const targetLayer = e.target;
-        // เวลาชี้ให้แปลงที่ดินเป็นสีเขียวทึบขอบสว่าง
         targetLayer.setStyle({ weight: 2.5, color: '#10b981', fillColor: '#34d399', fillOpacity: 0.7 });
         targetLayer.bringToFront(); 
       },
       mouseout: (e: any) => {
         const targetLayer = e.target;
-        // เวลาเอาเมาส์ออก ให้กลับไปสีเขียวจางๆ
         targetLayer.setStyle({ weight: 1, color: '#4ade80', fillColor: '#4ade80', fillOpacity: 0.2 });
       }
     });
@@ -255,11 +276,18 @@ export default function BoLuangDashboard() {
   // 🎨 STYLES
   // =========================================================================
   
-  // ให้ขอบเขตตำบลและดินถล่ม ทะลุผ่านเมาส์ได้ (interactive: false)
+  // ขอบเขตตำบล (ล่างสุด ให้เมาส์ทะลุผ่าน)
   const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0, interactive: false }; 
-  const styleLandslide = (feature: any) => ({ color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', weight: 1, fillOpacity: 0.4, interactive: false });
 
-  // แปลงที่ดิน สีเขียวสะท้อนแสงนิดๆ ให้ดูต่างจากป่า
+  // ดินถล่ม (เปลี่ยน interactive เป็น true แล้ว เพื่อให้ "คลิก" ได้)
+  const styleLandslide = (feature: any) => ({ 
+    color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', 
+    fillColor: feature.properties?.class === 1 ? '#ef4444' : '#f97316', 
+    weight: 1.5, 
+    fillOpacity: 0.5, 
+    interactive: true 
+  });
+
   const styleParcel = { color: '#4ade80', fillColor: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
 
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
@@ -285,7 +313,6 @@ export default function BoLuangDashboard() {
         .leaflet-bar a:hover { background-color: #1e293b !important; }
         .leaflet-div-icon { background: transparent !important; border: none !important; }
         
-        /* Tooltip หมู่บ้าน */
         .leaflet-tooltip.village-hover-tooltip { 
           background-color: #ffffff !important; 
           color: #0f172a !important; 
@@ -298,9 +325,12 @@ export default function BoLuangDashboard() {
           box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
         }
 
-        /* Tooltip แปลงที่ดิน ลบกรอบขาวเดิมทิ้ง */
         .leaflet-tooltip.custom-map-tooltip { background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
         
+        /* ตัดขอบขาวของ Popup กล่องคลิกให้ออกมาสวยงาม */
+        .leaflet-popup.custom-landslide-popup .leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        .leaflet-popup.custom-landslide-popup .leaflet-popup-tip { box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
@@ -327,11 +357,11 @@ export default function BoLuangDashboard() {
             {/* 1. ขอบเขตตำบลบ่อหลวง (ล่างสุด ไม่บังใคร) */}
             {showBoluang && geoBoluang && <GeoJSON key="boluang-layer" data={geoBoluang} style={styleBoluang} />}
 
-            {/* 2. ดินถล่ม (ให้ทะลุผ่านเมาส์ได้) */}
-            {landslide && geoLandslideRisk && <GeoJSON key="landslide-layer" data={geoLandslideRisk} style={styleLandslide} />}
-            
-            {/* 3. ขอบเขต 13 หมู่บ้าน */}
+            {/* 2. ขอบเขต 13 หมู่บ้าน (ย้ายมาอยู่ข้างล่าง เพื่อให้จุดดินถล่มลอยอยู่เหนือหมู่บ้าน) */}
             {showBlock && geoBlock && <GeoJSON key="block-layer" data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
+            
+            {/* 3. ดินถล่ม (ลอยขึ้นมาเหนือหมู่บ้าน เพื่อให้คลิกติด และแสดง Popup) */}
+            {landslide && geoLandslideRisk && <GeoJSON key="landslide-layer" data={geoLandslideRisk} style={styleLandslide} onEachFeature={onEachLandslideFeature} />}
             
             {/* 4. แปลงที่ดิน (ลอยอยู่บนสุด ซูมเข้าไปชี้แล้วขึ้นป้ายชื่อเจ้าของทันที!) */}
             {showParcel && geoParcel && <GeoJSON key={`parcel-layer-${JSON.stringify(geoParcel).length}`} data={geoParcel} style={styleParcel} onEachFeature={onEachParcelFeature} />}
@@ -506,7 +536,7 @@ export default function BoLuangDashboard() {
                 <div className="flex items-center mb-4"><div className="flex items-center text-[10px] text-[#f97316] tracking-widest font-semibold"><span className="mr-2">🚨</span> HAZARD & REPORTS</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
                 <div className="space-y-4 pl-1">
                   <CustomToggle label="จุดแจ้งปัญหาประชาชน (สีแดง)" active={citizenReport} onClick={() => setCitizenReport(!citizenReport)} dotColor="#ef4444" />
-                  <CustomToggle label="จุดเสี่ยงดินถล่ม (สีเหลือง/ส้ม)" active={landslide} onClick={() => setLandslide(!landslide)} dotColor="#eab308" />
+                  <CustomToggle label="จุดเสี่ยงดินถล่ม (คลิกเพื่อดูระดับ)" active={landslide} onClick={() => setLandslide(!landslide)} dotColor="#eab308" />
                   <CustomToggle label="จุดความร้อน Hotspot (สีส้ม)" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#f97316" />
                 </div>
               </div>
