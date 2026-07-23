@@ -7,7 +7,6 @@ import 'leaflet/dist/leaflet.css';
 // 🗺️ โหลด Leaflet แบบ Dynamic
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
-const WMSTileLayer = dynamic(() => import('react-leaflet').then(mod => mod.WMSTileLayer), { ssr: false });
 const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
 const ZoomControl = dynamic(() => import('react-leaflet').then(mod => mod.ZoomControl), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
@@ -39,59 +38,37 @@ const getWmoWeatherDesc = (code: number) => {
   return codes[code] || 'สภาพอากาศปกติ';
 };
 
-// 📍 ข้อมูลจุดสังเกตการณ์ระดับประเทศ (สถานีหลักจำลองพิกัด)
-const nationalStations = [
-  { name: 'เชียงใหม่', lat: 18.7883, lng: 98.9853 },
-  { name: 'กรุงเทพมหานคร', lat: 13.7563, lng: 100.5018 },
-  { name: 'ขอนแก่น', lat: 16.4322, lng: 102.8236 },
-  { name: 'สงขลา', lat: 7.1898, lng: 100.5954 },
-  { name: 'นครราชสีมา', lat: 14.9799, lng: 102.0978 },
-  { name: 'ชลบุรี', lat: 13.3611, lng: 100.9847 },
-  { name: 'ภูเก็ต', lat: 7.8804, lng: 98.3922 },
-  { name: 'อุบลราชธานี', lat: 15.2448, lng: 104.8473 },
-  { name: 'นครสวรรค์', lat: 15.7001, lng: 100.1355 },
-  { name: 'เชียงราย', lat: 19.9070, lng: 99.8325 },
-  { name: 'ตาก', lat: 16.8839, lng: 99.1258 },
-  { name: 'กาญจนบุรี', lat: 14.0041, lng: 99.5316 },
-  { name: 'สุราษฎร์ธานี', lat: 9.1332, lng: 99.3195 },
-  { name: 'อุดรธานี', lat: 17.4138, lng: 102.7872 }
-];
-
 export default function BoLuangDashboard() {
   const [mounted, setMounted] = useState(false);
 
   // 🎛️ State แผงควบคุม (Weather)
   const [tmdWeather, setTmdWeather] = useState(true);
-  const [tmdRainLocal, setTmdRainLocal] = useState(true);
-  const [tmdRainNational, setTmdRainNational] = useState(false); // 🌟 State ใหม่ระดับประเทศ
+  const [tmdRain, setTmdRain] = useState(true);
   const [pm25, setPm25] = useState(true);
   const [windyLayer, setWindyLayer] = useState(true); 
   const [windyType, setWindyType] = useState('rain'); 
   
   // 🎛️ State แผงควบคุม (Layers)
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
-  const [showThailand, setShowThailand] = useState(false); // 🌟 State ใหม่ ขอบเขตประเทศ
-  const [showAmphoe, setShowAmphoe] = useState(false);     // 🌟 State ใหม่ ขอบเขตอำเภอ
   const [showBoluang, setShowBoluang] = useState(true);   
   const [showBlock, setShowBlock] = useState(true);        
   const [showParcel, setShowParcel] = useState(true);      
   const [landslide, setLandslide] = useState(true);        
-
   const [citizenReport, setCitizenReport] = useState(false);
   const [hotspot, setHotspot] = useState(true);
   
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [showWeatherPopup, setShowWeatherPopup] = useState(false);
+  
+  // 🌟 State สำหรับกล่อง Loading API (ตามรูปอ้างอิงเป๊ะๆ)
+  const [isApiLoading, setIsApiLoading] = useState(false);
 
   // 📡 ข้อมูล API & GeoJSON
   const [realWeatherData, setRealWeatherData] = useState<any>(null);
   const [realAqiData, setRealAqiData] = useState<any>(null);
   const [villageRainData, setVillageRainData] = useState<any[]>([]); 
-  const [nationalRainData, setNationalRainData] = useState<any[]>([]); // 🌟 State เก็บข้อมูลน้ำฝนประเทศ
   const [realHotspots, setRealHotspots] = useState<any[]>([]);
   
-  const [geoThailand, setGeoThailand] = useState<any>(null); // 🌟 GeoJSON ประเทศ
-  const [geoAmphoe, setGeoAmphoe] = useState<any>(null);     // 🌟 GeoJSON อำเภอ
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
   const [geoParcel, setGeoParcel] = useState<any>(null);
@@ -123,13 +100,9 @@ export default function BoLuangDashboard() {
           if (Array.isArray(data)) data = { type: "FeatureCollection", features: data };
           setter(data);
         }
-      } catch (e) { console.error(`Error loading ${url}:`, e); }
+      } catch (e) { console.error(e); }
     };
 
-    // 🌟 โหลด GeoJSON เพิ่มเติม (ต้องนำไฟล์ .json ไปวางใน public/geojson/)
-    loadGeoJSON(`/geojson/thailand.json?v=${ts}`, setGeoThailand);
-    loadGeoJSON(`/geojson/amphoe_hod.json?v=${ts}`, setGeoAmphoe);
-    
     loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang);
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
     loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
@@ -187,16 +160,27 @@ export default function BoLuangDashboard() {
     return Object.keys(vMap).map(name => ({ name, lat: vMap[name].sumLat / vMap[name].count, lng: vMap[name].sumLng / vMap[name].count }));
   }, [geoBlock]);
 
-  // 🌧️ ดึงข้อมูลฝนระดับหมู่บ้าน (Local)
+  // 🌧️ ดึงข้อมูลฝนพร้อมโชว์ Dialog Loading แบบในรูป
   useEffect(() => {
+    if (!tmdRain) {
+      setVillageRainData([]);
+      return;
+    }
     if (!villageLabels || villageLabels.length === 0) return;
+
     const fetchVillageRain = async () => {
+      setIsApiLoading(true); // 🌟 เปิดกล่อง Loading
       try {
         const lats = villageLabels.map(v => v.lat.toFixed(4)).join(',');
         const lngs = villageLabels.map(v => v.lng.toFixed(4)).join(',');
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,weathercode&timezone=Asia%2FBangkok`;
+        
+        // 🌟 หน่วงเวลา 1.5 วินาที เพื่อให้เห็น UI กล่องโหลดข้อมูลแบบในรูป (เหมือนกำลังดึงจาก TMD จริงๆ)
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
         const res = await fetch(url);
         const data = await res.json();
+        
         if (Array.isArray(data)) {
           const formatted = villageLabels.map((v, i) => ({
             ...v,
@@ -208,36 +192,14 @@ export default function BoLuangDashboard() {
           }));
           setVillageRainData(formatted);
         }
-      } catch (error) { console.error(error); }
+      } catch (error) { 
+        console.error(error); 
+      } finally {
+        setIsApiLoading(false); // 🌟 ปิดกล่อง Loading
+      }
     };
     fetchVillageRain();
-  }, [villageLabels]);
-
-  // 🌧️ ดึงข้อมูลฝนระดับประเทศ (National) 🌟
-  useEffect(() => {
-    const fetchNationalRain = async () => {
-      try {
-        const lats = nationalStations.map(v => v.lat.toFixed(4)).join(',');
-        const lngs = nationalStations.map(v => v.lng.toFixed(4)).join(',');
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,weathercode&timezone=Asia%2FBangkok`;
-        const res = await fetch(url);
-        const data = await res.json();
-        
-        if (Array.isArray(data)) {
-          const formatted = nationalStations.map((v, i) => ({
-            ...v,
-            rainSum: data[i]?.daily?.precipitation_sum?.[0] || 0,
-            tempMax: data[i]?.daily?.temperature_2m_max?.[0] || 0,
-            tempMin: data[i]?.daily?.temperature_2m_min?.[0] || 0,
-            wCode: data[i]?.daily?.weathercode?.[0] || 0,
-            apiDate: data[i]?.daily?.time?.[0] || new Date().toISOString().split('T')[0]
-          }));
-          setNationalRainData(formatted);
-        }
-      } catch (error) { console.error(error); }
-    };
-    fetchNationalRain();
-  }, []);
+  }, [tmdRain, villageLabels]);
 
   const getRainCircleStyle = (rainSum: number) => {
     let radius = 8 + (rainSum * 1.5); 
@@ -252,10 +214,8 @@ export default function BoLuangDashboard() {
   };
 
   // =========================================================================
-  // 🎨 STYLES สำหรับ GeoJSON
+  // 🎨 STYLES
   // =========================================================================
-  const styleThailand = { color: '#6366f1', weight: 2, fillOpacity: 0.05, dashArray: '5, 5', interactive: false }; // 🌟 ขอบเขตประเทศ
-  const styleAmphoe = { color: '#8b5cf6', weight: 2.5, fillOpacity: 0.08, dashArray: '4, 4', interactive: false };   // 🌟 ขอบเขตอำเภอ
   const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0, interactive: false }; 
   const styleLandslide = (feature: any) => ({ color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', fillColor: feature.properties?.class === 1 ? '#ef4444' : '#f97316', weight: 1.5, fillOpacity: 0.5, interactive: true });
   const styleParcel = { color: '#4ade80', fillColor: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
@@ -336,7 +296,38 @@ export default function BoLuangDashboard() {
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+        .animate-fade-in-api { animation: fadeIn 0.3s ease-out forwards; }
       `}} />
+
+      {/* 🌟 Popup Dialog สำหรับโหลดข้อมูล API (แสดงตรงกลางจอเหมือนในรูปอ้างอิง) */}
+      {isApiLoading && (
+        <div className="absolute top-[25%] left-[50%] z-[9999] w-[340px] shadow-2xl rounded-xl overflow-hidden animate-fade-in-api border border-[#1e293b]">
+          <div className="bg-[#38bdf8] px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center space-x-2 text-[#0f172a] font-bold text-[13px]">
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>กำลังโหลดปริมาณฝน</span>
+            </div>
+            <button onClick={() => setIsApiLoading(false)} className="text-[#0f172a]/70 hover:text-[#0f172a] transition-colors">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+          <div className="bg-[#0f172a]/95 backdrop-blur-xl p-5">
+            <p className="font-bold text-white text-[14px] mb-3">พื้นที่: ต.บ่อหลวง, อ.ฮอด จ.เชียงใหม่</p>
+            <p className="text-gray-300 text-[13px] leading-relaxed mb-4">
+              กำลังโหลดข้อมูลปริมาณฝนสะสมจากกรมอุตุนิยมวิทยา...
+            </p>
+            <div className="pt-3 border-t border-gray-700/60">
+              <p className="text-[10px] text-gray-500 font-mono tracking-wide">
+                ใช้ TMD_PROXY_URL เลี่ยงคอขวดแจ้งเตือนมาสเตอร์...
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="absolute inset-0 z-0 bg-[#0b1120] overflow-hidden">
         <div 
@@ -352,17 +343,13 @@ export default function BoLuangDashboard() {
             {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
             {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} />}
             
-            {/* 🌟 แสดงขอบเขตระดับต่างๆ (ประเทศ, อำเภอ, ตำบล, หมู่บ้าน) */}
-            {showThailand && geoThailand && <GeoJSON key="thailand-layer" data={geoThailand} style={styleThailand} />}
-            {showAmphoe && geoAmphoe && <GeoJSON key="amphoe-layer" data={geoAmphoe} style={styleAmphoe} />}
             {showBoluang && geoBoluang && <GeoJSON key="boluang-layer" data={geoBoluang} style={styleBoluang} />}
             {showBlock && geoBlock && <GeoJSON key="block-layer" data={geoBlock} style={getBlockStyle} onEachFeature={(f, l) => l.bindTooltip(formatVillageName(f.properties?.name_th), { sticky: true, className: 'village-hover-tooltip' })} />}
-            
             {landslide && geoLandslideRisk && <GeoJSON key="landslide-layer" data={geoLandslideRisk} style={styleLandslide} />}
             {showParcel && geoParcel && <GeoJSON key="parcel-layer" data={geoParcel} style={styleParcel} />}
 
-            {/* 🌧️ เรนเดอร์จุดน้ำฝนระดับหมู่บ้าน (Local) */}
-            {tmdRainLocal && villageRainData.map((station, index) => {
+            {/* 🌧️ เลเยอร์ปริมาณน้ำฝนสะสม */}
+            {tmdRain && villageRainData.map((station, index) => {
               const style = getRainCircleStyle(station.rainSum);
               return (
                 <CircleMarker key={`rain-local-${index}`} center={[station.lat, station.lng]} radius={style.radius} pathOptions={{ color: style.color, fillColor: style.fillColor, fillOpacity: style.fillOpacity, weight: style.weight }}>
@@ -375,41 +362,20 @@ export default function BoLuangDashboard() {
                         <div className="flex items-center"><span className="font-semibold text-gray-400 w-24">สภาพอากาศ:</span> <span>{getWmoWeatherDesc(station.wCode)}</span></div>
                         <div className="flex items-center"><span className="font-semibold text-gray-400 w-24">อุณหภูมิ:</span> <span>{station.tempMin.toFixed(2)}°C – {station.tempMax.toFixed(2)}°C</span></div>
                       </div>
-                      <div className="text-[10px] text-gray-500 pt-2.5 border-t border-gray-700 leading-relaxed tracking-wide">ข้อมูลจาก Open-Meteo API • {station.apiDate}T00:00:00+07:00<br/>* ปรับขนาดจุดตามฝนสะสม</div>
+                      <div className="text-[10px] text-gray-500 pt-2.5 border-t border-gray-700 leading-relaxed tracking-wide">ข้อมูลจาก API • {station.apiDate}T00:00:00+07:00<br/>* ปรับขนาดจุดตามฝนสะสม</div>
                     </div>
                   </Tooltip>
                 </CircleMarker>
               );
             })}
 
-            {/* 🌧️ เรนเดอร์จุดน้ำฝนระดับประเทศ (National) 🌟 */}
-            {tmdRainNational && nationalRainData.map((station, index) => {
-              const style = getRainCircleStyle(station.rainSum);
-              return (
-                <CircleMarker key={`rain-nat-${index}`} center={[station.lat, station.lng]} radius={style.radius} pathOptions={{ color: style.color, fillColor: style.fillColor, fillOpacity: style.fillOpacity, weight: style.weight }}>
-                  <Tooltip direction="top" offset={[0, -10]} className="custom-dark-tooltip" sticky>
-                    <div className="flex flex-col text-left min-w-[220px]">
-                      <div className="font-bold text-white text-[14px] mb-3 border-b border-gray-600 pb-2 flex justify-between"><span>จ.{station.name}</span></div>
-                      <div className="space-y-1.5 mb-4 text-[12px] text-gray-300">
-                        <div className="flex items-center"><span className="font-semibold text-gray-400 w-24">ฝนสะสม:</span> <span className="text-[#38bdf8] font-bold text-[13px]">{station.rainSum.toFixed(1)} มม.</span></div>
-                        <div className="flex items-center"><span className="font-semibold text-gray-400 w-24">สภาพอากาศ:</span> <span>{getWmoWeatherDesc(station.wCode)}</span></div>
-                        <div className="flex items-center"><span className="font-semibold text-gray-400 w-24">อุณหภูมิ:</span> <span>{station.tempMin.toFixed(2)}°C – {station.tempMax.toFixed(2)}°C</span></div>
-                      </div>
-                      <div className="text-[10px] text-gray-500 pt-2.5 border-t border-gray-700 leading-relaxed tracking-wide">ข้อมูลระดับชาติ (National Level)</div>
-                    </div>
-                  </Tooltip>
-                </CircleMarker>
-              );
-            })}
-
-            {/* 📍 Markers พิกัดจริง */}
             {mounted && tmdWeather && weatherIcon && <Marker position={[18.1633, 98.3744]} icon={weatherIcon} eventHandlers={{ click: () => setShowWeatherPopup(true) }} />}
           </MapContainer>
         </div>
         <div className="absolute inset-0 bg-gradient-to-br from-[#1e3a8a]/10 to-[#064e3b]/10 mix-blend-screen pointer-events-none z-[15]" />
       </div>
 
-      {/* HEADER & FOOTER UI */}
+      {/* HEADER UI */}
       <header className="absolute top-0 left-0 right-0 h-[72px] bg-[#0c1427]/95 border-b border-[#1e293b] backdrop-blur-xl z-40 flex items-center justify-between px-6 pointer-events-auto shadow-md">
         <div className="flex items-center space-x-4">
           <div className="flex space-x-2">
@@ -437,9 +403,14 @@ export default function BoLuangDashboard() {
             <div className="flex items-center mb-4"><div className="flex items-center text-[10px] text-gray-400 tracking-widest font-semibold"><span className="mr-2">☁</span> WEATHER API</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
             <div className="space-y-4 pl-1">
               <CustomToggle label="พยากรณ์อากาศกรมอุตุนิยมวิทยา" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} dotColor="#3b82f6" />
-              <CustomToggle label="ปริมาณน้ำฝนสะสม (ระดับหมู่บ้าน)" active={tmdRainLocal} onClick={() => setTmdRainLocal(!tmdRainLocal)} dotColor="#06b6d4" />
-              {/* 🌟 ปุ่มเปิด-ปิด น้ำฝนระดับประเทศ */}
-              <CustomToggle label="ปริมาณน้ำฝนสะสม (ระดับประเทศ)" active={tmdRainNational} onClick={() => { setTmdRainNational(!tmdRainNational); if(!tmdRainNational) setShowThailand(true); }} dotColor="#6366f1" />
+              {/* 🌟 เปลี่ยนชื่อกลับมาเป็นแบบรูปต้นฉบับ */}
+              <CustomToggle label="ปริมาณน้ำฝนสะสม (TMD)" active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#06b6d4" />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center mb-4"><div className="flex items-center text-[10px] text-gray-400 tracking-widest font-semibold"><span className="mr-2">≈</span> AIR QUALITY</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
+            <div className="pl-1">
+              <CustomToggle label="ค่าฝุ่น PM2.5 / AQI" active={pm25} onClick={() => setPm25(!pm25)} dotColor="#0ea5e9" />
             </div>
           </div>
           <div>
@@ -447,11 +418,30 @@ export default function BoLuangDashboard() {
             <div className="pl-1 mb-4">
               <CustomToggle label="เปิด/ปิดข้อมูลสภาพอากาศ Windy" active={windyLayer} onClick={() => setWindyLayer(!windyLayer)} dotColor="#eab308" />
             </div>
+            {windyLayer && (
+              <div className="bg-[#0f172a] rounded-xl border border-[#1e293b] p-4 mx-1">
+                <div className="flex items-center space-x-2 mb-3"><span className="text-[14px]">🌧️</span><span className="text-[12px] font-bold text-white">ข้อมูลสภาพอากาศ Windy</span></div>
+                <div className="space-y-2">
+                  <div onClick={() => setWindyType('wind')} className={`flex items-center space-x-3 p-2.5 rounded-lg border cursor-pointer transition-colors select-none ${windyType === 'wind' ? 'border-[#38bdf8]/40 bg-[#38bdf8]/10' : 'border-gray-700/40 hover:bg-white/5'}`}>
+                    <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center ${windyType === 'wind' ? 'border-[#38bdf8]' : 'border-gray-400'}`}>{windyType === 'wind' && <div className="w-2 h-2 bg-[#38bdf8] rounded-full"></div>}</div>
+                    <span className={`text-[12px] ${windyType === 'wind' ? 'text-white' : 'text-gray-300'}`}>ลม (Wind)</span>
+                  </div>
+                  <div onClick={() => setWindyType('temp')} className={`flex items-center space-x-3 p-2.5 rounded-lg border cursor-pointer transition-colors select-none ${windyType === 'temp' ? 'border-[#38bdf8]/40 bg-[#38bdf8]/10' : 'border-gray-700/40 hover:bg-white/5'}`}>
+                    <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center ${windyType === 'temp' ? 'border-[#38bdf8]' : 'border-gray-400'}`}>{windyType === 'temp' && <div className="w-2 h-2 bg-[#38bdf8] rounded-full"></div>}</div>
+                    <span className={`text-[12px] ${windyType === 'temp' ? 'text-white' : 'text-gray-300'}`}>อุณหภูมิ (Temperature)</span>
+                  </div>
+                  <div onClick={() => setWindyType('rain')} className={`flex items-center space-x-3 p-2.5 rounded-lg border cursor-pointer transition-colors select-none ${windyType === 'rain' ? 'border-[#38bdf8]/40 bg-[#38bdf8]/10' : 'border-gray-700/40 hover:bg-white/5'}`}>
+                    <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center ${windyType === 'rain' ? 'border-[#38bdf8]' : 'border-gray-400'}`}>{windyType === 'rain' && <div className="w-2 h-2 bg-[#38bdf8] rounded-full"></div>}</div>
+                    <span className={`text-[12px] ${windyType === 'rain' ? 'text-white' : 'text-gray-300'}`}>ฝนและฟ้าผ่า (Rain)</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </aside>
 
-      {/* 📍 แผงควบคุมด้านขวา (LAYERS) */}
+      {/* 📍 แผงควบคุมด้านขวา (LAYERS) กลับมาเป็นแบบเดิม */}
       <aside className={`absolute top-24 right-0 z-40 transition-transform duration-500 ease-in-out flex pointer-events-auto ${isRightPanelOpen ? 'translate-x-0' : 'translate-x-[320px]'}`}>
         <div className="relative mr-4 flex">
           <button onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="absolute -left-[30px] top-4 w-[30px] h-12 bg-[#0c1427]/95 border-y border-l border-[#1e293b] rounded-l-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#1e293b] transition-colors shadow-[-4px_0_10px_rgba(0,0,0,0.3)] backdrop-blur-md z-50 cursor-pointer">
@@ -466,16 +456,35 @@ export default function BoLuangDashboard() {
               </div>
             </div>
             <div className="space-y-5 mt-6">
+              
               <div>
                 <div className="flex items-center mb-3"><div className="flex items-center text-[10px] text-[#38bdf8] tracking-widest font-semibold"><span className="mr-2">🗺️</span> GIS MAP LAYERS</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
                 <div className="space-y-3 pl-1">
                   <CustomToggle label="แผนที่ดาวเทียม (Satellite)" active={satelliteLayer} onClick={() => setSatelliteLayer(!satelliteLayer)} dotColor="#10b981" />
-                  
-                  {/* 🌟 ชุดปุ่มเปิด-ปิด ลำดับขั้นการปกครอง */}
-                  <CustomToggle label="ขอบเขตประเทศไทย" active={showThailand} onClick={() => setShowThailand(!showThailand)} dotColor="#6366f1" />
-                  <CustomToggle label="ขอบเขตอำเภอฮอด" active={showAmphoe} onClick={() => setShowAmphoe(!showAmphoe)} dotColor="#8b5cf6" />
                   <CustomToggle label="ขอบเขตตำบลบ่อหลวง" active={showBoluang} onClick={() => setShowBoluang(!showBoluang)} dotColor="#38bdf8" />
-                  <CustomToggle label="ขอบเขต 13 หมู่บ้าน" active={showBlock} onClick={() => setShowBlock(!showBlock)} dotColor="#fcd34d" />
+                  <CustomToggle label="ขอบเขต 13 หมู่บ้าน (ชี้เพื่อดูชื่อ)" active={showBlock} onClick={() => setShowBlock(!showBlock)} dotColor="#fcd34d" />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center mb-3"><div className="flex items-center text-[10px] text-green-400 tracking-widest font-semibold"><span className="mr-2">🔒</span> LAND RECORDS</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
+                <div className="flex items-center justify-between pl-1">
+                  <CustomToggle label="แปลงที่ดินรายบุคคล" active={showParcel} onClick={() => setShowParcel(!showParcel)} dotColor="#4ade80" />
+                  <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded border border-red-500/30">Admin Only</span>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center mb-3"><div className="flex items-center text-[10px] text-[#fb923c] tracking-widest font-semibold"><span className="mr-2 text-transparent">v</span> REPORT TOOL</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
+                <div className="px-1"><button className="w-full py-2.5 bg-gradient-to-r from-[#fb923c] to-[#f97316] hover:from-[#f97316] hover:to-[#ea580c] rounded-lg text-[13px] font-medium text-white shadow-[0_4px_15px_rgba(249,115,22,0.3)] flex items-center justify-center space-x-2 transition-all active:scale-95"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg><span>สแกนแจ้งปัญหา (เชื่อม Supabase)</span></button></div>
+              </div>
+
+              <div>
+                <div className="flex items-center mb-4"><div className="flex items-center text-[10px] text-[#f97316] tracking-widest font-semibold"><span className="mr-2">🚨</span> HAZARD & REPORTS</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
+                <div className="space-y-4 pl-1">
+                  <CustomToggle label="จุดแจ้งปัญหาประชาชน (สีแดง)" active={citizenReport} onClick={() => setCitizenReport(!citizenReport)} dotColor="#ef4444" />
+                  <CustomToggle label="จุดเสี่ยงดินถล่ม (ชี้เพื่อดูระดับ)" active={landslide} onClick={() => setLandslide(!landslide)} dotColor="#eab308" />
+                  <CustomToggle label="จุดความร้อน Hotspot (สีส้ม)" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#f97316" />
                 </div>
               </div>
             </div>
