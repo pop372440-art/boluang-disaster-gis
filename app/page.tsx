@@ -36,10 +36,10 @@ export default function BoLuangDashboard() {
   
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   
-  const [showBoluang, setShowBoluang] = useState(true);   // boluang.json
-  const [showBlock, setShowBlock] = useState(true);       // block.json
-  const [showParcel, setShowParcel] = useState(true);     // parcel.json
-  const [landslide, setLandslide] = useState(true);       // boluang_landslide_risk.json
+  const [showBoluang, setShowBoluang] = useState(true);   
+  const [showBlock, setShowBlock] = useState(true);       
+  const [showParcel, setShowParcel] = useState(true);     
+  const [landslide, setLandslide] = useState(true);       
 
   const [citizenReport, setCitizenReport] = useState(false);
   const [hotspot, setHotspot] = useState(true);
@@ -116,34 +116,79 @@ export default function BoLuangDashboard() {
     return cName;
   };
 
-  // 🖱️ Event สำหรับจุดเสี่ยงดินถล่ม (Hover แล้วแสดง Tooltip ทันที ไม่ต้องคลิก)
-  const onEachLandslideFeature = (feature: any, layer: any) => {
-    const props = feature?.properties || {};
-    
-    // ดึงข้อมูลตามที่มีในไฟล์
-    const areaName = props.tam_nam_t || 'ต.บ่อหลวง'; // ใช้ตำบลไปก่อนเพราะไม่มีชื่อหมู่บ้าน
-    const riskClass = props.class || '-';
-    const riskLevel = props.ls_desth || props.LS_DESTH || 'ไม่ระบุ';
+  // 📡 อัลกอริทึมเรดาร์ (Point-in-Polygon) สำหรับหาหมู่บ้านแบบสดๆ
+  const findVillageByLatLng = (lat: number, lng: number, blockData: any) => {
+    if (!blockData || !blockData.features) return 'ต.บ่อหลวง (นอกเขตหมู่บ้าน)';
+    const pt = [lng, lat]; // [x, y]
 
-    // เปลี่ยนมาใช้ bindTooltip ให้แสดงตอนชี้เมาส์
-    layer.bindTooltip(`
-      <div class="px-4 py-3 text-[12px] text-[#0f172a] bg-white/95 border-2 border-[#ea580c] rounded-xl shadow-xl font-sans min-w-[200px]">
-        <div class="font-bold text-[14px] text-[#ea580c] mb-2 border-b border-gray-200 pb-1.5 flex items-center">
-          <span class="mr-1.5">⚠️</span> พื้นที่เสี่ยงดินถล่ม
-        </div>
-        <div class="grid grid-cols-[80px_1fr] gap-x-2 gap-y-1.5 mt-2">
-          <span class="text-gray-500 font-semibold">พื้นที่:</span> <span class="font-bold text-gray-800">${areaName}</span>
-          <span class="text-gray-500 font-semibold">ระดับ (Class):</span> <span class="font-bold text-red-600">${riskClass}</span>
-          <span class="text-gray-500 font-semibold">ความเสี่ยง:</span> <span class="font-bold text-[#ea580c]">${riskLevel}</span>
-        </div>
-      </div>
-    `, { sticky: true, direction: 'auto', className: 'custom-map-tooltip' });
+    const isPointInPolygon = (point: number[], vs: any[]) => {
+      let x = point[0], y = point[1];
+      let inside = false;
+      for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+        let xi = vs[i][0], yi = vs[i][1];
+        let xj = vs[j][0], yj = vs[j][1];
+        let intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    };
+
+    for (const feature of blockData.features) {
+      const geom = feature.geometry;
+      if (!geom) continue;
+
+      let isInside = false;
+      if (geom.type === 'Polygon') {
+        isInside = isPointInPolygon(pt, geom.coordinates[0]);
+      } else if (geom.type === 'MultiPolygon') {
+        for (let i = 0; i < geom.coordinates.length; i++) {
+          if (isPointInPolygon(pt, geom.coordinates[i][0])) {
+            isInside = true; break;
+          }
+        }
+      }
+
+      if (isInside) {
+        const props = feature.properties || {};
+        const rawName = props.own_villag || props.name_th || props.name || props.zone_name || '';
+        return formatVillageName(rawName);
+      }
+    }
+    return 'ต.บ่อหลวง (นอกเขตหมู่บ้าน)';
+  };
+
+  // 🖱️ Event สำหรับจุดเสี่ยงดินถล่ม (Hover แล้วคำนวณพื้นที่แบบสดๆ)
+  const onEachLandslideFeature = (feature: any, layer: any) => {
+    // ใส่ป้ายชั่วคราวไว้ก่อนระหว่างรอประมวลผล
+    layer.bindTooltip('กำลังคำนวณพื้นที่...', { sticky: true, direction: 'auto', className: 'custom-map-tooltip' });
 
     layer.on({
       mouseover: (e: any) => {
         const targetLayer = e.target;
         targetLayer.setStyle({ weight: 2.5, fillOpacity: 0.8 });
         targetLayer.bringToFront(); 
+
+        // 🌟 ดึงพิกัดศูนย์กลางของจุดที่เมาส์ชี้ แล้วยิงเรดาร์หาชื่อหมู่บ้านจากไฟล์ geoBlock!
+        const center = targetLayer.getBounds().getCenter();
+        const detectedVillage = findVillageByLatLng(center.lat, center.lng, geoBlock);
+
+        const props = feature.properties || {};
+        const riskClass = props.class || '-';
+        const riskLevel = props.ls_desth || props.LS_DESTH || 'ไม่ระบุ';
+
+        // ยัดข้อมูลเข้า Tooltip สดๆ
+        targetLayer.setTooltipContent(`
+          <div class="px-4 py-3 text-[12px] text-[#0f172a] bg-white/95 border-2 border-[#ea580c] rounded-xl shadow-xl font-sans min-w-[200px]">
+            <div class="font-bold text-[14px] text-[#ea580c] mb-2 border-b border-gray-200 pb-1.5 flex items-center">
+              <span class="mr-1.5">⚠️</span> พื้นที่เสี่ยงดินถล่ม
+            </div>
+            <div class="grid grid-cols-[80px_1fr] gap-x-2 gap-y-1.5 mt-2">
+              <span class="text-gray-500 font-semibold">พื้นที่:</span> <span class="font-bold text-gray-800">${detectedVillage}</span>
+              <span class="text-gray-500 font-semibold">ระดับ (Class):</span> <span class="font-bold text-red-600">${riskClass}</span>
+              <span class="text-gray-500 font-semibold">ความเสี่ยง:</span> <span class="font-bold text-[#ea580c]">${riskLevel}</span>
+            </div>
+          </div>
+        `);
       },
       mouseout: (e: any) => {
         const targetLayer = e.target;
@@ -355,8 +400,8 @@ export default function BoLuangDashboard() {
             {/* 2. ขอบเขต 13 หมู่บ้าน (ย้ายมาอยู่ข้างล่าง เพื่อให้จุดดินถล่มลอยอยู่เหนือหมู่บ้าน) */}
             {showBlock && geoBlock && <GeoJSON key="block-layer" data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
             
-            {/* 3. ดินถล่ม (ลอยขึ้นมาเหนือหมู่บ้าน ชี้แล้วโชว์ Tooltip ทันที) */}
-            {landslide && geoLandslideRisk && <GeoJSON key="landslide-layer" data={geoLandslideRisk} style={styleLandslide} onEachFeature={onEachLandslideFeature} />}
+            {/* 3. ดินถล่ม (ถ้าไม่มี geoBlock จะ render ใหม่เพื่อดึงค่าหมู่บ้าน) */}
+            {landslide && geoLandslideRisk && <GeoJSON key={`landslide-layer-${geoBlock ? 'ready' : 'wait'}`} data={geoLandslideRisk} style={styleLandslide} onEachFeature={onEachLandslideFeature} />}
             
             {/* 4. แปลงที่ดิน (ลอยอยู่บนสุด ซูมเข้าไปชี้แล้วขึ้นป้ายชื่อเจ้าของทันที!) */}
             {showParcel && geoParcel && <GeoJSON key={`parcel-layer-${JSON.stringify(geoParcel).length}`} data={geoParcel} style={styleParcel} onEachFeature={onEachParcelFeature} />}
@@ -490,7 +535,7 @@ export default function BoLuangDashboard() {
           </button>
           <div className="w-[320px] bg-[#0c1427]/95 border border-[#1e293b] rounded-xl shadow-2xl p-5 backdrop-blur-xl h-[calc(100vh-140px)] overflow-y-auto custom-scrollbar">
             <div className="flex items-start space-x-3 mb-3">
-              <div className="mt-1 text-[#56b6c2]"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" /></svg></div>
+              <div className="mt-1 text-[#56b6c2]"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" /></svg></div>
               <div className="w-full">
                 <h2 className="text-[16px] font-semibold tracking-wide text-white">Layers</h2>
                 <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">เปิด/ปิด ขอบเขตความรับผิดชอบและชั้นข้อมูลระดับเทศบาล</p>
