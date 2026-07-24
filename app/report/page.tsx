@@ -23,7 +23,7 @@ const VILLAGE_COORDS: Record<string, [number, number]> = {
   'บ้านบ่อหลวง': [18.1506, 98.2862],    
   'บ้านบ่อพะแวน': [18.1568, 98.2915],   
   'บ้านบ่อสะแง๋': [18.1408, 98.2915],   
-  'บ้านแม่หืด': [18.219289, 98.371096],     // 🌟 ปรับพิกัดขยับขวา-บน ให้ตรงกับโรงเรียนบ้านแม่หืด
+  'บ้านแม่หืด': [18.2045, 98.2835],     
   'บ้านแม่สะนาม': [18.1342, 98.3072],   
   'บ้านกิ่วลม': [18.1378, 98.3445],     
   'บ้านวังกอง': [18.1610, 98.3090],     
@@ -97,6 +97,7 @@ export default function DisasterReportForm() {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     
+    // เมื่อเปลี่ยนหมู่บ้าน ให้ขยับแผนที่และพับแถบฟอร์มชั่วคราว (ถ้ายูสเซอร์ใช้จอมือถือ)
     if (name === 'village_name' && VILLAGE_COORDS[value]) {
       setMapCenter(VILLAGE_COORDS[value]);
       if (window.innerWidth < 768) setIsFormOpen(false);
@@ -123,13 +124,18 @@ export default function DisasterReportForm() {
   if (!mounted) return <div className="min-h-screen bg-gray-50 flex items-center justify-center">กำลังโหลด...</div>;
 
   return (
-    <div className="relative w-screen h-screen bg-gray-200 font-sans overflow-hidden">
+    <div className="relative w-screen h-screen bg-[#0b1120] font-sans overflow-hidden">
       
       {/* 🗺️ แผนที่เป็นพื้นหลังเต็มจอ */}
       <div className="absolute inset-0 z-0">
         <MapContainer center={mapCenter} zoom={13} zoomControl={false} className="w-full h-full cursor-crosshair">
           <ZoomControl position="topright" />
-          <TileLayer url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}" maxZoom={20} attribution="&copy; Google Maps" />
+          {/* 🌟 เปลี่ยนแผนที่เป็นดาวเทียม + เส้นถนน (lyrs=y) แบบชัดแจ๋ว */}
+          <TileLayer 
+            url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" 
+            maxZoom={20} 
+            attribution="&copy; Google Maps Satellite" 
+          />
           <MapController center={mapCenter} />
           <LocationMarker position={position} setPosition={setPosition} />
         </MapContainer>
@@ -141,7 +147,10 @@ export default function DisasterReportForm() {
           isFormOpen ? 'translate-x-0' : '-translate-x-full'
         } w-[95vw] sm:w-[420px]`}
       >
-        <div className="w-full h-full bg-white/95 backdrop-blur-xl shadow-[4px_0_25px_rgba(0,0,0,0.15)] flex flex-col pointer-events-auto border-r border-gray-200 z-20">
+        {/* ตัวกล่องเนื้อหาฟอร์ม */}
+        <div className="w-full h-full bg-white/95 backdrop-blur-xl shadow-[4px_0_25px_rgba(0,0,0,0.5)] flex flex-col pointer-events-auto border-r border-gray-200 z-20">
+          
+          {/* Header */}
           <div className="bg-red-600 p-5 text-white shadow-md flex-shrink-0">
             <div className="flex items-center space-x-3">
               <span className="text-2xl bg-white/20 p-2 rounded-xl">🚨</span>
@@ -152,10 +161,11 @@ export default function DisasterReportForm() {
             </div>
           </div>
 
+          {/* Form Content */}
           <div className="p-5 overflow-y-auto custom-scrollbar flex-1 pb-20">
             <div className="bg-red-50 border border-red-200 text-red-700 text-[12px] p-3 rounded-lg flex items-start space-x-2 mb-5">
               <span className="text-base">📍</span>
-              <p>กรุณากรอกข้อมูล และ <b>"คลิกบนแผนที่"</b> เพื่อปักหมุดพิกัดจุดเกิดเหตุ</p>
+              <p>กรุณากรอกข้อมูล และ <b>"คลิกบนแผนที่ดาวเทียม"</b> เพื่อปักหมุดพิกัดจุดเกิดเหตุ</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -222,6 +232,7 @@ export default function DisasterReportForm() {
           </div>
         </div>
 
+        {/* 🌟 ปุ่มแท็บสำหรับกดยุบ/ขยาย */}
         <button
           onClick={() => setIsFormOpen(!isFormOpen)}
           className="absolute top-1/2 -right-[32px] transform -translate-y-1/2 w-[32px] h-[72px] bg-white border-y border-r border-gray-300 rounded-r-xl shadow-[4px_0_15px_rgba(0,0,0,0.15)] flex items-center justify-center text-gray-600 hover:text-red-600 hover:bg-gray-50 transition-colors pointer-events-auto z-10 cursor-pointer"
@@ -236,11 +247,12 @@ export default function DisasterReportForm() {
         </button>
       </aside>
 
+      {/* คำแนะนำที่ลอยอยู่ด้านล่าง (จะหายไปเมื่อปักหมุดแล้ว) */}
       {!position && (
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-[400] pointer-events-none">
           <div className="bg-gray-900/80 backdrop-blur-md text-white px-5 py-3 rounded-full shadow-2xl flex items-center space-x-2 animate-bounce border border-gray-700">
             <span className="text-xl">👆</span>
-            <span className="text-[13px] font-bold tracking-wide">เลื่อนแผนที่แล้วแตะเพื่อปักหมุดจุดเกิดเหตุ</span>
+            <span className="text-[13px] font-bold tracking-wide">เลื่อนแผนที่ดาวเทียมแล้วแตะเพื่อปักหมุด</span>
           </div>
         </div>
       )}
