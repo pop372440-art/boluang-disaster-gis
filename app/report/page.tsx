@@ -18,8 +18,7 @@ const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { 
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false });
 const ZoomControl = dynamic(() => import('react-leaflet').then(mod => mod.ZoomControl), { ssr: false });
 
-// 📍 กำหนดพิกัด (Lat, Lng) ของทั้ง 13 หมู่บ้าน (ตัดบ้านอมขูดออกแล้ว)
-// *หมายเหตุ: คุณสามารถปรับแก้ตัวเลขพิกัดด้านล่างนี้ให้ตรงกับจุดศูนย์กลางหมู่บ้านจริงๆ ได้เลยครับ
+// 📍 กำหนดพิกัด (Lat, Lng) ของทั้ง 13 หมู่บ้าน 
 const VILLAGE_COORDS: Record<string, [number, number]> = {
   'บ้านบ่อหลวง': [18.1517, 98.2858],
   'บ้านบ่อพะแวน': [18.1602, 98.2750],
@@ -36,12 +35,11 @@ const VILLAGE_COORDS: Record<string, [number, number]> = {
   'บ้านเตียนอาง': [18.0650, 98.3050],
 };
 
-// 🗺️ คอมโพเนนต์สำหรับควบคุมให้แผนที่บิน (Fly) ไปยังพิกัดที่เลือก
+// 🗺️ คอมโพเนนต์สำหรับควบคุมให้แผนที่บิน (Fly) ไปยังพิกัด
 function MapController({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
     if (center) {
-      // สั่งให้แผนที่บินไปที่พิกัดใหม่ พร้อมซูมระดับ 15 (เห็นชัดเจน)
       map.flyTo(center, 15, { duration: 1.5, easeLinearity: 0.25 });
     }
   }, [center, map]);
@@ -69,9 +67,12 @@ function LocationMarker({ position, setPosition }: any) {
 export default function DisasterReportForm() {
   const [mounted, setMounted] = useState(false);
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
-  const [mapCenter, setMapCenter] = useState<[number, number]>(VILLAGE_COORDS['บ้านบ่อหลวง']); // 🌟 ค่าเริ่มต้นแผนที่
+  const [mapCenter, setMapCenter] = useState<[number, number]>(VILLAGE_COORDS['บ้านบ่อหลวง']); 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  
+  // 🌟 State ควบคุมการเปิด/ปิดแท็บฟอร์ม
+  const [isFormOpen, setIsFormOpen] = useState(true);
   
   const [formData, setFormData] = useState({
     village_name: 'บ้านบ่อหลวง', risk_type: 'ไฟป่า / หมอกควัน',
@@ -84,7 +85,7 @@ export default function DisasterReportForm() {
       navigator.geolocation.getCurrentPosition(
         (loc) => {
           setPosition({ lat: loc.coords.latitude, lng: loc.coords.longitude });
-          setMapCenter([loc.coords.latitude, loc.coords.longitude]); // ดึงพิกัดคนแจ้งมาเป็นจุดศูนย์กลางครั้งแรก
+          setMapCenter([loc.coords.latitude, loc.coords.longitude]); 
         },
         (err) => console.log("User denied location")
       );
@@ -94,10 +95,10 @@ export default function DisasterReportForm() {
   const handleChange = (e: any) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-
-    // 🌟 ถ้ายูสเซอร์เปลี่ยนชื่อหมู่บ้าน ให้สั่งแผนที่เลื่อนพิกัดตาม
     if (name === 'village_name' && VILLAGE_COORDS[value]) {
       setMapCenter(VILLAGE_COORDS[value]);
+      // ปิดฟอร์มชั่วคราวเพื่อให้ผู้ใช้เห็นแผนที่ที่วิ่งไปหา (เป็น UX ที่ดี)
+      if (window.innerWidth < 768) setIsFormOpen(false);
     }
   };
 
@@ -128,17 +129,21 @@ export default function DisasterReportForm() {
         <MapContainer center={mapCenter} zoom={13} zoomControl={false} className="w-full h-full cursor-crosshair">
           <ZoomControl position="topright" />
           <TileLayer url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}" maxZoom={20} attribution="&copy; Google Maps" />
-          
-          {/* 🌟 ตัวควบคุมการเลื่อนแผนที่อัตโนมัติ */}
           <MapController center={mapCenter} />
           <LocationMarker position={position} setPosition={setPosition} />
         </MapContainer>
       </div>
 
-      {/* 📝 กล่องฟอร์มลอยอยู่ตรงกลาง */}
-      <div className="absolute inset-0 z-10 flex items-center justify-center p-4 pointer-events-none">
-        <div className="w-full max-w-[450px] max-h-[90vh] bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl flex flex-col pointer-events-auto overflow-hidden border border-gray-200">
+      {/* 🌟 กล่องฟอร์มแบบ Sidebar ชิดซ้าย (เลื่อนเข้า-ออกได้) */}
+      <aside 
+        className={`absolute top-0 left-0 h-full z-40 transition-transform duration-500 ease-in-out flex pointer-events-none ${
+          isFormOpen ? 'translate-x-0' : '-translate-x-full'
+        } w-[95vw] sm:w-[420px]`}
+      >
+        {/* ตัวกล่องเนื้อหาฟอร์ม */}
+        <div className="w-full h-full bg-white/95 backdrop-blur-xl shadow-[4px_0_25px_rgba(0,0,0,0.15)] flex flex-col pointer-events-auto border-r border-gray-200 z-20">
           
+          {/* Header */}
           <div className="bg-red-600 p-5 text-white shadow-md flex-shrink-0">
             <div className="flex items-center space-x-3">
               <span className="text-2xl bg-white/20 p-2 rounded-xl">🚨</span>
@@ -149,24 +154,24 @@ export default function DisasterReportForm() {
             </div>
           </div>
 
-          <div className="p-5 overflow-y-auto custom-scrollbar flex-1">
+          {/* Form Content */}
+          <div className="p-5 overflow-y-auto custom-scrollbar flex-1 pb-20">
             <div className="bg-red-50 border border-red-200 text-red-700 text-[12px] p-3 rounded-lg flex items-start space-x-2 mb-5">
               <span className="text-base">📍</span>
-              <p>กรุณากรอกข้อมูล และ <b>"คลิกบนแผนที่ด้านหลัง"</b> เพื่อปักหมุดพิกัด</p>
+              <p>กรุณากรอกข้อมูล และ <b>"คลิกบนแผนที่"</b> เพื่อปักหมุดพิกัด</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-[12px] font-bold text-gray-700 mb-1 flex items-center"><span className="text-red-500 mr-1.5">📌</span> 1. พื้นที่หมู่บ้านที่พบเหตุ</label>
-                <select name="village_name" value={formData.village_name} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-2 text-[13px] bg-gray-50 focus:ring-2 focus:ring-red-500 outline-none">
-                  {/* 🌟 ดึงชื่อ 13 หมู่บ้านอัตโนมัติจาก Object ด้านบน */}
+                <select name="village_name" value={formData.village_name} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] bg-gray-50 focus:ring-2 focus:ring-red-500 outline-none">
                   {Object.keys(VILLAGE_COORDS).map(v => <option key={v} value={v}>{v}</option>)}
                 </select>
               </div>
               
               <div>
                 <label className="block text-[12px] font-bold text-gray-700 mb-1 flex items-center"><span className="text-orange-500 mr-1.5">🔥</span> 2. ประเภทของสาธารณภัย <span className="text-red-500 ml-1">*</span></label>
-                <select name="risk_type" value={formData.risk_type} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-2 text-[13px] bg-gray-50 focus:ring-2 focus:ring-red-500 outline-none">
+                <select name="risk_type" value={formData.risk_type} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] bg-gray-50 focus:ring-2 focus:ring-red-500 outline-none">
                   <option value="ไฟป่า / หมอกควัน">ไฟป่า / หมอกควัน</option>
                   <option value="ดินโคลนถล่ม / ดินสไลด์">ดินโคลนถล่ม / ดินสไลด์</option>
                   <option value="น้ำป่าไหลหลาก / น้ำท่วม">น้ำป่าไหลหลาก / น้ำท่วม</option>
@@ -174,13 +179,13 @@ export default function DisasterReportForm() {
                   <option value="อื่นๆ">อื่นๆ</option>
                 </select>
               </div>
-              <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                 <label className="block text-[12px] font-bold text-gray-700 mb-2 flex items-center"><span className="text-yellow-500 mr-1.5">⚠️</span> 3. ระดับความรุนแรง <span className="text-red-500 ml-1">*</span></label>
                 <div className="flex justify-between space-x-2">
                   {[1, 2, 3, 4, 5].map((level) => (
                     <button
                       key={level} type="button" onClick={() => setFormData(p => ({ ...p, severity_level: level }))}
-                      className={`flex-1 py-1.5 rounded-lg font-bold text-[14px] border-2 transition-all ${
+                      className={`flex-1 py-2 rounded-lg font-bold text-[14px] border-2 transition-all ${
                         formData.severity_level === level ? (level > 3 ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-orange-500 border-orange-500 text-white shadow-md') : 'bg-white border-gray-200 text-gray-500 hover:border-orange-300'
                       }`}
                     >{level}</button>
@@ -189,16 +194,16 @@ export default function DisasterReportForm() {
               </div>
               <div>
                 <label className="block text-[12px] font-bold text-gray-700 mb-1 flex items-center"><span className="text-blue-500 mr-1.5">📝</span> 4. รายละเอียดและข้อเสนอแนะ <span className="text-red-500 ml-1">*</span></label>
-                <textarea name="description" required rows={2} value={formData.description} onChange={handleChange} placeholder="ระบุรายละเอียดเพิ่มเติม..." className="w-full border border-gray-300 rounded-lg p-2 text-[13px] bg-gray-50 focus:ring-2 focus:ring-red-500 outline-none resize-none"></textarea>
+                <textarea name="description" required rows={3} value={formData.description} onChange={handleChange} placeholder="ระบุรายละเอียดเพิ่มเติม..." className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] bg-gray-50 focus:ring-2 focus:ring-red-500 outline-none resize-none"></textarea>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-gray-700 mb-1">ชื่อผู้แจ้ง (ไม่บังคับ)</label>
-                  <input type="text" name="reporter_name" value={formData.reporter_name} onChange={handleChange} placeholder="ระบุชื่อ..." className="w-full border border-gray-300 rounded-lg p-2 text-[12px] bg-gray-50 outline-none focus:border-red-500" />
+                  <input type="text" name="reporter_name" value={formData.reporter_name} onChange={handleChange} placeholder="ระบุชื่อ..." className="w-full border border-gray-300 rounded-lg p-2.5 text-[12px] bg-gray-50 outline-none focus:border-red-500" />
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-gray-700 mb-1">สถานะผู้แจ้ง</label>
-                  <select name="reporter_role" value={formData.reporter_role} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-2 text-[12px] bg-gray-50 outline-none focus:border-red-500">
+                  <select name="reporter_role" value={formData.reporter_role} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-2.5 text-[12px] bg-gray-50 outline-none focus:border-red-500">
                     <option value="ประชาชนทั่วไป">ประชาชนทั่วไป</option>
                     <option value="ผู้นำชุมชน">ผู้นำชุมชน / ผู้ใหญ่บ้าน</option>
                     <option value="ชรบ. / อปพร.">ชรบ. / อปพร.</option>
@@ -206,26 +211,41 @@ export default function DisasterReportForm() {
                   </select>
                 </div>
               </div>
-              <div className="pt-3 mt-3 border-t border-gray-100">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-[11px] font-semibold text-gray-500">จำนวนพิกัดที่ปักบนแผนที่</span>
-                  <span className={`text-[12px] font-bold px-2 py-0.5 rounded-full ${position ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600 animate-pulse'}`}>{position ? '1 จุด' : 'ยังไม่ปักหมุด'}</span>
+              <div className="pt-4 mt-4 border-t border-gray-100">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-[12px] font-semibold text-gray-500">พิกัดบนแผนที่</span>
+                  <span className={`text-[12px] font-bold px-3 py-1 rounded-full ${position ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600 animate-pulse'}`}>{position ? 'พร้อมส่งข้อมูล' : 'รอการปักหมุด'}</span>
                 </div>
-                <button type="submit" disabled={isSubmitting} className={`w-full py-3 rounded-xl font-bold text-[14px] text-white shadow-lg transition-all flex justify-center items-center space-x-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}>
+                <button type="submit" disabled={isSubmitting} className={`w-full py-3.5 rounded-xl font-bold text-[14px] text-white shadow-lg transition-all flex justify-center items-center space-x-2 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 hover:-translate-y-1'}`}>
                   {isSubmitting ? <span>กำลังส่งข้อมูล...</span> : <><span>แจ้งจุดเสี่ยงภัย / ส่งพิกัด</span></>}
                 </button>
-                {submitStatus === 'success' && <div className="mt-3 p-2 bg-green-50 border border-green-200 text-green-700 text-center text-[12px] font-bold rounded-lg animate-fade-in">✅ ส่งข้อมูลแจ้งจุดเสี่ยงภัยสำเร็จ</div>}
+                {submitStatus === 'success' && <div className="mt-4 p-3 bg-green-50 border border-green-200 text-green-700 text-center text-[13px] font-bold rounded-lg animate-fade-in">✅ ส่งข้อมูลแจ้งจุดเสี่ยงภัยสำเร็จ</div>}
               </div>
             </form>
           </div>
         </div>
-      </div>
 
+        {/* 🌟 ปุ่มแท็บสำหรับกดยุบ/ขยาย (ติดอยู่ขอบขวาของกล่องฟอร์ม) */}
+        <button
+          onClick={() => setIsFormOpen(!isFormOpen)}
+          className="absolute top-1/2 -right-[32px] transform -translate-y-1/2 w-[32px] h-[72px] bg-white border-y border-r border-gray-300 rounded-r-xl shadow-[4px_0_15px_rgba(0,0,0,0.15)] flex items-center justify-center text-gray-600 hover:text-red-600 hover:bg-gray-50 transition-colors pointer-events-auto z-10 cursor-pointer"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            {isFormOpen ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /> // ชี้ซ้าย (เพื่อพับ)
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /> // ชี้ขวา (เพื่อขยาย)
+            )}
+          </svg>
+        </button>
+      </aside>
+
+      {/* คำแนะนำที่ลอยอยู่ด้านล่าง (จะหายไปเมื่อปักหมุดแล้ว) */}
       {!position && (
-        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[400] pointer-events-none">
-          <div className="bg-gray-900/80 backdrop-blur-md text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center space-x-2 animate-bounce border border-gray-700">
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-[400] pointer-events-none">
+          <div className="bg-gray-900/80 backdrop-blur-md text-white px-5 py-3 rounded-full shadow-2xl flex items-center space-x-2 animate-bounce border border-gray-700">
             <span className="text-xl">👆</span>
-            <span className="text-[13px] font-bold tracking-wide">เลื่อนแผนที่ด้านหลังแล้วแตะเพื่อปักหมุด</span>
+            <span className="text-[13px] font-bold tracking-wide">เลื่อนแผนที่แล้วแตะเพื่อปักหมุดจุดเกิดเหตุ</span>
           </div>
         </div>
       )}
