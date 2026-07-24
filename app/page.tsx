@@ -63,27 +63,26 @@ const nationalStations = [
 
 export default function BoLuangDashboard() {
   const [mounted, setMounted] = useState(false);
-  const [qrUrl, setQrUrl] = useState(''); // 🌟 เพิ่ม State สำหรับเก็บ URL สร้าง QR Code
+  const [qrUrl, setQrUrl] = useState('');
 
-  // 🎛️ State แผงควบคุม
+  // 🎛️ State แผงควบคุม (เปิดเฉพาะระดับประเทศตอนเริ่มต้น)
   const [tmdWeather, setTmdWeather] = useState(true);
   const [tmdRain, setTmdRain] = useState(true);
   const [pm25, setPm25] = useState(true);
   const [windyLayer, setWindyLayer] = useState(true); 
   const [windyType, setWindyType] = useState('rain'); 
-  
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
-  const [showBoluang, setShowBoluang] = useState(true);   
-  const [showBlock, setShowBlock] = useState(true);        
-  const [showParcel, setShowParcel] = useState(true);      
-  const [landslide, setLandslide] = useState(true);        
+  
+  // 🌟 ปิด Layer ท้องถิ่นทั้งหมดไว้ก่อน เพื่อโชว์ความโปร (Macro to Micro)
+  const [showBoluang, setShowBoluang] = useState(false);   
+  const [showBlock, setShowBlock] = useState(false);        
+  const [showParcel, setShowParcel] = useState(false);      
+  const [landslide, setLandslide] = useState(false);        
   const [citizenReport, setCitizenReport] = useState(false);
-  const [hotspot, setHotspot] = useState(true);
+  const [hotspot, setHotspot] = useState(false);
   
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [showWeatherPopup, setShowWeatherPopup] = useState(false);
-  
-  // 🌟 State เปิด Modal สแกน
   const [showScanModal, setShowScanModal] = useState(false);
   const [apiLoadingConfig, setApiLoadingConfig] = useState<{isOpen: boolean, title: string, desc: string, icon: string}>({ isOpen: false, title: '', desc: '', icon: '' });
 
@@ -98,14 +97,15 @@ export default function BoLuangDashboard() {
   const [geoLandslideRisk, setGeoLandslideRisk] = useState<any>(null);
 
   const [mapRef, setMapRef] = useState<any>(null);
-  const [iframeState, setIframeState] = useState({ lat: 18.1633, lng: 98.3744, zoom: 12 });
+  
+  // 🌟 กำหนดจุดศูนย์กลางเริ่มต้นให้เป็น "ประเทศไทย" (Zoom 6) เพื่อเห็นภาพรวมก่อน
+  const initialCenter = { lat: 15.8700, lng: 100.9925, zoom: 6 };
+  const [iframeState, setIframeState] = useState(initialCenter);
   const [transform, setTransform] = useState({ x: 0, y: 0 });
-  const syncData = useRef({ lat: 18.1633, lng: 98.3744, zoom: 12 });
+  const syncData = useRef(initialCenter);
 
   useEffect(() => {
     setMounted(true);
-    
-    // 🌟 สร้าง URL สำหรับ QR Code อัตโนมัติเมื่อเปิดเว็บ
     if (typeof window !== 'undefined') {
       setQrUrl(window.location.origin + '/report');
     }
@@ -135,6 +135,17 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslideRisk);
   }, []);
+
+  // 🌟 Effect สำหรับสร้าง War Room Animation (บินเข้าพื้นที่ ต.บ่อหลวง)
+  useEffect(() => {
+    // ทันทีที่ผู้ใช้กดเปิดเลเยอร์ บ่อหลวง หรือ 13 หมู่บ้าน แผนที่จะบินพุ่งลงมา (Zoom 12) ทันที
+    if (mapRef && (showBoluang || showBlock)) {
+      mapRef.flyTo([18.1633, 98.3744], 12, {
+        duration: 2.5, // บิน 2.5 วินาที สมูทๆ
+        easeLinearity: 0.25
+      });
+    }
+  }, [showBoluang, showBlock, mapRef]);
 
   const formatVillageName = (rawName: any) => {
     if (!rawName) return 'พื้นที่หมู่บ้าน';
@@ -180,12 +191,10 @@ export default function BoLuangDashboard() {
     if (!villageLabels || villageLabels.length === 0) return;
 
     const fetchVillageRain = async () => {
-      setApiLoadingConfig({ isOpen: true, title: 'กำลังโหลดปริมาณฝน', desc: 'กำลังโหลดข้อมูลปริมาณฝนสะสมจากกรมอุตุนิยมวิทยา...', icon: '🌧️' });
       try {
         const lats = villageLabels.map(v => v.lat.toFixed(4)).join(',');
         const lngs = villageLabels.map(v => v.lng.toFixed(4)).join(',');
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,weathercode&timezone=Asia%2FBangkok`;
-        await new Promise(resolve => setTimeout(resolve, 1500));
         const res = await fetch(url);
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -196,7 +205,7 @@ export default function BoLuangDashboard() {
           }));
           setVillageRainData(formatted);
         }
-      } catch (error) { console.error(error); } finally { setApiLoadingConfig(prev => ({ ...prev, isOpen: false })); }
+      } catch (error) { console.error(error); }
     };
     fetchVillageRain();
   }, [tmdRain, villageLabels]);
@@ -204,11 +213,9 @@ export default function BoLuangDashboard() {
   useEffect(() => {
     if (!pm25) { setNationalAirData([]); return; }
     const fetchNationalAir = async () => {
-      setApiLoadingConfig({ isOpen: true, title: 'กำลังโหลดคุณภาพอากาศ', desc: 'กำลังโหลดข้อมูลฝุ่น PM2.5 และสภาพอากาศระดับประเทศ (AQI)...', icon: '😷' });
       try {
         const lats = nationalStations.map(s => s.lat.toFixed(4)).join(',');
         const lngs = nationalStations.map(s => s.lng.toFixed(4)).join(',');
-        await new Promise(resolve => setTimeout(resolve, 1500));
         const [aqiRes, wxRes] = await Promise.all([
           fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lngs}&current=pm2_5&timezone=Asia%2FBangkok`),
           fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=weathercode&timezone=Asia%2FBangkok`)
@@ -221,7 +228,7 @@ export default function BoLuangDashboard() {
           }));
           setNationalAirData(formatted);
         }
-      } catch (error) { console.error(error); } finally { setApiLoadingConfig(prev => ({ ...prev, isOpen: false })); }
+      } catch (error) { console.error(error); }
     };
     fetchNationalAir();
   }, [pm25]);
@@ -462,85 +469,31 @@ export default function BoLuangDashboard() {
         .animate-fade-in-api { animation: fadeIn 0.3s ease-out forwards; }
       `}} />
 
-      {/* 🌟 Modal สแกน QR Code (อัปเดตดึงภาพ QR อัตโนมัติจาก API ฟรี) */}
+      {/* Modal สแกน QR Code */}
       {showScanModal && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-[#0f172a] border border-[#1e293b] w-[90%] max-w-[400px] rounded-2xl shadow-2xl p-8 relative flex flex-col items-center justify-center mx-auto text-center animate-fade-in-api">
             <button onClick={() => setShowScanModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold leading-none">&times;</button>
-            
             <h2 className="text-[20px] font-bold text-white mb-2 w-full">สแกนเพื่อแจ้งจุดเสี่ยงภัย</h2>
-            <p className="text-[13px] text-gray-400 mb-6 leading-relaxed w-full">
-              พบเห็นจุดเสี่ยงภัย ไฟป่า ดินถล่ม หรือสาธารณภัยในพื้นที่ สามารถสแกนคิวอาร์โค้ดด้านล่างนี้เพื่อระบุพิกัดและแจ้งเหตุได้ทันที
-            </p>
-            
-            {/* 🌟 ส่วนแสดงภาพ QR Code อัตโนมัติ */}
+            <p className="text-[13px] text-gray-400 mb-6 leading-relaxed w-full">พบเห็นจุดเสี่ยงภัย สามารถสแกนคิวอาร์โค้ดด้านล่างนี้เพื่อแจ้งเหตุได้ทันที</p>
             <div className="bg-white p-4 rounded-2xl shadow-inner mb-6 flex items-center justify-center">
               {qrUrl ? (
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} 
-                  alt="QR Code สำหรับแจ้งเหตุ" 
-                  className="w-44 h-44 object-contain rounded-lg"
-                />
+                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" className="w-44 h-44 object-contain rounded-lg"/>
               ) : (
-                <div className="w-44 h-44 bg-gray-100 flex items-center justify-center text-gray-400 text-xs rounded-lg animate-pulse border-2 border-dashed border-gray-300">
-                  กำลังสร้าง QR Code...
-                </div>
+                <div className="w-44 h-44 bg-gray-100 flex items-center justify-center text-gray-400 text-xs rounded-lg animate-pulse border-2 border-dashed border-gray-300">กำลังสร้าง QR Code...</div>
               )}
             </div>
-
             <div className="flex flex-col space-y-3 w-full mt-2">
-              <a 
-                href="/report" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="py-3 w-full bg-gradient-to-r from-[#38bdf8] to-[#0284c7] text-white font-bold text-[14px] rounded-xl shadow-lg hover:brightness-110 transition-all flex items-center justify-center space-x-2"
-              >
+              <a href="/report" target="_blank" rel="noopener noreferrer" className="py-3 w-full bg-gradient-to-r from-[#38bdf8] to-[#0284c7] text-white font-bold text-[14px] rounded-xl shadow-lg hover:brightness-110 transition-all flex items-center justify-center space-x-2">
                 <span>เปิดหน้าฟอร์มแจ้งจุดเสี่ยงภัย</span>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
               </a>
-              <button 
-                onClick={() => setShowScanModal(false)}
-                className="py-3 w-full bg-[#1e293b] text-gray-300 font-semibold text-[14px] rounded-xl hover:bg-[#334155] transition-colors"
-              >
-                ปิดหน้าต่าง
-              </button>
+              <button onClick={() => setShowScanModal(false)} className="py-3 w-full bg-[#1e293b] text-gray-300 font-semibold text-[14px] rounded-xl hover:bg-[#334155] transition-colors">ปิดหน้าต่าง</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 🌟 Modal โหลด API */}
-      {apiLoadingConfig.isOpen && (
-        <div className="fixed inset-0 z-[99998] flex items-center justify-center bg-transparent pointer-events-none">
-          <div className="w-[360px] shadow-2xl rounded-xl overflow-hidden animate-fade-in-api border border-[#1e293b] pointer-events-auto">
-            <div className="bg-[#38bdf8] px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center space-x-2 text-[#0f172a] font-bold text-[13px]">
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>{apiLoadingConfig.icon} {apiLoadingConfig.title}</span>
-              </div>
-              <button onClick={() => setApiLoadingConfig(prev => ({...prev, isOpen: false}))} className="text-[#0f172a]/70 hover:text-[#0f172a] transition-colors">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <div className="bg-[#0f172a]/95 backdrop-blur-xl p-5">
-              <p className="font-bold text-white text-[14px] mb-3">เป้าหมาย: ตรวจสอบข้อมูลระดับชาติ/ภูมิภาค</p>
-              <p className="text-gray-300 text-[13px] leading-relaxed mb-4">
-                {apiLoadingConfig.desc}
-              </p>
-              <div className="pt-3 border-t border-gray-700/60 flex items-center justify-between">
-                <p className="text-[10px] text-gray-500 font-mono tracking-wide">
-                  เชื่อมต่อ Open-Meteo API (Real-time)
-                </p>
-                <span className="text-[10px] text-[#38bdf8] bg-[#38bdf8]/10 px-2 py-0.5 rounded border border-[#38bdf8]/20 animate-pulse">Syncing...</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 🗺️ โครงสร้างส่วนที่เหลือของแผนที่ */}
+      {/* 🗺️ โครงสร้างแผนที่หลัก */}
       <div className="absolute inset-0 z-0 bg-[#0b1120] overflow-hidden">
         <div 
           className={`absolute pointer-events-none transition-opacity duration-700 ${windyLayer ? 'opacity-100 saturate-150' : 'opacity-0'}`}
@@ -550,7 +503,8 @@ export default function BoLuangDashboard() {
         </div>
 
         <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>
-          <MapContainer center={[18.1633, 98.3744]} zoom={12} maxZoom={20} zoomControl={false} className="w-full h-full" ref={setMapRef}>
+          {/* 🌟 เซ็ตพิกัดเริ่มต้นเป็น Zoom=6 (ภาพรวมประเทศไทย) */}
+          <MapContainer center={[15.8700, 100.9925]} zoom={6} maxZoom={20} zoomControl={false} className="w-full h-full" ref={setMapRef}>
             <ZoomControl position="topleft" />
             {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
             {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} />}
@@ -572,7 +526,6 @@ export default function BoLuangDashboard() {
                         <div className="flex items-center"><span className="font-semibold text-gray-400 w-24">สภาพอากาศ:</span> <span>{getWmoWeatherDesc(station.wCode)}</span></div>
                         <div className="flex items-center"><span className="font-semibold text-gray-400 w-24">อุณหภูมิ:</span> <span>{station.tempMin.toFixed(2)}°C – {station.tempMax.toFixed(2)}°C</span></div>
                       </div>
-                      <div className="text-[10px] text-gray-500 pt-2.5 border-t border-gray-700 leading-relaxed tracking-wide">ข้อมูลจาก API • {station.apiDate}T00:00:00+07:00</div>
                     </div>
                   </Tooltip>
                 </CircleMarker>
@@ -589,8 +542,6 @@ export default function BoLuangDashboard() {
                 </Tooltip>
               </Marker>
             ))}
-
-            {mounted && tmdWeather && weatherIcon && <Marker position={[18.1633, 98.3744]} icon={weatherIcon} eventHandlers={{ click: () => setShowWeatherPopup(true) }} />}
           </MapContainer>
         </div>
         <div className="absolute inset-0 bg-gradient-to-br from-[#1e3a8a]/10 to-[#064e3b]/10 mix-blend-screen pointer-events-none z-[15]" />
