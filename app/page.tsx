@@ -82,12 +82,11 @@ export default function BoLuangDashboard() {
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [showWeatherPopup, setShowWeatherPopup] = useState(false);
   
-  // 🌟 State สำหรับเปิด Modal สแกน QR Code แจ้งจุดเสี่ยง
+  // 🌟 State เปิด Modal สแกน
   const [showScanModal, setShowScanModal] = useState(false);
-
   const [apiLoadingConfig, setApiLoadingConfig] = useState<{isOpen: boolean, title: string, desc: string, icon: string}>({ isOpen: false, title: '', desc: '', icon: '' });
 
-  // 📡 ข้อมูล API & GeoJSON
+  // 📡 ข้อมูล API
   const [realWeatherData, setRealWeatherData] = useState<any>(null);
   const [villageRainData, setVillageRainData] = useState<any[]>([]); 
   const [nationalAirData, setNationalAirData] = useState<any[]>([]);
@@ -452,43 +451,41 @@ export default function BoLuangDashboard() {
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
         
-        @keyframes fadeIn { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in-api { animation: fadeIn 0.3s ease-out forwards; }
       `}} />
 
-      {/* 🌟 Modal สแกน QR Code สำหรับแจ้งจุดเสี่ยงภัย (ปรับให้อยู่กึ่งกลางเป๊ะ) */}
+      {/* 🌟 1. ย้าย Modal สแกน QR Code ออกมาไว้นอกสุดของโครงสร้าง */}
       {showScanModal && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in-api">
-          <div className="bg-[#0f172a] border border-[#1e293b] w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 flex flex-col items-center relative">
-            <button onClick={() => setShowScanModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white text-xl font-bold">×</button>
-            <h2 className="text-[18px] font-bold text-white mb-2 text-center w-full">สแกนเพื่อแจ้งจุดเสี่ยงภัย</h2>
-            <p className="text-[12px] text-gray-400 mb-6 leading-relaxed text-center w-full">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#0f172a] border border-[#1e293b] w-[90%] max-w-[400px] rounded-2xl shadow-2xl p-8 relative flex flex-col items-center justify-center mx-auto text-center animate-fade-in-api">
+            <button onClick={() => setShowScanModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold leading-none">&times;</button>
+            
+            <h2 className="text-[20px] font-bold text-white mb-2 w-full">สแกนเพื่อแจ้งจุดเสี่ยงภัย</h2>
+            <p className="text-[13px] text-gray-400 mb-6 leading-relaxed w-full">
               พบเห็นจุดเสี่ยงภัย ไฟป่า ดินถล่ม หรือสาธารณภัยในพื้นที่ สามารถสแกนคิวอาร์โค้ดด้านล่างนี้เพื่อระบุพิกัดและแจ้งเหตุได้ทันที
             </p>
             
-            {/* 🌟 บังคับกึ่งกลาง 100% ด้วย flex justify-center และ w-full */}
-            <div className="flex justify-center w-full mb-6">
-              <div className="bg-white p-4 rounded-xl shadow-inner inline-block">
-                {/* ตัวอย่างจำลอง QR Code */}
-                <div className="w-48 h-48 bg-gray-900 flex items-center justify-center text-white text-xs rounded-lg p-2 text-center mx-auto">
-                  [ QR CODE สำหรับสแกนฟอร์มรายงาน ]
-                </div>
+            <div className="bg-white p-4 rounded-2xl shadow-inner mb-6 flex items-center justify-center">
+              {/* ตัวอย่างจำลอง QR Code */}
+              <div className="w-48 h-48 bg-gray-100 flex items-center justify-center text-gray-800 text-xs rounded-lg border-2 border-dashed border-gray-300">
+                [ QR CODE ตรงนี้ ]
               </div>
             </div>
 
-            <div className="flex flex-col space-y-3 w-full">
+            <div className="flex flex-col space-y-3 w-full mt-2">
               <a 
                 href="/report" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="py-3 w-full bg-gradient-to-r from-[#38bdf8] to-[#0284c7] text-[#0f172a] font-bold text-[13px] rounded-xl shadow-lg hover:brightness-110 transition-all flex items-center justify-center space-x-2"
+                className="py-3 w-full bg-gradient-to-r from-[#38bdf8] to-[#0284c7] text-white font-bold text-[14px] rounded-xl shadow-lg hover:brightness-110 transition-all flex items-center justify-center space-x-2"
               >
                 <span>เปิดหน้าฟอร์มแจ้งจุดเสี่ยงภัย</span>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
               </a>
               <button 
                 onClick={() => setShowScanModal(false)}
-                className="py-2.5 w-full bg-[#1e293b] text-gray-300 font-semibold text-[13px] rounded-xl hover:bg-[#334155] transition-colors"
+                className="py-3 w-full bg-[#1e293b] text-gray-300 font-semibold text-[14px] rounded-xl hover:bg-[#334155] transition-colors"
               >
                 ปิดหน้าต่าง
               </button>
@@ -497,34 +494,38 @@ export default function BoLuangDashboard() {
         </div>
       )}
 
+      {/* 🌟 2. ย้าย Modal โหลด API ออกมาไว้นอกสุดเช่นกัน */}
       {apiLoadingConfig.isOpen && (
-        <div className="absolute top-[25%] left-[50%] z-[9999] w-[360px] shadow-2xl rounded-xl overflow-hidden animate-fade-in-api border border-[#1e293b]">
-          <div className="bg-[#38bdf8] px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-[#0f172a] font-bold text-[13px]">
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>{apiLoadingConfig.icon} {apiLoadingConfig.title}</span>
+        <div className="fixed inset-0 z-[99998] flex items-center justify-center bg-transparent pointer-events-none">
+          <div className="w-[360px] shadow-2xl rounded-xl overflow-hidden animate-fade-in-api border border-[#1e293b] pointer-events-auto">
+            <div className="bg-[#38bdf8] px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-[#0f172a] font-bold text-[13px]">
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>{apiLoadingConfig.icon} {apiLoadingConfig.title}</span>
+              </div>
+              <button onClick={() => setApiLoadingConfig(prev => ({...prev, isOpen: false}))} className="text-[#0f172a]/70 hover:text-[#0f172a] transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
             </div>
-            <button onClick={() => setApiLoadingConfig(prev => ({...prev, isOpen: false}))} className="text-[#0f172a]/70 hover:text-[#0f172a] transition-colors">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-          <div className="bg-[#0f172a]/95 backdrop-blur-xl p-5">
-            <p className="font-bold text-white text-[14px] mb-3">เป้าหมาย: ตรวจสอบข้อมูลระดับชาติ/ภูมิภาค</p>
-            <p className="text-gray-300 text-[13px] leading-relaxed mb-4">
-              {apiLoadingConfig.desc}
-            </p>
-            <div className="pt-3 border-t border-gray-700/60 flex items-center justify-between">
-              <p className="text-[10px] text-gray-500 font-mono tracking-wide">
-                เชื่อมต่อ Open-Meteo API (Real-time)
+            <div className="bg-[#0f172a]/95 backdrop-blur-xl p-5">
+              <p className="font-bold text-white text-[14px] mb-3">เป้าหมาย: ตรวจสอบข้อมูลระดับชาติ/ภูมิภาค</p>
+              <p className="text-gray-300 text-[13px] leading-relaxed mb-4">
+                {apiLoadingConfig.desc}
               </p>
-              <span className="text-[10px] text-[#38bdf8] bg-[#38bdf8]/10 px-2 py-0.5 rounded border border-[#38bdf8]/20 animate-pulse">Syncing...</span>
+              <div className="pt-3 border-t border-gray-700/60 flex items-center justify-between">
+                <p className="text-[10px] text-gray-500 font-mono tracking-wide">
+                  เชื่อมต่อ Open-Meteo API (Real-time)
+                </p>
+                <span className="text-[10px] text-[#38bdf8] bg-[#38bdf8]/10 px-2 py-0.5 rounded border border-[#38bdf8]/20 animate-pulse">Syncing...</span>
+              </div>
             </div>
           </div>
         </div>
       )}
 
+      {/* 🗺️ โครงสร้างส่วนที่เหลือของแผนที่ */}
       <div className="absolute inset-0 z-0 bg-[#0b1120] overflow-hidden">
         <div 
           className={`absolute pointer-events-none transition-opacity duration-700 ${windyLayer ? 'opacity-100 saturate-150' : 'opacity-0'}`}
