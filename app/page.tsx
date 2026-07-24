@@ -26,7 +26,6 @@ const CustomToggle = ({ label, active, onClick, dotColor = '#38bdf8' }: any) => 
   </div>
 );
 
-// 🌤️ ฟังก์ชันสภาพอากาศ
 const getWmoWeatherDesc = (code: number) => {
   const codes: Record<number, string> = {
     0: 'ท้องฟ้าแจ่มใส', 1: 'มีเมฆบางส่วน', 2: 'มีเมฆครึ้ม', 3: 'มีเมฆมาก',
@@ -54,12 +53,6 @@ const nationalStations = [
   { name: 'อุบลราชธานี', lat: 15.2448, lng: 104.8473 }, { name: 'นครราชสีมา', lat: 14.9799, lng: 102.0978 }
 ];
 
-// 🌟 ข้อมูลจำลองสำหรับแผ่นดินไหว (รอเปลี่ยนเป็น API จริงได้ในอนาคต)
-const mockEarthquakes = [
-  { lat: 19.3020, lng: 97.9654, area: 'รอยเลื่อนแม่ฮ่องสอน', province: 'แม่ฮ่องสอน', district: 'เมืองแม่ฮ่องสอน / ปาย', risk: 'ปานกลาง-สูง', magnitude: 'M 4.5–5.8' },
-  { lat: 18.7883, lng: 98.9853, area: 'รอยเลื่อนแม่ทา', province: 'เชียงใหม่-ลำพูน', district: 'สันกำแพง / แม่ทา', risk: 'ปานกลาง', magnitude: 'M 4.0–5.0' },
-];
-
 export default function BoLuangDashboard() {
   const [mounted, setMounted] = useState(false);
   const [qrUrl, setQrUrl] = useState('');
@@ -78,8 +71,8 @@ export default function BoLuangDashboard() {
   const [showParcel, setShowParcel] = useState(false);      
   const [citizenReport, setCitizenReport] = useState(false);
   
-  // 🌟 เปิด Hotspot และ Earthquake ทิ้งไว้เป็นค่าเริ่มต้น (ให้จอไม่มืด)
-  const [landslide, setLandslide] = useState(true);        
+  // 🌟 เปิด Hotspot และ Earthquake ทิ้งไว้เป็นค่าเริ่มต้น
+  const [earthquakeLayer, setEarthquakeLayer] = useState(true);        
   const [hotspot, setHotspot] = useState(true);
   
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
@@ -94,8 +87,9 @@ export default function BoLuangDashboard() {
   const [geoBlock, setGeoBlock] = useState<any>(null);
   const [geoParcel, setGeoParcel] = useState<any>(null);
   
-  // 🌟 เพิ่ม State สำหรับเก็บข้อมูล hotspot.geojson ของจริง
+  // 🌟 State สำหรับเก็บข้อมูล GeoJSON ของจริง
   const [geoHotspot, setGeoHotspot] = useState<any>(null);
+  const [geoEarthquake, setGeoEarthquake] = useState<any>(null);
 
   const [mapRef, setMapRef] = useState<any>(null);
   
@@ -135,11 +129,11 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
     loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
     
-    // 🌟 ดึงข้อมูลจากไฟล์ hotspot.geojson ของจริง
+    // 🌟 ดึงข้อมูลจากไฟล์ GeoJSON ของจริงทั้งหมด
     loadGeoJSON(`/geojson/hotspot.geojson?v=${ts}`, setGeoHotspot);
+    loadGeoJSON(`/geojson/earthquake.geojson?v=${ts}`, setGeoEarthquake);
   }, []);
 
-  // 🌟 Effect สำหรับบินเข้าพื้นที่ ต.บ่อหลวง
   useEffect(() => {
     if (mapRef && (showBoluang || showBlock)) {
       mapRef.flyTo([18.1633, 98.3744], 12, {
@@ -349,7 +343,7 @@ export default function BoLuangDashboard() {
     };
   }, [L]);
 
-  // 🌟 สร้าง Custom Icon สำหรับ Hotspot (ไฟป่า)
+  // 🌟 สร้าง Custom Icon สำหรับ Hotspot
   const createHotspotIcon = useMemo(() => {
     if (!L) return () => null;
     return () => L.divIcon({
@@ -366,7 +360,7 @@ export default function BoLuangDashboard() {
     });
   }, [L]);
 
-  // 🌟 สร้าง Custom Icon สำหรับ Earthquake (แผ่นดินไหว)
+  // 🌟 สร้าง Custom Icon สำหรับ Earthquake
   const createQuakeIcon = useMemo(() => {
     if (!L) return () => null;
     return () => L.divIcon({
@@ -400,7 +394,7 @@ export default function BoLuangDashboard() {
           padding: 5px 12px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
         }
 
-        /* 🌟 สไตล์สำหรับ Popup ธรรมดา (PM2.5 / ฝน) */
+        /* สไตล์สำหรับ Popup ธรรมดา (PM2.5 / ฝน) */
         .custom-dark-popup .leaflet-popup-content-wrapper {
           background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #1e293b !important;
           border-radius: 12px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; backdrop-filter: blur(8px) !important; padding: 0 !important; overflow: hidden;
@@ -510,14 +504,12 @@ export default function BoLuangDashboard() {
             {/* 🌟 แสดงข้อมูลจากไฟล์ hotspot.geojson ของจริง */}
             {hotspot && geoHotspot && geoHotspot.features && geoHotspot.features.map((feature: any, i: number) => {
               const geom = feature.geometry;
-              // ถ้าข้อมูลไม่ใช่จุด Point จะข้ามไป
               if (!geom || geom.type !== 'Point') return null;
               
               const lng = geom.coordinates[0];
               const lat = geom.coordinates[1];
               const props = feature.properties || {};
 
-              // ดึงข้อมูลฟิลด์ต่างๆ (รองรับทั้งชื่อภาษาไทยและชื่อตัวแปร GIS มาตรฐาน)
               const areaType = props['ประเภทของพื้นที่'] || props.AREA_TYPE || props.area_type || props.lu_desc || props.type || 'ไม่ระบุ';
               const provName = props['จังหวัด'] || props.PROV_NAM_T || props.prov_name || props.province || 'ไม่ระบุ';
               const tamName = props['ตำบล'] || props.TAM_NAM_T || props.tam_name || props.tambon || props.subdistrict || 'ไม่ระบุ';
@@ -547,29 +539,47 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 แสดงหมุดจำลอง Earthquake (รอเปลี่ยนเป็น API ในอนาคต) */}
-            {landslide && mockEarthquakes.map((point, i) => (
-              <Marker key={`quake-${i}`} position={[point.lat, point.lng]} icon={createQuakeIcon()}>
-                <Popup className="popup-quake">
-                  <div className="w-[260px]">
-                    <div className="bg-[#a855f7] px-4 py-2.5 font-bold text-white text-[14px] flex items-center shadow-sm">
-                      <span className="mr-2 text-[16px]">〰️</span> จุดเสี่ยงแผ่นดินไหว
-                    </div>
-                    <div className="p-4 bg-[#0f172a]/95 backdrop-blur-sm">
-                      <div className="text-[13px] text-gray-300 font-medium mb-3">
-                        พื้นที่: <span className="text-[#c084fc] font-bold text-[14px] ml-1">{point.area}</span>
+            {/* 🌟 แสดงข้อมูลจากไฟล์ earthquake.geojson ของจริง */}
+            {earthquakeLayer && geoEarthquake && geoEarthquake.features && geoEarthquake.features.map((feature: any, i: number) => {
+              const geom = feature.geometry;
+              if (!geom || geom.type !== 'Point') return null;
+              
+              const lng = geom.coordinates[0];
+              const lat = geom.coordinates[1];
+              const props = feature.properties || {};
+
+              const areaName = props['พื้นที่'] || props.FAULT_NAME || props.fault || props.area || 'ไม่ระบุ';
+              const provName = props['จังหวัด'] || props.PROV_NAM_T || props.province || 'ไม่ระบุ';
+              const distName = props['อำเภอ/แนวพื้นที่'] || props.AMP_NAM_T || props.district || 'ไม่ระบุ';
+              const riskLevel = props['ระดับความเสี่ยง'] || props.RISK_LEVEL || props.risk || 'ไม่ระบุ';
+              const mag = props['สถานการณ์จำลอง'] || props.MAGNITUDE || props.magnitude || 'ไม่ระบุ';
+
+              return (
+                <Marker key={`quake-real-${i}`} position={[lat, lng]} icon={createQuakeIcon()}>
+                  <Popup className="popup-quake">
+                    <div className="w-[260px]">
+                      <div className="bg-[#a855f7] px-4 py-2.5 font-bold text-white text-[14px] flex items-center shadow-sm">
+                        <span className="mr-2 text-[16px]">〰️</span> จุดเสี่ยงแผ่นดินไหว
                       </div>
-                      <div className="border-t border-gray-700/60 py-3 text-[12px] text-gray-300 leading-relaxed font-semibold">
-                        จังหวัด: {point.province}<br/>
-                        อำเภอ/แนวพื้นที่: {point.district}<br/>
-                        ระดับความเสี่ยง: <span className="text-[#facc15]">{point.risk}</span><br/>
-                        สถานการณ์จำลอง: <span className="text-white">{point.magnitude}</span>
+                      <div className="p-4 bg-[#0f172a]/95 backdrop-blur-sm">
+                        <div className="text-[13px] text-gray-300 font-medium mb-3">
+                          พื้นที่: <span className="text-[#c084fc] font-bold text-[14px] ml-1">{areaName}</span>
+                        </div>
+                        <div className="border-t border-gray-700/60 py-3 text-[12px] text-gray-300 leading-relaxed font-semibold">
+                          จังหวัด: {provName}<br/>
+                          อำเภอ/แนวพื้นที่: {distName}<br/>
+                          ระดับความเสี่ยง: <span className="text-[#facc15]">{riskLevel}</span><br/>
+                          สถานการณ์จำลอง: <span className="text-white">{mag}</span>
+                        </div>
+                        <div className="border-t border-gray-700/60 pt-3 text-[10px] text-gray-500 font-mono">
+                          Layer: earthquake.geojson
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+                  </Popup>
+                </Marker>
+              );
+            })}
 
           </MapContainer>
         </div>
@@ -709,7 +719,7 @@ export default function BoLuangDashboard() {
                 <div className="flex items-center mb-4"><div className="flex items-center text-[10px] text-[#f97316] tracking-widest font-semibold"><span className="mr-2">🚨</span> HAZARD & REPORTS</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
                 <div className="space-y-4 pl-1">
                   <CustomToggle label="จุดแจ้งเหตุประชาชน (สีแดง)" active={citizenReport} onClick={() => setCitizenReport(!citizenReport)} dotColor="#ef4444" />
-                  <CustomToggle label="จุดเสี่ยงแผ่นดินไหว (ชี้เพื่อดูระดับ)" active={landslide} onClick={() => setLandslide(!landslide)} dotColor="#a855f7" />
+                  <CustomToggle label="จุดเสี่ยงแผ่นดินไหว (ชี้เพื่อดูระดับ)" active={earthquakeLayer} onClick={() => setEarthquakeLayer(!earthquakeLayer)} dotColor="#a855f7" />
                   <CustomToggle label="จุดความร้อน Hotspot (สีส้ม)" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#f97316" />
                 </div>
               </div>
