@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 
-// 🗺️ โหลด Leaflet แบบ Dynamic
+// 🗺️ โหลด Leaflet แบบ Dynamic (เพิ่ม Popup เข้ามาแทน Tooltip ของหมุด)
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
@@ -12,6 +12,7 @@ const ZoomControl = dynamic(() => import('react-leaflet').then(mod => mod.ZoomCo
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
 const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.CircleMarker), { ssr: false });
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false });
+const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 
 // 💎 UI Component สำหรับสวิตช์เปิดปิด
 const CustomToggle = ({ label, active, onClick, dotColor = '#38bdf8' }: any) => (
@@ -66,17 +67,15 @@ export default function BoLuangDashboard() {
   const [qrUrl, setQrUrl] = useState('');
   const [mouseCoords, setMouseCoords] = useState({ lat: '15.8700', lng: '100.9925' });
 
-  // 🎛️ State แผงควบคุม 
-  const [tmdWeather, setTmdWeather] = useState(true);
-  const [tmdRain, setTmdRain] = useState(true);
-  const [pm25, setPm25] = useState(true);
-  
-  // 🌟 ปิดข้อมูล Windy ไว้เป็นค่าเริ่มต้นตามที่ขอ
+  // 🌟 1. ปรับสวิตช์ฝั่งซ้ายเป็น ปิด (false) ทั้งหมดในตอนเริ่มต้น (Clean State)
+  const [tmdWeather, setTmdWeather] = useState(false);
+  const [tmdRain, setTmdRain] = useState(false);
+  const [pm25, setPm25] = useState(false);
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   
-  // 🌟 ปิด Layer ท้องถิ่นทั้งหมดไว้ก่อน
+  // 🌟 ปิด Layer ท้องถิ่นฝั่งขวาไว้ทั้งหมด
   const [showBoluang, setShowBoluang] = useState(false);   
   const [showBlock, setShowBlock] = useState(false);        
   const [showParcel, setShowParcel] = useState(false);      
@@ -137,7 +136,7 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslideRisk);
   }, []);
 
-  // 🌟 Effect สำหรับบินเข้าพื้นที่ ต.บ่อหลวง
+  // 🌟 Effect สำหรับบินเข้าพื้นที่ ต.บ่อหลวง (Fly-To)
   useEffect(() => {
     if (mapRef && (showBoluang || showBlock)) {
       mapRef.flyTo([18.1633, 98.3744], 12, {
@@ -259,6 +258,7 @@ export default function BoLuangDashboard() {
     const villageName = formatVillageName(rawName);
     const defaultColor = getVillageColor(feature);
 
+    // ป้ายชื่อหมู่บ้านยังใช้ Tooltip ได้ปกติ เพราะมันอิงกับพื้นที่ Polygon
     layer.bindTooltip(villageName, { sticky: true, direction: 'auto', className: 'village-hover-tooltip', permanent: false });
     
     layer.on({
@@ -302,7 +302,6 @@ export default function BoLuangDashboard() {
   const styleLandslide = (feature: any) => ({ color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', fillColor: feature.properties?.class === 1 ? '#ef4444' : '#f97316', weight: 1.5, fillOpacity: 0.5, interactive: true });
   const styleParcel = { color: '#4ade80', fillColor: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
 
-  // 🌟 Effect ดักจับพิกัดเมาส์ Real-time
   useEffect(() => {
     if (!mapRef) return;
     const onMove = () => {
@@ -364,15 +363,6 @@ export default function BoLuangDashboard() {
     };
   }, [L]);
 
-  const weatherIcon = useMemo(() => {
-    if (!L) return null;
-    return L.divIcon({
-      className: 'bg-transparent border-none',
-      html: `<div class="flex items-center justify-center w-12 h-12 bg-black/80 border-[1.5px] border-[#38bdf8] rounded-full shadow-[0_0_15px_rgba(56,189,248,0.5)] backdrop-blur-md cursor-pointer hover:scale-110 transition-transform z-50"><span class="text-[20px]">${realWeatherData?.precipitation > 0 ? '🌧️' : '🌤️'}</span></div>`,
-      iconSize: [48, 48], iconAnchor: [24, 24]
-    });
-  }, [realWeatherData, L]);
-
   return (
     <main className="relative w-screen h-screen bg-[#111827] font-sans text-white overflow-hidden">
       <style dangerouslySetInnerHTML={{__html: `
@@ -382,25 +372,42 @@ export default function BoLuangDashboard() {
         .leaflet-bar a:hover { background-color: #1e293b !important; }
         .leaflet-div-icon { background: transparent !important; border: none !important; }
         
-        /* 🌟 แก้บั๊ก Tooltip บังเมาส์และเกิดกำแพงล่องหน 100% */
-        .leaflet-tooltip { pointer-events: none !important; user-select: none !important; }
+        /* 🌟 บังคับให้ Tooltip ทุกชนิดทะลุเมาส์ได้ ป้องกันบั๊กกำแพงล่องหน */
+        .leaflet-tooltip { pointer-events: none !important; }
         
         .leaflet-tooltip.village-hover-tooltip { 
           background-color: #ffffff !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; 
           font-family: inherit !important; font-size: 13px !important; font-weight: 600 !important; 
           padding: 5px 12px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
         }
-        .leaflet-tooltip.custom-dark-tooltip {
+
+        /* 🌟 แต่งหน้าตา Popup ใหม่ให้สวยเหมือน Tooltip ตัวเดิม */
+        .custom-dark-popup .leaflet-popup-content-wrapper {
           background-color: rgba(15, 23, 42, 0.95) !important;
           color: #e2e8f0 !important;
           border: 1px solid #1e293b !important;
-          font-family: inherit !important;
-          padding: 14px 16px !important;
-          border-radius: 10px !important;
+          border-radius: 12px !important;
           box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
-          backdrop-filter: blur(4px) !important;
+          backdrop-filter: blur(8px) !important;
+          padding: 0 !important;
         }
-        .leaflet-tooltip.custom-dark-tooltip::before { border-top-color: rgba(15, 23, 42, 0.95) !important; }
+        .custom-dark-popup .leaflet-popup-tip {
+          background-color: rgba(15, 23, 42, 0.95) !important;
+        }
+        .custom-dark-popup .leaflet-popup-content {
+          margin: 0 !important;
+        }
+        .custom-dark-popup a.leaflet-popup-close-button {
+          color: #cbd5e1 !important;
+          font-size: 16px !important;
+          padding-top: 4px !important;
+          padding-right: 8px !important;
+        }
+        .custom-dark-popup a.leaflet-popup-close-button:hover {
+          color: #ef4444 !important;
+          background: transparent !important;
+        }
+
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
@@ -453,34 +460,34 @@ export default function BoLuangDashboard() {
             {landslide && geoLandslideRisk && <GeoJSON key="landslide-layer" data={geoLandslideRisk} style={styleLandslide} />}
             {showParcel && geoParcel && <GeoJSON key="parcel-layer" data={geoParcel} style={styleParcel} />}
 
-            {/* 🌟 อัปเดต Key ป้องกันการเรนเดอร์ซ้ำ */}
+            {/* 🌟 2. เปลี่ยนมาใช้ Popup (คลิกเพื่อดู) แทน Tooltip (ชี้เพื่อดู) */}
             {tmdRain && villageRainData.map((station) => {
               const style = getRainCircleStyle(station.rainSum);
               return (
                 <CircleMarker key={`rain-local-${station.name}`} center={[station.lat, station.lng]} radius={style.radius} pathOptions={{ color: style.color, fillColor: style.fillColor, fillOpacity: style.fillOpacity, weight: style.weight }}>
-                  <Tooltip direction="top" offset={[0, -10]} className="custom-dark-tooltip" permanent={false}>
-                    <div className="flex flex-col text-left min-w-[220px]">
+                  <Popup className="custom-dark-popup">
+                    <div className="p-4 flex flex-col text-left min-w-[220px]">
                       <div className="font-bold text-white text-[14px] mb-3 border-b border-gray-600 pb-2 flex justify-between"><span>{station.name}</span></div>
-                      <div className="space-y-1.5 mb-4 text-[12px] text-gray-300">
+                      <div className="space-y-1.5 mb-2 text-[12px] text-gray-300">
                         <div className="flex items-center"><span className="font-semibold text-gray-400 w-24">ฝนสะสม:</span> <span className="text-[#38bdf8] font-bold text-[13px]">{station.rainSum.toFixed(1)} มม.</span></div>
                         <div className="flex items-center"><span className="font-semibold text-gray-400 w-24">สภาพอากาศ:</span> <span>{getWmoWeatherDesc(station.wCode)}</span></div>
                         <div className="flex items-center"><span className="font-semibold text-gray-400 w-24">อุณหภูมิ:</span> <span>{station.tempMin.toFixed(2)}°C – {station.tempMax.toFixed(2)}°C</span></div>
                       </div>
                     </div>
-                  </Tooltip>
+                  </Popup>
                 </CircleMarker>
               );
             })}
 
-            {/* 🌟 อัปเดต Key ป้องกันการเรนเดอร์ซ้ำ */}
+            {/* 🌟 2. เปลี่ยนมาใช้ Popup (คลิกเพื่อดู) แทน Tooltip (ชี้เพื่อดู) */}
             {pm25 && nationalAirData.map((station) => (
               <Marker key={`national-pm25-${station.name}`} position={[station.lat, station.lng]} icon={createPm25Icon(station.pm25Val, station.wCode)}>
-                <Tooltip direction="top" offset={[0, -20]} className="custom-dark-tooltip" permanent={false}>
-                  <div className="text-[13px] font-bold text-white text-center px-2 py-1">
+                <Popup className="custom-dark-popup">
+                  <div className="px-4 py-3 text-[13px] font-bold text-white text-center">
                     จ.{station.name}<br/>
                     <span className="text-[11px] text-gray-400 font-normal">สภาพอากาศ: {getWmoWeatherDesc(station.wCode)}</span>
                   </div>
-                </Tooltip>
+                </Popup>
               </Marker>
             ))}
           </MapContainer>
