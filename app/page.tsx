@@ -456,37 +456,39 @@ export default function BoLuangDashboard() {
         .animate-fade-in-api { animation: fadeIn 0.3s ease-out forwards; }
       `}} />
 
-      {/* 🌟 Modal สแกน QR Code สำหรับแจ้งจุดเสี่ยงภัย (มีลิงก์แก้ไปที่ /report เรียบร้อยแล้ว) */}
+      {/* 🌟 Modal สแกน QR Code สำหรับแจ้งจุดเสี่ยงภัย (ปรับให้อยู่กึ่งกลางเป๊ะ) */}
       {showScanModal && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in-api">
-          <div className="bg-[#0f172a] border border-[#1e293b] w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 text-center relative">
+          <div className="bg-[#0f172a] border border-[#1e293b] w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-6 flex flex-col items-center relative">
             <button onClick={() => setShowScanModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white text-xl font-bold">×</button>
-            <h2 className="text-[18px] font-bold text-white mb-2">สแกนเพื่อแจ้งจุดเสี่ยงภัย</h2>
-            <p className="text-[12px] text-gray-400 mb-6 leading-relaxed">
+            <h2 className="text-[18px] font-bold text-white mb-2 text-center w-full">สแกนเพื่อแจ้งจุดเสี่ยงภัย</h2>
+            <p className="text-[12px] text-gray-400 mb-6 leading-relaxed text-center w-full">
               พบเห็นจุดเสี่ยงภัย ไฟป่า ดินถล่ม หรือสาธารณภัยในพื้นที่ สามารถสแกนคิวอาร์โค้ดด้านล่างนี้เพื่อระบุพิกัดและแจ้งเหตุได้ทันที
             </p>
             
-            <div className="bg-white p-4 rounded-xl inline-block shadow-inner mb-6">
-              {/* ตัวอย่างจำลอง QR Code */}
-              <div className="w-48 h-48 bg-gray-900 flex items-center justify-center text-white text-xs rounded-lg p-2 text-center">
-                [ QR CODE สำหรับสแกนฟอร์มรายงานจุดเสี่ยง ]
+            {/* 🌟 บังคับกึ่งกลาง 100% ด้วย flex justify-center และ w-full */}
+            <div className="flex justify-center w-full mb-6">
+              <div className="bg-white p-4 rounded-xl shadow-inner inline-block">
+                {/* ตัวอย่างจำลอง QR Code */}
+                <div className="w-48 h-48 bg-gray-900 flex items-center justify-center text-white text-xs rounded-lg p-2 text-center mx-auto">
+                  [ QR CODE สำหรับสแกนฟอร์มรายงาน ]
+                </div>
               </div>
             </div>
 
-            <div className="flex flex-col space-y-3">
-              {/* 🌟 แก้ไข href ชี้ไปที่ /report */}
+            <div className="flex flex-col space-y-3 w-full">
               <a 
                 href="/report" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="py-3 bg-gradient-to-r from-[#38bdf8] to-[#0284c7] text-[#0f172a] font-bold text-[13px] rounded-xl shadow-lg hover:brightness-110 transition-all flex items-center justify-center space-x-2"
+                className="py-3 w-full bg-gradient-to-r from-[#38bdf8] to-[#0284c7] text-[#0f172a] font-bold text-[13px] rounded-xl shadow-lg hover:brightness-110 transition-all flex items-center justify-center space-x-2"
               >
                 <span>เปิดหน้าฟอร์มแจ้งจุดเสี่ยงภัย</span>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
               </a>
               <button 
                 onClick={() => setShowScanModal(false)}
-                className="py-2.5 bg-[#1e293b] text-gray-300 font-semibold text-[13px] rounded-xl hover:bg-[#334155] transition-colors"
+                className="py-2.5 w-full bg-[#1e293b] text-gray-300 font-semibold text-[13px] rounded-xl hover:bg-[#334155] transition-colors"
               >
                 ปิดหน้าต่าง
               </button>
