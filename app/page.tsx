@@ -26,6 +26,7 @@ const CustomToggle = ({ label, active, onClick, dotColor = '#38bdf8' }: any) => 
   </div>
 );
 
+// 🌤️ ฟังก์ชันสภาพอากาศ
 const getWmoWeatherDesc = (code: number) => {
   const codes: Record<number, string> = {
     0: 'ท้องฟ้าแจ่มใส', 1: 'มีเมฆบางส่วน', 2: 'มีเมฆครึ้ม', 3: 'มีเมฆมาก',
@@ -50,22 +51,21 @@ const nationalStations = [
   { name: 'แม่ฮ่องสอน', lat: 19.3020, lng: 97.9654 }, { name: 'น่าน', lat: 18.7756, lng: 100.7730 },
   { name: 'ตาก', lat: 16.8839, lng: 99.1258 }, { name: 'พิษณุโลก', lat: 16.8211, lng: 100.2659 },
   { name: 'ขอนแก่น', lat: 16.4322, lng: 102.8236 }, { name: 'อุดรธานี', lat: 17.4138, lng: 102.7872 },
-  { name: 'อุบลราชธานี', lat: 15.2448, lng: 104.8473 }, { name: 'นครราชสีมา', lat: 14.9799, lng: 102.0978 },
-  { name: 'เลย', lat: 17.4860, lng: 101.7223 }, { name: 'สกลนคร', lat: 17.1664, lng: 104.1486 },
-  { name: 'กรุงเทพฯ', lat: 13.7563, lng: 100.5018 }, { name: 'กาญจนบุรี', lat: 14.0041, lng: 99.5316 },
-  { name: 'ชลบุรี', lat: 13.3611, lng: 100.9847 }, { name: 'ระยอง', lat: 12.6814, lng: 101.2816 },
-  { name: 'ประจวบคีรีขันธ์', lat: 11.8124, lng: 99.7975 }, { name: 'ชุมพร', lat: 10.4930, lng: 99.1800 },
-  { name: 'สุราษฎร์ธานี', lat: 9.1332, lng: 99.3195 }, { name: 'ภูเก็ต', lat: 7.8804, lng: 98.3922 },
-  { name: 'สงขลา', lat: 7.1898, lng: 100.5954 }, { name: 'ยะลา', lat: 6.5411, lng: 101.2816 }
+  { name: 'อุบลราชธานี', lat: 15.2448, lng: 104.8473 }, { name: 'นครราชสีมา', lat: 14.9799, lng: 102.0978 }
+];
+
+// 🌟 ข้อมูลจำลองสำหรับแผ่นดินไหว (รอเปลี่ยนเป็น API จริงได้ในอนาคต)
+const mockEarthquakes = [
+  { lat: 19.3020, lng: 97.9654, area: 'รอยเลื่อนแม่ฮ่องสอน', province: 'แม่ฮ่องสอน', district: 'เมืองแม่ฮ่องสอน / ปาย', risk: 'ปานกลาง-สูง', magnitude: 'M 4.5–5.8' },
+  { lat: 18.7883, lng: 98.9853, area: 'รอยเลื่อนแม่ทา', province: 'เชียงใหม่-ลำพูน', district: 'สันกำแพง / แม่ทา', risk: 'ปานกลาง', magnitude: 'M 4.0–5.0' },
 ];
 
 export default function BoLuangDashboard() {
   const [mounted, setMounted] = useState(false);
   const [qrUrl, setQrUrl] = useState('');
-  
-  // 🌟 แก้บั๊กแผนที่กระตุก: ใช้ useRef เพื่อเก็บพิกัดแทน useState
   const coordsRef = useRef<HTMLSpanElement>(null);
 
+  // 🎛️ State แผงควบคุม 
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
   const [pm25, setPm25] = useState(false);
@@ -76,13 +76,16 @@ export default function BoLuangDashboard() {
   const [showBoluang, setShowBoluang] = useState(false);   
   const [showBlock, setShowBlock] = useState(false);        
   const [showParcel, setShowParcel] = useState(false);      
-  const [landslide, setLandslide] = useState(false);        
   const [citizenReport, setCitizenReport] = useState(false);
-  const [hotspot, setHotspot] = useState(false);
+  
+  // 🌟 เปิด Hotspot และ Earthquake ทิ้งไว้เป็นค่าเริ่มต้น (ให้จอไม่มืด)
+  const [landslide, setLandslide] = useState(true);        
+  const [hotspot, setHotspot] = useState(true);
   
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [showScanModal, setShowScanModal] = useState(false);
 
+  // 📡 ข้อมูล API & GeoJSON
   const [realWeatherData, setRealWeatherData] = useState<any>(null);
   const [villageRainData, setVillageRainData] = useState<any[]>([]); 
   const [nationalAirData, setNationalAirData] = useState<any[]>([]);
@@ -90,18 +93,23 @@ export default function BoLuangDashboard() {
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
   const [geoParcel, setGeoParcel] = useState<any>(null);
-  const [geoLandslideRisk, setGeoLandslideRisk] = useState<any>(null);
+  
+  // 🌟 เพิ่ม State สำหรับเก็บข้อมูล hotspot.geojson ของจริง
+  const [geoHotspot, setGeoHotspot] = useState<any>(null);
 
   const [mapRef, setMapRef] = useState<any>(null);
   
-  const initialCenter = { lat: 15.8700, lng: 100.9925, zoom: 6 };
+  // 🌟 กำหนดจุดศูนย์กลางเริ่มต้น (ประเทศไทย Zoom 6)
+  const initialCenter = { lat: 14.8700, lng: 100.9925, zoom: 6 };
   const [iframeState, setIframeState] = useState(initialCenter);
   const [transform, setTransform] = useState({ x: 0, y: 0 });
   const syncData = useRef(initialCenter);
 
   useEffect(() => {
     setMounted(true);
-    if (typeof window !== 'undefined') setQrUrl(window.location.origin + '/report');
+    if (typeof window !== 'undefined') {
+      setQrUrl(window.location.origin + '/report');
+    }
 
     const fetchLocalBaseData = async () => {
       try {
@@ -126,12 +134,18 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang);
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
     loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
-    loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslideRisk);
+    
+    // 🌟 ดึงข้อมูลจากไฟล์ hotspot.geojson ของจริง
+    loadGeoJSON(`/geojson/hotspot.geojson?v=${ts}`, setGeoHotspot);
   }, []);
 
+  // 🌟 Effect สำหรับบินเข้าพื้นที่ ต.บ่อหลวง
   useEffect(() => {
     if (mapRef && (showBoluang || showBlock)) {
-      mapRef.flyTo([18.1633, 98.3744], 12, { duration: 2.5, easeLinearity: 0.25 });
+      mapRef.flyTo([18.1633, 98.3744], 12, {
+        duration: 2.5, 
+        easeLinearity: 0.25
+      });
     }
   }, [showBoluang, showBlock, mapRef]);
 
@@ -251,25 +265,12 @@ export default function BoLuangDashboard() {
     layer.on({
       mouseover: (e: any) => {
         const targetLayer = e.target;
-        targetLayer.setStyle({ 
-          weight: 3, 
-          color: '#ffffff', 
-          fillColor: defaultColor, 
-          fillOpacity: 0.7, 
-          dashArray: '' 
-        });
-        if (targetLayer.bringToFront) {
-          targetLayer.bringToFront(); 
-        }
+        targetLayer.setStyle({ weight: 3, color: '#ffffff', fillColor: defaultColor, fillOpacity: 0.7, dashArray: '' });
+        if (targetLayer.bringToFront) targetLayer.bringToFront(); 
       },
       mouseout: (e: any) => {
         const targetLayer = e.target;
-        targetLayer.setStyle({ 
-          weight: 1.5, 
-          color: 'rgba(255, 255, 255, 0.3)', 
-          fillOpacity: 0.12, 
-          dashArray: '3, 3' 
-        });
+        targetLayer.setStyle({ weight: 1.5, color: 'rgba(255, 255, 255, 0.3)', fillOpacity: 0.12, dashArray: '3, 3' });
       }
     });
   };
@@ -286,7 +287,6 @@ export default function BoLuangDashboard() {
   };
 
   const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0, interactive: false }; 
-  const styleLandslide = (feature: any) => ({ color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', fillColor: feature.properties?.class === 1 ? '#ef4444' : '#f97316', weight: 1.5, fillOpacity: 0.5, interactive: true });
   const styleParcel = { color: '#4ade80', fillColor: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
 
   useEffect(() => {
@@ -313,7 +313,6 @@ export default function BoLuangDashboard() {
     };
 
     const onMouseMove = (e: any) => {
-      // 🌟 อัปเดตข้อความผ่าน DOM โดยตรง ไม่ผ่าน State (แก้บั๊กกระตุก/Hover ไม่ติด)
       if (coordsRef.current) {
         coordsRef.current.innerText = `${e.latlng.lat.toFixed(4)}° N \u00A0 ${e.latlng.lng.toFixed(4)}° E`;
       }
@@ -350,6 +349,40 @@ export default function BoLuangDashboard() {
     };
   }, [L]);
 
+  // 🌟 สร้าง Custom Icon สำหรับ Hotspot (ไฟป่า)
+  const createHotspotIcon = useMemo(() => {
+    if (!L) return () => null;
+    return () => L.divIcon({
+      className: 'bg-transparent border-none',
+      html: `
+        <div class="relative flex items-center justify-center w-8 h-8">
+          <div class="absolute inset-0 bg-orange-500 rounded-full opacity-30 animate-ping"></div>
+          <div class="relative flex items-center justify-center w-8 h-8 bg-[#0f172a]/80 border-2 border-orange-500 rounded-full shadow-[0_0_15px_rgba(249,115,22,0.8)] backdrop-blur-sm z-10">
+            <span class="text-orange-400 text-[14px]">🔥</span>
+          </div>
+        </div>
+      `,
+      iconSize: [32, 32], iconAnchor: [16, 16]
+    });
+  }, [L]);
+
+  // 🌟 สร้าง Custom Icon สำหรับ Earthquake (แผ่นดินไหว)
+  const createQuakeIcon = useMemo(() => {
+    if (!L) return () => null;
+    return () => L.divIcon({
+      className: 'bg-transparent border-none',
+      html: `
+        <div class="relative flex items-center justify-center w-8 h-8">
+          <div class="absolute inset-0 bg-purple-500 rounded-full opacity-30 animate-ping" style="animation-duration: 2s;"></div>
+          <div class="relative flex items-center justify-center w-8 h-8 bg-[#0f172a]/80 border-2 border-purple-400 rounded-full shadow-[0_0_15px_rgba(168,85,247,0.8)] backdrop-blur-sm z-10">
+            <span class="text-purple-300 text-[14px]">〰️</span>
+          </div>
+        </div>
+      `,
+      iconSize: [32, 32], iconAnchor: [16, 16]
+    });
+  }, [L]);
+
   return (
     <main className="relative w-screen h-screen bg-[#111827] font-sans text-white overflow-hidden">
       <style dangerouslySetInnerHTML={{__html: `
@@ -367,31 +400,32 @@ export default function BoLuangDashboard() {
           padding: 5px 12px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
         }
 
+        /* 🌟 สไตล์สำหรับ Popup ธรรมดา (PM2.5 / ฝน) */
         .custom-dark-popup .leaflet-popup-content-wrapper {
-          background-color: rgba(15, 23, 42, 0.95) !important;
-          color: #e2e8f0 !important;
-          border: 1px solid #1e293b !important;
-          border-radius: 12px !important;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
-          backdrop-filter: blur(8px) !important;
-          padding: 0 !important;
+          background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #1e293b !important;
+          border-radius: 12px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; backdrop-filter: blur(8px) !important; padding: 0 !important; overflow: hidden;
         }
-        .custom-dark-popup .leaflet-popup-tip {
-          background-color: rgba(15, 23, 42, 0.95) !important;
+        .custom-dark-popup .leaflet-popup-tip { background-color: rgba(15, 23, 42, 0.95) !important; }
+        .custom-dark-popup .leaflet-popup-content { margin: 0 !important; }
+        
+        /* 🌟 สไตล์สำหรับ Popup Hotspot (สีส้ม) */
+        .popup-hotspot .leaflet-popup-content-wrapper {
+          background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #ea580c !important;
+          border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden;
         }
-        .custom-dark-popup .leaflet-popup-content {
-          margin: 0 !important;
+        .popup-hotspot .leaflet-popup-tip { background-color: rgba(15, 23, 42, 0.95) !important; border-top: 1px solid #ea580c !important; border-left: 1px solid #ea580c !important; }
+        .popup-hotspot .leaflet-popup-content { margin: 0 !important; }
+
+        /* 🌟 สไตล์สำหรับ Popup Earthquake (สีม่วง) */
+        .popup-quake .leaflet-popup-content-wrapper {
+          background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #a855f7 !important;
+          border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden;
         }
-        .custom-dark-popup a.leaflet-popup-close-button {
-          color: #cbd5e1 !important;
-          font-size: 16px !important;
-          padding-top: 4px !important;
-          padding-right: 8px !important;
-        }
-        .custom-dark-popup a.leaflet-popup-close-button:hover {
-          color: #ef4444 !important;
-          background: transparent !important;
-        }
+        .popup-quake .leaflet-popup-tip { background-color: rgba(15, 23, 42, 0.95) !important; border-top: 1px solid #a855f7 !important; border-left: 1px solid #a855f7 !important; }
+        .popup-quake .leaflet-popup-content { margin: 0 !important; }
+
+        .leaflet-popup-close-button { color: #cbd5e1 !important; font-size: 16px !important; padding-top: 4px !important; padding-right: 8px !important; z-index: 50;}
+        .leaflet-popup-close-button:hover { color: #ef4444 !important; background: transparent !important; }
 
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -435,14 +469,13 @@ export default function BoLuangDashboard() {
         </div>
 
         <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>
-          <MapContainer center={[15.8700, 100.9925]} zoom={6} maxZoom={20} zoomControl={false} className="w-full h-full" ref={setMapRef}>
+          <MapContainer center={[14.8700, 100.9925]} zoom={6} maxZoom={20} zoomControl={false} className="w-full h-full" ref={setMapRef}>
             <ZoomControl position="topleft" />
             {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
             {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} />}
             
             {showBoluang && geoBoluang && <GeoJSON key="boluang-layer" data={geoBoluang} style={styleBoluang} />}
             {showBlock && geoBlock && <GeoJSON key="block-layer" data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
-            {landslide && geoLandslideRisk && <GeoJSON key="landslide-layer" data={geoLandslideRisk} style={styleLandslide} />}
             {showParcel && geoParcel && <GeoJSON key="parcel-layer" data={geoParcel} style={styleParcel} />}
 
             {tmdRain && villageRainData.map((station) => {
@@ -473,6 +506,71 @@ export default function BoLuangDashboard() {
                 </Popup>
               </Marker>
             ))}
+
+            {/* 🌟 แสดงข้อมูลจากไฟล์ hotspot.geojson ของจริง */}
+            {hotspot && geoHotspot && geoHotspot.features && geoHotspot.features.map((feature: any, i: number) => {
+              const geom = feature.geometry;
+              // ถ้าข้อมูลไม่ใช่จุด Point จะข้ามไป
+              if (!geom || geom.type !== 'Point') return null;
+              
+              const lng = geom.coordinates[0];
+              const lat = geom.coordinates[1];
+              const props = feature.properties || {};
+
+              // ดึงข้อมูลฟิลด์ต่างๆ (รองรับทั้งชื่อภาษาไทยและชื่อตัวแปร GIS มาตรฐาน)
+              const areaType = props['ประเภทของพื้นที่'] || props.AREA_TYPE || props.area_type || props.lu_desc || props.type || 'ไม่ระบุ';
+              const provName = props['จังหวัด'] || props.PROV_NAM_T || props.prov_name || props.province || 'ไม่ระบุ';
+              const tamName = props['ตำบล'] || props.TAM_NAM_T || props.tam_name || props.tambon || props.subdistrict || 'ไม่ระบุ';
+
+              return (
+                <Marker key={`hotspot-real-${i}`} position={[lat, lng]} icon={createHotspotIcon()}>
+                  <Popup className="popup-hotspot">
+                    <div className="w-[260px]">
+                      <div className="bg-[#f97316] px-4 py-2.5 font-bold text-[#0f172a] text-[14px] flex items-center shadow-sm">
+                        <span className="mr-2 text-[16px]">🔥</span> จุดความร้อน Hotspot
+                      </div>
+                      <div className="p-4 bg-[#0f172a]/95 backdrop-blur-sm">
+                        <div className="text-[13px] text-gray-300 font-medium mb-3">
+                          ประเภทของพื้นที่: <span className="text-[#f97316] font-bold text-[14px] ml-1">{areaType}</span>
+                        </div>
+                        <div className="border-t border-gray-700/60 py-3 text-[12px] text-gray-300 leading-relaxed font-semibold">
+                          จังหวัด: {provName}<br/>
+                          ตำบล: {tamName}
+                        </div>
+                        <div className="border-t border-gray-700/60 pt-3 text-[10px] text-gray-500 font-mono">
+                          Layer: hotspot.geojson
+                        </div>
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
+
+            {/* 🌟 แสดงหมุดจำลอง Earthquake (รอเปลี่ยนเป็น API ในอนาคต) */}
+            {landslide && mockEarthquakes.map((point, i) => (
+              <Marker key={`quake-${i}`} position={[point.lat, point.lng]} icon={createQuakeIcon()}>
+                <Popup className="popup-quake">
+                  <div className="w-[260px]">
+                    <div className="bg-[#a855f7] px-4 py-2.5 font-bold text-white text-[14px] flex items-center shadow-sm">
+                      <span className="mr-2 text-[16px]">〰️</span> จุดเสี่ยงแผ่นดินไหว
+                    </div>
+                    <div className="p-4 bg-[#0f172a]/95 backdrop-blur-sm">
+                      <div className="text-[13px] text-gray-300 font-medium mb-3">
+                        พื้นที่: <span className="text-[#c084fc] font-bold text-[14px] ml-1">{point.area}</span>
+                      </div>
+                      <div className="border-t border-gray-700/60 py-3 text-[12px] text-gray-300 leading-relaxed font-semibold">
+                        จังหวัด: {point.province}<br/>
+                        อำเภอ/แนวพื้นที่: {point.district}<br/>
+                        ระดับความเสี่ยง: <span className="text-[#facc15]">{point.risk}</span><br/>
+                        สถานการณ์จำลอง: <span className="text-white">{point.magnitude}</span>
+                      </div>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+
           </MapContainer>
         </div>
         <div className="absolute inset-0 bg-gradient-to-br from-[#1e3a8a]/10 to-[#064e3b]/10 mix-blend-screen pointer-events-none z-[15]" />
@@ -555,7 +653,7 @@ export default function BoLuangDashboard() {
           <div className="w-px h-3 bg-gray-600"></div>
           <span className="font-semibold text-gray-300">CRS: WGS84</span>
           <div className="w-px h-3 bg-gray-600"></div>
-          <span ref={coordsRef} className="text-[#38bdf8] w-[135px] font-bold">15.8700° N &nbsp; 100.9925° E</span>
+          <span ref={coordsRef} className="text-[#38bdf8] w-[135px] font-bold">14.8700° N &nbsp; 100.9925° E</span>
         </div>
       </div>
 
@@ -611,7 +709,7 @@ export default function BoLuangDashboard() {
                 <div className="flex items-center mb-4"><div className="flex items-center text-[10px] text-[#f97316] tracking-widest font-semibold"><span className="mr-2">🚨</span> HAZARD & REPORTS</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
                 <div className="space-y-4 pl-1">
                   <CustomToggle label="จุดแจ้งเหตุประชาชน (สีแดง)" active={citizenReport} onClick={() => setCitizenReport(!citizenReport)} dotColor="#ef4444" />
-                  <CustomToggle label="จุดเสี่ยงดินถล่ม (ชี้เพื่อดูระดับ)" active={landslide} onClick={() => setLandslide(!landslide)} dotColor="#eab308" />
+                  <CustomToggle label="จุดเสี่ยงแผ่นดินไหว (ชี้เพื่อดูระดับ)" active={landslide} onClick={() => setLandslide(!landslide)} dotColor="#a855f7" />
                   <CustomToggle label="จุดความร้อน Hotspot (สีส้ม)" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#f97316" />
                 </div>
               </div>
