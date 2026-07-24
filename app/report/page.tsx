@@ -5,20 +5,23 @@ import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js';
 
-// 🌟 ตั้งค่า Supabase (อย่าลืมใส่ URL และ KEY ของคุณในไฟล์ .env.local)
+// 🌟 แก้ไข: ดึง Hook useMapEvents เข้ามาแบบปกติ (ไม่ต้องใช้ dynamic)
+import { useMapEvents } from 'react-leaflet';
+
+// 🌟 ตั้งค่า Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 🗺️ โหลด Leaflet แบบ Dynamic
+// 🗺️ โหลด Leaflet Component แบบ Dynamic (ใช้ dynamic เฉพาะ Component)
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false });
-const useMapEvents = dynamic(() => import('react-leaflet').then(mod => mod.useMapEvents), { ssr: false });
 
 // 📍 คอมโพเนนต์สำหรับคลิกปักหมุดบนแผนที่
 function LocationMarker({ position, setPosition }: any) {
+  // ใช้ useMapEvents ที่ import มาด้านบนได้เลย
   useMapEvents({
     click(e) {
       setPosition(e.latlng);
@@ -57,7 +60,6 @@ export default function DisasterReportForm() {
 
   useEffect(() => {
     setMounted(true);
-    // ขออนุญาตใช้ GPS ของผู้แจ้งเหตุอัตโนมัติ
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (loc) => setPosition({ lat: loc.coords.latitude, lng: loc.coords.longitude }),
@@ -84,7 +86,6 @@ export default function DisasterReportForm() {
 
     setIsSubmitting(true);
     
-    // 💾 ส่งข้อมูลเข้า Supabase Table: boluang_disaster_reports
     try {
       const { error } = await supabase
         .from('boluang_disaster_reports')
@@ -103,7 +104,6 @@ export default function DisasterReportForm() {
       if (error) throw error;
       setSubmitStatus('success');
       
-      // รีเซ็ตฟอร์มหลังจากส่งสำเร็จ 3 วินาที
       setTimeout(() => {
         setSubmitStatus('idle');
         setFormData({ ...formData, description: '', reporter_name: '' });
@@ -123,12 +123,7 @@ export default function DisasterReportForm() {
   return (
     <div className="flex flex-col md:flex-row h-screen w-full bg-gray-50 font-sans">
       
-      {/* ==========================================
-          📍 ฝั่งซ้าย: ฟอร์มกรอกข้อมูล (Form Panel)
-      ========================================== */}
       <div className="w-full md:w-[450px] bg-white h-full shadow-2xl flex flex-col z-20 overflow-y-auto">
-        
-        {/* Header */}
         <div className="bg-red-600 p-6 text-white shadow-md">
           <div className="flex items-center space-x-3">
             <span className="text-3xl bg-white/20 p-2 rounded-xl">🚨</span>
@@ -139,7 +134,6 @@ export default function DisasterReportForm() {
           </div>
         </div>
 
-        {/* Info Box */}
         <div className="p-5">
           <div className="bg-red-50 border border-red-200 text-red-700 text-[13px] p-3 rounded-lg flex items-start space-x-3 mb-6">
             <span className="text-lg">📍</span>
@@ -147,8 +141,6 @@ export default function DisasterReportForm() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            
-            {/* 1. พื้นที่หมู่บ้าน */}
             <div>
               <label className="block text-[13px] font-bold text-gray-700 mb-1.5 flex items-center"><span className="text-red-500 mr-1.5">📌</span> 1. พื้นที่หมู่บ้านที่พบเหตุ</label>
               <select name="village_name" value={formData.village_name} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-2.5 text-[14px] bg-gray-50 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none">
@@ -156,7 +148,6 @@ export default function DisasterReportForm() {
               </select>
             </div>
 
-            {/* 2. ประเภทภัย */}
             <div>
               <label className="block text-[13px] font-bold text-gray-700 mb-1.5 flex items-center"><span className="text-orange-500 mr-1.5">🔥</span> 2. ประเภทของสาธารณภัย <span className="text-red-500 ml-1">*</span></label>
               <select name="risk_type" value={formData.risk_type} onChange={handleChange} className="w-full border border-gray-300 rounded-lg p-2.5 text-[14px] bg-gray-50 focus:ring-2 focus:ring-red-500 outline-none">
@@ -168,7 +159,6 @@ export default function DisasterReportForm() {
               </select>
             </div>
 
-            {/* 3. ระดับความรุนแรง */}
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
               <label className="block text-[13px] font-bold text-gray-700 mb-2 flex items-center"><span className="text-yellow-500 mr-1.5">⚠️</span> 3. ระดับความรุนแรง <span className="text-red-500 ml-1">*</span></label>
               <div className="text-[10px] text-gray-400 mb-2 flex justify-between px-1"><span>(1 = เฝ้าระวัง)</span><span>(5 = รุนแรง/ฉุกเฉิน)</span></div>
@@ -188,7 +178,6 @@ export default function DisasterReportForm() {
               </div>
             </div>
 
-            {/* 4. รายละเอียด */}
             <div>
               <label className="block text-[13px] font-bold text-gray-700 mb-1.5 flex items-center"><span className="text-blue-500 mr-1.5">📝</span> 4. รายละเอียดและข้อเสนอแนะ <span className="text-red-500 ml-1">*</span></label>
               <textarea 
@@ -198,7 +187,6 @@ export default function DisasterReportForm() {
               ></textarea>
             </div>
 
-            {/* 5. ข้อมูลผู้แจ้ง */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[12px] font-bold text-gray-700 mb-1.5">ชื่อผู้แจ้ง (ไม่บังคับ)</label>
@@ -215,7 +203,6 @@ export default function DisasterReportForm() {
               </div>
             </div>
 
-            {/* Status & Submit Button */}
             <div className="pt-4 mt-4 border-t border-gray-100 pb-8">
               <div className="flex justify-between items-center mb-4">
                 <span className="text-[12px] font-semibold text-gray-500">จำนวนพิกัดที่ปักบนแผนที่</span>
@@ -236,7 +223,6 @@ export default function DisasterReportForm() {
                 )}
               </button>
 
-              {/* แจ้งเตือนเมื่อส่งสำเร็จ */}
               {submitStatus === 'success' && (
                 <div className="mt-4 p-3 bg-green-50 border border-green-200 text-green-700 text-center text-[13px] font-bold rounded-lg animate-fade-in">
                   ✅ ส่งข้อมูลแจ้งจุดเสี่ยงภัยสำเร็จ เจ้าหน้าที่ได้รับเรื่องแล้ว
@@ -248,24 +234,17 @@ export default function DisasterReportForm() {
         </div>
       </div>
 
-      {/* ==========================================
-          🗺️ ฝั่งขวา: แผนที่สำหรับปักหมุด (Map Panel)
-      ========================================== */}
       <div className="flex-1 relative h-[50vh] md:h-full z-10 bg-gray-200">
         <MapContainer center={[18.1500, 98.2850]} zoom={13} zoomControl={false} className="w-full h-full cursor-crosshair">
           <ZoomControl position="topright" />
-          
-          {/* ใช้ Base map แบบสว่าง (Google Streets) เพื่อให้ประชาชนดูง่าย */}
           <TileLayer 
             url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}" 
             maxZoom={20} 
             attribution="&copy; Google Maps"
           />
-          
           <LocationMarker position={position} setPosition={setPosition} />
         </MapContainer>
 
-        {/* แถบคำแนะนำการใช้งานแผนที่ลอยอยู่ด้านล่าง */}
         {!position && (
           <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[400] pointer-events-none">
             <div className="bg-gray-900/80 backdrop-blur-md text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center space-x-2 animate-bounce border border-gray-700">
