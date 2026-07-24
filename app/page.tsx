@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 
-// 🗺️ โหลด Leaflet แบบ Dynamic (เพิ่ม Popup เข้ามาแทน Tooltip ของหมุด)
+// 🗺️ โหลด Leaflet แบบ Dynamic
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
@@ -14,7 +14,6 @@ const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.Circl
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 
-// 💎 UI Component สำหรับสวิตช์เปิดปิด
 const CustomToggle = ({ label, active, onClick, dotColor = '#38bdf8' }: any) => (
   <div className="flex items-center space-x-3 cursor-pointer group py-1.5" onClick={onClick}>
     <div className={`relative w-[34px] h-[18px] rounded-full transition-colors duration-300 flex-shrink-0 ${active ? 'bg-[#38bdf8]' : 'bg-[#334155]'}`}>
@@ -27,7 +26,6 @@ const CustomToggle = ({ label, active, onClick, dotColor = '#38bdf8' }: any) => 
   </div>
 );
 
-// 🌤️ แปลงรหัสสภาพอากาศ WMO เป็นภาษาไทยและ Emoji
 const getWmoWeatherDesc = (code: number) => {
   const codes: Record<number, string> = {
     0: 'ท้องฟ้าแจ่มใส', 1: 'มีเมฆบางส่วน', 2: 'มีเมฆครึ้ม', 3: 'มีเมฆมาก',
@@ -47,7 +45,6 @@ const getWeatherEmoji = (code: number) => {
   return '☀️';
 };
 
-// 📍 พิกัดสถานีระดับประเทศ 
 const nationalStations = [
   { name: 'เชียงใหม่', lat: 18.7883, lng: 98.9853 }, { name: 'เชียงราย', lat: 19.9070, lng: 99.8325 },
   { name: 'แม่ฮ่องสอน', lat: 19.3020, lng: 97.9654 }, { name: 'น่าน', lat: 18.7756, lng: 100.7730 },
@@ -65,9 +62,10 @@ const nationalStations = [
 export default function BoLuangDashboard() {
   const [mounted, setMounted] = useState(false);
   const [qrUrl, setQrUrl] = useState('');
-  const [mouseCoords, setMouseCoords] = useState({ lat: '15.8700', lng: '100.9925' });
+  
+  // 🌟 แก้บั๊กแผนที่กระตุก: ใช้ useRef เพื่อเก็บพิกัดแทน useState
+  const coordsRef = useRef<HTMLSpanElement>(null);
 
-  // 🌟 1. ปรับสวิตช์ฝั่งซ้ายเป็น ปิด (false) ทั้งหมดในตอนเริ่มต้น (Clean State)
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
   const [pm25, setPm25] = useState(false);
@@ -75,7 +73,6 @@ export default function BoLuangDashboard() {
   const [windyType, setWindyType] = useState('rain'); 
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   
-  // 🌟 ปิด Layer ท้องถิ่นฝั่งขวาไว้ทั้งหมด
   const [showBoluang, setShowBoluang] = useState(false);   
   const [showBlock, setShowBlock] = useState(false);        
   const [showParcel, setShowParcel] = useState(false);      
@@ -86,7 +83,6 @@ export default function BoLuangDashboard() {
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [showScanModal, setShowScanModal] = useState(false);
 
-  // 📡 ข้อมูล API
   const [realWeatherData, setRealWeatherData] = useState<any>(null);
   const [villageRainData, setVillageRainData] = useState<any[]>([]); 
   const [nationalAirData, setNationalAirData] = useState<any[]>([]);
@@ -98,7 +94,6 @@ export default function BoLuangDashboard() {
 
   const [mapRef, setMapRef] = useState<any>(null);
   
-  // 🌟 กำหนดจุดศูนย์กลางเริ่มต้น (ประเทศไทย Zoom 6)
   const initialCenter = { lat: 15.8700, lng: 100.9925, zoom: 6 };
   const [iframeState, setIframeState] = useState(initialCenter);
   const [transform, setTransform] = useState({ x: 0, y: 0 });
@@ -106,9 +101,7 @@ export default function BoLuangDashboard() {
 
   useEffect(() => {
     setMounted(true);
-    if (typeof window !== 'undefined') {
-      setQrUrl(window.location.origin + '/report');
-    }
+    if (typeof window !== 'undefined') setQrUrl(window.location.origin + '/report');
 
     const fetchLocalBaseData = async () => {
       try {
@@ -136,13 +129,9 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslideRisk);
   }, []);
 
-  // 🌟 Effect สำหรับบินเข้าพื้นที่ ต.บ่อหลวง (Fly-To)
   useEffect(() => {
     if (mapRef && (showBoluang || showBlock)) {
-      mapRef.flyTo([18.1633, 98.3744], 12, {
-        duration: 2.5, 
-        easeLinearity: 0.25
-      });
+      mapRef.flyTo([18.1633, 98.3744], 12, { duration: 2.5, easeLinearity: 0.25 });
     }
   }, [showBoluang, showBlock, mapRef]);
 
@@ -232,7 +221,6 @@ export default function BoLuangDashboard() {
     fetchNationalAir();
   }, [pm25]);
 
-  // 🌟 ฟังก์ชันจัดการสีหมู่บ้านให้แม่นยำ
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
   
   const getVillageColor = (feature: any) => {
@@ -258,7 +246,6 @@ export default function BoLuangDashboard() {
     const villageName = formatVillageName(rawName);
     const defaultColor = getVillageColor(feature);
 
-    // ป้ายชื่อหมู่บ้านยังใช้ Tooltip ได้ปกติ เพราะมันอิงกับพื้นที่ Polygon
     layer.bindTooltip(villageName, { sticky: true, direction: 'auto', className: 'village-hover-tooltip', permanent: false });
     
     layer.on({
@@ -326,10 +313,10 @@ export default function BoLuangDashboard() {
     };
 
     const onMouseMove = (e: any) => {
-      setMouseCoords({
-        lat: e.latlng.lat.toFixed(4),
-        lng: e.latlng.lng.toFixed(4)
-      });
+      // 🌟 อัปเดตข้อความผ่าน DOM โดยตรง ไม่ผ่าน State (แก้บั๊กกระตุก/Hover ไม่ติด)
+      if (coordsRef.current) {
+        coordsRef.current.innerText = `${e.latlng.lat.toFixed(4)}° N \u00A0 ${e.latlng.lng.toFixed(4)}° E`;
+      }
     };
 
     mapRef.on('move', onMove); 
@@ -372,7 +359,6 @@ export default function BoLuangDashboard() {
         .leaflet-bar a:hover { background-color: #1e293b !important; }
         .leaflet-div-icon { background: transparent !important; border: none !important; }
         
-        /* 🌟 บังคับให้ Tooltip ทุกชนิดทะลุเมาส์ได้ ป้องกันบั๊กกำแพงล่องหน */
         .leaflet-tooltip { pointer-events: none !important; }
         
         .leaflet-tooltip.village-hover-tooltip { 
@@ -381,7 +367,6 @@ export default function BoLuangDashboard() {
           padding: 5px 12px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
         }
 
-        /* 🌟 แต่งหน้าตา Popup ใหม่ให้สวยเหมือน Tooltip ตัวเดิม */
         .custom-dark-popup .leaflet-popup-content-wrapper {
           background-color: rgba(15, 23, 42, 0.95) !important;
           color: #e2e8f0 !important;
@@ -460,7 +445,6 @@ export default function BoLuangDashboard() {
             {landslide && geoLandslideRisk && <GeoJSON key="landslide-layer" data={geoLandslideRisk} style={styleLandslide} />}
             {showParcel && geoParcel && <GeoJSON key="parcel-layer" data={geoParcel} style={styleParcel} />}
 
-            {/* 🌟 2. เปลี่ยนมาใช้ Popup (คลิกเพื่อดู) แทน Tooltip (ชี้เพื่อดู) */}
             {tmdRain && villageRainData.map((station) => {
               const style = getRainCircleStyle(station.rainSum);
               return (
@@ -479,7 +463,6 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 2. เปลี่ยนมาใช้ Popup (คลิกเพื่อดู) แทน Tooltip (ชี้เพื่อดู) */}
             {pm25 && nationalAirData.map((station) => (
               <Marker key={`national-pm25-${station.name}`} position={[station.lat, station.lng]} icon={createPm25Icon(station.pm25Val, station.wCode)}>
                 <Popup className="custom-dark-popup">
@@ -572,7 +555,7 @@ export default function BoLuangDashboard() {
           <div className="w-px h-3 bg-gray-600"></div>
           <span className="font-semibold text-gray-300">CRS: WGS84</span>
           <div className="w-px h-3 bg-gray-600"></div>
-          <span className="text-[#38bdf8] w-[135px] font-bold">{mouseCoords.lat}° N &nbsp; {mouseCoords.lng}° E</span>
+          <span ref={coordsRef} className="text-[#38bdf8] w-[135px] font-bold">15.8700° N &nbsp; 100.9925° E</span>
         </div>
       </div>
 
