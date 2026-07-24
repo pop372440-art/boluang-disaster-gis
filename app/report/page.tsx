@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js';
 
-// 🌟 แก้ไข: ดึง Hook useMapEvents เข้ามาแบบปกติ (ไม่ต้องใช้ dynamic)
+// 🌟 ดึง Hook useMapEvents เข้ามา
 import { useMapEvents } from 'react-leaflet';
 
 // 🌟 ตั้งค่า Supabase
@@ -13,15 +13,15 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 🗺️ โหลด Leaflet Component แบบ Dynamic (ใช้ dynamic เฉพาะ Component)
+// 🗺️ โหลด Leaflet Component แบบ Dynamic (เพิ่ม ZoomControl เข้ามาแล้ว)
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false });
+const ZoomControl = dynamic(() => import('react-leaflet').then(mod => mod.ZoomControl), { ssr: false });
 
 // 📍 คอมโพเนนต์สำหรับคลิกปักหมุดบนแผนที่
 function LocationMarker({ position, setPosition }: any) {
-  // ใช้ useMapEvents ที่ import มาด้านบนได้เลย
   useMapEvents({
     click(e) {
       setPosition(e.latlng);
