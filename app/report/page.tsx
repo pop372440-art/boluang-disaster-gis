@@ -20,19 +20,19 @@ const ZoomControl = dynamic(() => import('react-leaflet').then(mod => mod.ZoomCo
 
 // 📍 กำหนดพิกัด (Lat, Lng) อ้างอิงจาก ศูนย์กลางชุมชน, โรงเรียน, วัด, รพ.สต.
 const VILLAGE_COORDS: Record<string, [number, number]> = {
-  'บ้านบ่อหลวง': [18.1506, 98.2862],    // อ้างอิง: โรงเรียนบ้านบ่อหลวง / วัดบ่อหลวง
-  'บ้านบ่อพะแวน': [18.1568, 98.2915],   // อ้างอิง: ศูนย์กลางชุมชนบ้านบ่อพะแวน
-  'บ้านบ่อสะแง๋': [18.1408, 98.2915],   // อ้างอิง: วัดบ่อสะแง๋
-  'บ้านแม่หืด': [18.1965, 98.2730],     // อ้างอิง: โรงเรียนบ้านแม่หืด
-  'บ้านแม่สะนาม': [18.1342, 98.3072],   // อ้างอิง: รพ.สต.บ้านแม่สะนาม / โรงเรียน
-  'บ้านกิ่วลม': [18.1378, 98.3445],     // อ้างอิง: วัดกิ่วลม / ศาลาชุมชน
-  'บ้านวังกอง': [18.1610, 98.3090],     // อ้างอิง: ใกล้โรงเรียนบ้านกองลอย / ชุมชนวังกอง
-  'บ้านขุน': [18.1147, 98.3175],        // อ้างอิง: วัดบ้านขุน / โรงเรียนบ้านขุน
-  'บ้านนาฟ่อน': [18.1065, 98.3362],     // อ้างอิง: วัดนาฟ่อน
-  'บ้านแม่ลายเหนือ': [18.0935, 98.3540], // อ้างอิง: วัดแม่ลายเหนือ
-  'บ้านแม่ลาย': [18.0862, 98.3458],     // อ้างอิง: โรงเรียนบ้านแม่ลาย
-  'บ้านพุย': [18.0772, 98.3265],        // อ้างอิง: วัดพุย / โรงเรียนบ้านพุย
-  'บ้านเตียนอาง': [18.0675, 98.3040],   // อ้างอิง: โบสถ์คริสตจักรบ้านเตียนอาง
+  'บ้านบ่อหลวง': [18.1506, 98.2862],    
+  'บ้านบ่อพะแวน': [18.1568, 98.2915],   
+  'บ้านบ่อสะแง๋': [18.1408, 98.2915],   
+  'บ้านแม่หืด': [18.219289, 98.371096],     // 🌟 ปรับพิกัดขยับขวา-บน ให้ตรงกับโรงเรียนบ้านแม่หืด
+  'บ้านแม่สะนาม': [18.1342, 98.3072],   
+  'บ้านกิ่วลม': [18.1378, 98.3445],     
+  'บ้านวังกอง': [18.1610, 98.3090],     
+  'บ้านขุน': [18.1147, 98.3175],        
+  'บ้านนาฟ่อน': [18.1065, 98.3362],     
+  'บ้านแม่ลายเหนือ': [18.0935, 98.3540], 
+  'บ้านแม่ลาย': [18.0862, 98.3458],     
+  'บ้านพุย': [18.0772, 98.3265],        
+  'บ้านเตียนอาง': [18.0675, 98.3040],   
 };
 
 // 🗺️ คอมโพเนนต์สำหรับควบคุมให้แผนที่บิน (Fly) ไปยังพิกัด
@@ -97,7 +97,6 @@ export default function DisasterReportForm() {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     
-    // เมื่อเปลี่ยนหมู่บ้าน ให้ขยับแผนที่และพับแถบฟอร์มชั่วคราว (ถ้ายูสเซอร์ใช้จอมือถือ)
     if (name === 'village_name' && VILLAGE_COORDS[value]) {
       setMapCenter(VILLAGE_COORDS[value]);
       if (window.innerWidth < 768) setIsFormOpen(false);
@@ -142,10 +141,7 @@ export default function DisasterReportForm() {
           isFormOpen ? 'translate-x-0' : '-translate-x-full'
         } w-[95vw] sm:w-[420px]`}
       >
-        {/* ตัวกล่องเนื้อหาฟอร์ม */}
         <div className="w-full h-full bg-white/95 backdrop-blur-xl shadow-[4px_0_25px_rgba(0,0,0,0.15)] flex flex-col pointer-events-auto border-r border-gray-200 z-20">
-          
-          {/* Header */}
           <div className="bg-red-600 p-5 text-white shadow-md flex-shrink-0">
             <div className="flex items-center space-x-3">
               <span className="text-2xl bg-white/20 p-2 rounded-xl">🚨</span>
@@ -156,7 +152,6 @@ export default function DisasterReportForm() {
             </div>
           </div>
 
-          {/* Form Content */}
           <div className="p-5 overflow-y-auto custom-scrollbar flex-1 pb-20">
             <div className="bg-red-50 border border-red-200 text-red-700 text-[12px] p-3 rounded-lg flex items-start space-x-2 mb-5">
               <span className="text-base">📍</span>
@@ -227,22 +222,20 @@ export default function DisasterReportForm() {
           </div>
         </div>
 
-        {/* 🌟 ปุ่มแท็บสำหรับกดยุบ/ขยาย (ติดอยู่ขอบขวาของกล่องฟอร์ม) */}
         <button
           onClick={() => setIsFormOpen(!isFormOpen)}
           className="absolute top-1/2 -right-[32px] transform -translate-y-1/2 w-[32px] h-[72px] bg-white border-y border-r border-gray-300 rounded-r-xl shadow-[4px_0_15px_rgba(0,0,0,0.15)] flex items-center justify-center text-gray-600 hover:text-red-600 hover:bg-gray-50 transition-colors pointer-events-auto z-10 cursor-pointer"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             {isFormOpen ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /> // ชี้ซ้าย (เพื่อพับ)
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
             ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /> // ชี้ขวา (เพื่อขยาย)
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
             )}
           </svg>
         </button>
       </aside>
 
-      {/* คำแนะนำที่ลอยอยู่ด้านล่าง (จะหายไปเมื่อปักหมุดแล้ว) */}
       {!position && (
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-[400] pointer-events-none">
           <div className="bg-gray-900/80 backdrop-blur-md text-white px-5 py-3 rounded-full shadow-2xl flex items-center space-x-2 animate-bounce border border-gray-700">
