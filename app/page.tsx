@@ -70,11 +70,13 @@ export default function BoLuangDashboard() {
   const [tmdWeather, setTmdWeather] = useState(true);
   const [tmdRain, setTmdRain] = useState(true);
   const [pm25, setPm25] = useState(true);
-  const [windyLayer, setWindyLayer] = useState(true); 
+  
+  // 🌟 ปิดข้อมูล Windy ไว้เป็นค่าเริ่มต้นตามที่ขอ
+  const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   
-  // 🌟 ปิด Layer ท้องถิ่นทั้งหมดไว้ก่อน เพื่อโชว์ภาพรวมประเทศ
+  // 🌟 ปิด Layer ท้องถิ่นทั้งหมดไว้ก่อน
   const [showBoluang, setShowBoluang] = useState(false);   
   const [showBlock, setShowBlock] = useState(false);        
   const [showParcel, setShowParcel] = useState(false);      
@@ -231,7 +233,7 @@ export default function BoLuangDashboard() {
     fetchNationalAir();
   }, [pm25]);
 
-  // 🌟 ฟังก์ชันจัดการสีหมู่บ้านให้แม่นยำและสัมพันธ์กันทั้งตอนปกติและตอน Hover
+  // 🌟 ฟังก์ชันจัดการสีหมู่บ้านให้แม่นยำ
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
   
   const getVillageColor = (feature: any) => {
@@ -257,7 +259,7 @@ export default function BoLuangDashboard() {
     const villageName = formatVillageName(rawName);
     const defaultColor = getVillageColor(feature);
 
-    layer.bindTooltip(villageName, { sticky: true, direction: 'auto', className: 'village-hover-tooltip' });
+    layer.bindTooltip(villageName, { sticky: true, direction: 'auto', className: 'village-hover-tooltip', permanent: false });
     
     layer.on({
       mouseover: (e: any) => {
@@ -266,7 +268,7 @@ export default function BoLuangDashboard() {
           weight: 3, 
           color: '#ffffff', 
           fillColor: defaultColor, 
-          fillOpacity: 0.7, // เพิ่มความสว่างตอน hover ให้ชัดขึ้น
+          fillOpacity: 0.7, 
           dashArray: '' 
         });
         if (targetLayer.bringToFront) {
@@ -300,6 +302,7 @@ export default function BoLuangDashboard() {
   const styleLandslide = (feature: any) => ({ color: feature.properties?.class === 1 ? '#ef4444' : '#f97316', fillColor: feature.properties?.class === 1 ? '#ef4444' : '#f97316', weight: 1.5, fillOpacity: 0.5, interactive: true });
   const styleParcel = { color: '#4ade80', fillColor: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
 
+  // 🌟 Effect ดักจับพิกัดเมาส์ Real-time
   useEffect(() => {
     if (!mapRef) return;
     const onMove = () => {
@@ -361,6 +364,15 @@ export default function BoLuangDashboard() {
     };
   }, [L]);
 
+  const weatherIcon = useMemo(() => {
+    if (!L) return null;
+    return L.divIcon({
+      className: 'bg-transparent border-none',
+      html: `<div class="flex items-center justify-center w-12 h-12 bg-black/80 border-[1.5px] border-[#38bdf8] rounded-full shadow-[0_0_15px_rgba(56,189,248,0.5)] backdrop-blur-md cursor-pointer hover:scale-110 transition-transform z-50"><span class="text-[20px]">${realWeatherData?.precipitation > 0 ? '🌧️' : '🌤️'}</span></div>`,
+      iconSize: [48, 48], iconAnchor: [24, 24]
+    });
+  }, [realWeatherData, L]);
+
   return (
     <main className="relative w-screen h-screen bg-[#111827] font-sans text-white overflow-hidden">
       <style dangerouslySetInnerHTML={{__html: `
@@ -369,6 +381,10 @@ export default function BoLuangDashboard() {
         .leaflet-bar a { background-color: #0f172a !important; color: #fff !important; border: 1px solid #1e293b !important; border-radius: 8px !important; }
         .leaflet-bar a:hover { background-color: #1e293b !important; }
         .leaflet-div-icon { background: transparent !important; border: none !important; }
+        
+        /* 🌟 แก้บั๊ก Tooltip บังเมาส์และเกิดกำแพงล่องหน 100% */
+        .leaflet-tooltip { pointer-events: none !important; user-select: none !important; }
+        
         .leaflet-tooltip.village-hover-tooltip { 
           background-color: #ffffff !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; 
           font-family: inherit !important; font-size: 13px !important; font-weight: 600 !important; 
@@ -437,12 +453,12 @@ export default function BoLuangDashboard() {
             {landslide && geoLandslideRisk && <GeoJSON key="landslide-layer" data={geoLandslideRisk} style={styleLandslide} />}
             {showParcel && geoParcel && <GeoJSON key="parcel-layer" data={geoParcel} style={styleParcel} />}
 
-            {/* 🌟 ถอด sticky ออก ป้องกันบั๊ก tooltip ซ้อนกัน */}
-            {tmdRain && villageRainData.map((station, index) => {
+            {/* 🌟 อัปเดต Key ป้องกันการเรนเดอร์ซ้ำ */}
+            {tmdRain && villageRainData.map((station) => {
               const style = getRainCircleStyle(station.rainSum);
               return (
-                <CircleMarker key={`rain-local-${index}`} center={[station.lat, station.lng]} radius={style.radius} pathOptions={{ color: style.color, fillColor: style.fillColor, fillOpacity: style.fillOpacity, weight: style.weight }}>
-                  <Tooltip direction="top" offset={[0, -10]} className="custom-dark-tooltip">
+                <CircleMarker key={`rain-local-${station.name}`} center={[station.lat, station.lng]} radius={style.radius} pathOptions={{ color: style.color, fillColor: style.fillColor, fillOpacity: style.fillOpacity, weight: style.weight }}>
+                  <Tooltip direction="top" offset={[0, -10]} className="custom-dark-tooltip" permanent={false}>
                     <div className="flex flex-col text-left min-w-[220px]">
                       <div className="font-bold text-white text-[14px] mb-3 border-b border-gray-600 pb-2 flex justify-between"><span>{station.name}</span></div>
                       <div className="space-y-1.5 mb-4 text-[12px] text-gray-300">
@@ -456,10 +472,10 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 ถอด sticky ออก ป้องกันบั๊ก tooltip ซ้อนกัน */}
-            {pm25 && nationalAirData.map((station, index) => (
-              <Marker key={`national-pm25-${index}`} position={[station.lat, station.lng]} icon={createPm25Icon(station.pm25Val, station.wCode)}>
-                <Tooltip direction="top" offset={[0, -20]} className="custom-dark-tooltip">
+            {/* 🌟 อัปเดต Key ป้องกันการเรนเดอร์ซ้ำ */}
+            {pm25 && nationalAirData.map((station) => (
+              <Marker key={`national-pm25-${station.name}`} position={[station.lat, station.lng]} icon={createPm25Icon(station.pm25Val, station.wCode)}>
+                <Tooltip direction="top" offset={[0, -20]} className="custom-dark-tooltip" permanent={false}>
                   <div className="text-[13px] font-bold text-white text-center px-2 py-1">
                     จ.{station.name}<br/>
                     <span className="text-[11px] text-gray-400 font-normal">สภาพอากาศ: {getWmoWeatherDesc(station.wCode)}</span>
