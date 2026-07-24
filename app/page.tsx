@@ -63,6 +63,7 @@ const nationalStations = [
 
 export default function BoLuangDashboard() {
   const [mounted, setMounted] = useState(false);
+  const [qrUrl, setQrUrl] = useState(''); // 🌟 เพิ่ม State สำหรับเก็บ URL สร้าง QR Code
 
   // 🎛️ State แผงควบคุม
   const [tmdWeather, setTmdWeather] = useState(true);
@@ -103,6 +104,12 @@ export default function BoLuangDashboard() {
 
   useEffect(() => {
     setMounted(true);
+    
+    // 🌟 สร้าง URL สำหรับ QR Code อัตโนมัติเมื่อเปิดเว็บ
+    if (typeof window !== 'undefined') {
+      setQrUrl(window.location.origin + '/report');
+    }
+
     const fetchLocalBaseData = async () => {
       try {
         const weatherRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=18.1633&longitude=98.3744&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&timezone=Asia%2FBangkok');
@@ -455,7 +462,7 @@ export default function BoLuangDashboard() {
         .animate-fade-in-api { animation: fadeIn 0.3s ease-out forwards; }
       `}} />
 
-      {/* 🌟 1. ย้าย Modal สแกน QR Code ออกมาไว้นอกสุดของโครงสร้าง */}
+      {/* 🌟 Modal สแกน QR Code (อัปเดตดึงภาพ QR อัตโนมัติจาก API ฟรี) */}
       {showScanModal && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-[#0f172a] border border-[#1e293b] w-[90%] max-w-[400px] rounded-2xl shadow-2xl p-8 relative flex flex-col items-center justify-center mx-auto text-center animate-fade-in-api">
@@ -466,11 +473,19 @@ export default function BoLuangDashboard() {
               พบเห็นจุดเสี่ยงภัย ไฟป่า ดินถล่ม หรือสาธารณภัยในพื้นที่ สามารถสแกนคิวอาร์โค้ดด้านล่างนี้เพื่อระบุพิกัดและแจ้งเหตุได้ทันที
             </p>
             
+            {/* 🌟 ส่วนแสดงภาพ QR Code อัตโนมัติ */}
             <div className="bg-white p-4 rounded-2xl shadow-inner mb-6 flex items-center justify-center">
-              {/* ตัวอย่างจำลอง QR Code */}
-              <div className="w-48 h-48 bg-gray-100 flex items-center justify-center text-gray-800 text-xs rounded-lg border-2 border-dashed border-gray-300">
-                [ QR CODE ตรงนี้ ]
-              </div>
+              {qrUrl ? (
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} 
+                  alt="QR Code สำหรับแจ้งเหตุ" 
+                  className="w-44 h-44 object-contain rounded-lg"
+                />
+              ) : (
+                <div className="w-44 h-44 bg-gray-100 flex items-center justify-center text-gray-400 text-xs rounded-lg animate-pulse border-2 border-dashed border-gray-300">
+                  กำลังสร้าง QR Code...
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col space-y-3 w-full mt-2">
@@ -494,7 +509,7 @@ export default function BoLuangDashboard() {
         </div>
       )}
 
-      {/* 🌟 2. ย้าย Modal โหลด API ออกมาไว้นอกสุดเช่นกัน */}
+      {/* 🌟 Modal โหลด API */}
       {apiLoadingConfig.isOpen && (
         <div className="fixed inset-0 z-[99998] flex items-center justify-center bg-transparent pointer-events-none">
           <div className="w-[360px] shadow-2xl rounded-xl overflow-hidden animate-fade-in-api border border-[#1e293b] pointer-events-auto">
