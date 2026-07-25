@@ -130,7 +130,7 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
     
     // 🌟 ดึงข้อมูลจากไฟล์ GeoJSON ของจริงทั้งหมด
-    loadGeoJSON(`/geojson/hotspot.geojson?v=${ts}`, setGeoHotspot);
+    loadGeoJSON(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=AF9B1EEFF30042208F1DE95B579E7F90`, setGeoHotspot);
     loadGeoJSON(`/geojson/earthquake.geojson?v=${ts}`, setGeoEarthquake);
   }, []);
 
