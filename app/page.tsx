@@ -14,7 +14,7 @@ const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.Circl
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 
-// 💎 UI Component: Toggle กล่องพรีเมียม (ฟอนต์ 14px อ่านง่าย + บีบ Padding บนล่างให้กระชับ)
+// 💎 UI Component: Toggle กล่องพรีเมียม
 const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio = false }: any) => (
   <div 
     className={`flex items-center space-x-3 px-3 py-1.5 rounded-xl border transition-all duration-300 cursor-pointer select-none mb-1 ${
@@ -86,6 +86,7 @@ export default function BoLuangDashboard() {
   const [citizenReport, setCitizenReport] = useState(false);
   const [earthquakeLayer, setEarthquakeLayer] = useState(true);        
   const [hotspot, setHotspot] = useState(true);
+  const [showLandslide, setShowLandslide] = useState(false); // 🌟 เพิ่ม State ดินถล่ม
   
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [showScanModal, setShowScanModal] = useState(false);
@@ -100,6 +101,7 @@ export default function BoLuangDashboard() {
   const [geoParcel, setGeoParcel] = useState<any>(null);
   const [geoHotspot, setGeoHotspot] = useState<any>(null);
   const [geoEarthquake, setGeoEarthquake] = useState<any>(null);
+  const [geoLandslide, setGeoLandslide] = useState<any>(null); // 🌟 เพิ่ม State รับข้อมูล GeoJSON ดินถล่ม
 
   const [mapRef, setMapRef] = useState<any>(null);
   
@@ -110,7 +112,8 @@ export default function BoLuangDashboard() {
   const [currentZoom, setCurrentZoom] = useState(6);
   const syncData = useRef(initialCenter);
 
-  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot].filter(Boolean).length;
+  // 🌟 อัปเดตการนับ Layer ให้รวมดินถล่มด้วย
+  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide].filter(Boolean).length;
 
   useEffect(() => {
     setMounted(true);
@@ -140,9 +143,10 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
     loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
     
-    // GISTDA API 
+    // GISTDA API และข้อมูลภัยพิบัติอื่นๆ
     loadGeoJSON(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=AF9B1EEFF30042208F1DE95B579E7F90`, setGeoHotspot);
     loadGeoJSON(`/geojson/earthquake.geojson?v=${ts}`, setGeoEarthquake);
+    loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide); // 🌟 โหลดข้อมูลดินถล่ม
   }, []);
 
   useEffect(() => {
@@ -276,6 +280,8 @@ export default function BoLuangDashboard() {
 
   const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0, interactive: false }; 
   const styleParcel = { color: '#4ade80', fillColor: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
+  // 🌟 สไตล์สำหรับพื้นที่เสี่ยงดินถล่ม (สีแดงอมส้ม โปร่งแสง)
+  const styleLandslide = { color: '#ef4444', fillColor: '#ef4444', weight: 1.5, fillOpacity: 0.35, dashArray: '4, 4' };
 
   useEffect(() => {
     if (!mapRef) return;
@@ -455,6 +461,20 @@ export default function BoLuangDashboard() {
             {showBoluang && geoBoluang && <GeoJSON key="boluang-layer" data={geoBoluang} style={styleBoluang} />}
             {showBlock && geoBlock && <GeoJSON key="block-layer" data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
             {showParcel && geoParcel && <GeoJSON key="parcel-layer" data={geoParcel} style={styleParcel} />}
+            
+            {/* 🌟 แสดงผลชั้นข้อมูลพื้นที่เสี่ยงดินถล่ม */}
+            {showLandslide && geoLandslide && (
+              <GeoJSON 
+                key="landslide-layer" 
+                data={geoLandslide} 
+                style={styleLandslide} 
+                onEachFeature={(feature: any, layer: any) => {
+                  const props = feature.properties || {};
+                  const riskLevel = props.risk || props.Risk || props.RISK_LEVEL || 'พื้นที่เสี่ยงดินถล่ม';
+                  layer.bindTooltip(`⚠️ ระดับความเสี่ยง: ${riskLevel}`, { sticky: true, direction: 'auto', className: 'village-hover-tooltip' });
+                }} 
+              />
+            )}
 
             {tmdRain && villageRainData.map((station) => {
               const style = getRainCircleStyle(station.rainSum);
@@ -577,7 +597,7 @@ export default function BoLuangDashboard() {
       <aside className="absolute top-24 left-4 z-40 w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-2xl shadow-2xl p-5 backdrop-blur-xl pointer-events-auto max-h-[calc(100vh-120px)] overflow-y-auto custom-scrollbar">
         <div className="mb-4 flex flex-col items-start border-b border-[#1e293b] pb-3">
           <div className="flex items-center space-x-3 mb-2">
-            <div className="bg-gradient-to-br from-[#38bdf8] to-[#2563eb] p-2 rounded-xl shadow-[0_4px_10px_rgba(37,99,235,0.4)]">
+            <div className="bg-gradient-to-br from-[#38bdf8] to-[#2563eb] p-2.5 rounded-xl shadow-[0_4px_10px_rgba(37,99,235,0.4)]">
               <span className="text-white text-[20px]">🌧️</span>
             </div>
             <h2 className="text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">Weather & Air</h2>
@@ -645,7 +665,7 @@ export default function BoLuangDashboard() {
         </div>
       </div>
 
-      {/* 🌟 แถบ Credit สภาพอากาศ Windy (ล็อก Animation สไลด์หลบ 100%) */}
+      {/* 🌟 แถบ Credit สภาพอากาศ Windy */}
       <div 
         className="absolute bottom-6 right-5 z-[60] pointer-events-auto transition-transform duration-500 ease-in-out"
         style={{ transform: isRightPanelOpen ? 'translateX(-370px)' : 'translateX(0)' }}
@@ -661,7 +681,7 @@ export default function BoLuangDashboard() {
         <a href="https://leafletjs.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Leaflet</a> | &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="hover:underline">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer" className="hover:underline">CARTO</a>
       </div>
 
-      {/* แผงขวา จัดระยะรัดรูป Compact ไม่ให้เกิด Scrollbar บนจอ 1080p */}
+      {/* แผงขวา */}
       <aside 
         className="absolute top-24 right-0 z-40 transition-transform duration-500 ease-in-out flex pointer-events-auto"
         style={{ transform: isRightPanelOpen ? 'translateX(0)' : 'translateX(360px)' }}
@@ -745,6 +765,8 @@ export default function BoLuangDashboard() {
                 <div className="space-y-1">
                   <CustomToggleBox label="จุดเสี่ยงแผ่นดินไหว" active={earthquakeLayer} onClick={() => setEarthquakeLayer(!earthquakeLayer)} dotColor="#c084fc" />
                   <CustomToggleBox label="จุดความร้อน Hotspot" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#ea580c" />
+                  {/* 🌟 ดึงปุ่มดินถล่มกลับมาใส่ในหมวดนี้แล้วครับ */}
+                  <CustomToggleBox label="พื้นที่เสี่ยงดินถล่ม" active={showLandslide} onClick={() => setShowLandslide(!showLandslide)} dotColor="#ef4444" />
                 </div>
               </div>
 
