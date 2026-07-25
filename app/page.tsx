@@ -14,12 +14,10 @@ const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.Circl
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 
-// 💎 UI Component: Toggle กล่องพรีเมียม
+// 💎 UI Component: Toggle กล่องพรีเมียม (แบบ Clean & Fast กล่องสีพื้นเหมือนกันหมดทุกสถานะ)
 const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio = false }: any) => (
   <div 
-    className={`flex items-center space-x-3 px-3 py-1.5 rounded-xl border transition-all duration-300 cursor-pointer select-none mb-1 ${
-      active ? 'border-[#38bdf8]/50 bg-[#38bdf8]/10 shadow-[inset_0_0_10px_rgba(56,189,248,0.1)]' : 'border-[#1e293b] bg-[#0b1121]/50 hover:bg-[#1e293b]/50'
-    }`}
+    className="flex items-center space-x-3 px-3 py-1.5 rounded-xl border border-[#1e293b] bg-[#0b132b]/50 hover:bg-[#1e293b]/80 transition-colors duration-200 cursor-pointer select-none mb-1"
     onClick={onClick}
   >
     {isRadio ? (
@@ -86,7 +84,7 @@ export default function BoLuangDashboard() {
   const [citizenReport, setCitizenReport] = useState(false);
   const [earthquakeLayer, setEarthquakeLayer] = useState(true);        
   const [hotspot, setHotspot] = useState(true);
-  const [showLandslide, setShowLandslide] = useState(false); // 🌟 เพิ่ม State ดินถล่ม
+  const [showLandslide, setShowLandslide] = useState(false);
   
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [showScanModal, setShowScanModal] = useState(false);
@@ -101,7 +99,7 @@ export default function BoLuangDashboard() {
   const [geoParcel, setGeoParcel] = useState<any>(null);
   const [geoHotspot, setGeoHotspot] = useState<any>(null);
   const [geoEarthquake, setGeoEarthquake] = useState<any>(null);
-  const [geoLandslide, setGeoLandslide] = useState<any>(null); // 🌟 เพิ่ม State รับข้อมูล GeoJSON ดินถล่ม
+  const [geoLandslide, setGeoLandslide] = useState<any>(null); 
 
   const [mapRef, setMapRef] = useState<any>(null);
   
@@ -112,7 +110,6 @@ export default function BoLuangDashboard() {
   const [currentZoom, setCurrentZoom] = useState(6);
   const syncData = useRef(initialCenter);
 
-  // 🌟 อัปเดตการนับ Layer ให้รวมดินถล่มด้วย
   const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide].filter(Boolean).length;
 
   useEffect(() => {
@@ -146,7 +143,7 @@ export default function BoLuangDashboard() {
     // GISTDA API และข้อมูลภัยพิบัติอื่นๆ
     loadGeoJSON(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=AF9B1EEFF30042208F1DE95B579E7F90`, setGeoHotspot);
     loadGeoJSON(`/geojson/earthquake.geojson?v=${ts}`, setGeoEarthquake);
-    loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide); // 🌟 โหลดข้อมูลดินถล่ม
+    loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
 
   useEffect(() => {
@@ -280,7 +277,6 @@ export default function BoLuangDashboard() {
 
   const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0, interactive: false }; 
   const styleParcel = { color: '#4ade80', fillColor: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
-  // 🌟 สไตล์สำหรับพื้นที่เสี่ยงดินถล่ม (สีแดงอมส้ม โปร่งแสง)
   const styleLandslide = { color: '#ef4444', fillColor: '#ef4444', weight: 1.5, fillOpacity: 0.35, dashArray: '4, 4' };
 
   useEffect(() => {
@@ -765,7 +761,6 @@ export default function BoLuangDashboard() {
                 <div className="space-y-1">
                   <CustomToggleBox label="จุดเสี่ยงแผ่นดินไหว" active={earthquakeLayer} onClick={() => setEarthquakeLayer(!earthquakeLayer)} dotColor="#c084fc" />
                   <CustomToggleBox label="จุดความร้อน Hotspot" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#ea580c" />
-                  {/* 🌟 ดึงปุ่มดินถล่มกลับมาใส่ในหมวดนี้แล้วครับ */}
                   <CustomToggleBox label="พื้นที่เสี่ยงดินถล่ม" active={showLandslide} onClick={() => setShowLandslide(!showLandslide)} dotColor="#ef4444" />
                 </div>
               </div>
