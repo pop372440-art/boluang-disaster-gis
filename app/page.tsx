@@ -14,18 +14,20 @@ const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.Circl
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 
-const CustomToggle = ({ label, active, onClick, dotColor = '#38bdf8' }: any) => (
-  <div className="flex items-center space-x-3 cursor-pointer group py-1.5" onClick={onClick}>
-    <div className={`relative w-[34px] h-[18px] rounded-full transition-colors duration-300 flex-shrink-0 ${active ? 'bg-[#38bdf8]' : 'bg-[#334155]'}`}>
-      <div className={`absolute top-[2px] left-[2px] bg-white rounded-full h-[14px] w-[14px] transition-transform duration-300 shadow-sm ${active ? 'translate-x-[16px]' : 'translate-x-0'}`}></div>
+// 💎 UI Component สวิตช์เปิดปิดสไตล์ Professional (Cyan)
+const CustomToggle = ({ label, active, onClick, dotColor = '#06b6d4' }: any) => (
+  <div className="flex items-center space-x-3 cursor-pointer group py-2" onClick={onClick}>
+    <div className={`relative w-8 h-4 rounded-full transition-colors duration-300 flex-shrink-0 ${active ? 'bg-[#06b6d4]' : 'bg-[#334155]'}`}>
+      <div className={`absolute top-[2px] left-[2px] bg-white rounded-full h-3 w-3 transition-transform duration-300 shadow-sm ${active ? 'translate-x-4' : 'translate-x-0'}`}></div>
     </div>
     <div className="flex items-center space-x-2 flex-1">
       <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: active ? dotColor : '#475569' }}></div>
-      <span className={`text-[12px] font-medium transition-colors ${active ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>{label}</span>
+      <span className={`text-[12px] font-medium transition-colors ${active ? 'text-gray-100' : 'text-gray-400 group-hover:text-gray-200'}`}>{label}</span>
     </div>
   </div>
 );
 
+// 🌤️ ฟังก์ชันสภาพอากาศ
 const getWmoWeatherDesc = (code: number) => {
   const codes: Record<number, string> = {
     0: 'ท้องฟ้าแจ่มใส', 1: 'มีเมฆบางส่วน', 2: 'มีเมฆครึ้ม', 3: 'มีเมฆมาก',
@@ -58,20 +60,21 @@ export default function BoLuangDashboard() {
   const [qrUrl, setQrUrl] = useState('');
   const coordsRef = useRef<HTMLSpanElement>(null);
 
-  // 🎛️ State แผงควบคุม 
+  // 🎛️ State แผงควบคุม ซ้าย
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
   const [pm25, setPm25] = useState(false);
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
+
+  // 🎛️ State แผงควบคุม ขวา
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
-  
   const [showBoluang, setShowBoluang] = useState(false);   
   const [showBlock, setShowBlock] = useState(false);        
   const [showParcel, setShowParcel] = useState(false);      
   const [citizenReport, setCitizenReport] = useState(false);
   
-  // 🌟 เปิด Hotspot และ Earthquake ทิ้งไว้เป็นค่าเริ่มต้น
+  // 🌟 เปิด Hotspot และ Earthquake ทิ้งไว้เป็นค่าเริ่มต้น (แบบ Reference)
   const [earthquakeLayer, setEarthquakeLayer] = useState(true);        
   const [hotspot, setHotspot] = useState(true);
   
@@ -86,24 +89,24 @@ export default function BoLuangDashboard() {
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
   const [geoParcel, setGeoParcel] = useState<any>(null);
-  
-  // 🌟 State สำหรับเก็บข้อมูล GeoJSON ของจริง
   const [geoHotspot, setGeoHotspot] = useState<any>(null);
   const [geoEarthquake, setGeoEarthquake] = useState<any>(null);
 
   const [mapRef, setMapRef] = useState<any>(null);
   
-  // 🌟 กำหนดจุดศูนย์กลางเริ่มต้น (ประเทศไทย Zoom 6)
+  // 🌟 กำหนดจุดศูนย์กลางเริ่มต้น
   const initialCenter = { lat: 14.8700, lng: 100.9925, zoom: 6 };
   const [iframeState, setIframeState] = useState(initialCenter);
   const [transform, setTransform] = useState({ x: 0, y: 0 });
+  const [currentZoom, setCurrentZoom] = useState(6);
   const syncData = useRef(initialCenter);
+
+  // คำนวณจำนวน Layer ฝั่งขวาที่เปิดอยู่
+  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot].filter(Boolean).length;
 
   useEffect(() => {
     setMounted(true);
-    if (typeof window !== 'undefined') {
-      setQrUrl(window.location.origin + '/report');
-    }
+    if (typeof window !== 'undefined') setQrUrl(window.location.origin + '/report');
 
     const fetchLocalBaseData = async () => {
       try {
@@ -129,17 +132,14 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
     loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
     
-    // 🌟 ดึงข้อมูลจากไฟล์ GeoJSON ของจริงทั้งหมด
+    // 🔥 GISTDA API ตรงนี้! (แก้ API_KEY ของคุณใส่ตรงนี้ได้เลย)
     loadGeoJSON(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=AF9B1EEFF30042208F1DE95B579E7F90`, setGeoHotspot);
     loadGeoJSON(`/geojson/earthquake.geojson?v=${ts}`, setGeoEarthquake);
   }, []);
 
   useEffect(() => {
     if (mapRef && (showBoluang || showBlock)) {
-      mapRef.flyTo([18.1633, 98.3744], 12, {
-        duration: 2.5, 
-        easeLinearity: 0.25
-      });
+      mapRef.flyTo([18.1633, 98.3744], 12, { duration: 2.5, easeLinearity: 0.25 });
     }
   }, [showBoluang, showBlock, mapRef]);
 
@@ -183,9 +183,7 @@ export default function BoLuangDashboard() {
   }, [geoBlock]);
 
   useEffect(() => {
-    if (!tmdRain) { setVillageRainData([]); return; }
-    if (!villageLabels || villageLabels.length === 0) return;
-
+    if (!tmdRain || !villageLabels || villageLabels.length === 0) return;
     const fetchVillageRain = async () => {
       try {
         const lats = villageLabels.map(v => v.lat.toFixed(4)).join(',');
@@ -230,7 +228,6 @@ export default function BoLuangDashboard() {
   }, [pm25]);
 
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
-  
   const getVillageColor = (feature: any) => {
     const props = feature?.properties || {};
     const nameStr = String(props.own_villag || props.name_th || props.name || props.zone_name || props.id || "0");
@@ -238,16 +235,7 @@ export default function BoLuangDashboard() {
     return props.fill || BLOCK_COLORS[colorIndex];
   };
 
-  const getBlockStyle = (feature: any) => {
-    return { 
-      fillColor: getVillageColor(feature), 
-      weight: 1.5, 
-      color: 'rgba(255, 255, 255, 0.3)', 
-      fillOpacity: 0.12, 
-      dashArray: '3, 3' 
-    };
-  };
-
+  const getBlockStyle = (feature: any) => ({ fillColor: getVillageColor(feature), weight: 1.5, color: 'rgba(255, 255, 255, 0.3)', fillOpacity: 0.12, dashArray: '3, 3' });
   const onEachBlockFeature = (feature: any, layer: any) => {
     const props = feature?.properties || {};
     const rawName = props.own_villag || props.name_th || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || ''}`;
@@ -255,7 +243,6 @@ export default function BoLuangDashboard() {
     const defaultColor = getVillageColor(feature);
 
     layer.bindTooltip(villageName, { sticky: true, direction: 'auto', className: 'village-hover-tooltip', permanent: false });
-    
     layer.on({
       mouseover: (e: any) => {
         const targetLayer = e.target;
@@ -270,8 +257,7 @@ export default function BoLuangDashboard() {
   };
 
   const getRainCircleStyle = (rainSum: number) => {
-    let radius = 8 + (rainSum * 1.5); 
-    if (radius > 35) radius = 35; 
+    let radius = 8 + (rainSum * 1.5); if (radius > 35) radius = 35; 
     let color = '#38bdf8'; let fillColor = '#7dd3fc'; 
     if (rainSum === 0) { color = '#94a3b8'; fillColor = '#cbd5e1'; radius = 7; } 
     else if (rainSum > 5 && rainSum <= 20) { color = '#10b981'; fillColor = '#34d399'; } 
@@ -285,6 +271,14 @@ export default function BoLuangDashboard() {
 
   useEffect(() => {
     if (!mapRef) return;
+    const updateSyncData = () => {
+      const center = mapRef.getCenter(); const zoom = mapRef.getZoom();
+      syncData.current = { lat: center.lat, lng: center.lng, zoom: zoom };
+      setIframeState({ lat: center.lat, lng: center.lng, zoom: zoom });
+      setCurrentZoom(zoom);
+      setTransform({ x: 0, y: 0 });
+    };
+
     const onMove = () => {
       const zoom = mapRef.getZoom();
       if (zoom !== syncData.current.zoom) return;
@@ -293,33 +287,19 @@ export default function BoLuangDashboard() {
       setTransform({ x: initialPoint.x - currentPoint.x, y: initialPoint.y - currentPoint.y });
       setIframeState(prev => ({ ...prev, lat: mapRef.getCenter().lat, lng: mapRef.getCenter().lng })); 
     };
-    const onZoomEnd = () => {
-      const center = mapRef.getCenter(); const zoom = mapRef.getZoom();
-      syncData.current = { lat: center.lat, lng: center.lng, zoom: zoom };
-      setIframeState({ lat: center.lat, lng: center.lng, zoom: zoom });
-      setTransform({ x: 0, y: 0 });
-    };
-    const onMoveEnd = () => {
-      const center = mapRef.getCenter(); const zoom = mapRef.getZoom();
-      syncData.current = { lat: center.lat, lng: center.lng, zoom: zoom };
-      setIframeState({ lat: center.lat, lng: center.lng, zoom: zoom });
-      setTransform({ x: 0, y: 0 });
-    };
 
     const onMouseMove = (e: any) => {
-      if (coordsRef.current) {
-        coordsRef.current.innerText = `${e.latlng.lat.toFixed(4)}° N \u00A0 ${e.latlng.lng.toFixed(4)}° E`;
-      }
+      if (coordsRef.current) coordsRef.current.innerText = `${e.latlng.lat.toFixed(4)}° N \u00A0 ${e.latlng.lng.toFixed(4)}° E`;
     };
 
     mapRef.on('move', onMove); 
-    mapRef.on('moveend', onMoveEnd); 
-    mapRef.on('zoomend', onZoomEnd);
+    mapRef.on('moveend', updateSyncData); 
+    mapRef.on('zoomend', updateSyncData);
     mapRef.on('mousemove', onMouseMove); 
     return () => { 
       mapRef.off('move', onMove); 
-      mapRef.off('moveend', onMoveEnd); 
-      mapRef.off('zoomend', onZoomEnd); 
+      mapRef.off('moveend', updateSyncData); 
+      mapRef.off('zoomend', updateSyncData); 
       mapRef.off('mousemove', onMouseMove); 
     };
   }, [mapRef]);
@@ -333,8 +313,8 @@ export default function BoLuangDashboard() {
     return (pmVal: number, wCode: number) => {
       const emoji = getWeatherEmoji(wCode);
       const html = `
-        <div class="relative flex flex-col items-center justify-center w-[48px] h-[40px] bg-[#0f172a]/95 border-[1.5px] border-[#334155] rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.6)] backdrop-blur-md">
-          <div class="absolute -top-[14px] -left-[14px] w-7 h-7 bg-[#1e293b] rounded-full border border-[#475569] flex items-center justify-center text-[13px] shadow-lg z-10">${emoji}</div>
+        <div class="relative flex flex-col items-center justify-center w-[48px] h-[40px] bg-[#0f172a]/95 border-[1px] border-[#334155] rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.6)] backdrop-blur-md">
+          <div class="absolute -top-[12px] -left-[12px] w-6 h-6 bg-[#1e293b] rounded-full border border-[#475569] flex items-center justify-center text-[12px] shadow-lg z-10">${emoji}</div>
           <span class="text-white font-bold text-[14px] leading-none mt-1.5 z-0">${pmVal.toFixed(1)}</span>
           <span class="text-[#38bdf8] text-[9px] font-bold mt-1 z-0 tracking-wider">PM2.5</span>
         </div>
@@ -343,37 +323,37 @@ export default function BoLuangDashboard() {
     };
   }, [L]);
 
-  // 🌟 สร้าง Custom Icon สำหรับ Hotspot
+  // 🌟 ปรับหมุด Hotspot ให้เรืองแสงสวยแบบ Professional (ใช้ Box-shadow เบลอรัศมีกว้าง)
   const createHotspotIcon = useMemo(() => {
     if (!L) return () => null;
     return () => L.divIcon({
       className: 'bg-transparent border-none',
       html: `
-        <div class="relative flex items-center justify-center w-8 h-8">
-          <div class="absolute inset-0 bg-orange-500 rounded-full opacity-30 animate-ping"></div>
-          <div class="relative flex items-center justify-center w-8 h-8 bg-[#0f172a]/80 border-2 border-orange-500 rounded-full shadow-[0_0_15px_rgba(249,115,22,0.8)] backdrop-blur-sm z-10">
-            <span class="text-orange-400 text-[14px]">🔥</span>
+        <div class="relative flex items-center justify-center w-10 h-10">
+          <div class="absolute inset-0 bg-[#ea580c] rounded-full blur-[8px] opacity-60"></div>
+          <div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#ea580c] rounded-full shadow-[0_0_15px_rgba(234,88,12,0.9)] z-10">
+            <span class="text-[#ea580c] text-[14px]">🔥</span>
           </div>
         </div>
       `,
-      iconSize: [32, 32], iconAnchor: [16, 16]
+      iconSize: [40, 40], iconAnchor: [20, 20]
     });
   }, [L]);
 
-  // 🌟 สร้าง Custom Icon สำหรับ Earthquake
+  // 🌟 ปรับหมุด Earthquake ให้เรืองแสงสวยแบบ Professional (สีม่วง)
   const createQuakeIcon = useMemo(() => {
     if (!L) return () => null;
     return () => L.divIcon({
       className: 'bg-transparent border-none',
       html: `
-        <div class="relative flex items-center justify-center w-8 h-8">
-          <div class="absolute inset-0 bg-purple-500 rounded-full opacity-30 animate-ping" style="animation-duration: 2s;"></div>
-          <div class="relative flex items-center justify-center w-8 h-8 bg-[#0f172a]/80 border-2 border-purple-400 rounded-full shadow-[0_0_15px_rgba(168,85,247,0.8)] backdrop-blur-sm z-10">
-            <span class="text-purple-300 text-[14px]">〰️</span>
+        <div class="relative flex items-center justify-center w-10 h-10">
+          <div class="absolute inset-0 bg-[#c084fc] rounded-full blur-[8px] opacity-50"></div>
+          <div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#c084fc] rounded-full shadow-[0_0_15px_rgba(192,132,252,0.9)] z-10">
+            <span class="text-[#c084fc] text-[14px] font-bold">〰</span>
           </div>
         </div>
       `,
-      iconSize: [32, 32], iconAnchor: [16, 16]
+      iconSize: [40, 40], iconAnchor: [20, 20]
     });
   }, [L]);
 
@@ -385,7 +365,6 @@ export default function BoLuangDashboard() {
         .leaflet-bar a { background-color: #0f172a !important; color: #fff !important; border: 1px solid #1e293b !important; border-radius: 8px !important; }
         .leaflet-bar a:hover { background-color: #1e293b !important; }
         .leaflet-div-icon { background: transparent !important; border: none !important; }
-        
         .leaflet-tooltip { pointer-events: none !important; }
         
         .leaflet-tooltip.village-hover-tooltip { 
@@ -394,7 +373,6 @@ export default function BoLuangDashboard() {
           padding: 5px 12px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
         }
 
-        /* สไตล์สำหรับ Popup ธรรมดา (PM2.5 / ฝน) */
         .custom-dark-popup .leaflet-popup-content-wrapper {
           background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #1e293b !important;
           border-radius: 12px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; backdrop-filter: blur(8px) !important; padding: 0 !important; overflow: hidden;
@@ -402,7 +380,6 @@ export default function BoLuangDashboard() {
         .custom-dark-popup .leaflet-popup-tip { background-color: rgba(15, 23, 42, 0.95) !important; }
         .custom-dark-popup .leaflet-popup-content { margin: 0 !important; }
         
-        /* 🌟 สไตล์สำหรับ Popup Hotspot (สีส้ม) */
         .popup-hotspot .leaflet-popup-content-wrapper {
           background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #ea580c !important;
           border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden;
@@ -410,7 +387,6 @@ export default function BoLuangDashboard() {
         .popup-hotspot .leaflet-popup-tip { background-color: rgba(15, 23, 42, 0.95) !important; border-top: 1px solid #ea580c !important; border-left: 1px solid #ea580c !important; }
         .popup-hotspot .leaflet-popup-content { margin: 0 !important; }
 
-        /* 🌟 สไตล์สำหรับ Popup Earthquake (สีม่วง) */
         .popup-quake .leaflet-popup-content-wrapper {
           background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #a855f7 !important;
           border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden;
@@ -423,7 +399,7 @@ export default function BoLuangDashboard() {
 
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
         
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in-api { animation: fadeIn 0.3s ease-out forwards; }
@@ -444,7 +420,7 @@ export default function BoLuangDashboard() {
               )}
             </div>
             <div className="flex flex-col space-y-3 w-full mt-2">
-              <a href="/report" target="_blank" rel="noopener noreferrer" className="py-3 w-full bg-gradient-to-r from-[#38bdf8] to-[#0284c7] text-white font-bold text-[14px] rounded-xl shadow-lg hover:brightness-110 transition-all flex items-center justify-center space-x-2">
+              <a href="/report" target="_blank" rel="noopener noreferrer" className="py-3 w-full bg-gradient-to-r from-[#06b6d4] to-[#0284c7] text-white font-bold text-[14px] rounded-xl shadow-lg hover:brightness-110 transition-all flex items-center justify-center space-x-2">
                 <span>เปิดหน้าฟอร์มแจ้งจุดเสี่ยงภัย</span>
               </a>
               <button onClick={() => setShowScanModal(false)} className="py-3 w-full bg-[#1e293b] text-gray-300 font-semibold text-[14px] rounded-xl hover:bg-[#334155] transition-colors">ปิดหน้าต่าง</button>
@@ -501,15 +477,11 @@ export default function BoLuangDashboard() {
               </Marker>
             ))}
 
-            {/* 🌟 แสดงข้อมูลจากไฟล์ hotspot.geojson ของจริง */}
             {hotspot && geoHotspot && geoHotspot.features && geoHotspot.features.map((feature: any, i: number) => {
               const geom = feature.geometry;
               if (!geom || geom.type !== 'Point') return null;
-              
-              const lng = geom.coordinates[0];
-              const lat = geom.coordinates[1];
+              const lng = geom.coordinates[0]; const lat = geom.coordinates[1];
               const props = feature.properties || {};
-
               const areaType = props['ประเภทของพื้นที่'] || props.AREA_TYPE || props.area_type || props.lu_desc || props.type || 'ไม่ระบุ';
               const provName = props['จังหวัด'] || props.PROV_NAM_T || props.prov_name || props.province || 'ไม่ระบุ';
               const tamName = props['ตำบล'] || props.TAM_NAM_T || props.tam_name || props.tambon || props.subdistrict || 'ไม่ระบุ';
@@ -523,13 +495,13 @@ export default function BoLuangDashboard() {
                       </div>
                       <div className="p-4 bg-[#0f172a]/95 backdrop-blur-sm">
                         <div className="text-[13px] text-gray-300 font-medium mb-3">
-                          ประเภทของพื้นที่: <span className="text-[#f97316] font-bold text-[14px] ml-1">{areaType}</span>
+                          ประเภทของพื้นที่: <span className="bg-[#3b82f6] text-white px-2 py-0.5 rounded text-[12px] font-bold ml-1">{areaType}</span>
                         </div>
-                        <div className="border-t border-gray-700/60 py-3 text-[12px] text-gray-300 leading-relaxed font-semibold">
-                          จังหวัด: {provName}<br/>
-                          ตำบล: {tamName}
+                        <div className="border-t border-[#1e293b] py-3 text-[12px] text-gray-300 leading-relaxed font-semibold">
+                          จังหวัด: <span className="text-white">{provName}</span><br/>
+                          ตำบล: <span className="text-white">{tamName}</span>
                         </div>
-                        <div className="border-t border-gray-700/60 pt-3 text-[10px] text-gray-500 font-mono">
+                        <div className="border-t border-[#1e293b] pt-3 text-[10px] text-gray-500 font-mono">
                           Layer: hotspot.geojson
                         </div>
                       </div>
@@ -539,15 +511,11 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 แสดงข้อมูลจากไฟล์ earthquake.geojson ของจริง */}
             {earthquakeLayer && geoEarthquake && geoEarthquake.features && geoEarthquake.features.map((feature: any, i: number) => {
               const geom = feature.geometry;
               if (!geom || geom.type !== 'Point') return null;
-              
-              const lng = geom.coordinates[0];
-              const lat = geom.coordinates[1];
+              const lng = geom.coordinates[0]; const lat = geom.coordinates[1];
               const props = feature.properties || {};
-
               const areaName = props['พื้นที่'] || props.FAULT_NAME || props.fault || props.area || 'ไม่ระบุ';
               const provName = props['จังหวัด'] || props.PROV_NAM_T || props.province || 'ไม่ระบุ';
               const distName = props['อำเภอ/แนวพื้นที่'] || props.AMP_NAM_T || props.district || 'ไม่ระบุ';
@@ -565,13 +533,13 @@ export default function BoLuangDashboard() {
                         <div className="text-[13px] text-gray-300 font-medium mb-3">
                           พื้นที่: <span className="text-[#c084fc] font-bold text-[14px] ml-1">{areaName}</span>
                         </div>
-                        <div className="border-t border-gray-700/60 py-3 text-[12px] text-gray-300 leading-relaxed font-semibold">
+                        <div className="border-t border-[#1e293b] py-3 text-[12px] text-gray-300 leading-relaxed font-semibold">
                           จังหวัด: {provName}<br/>
                           อำเภอ/แนวพื้นที่: {distName}<br/>
                           ระดับความเสี่ยง: <span className="text-[#facc15]">{riskLevel}</span><br/>
                           สถานการณ์จำลอง: <span className="text-white">{mag}</span>
                         </div>
-                        <div className="border-t border-gray-700/60 pt-3 text-[10px] text-gray-500 font-mono">
+                        <div className="border-t border-[#1e293b] pt-3 text-[10px] text-gray-500 font-mono">
                           Layer: earthquake.geojson
                         </div>
                       </div>
@@ -589,65 +557,63 @@ export default function BoLuangDashboard() {
       <header className="absolute top-0 left-0 right-0 h-[72px] bg-[#0c1427]/95 border-b border-[#1e293b] backdrop-blur-xl z-40 flex items-center justify-between px-6 pointer-events-auto shadow-md">
         <div className="flex items-center space-x-4">
           <div className="flex space-x-2">
-            <div className="w-8 h-8 bg-red-500/20 rounded-full border border-red-500/50 flex items-center justify-center text-[10px] font-bold text-white shadow-[0_0_10px_rgba(239,68,68,0.3)]">BL</div>
+            <div className="w-8 h-8 bg-[#06b6d4]/20 rounded-full border border-[#06b6d4]/50 flex items-center justify-center text-[10px] font-bold text-[#06b6d4] shadow-[0_0_10px_rgba(6,182,212,0.3)]">BL</div>
           </div>
-          <div className="flex flex-col border-l-2 border-gray-600/50 pl-4 ml-2">
+          <div className="flex flex-col border-l-2 border-[#334155] pl-4 ml-2">
             <h1 className="text-[14px] font-bold tracking-wide text-white leading-tight">ระบบสารสนเทศทางภูมิศาสตร์เพื่อ</h1>
-            <h2 className="text-[14px] font-bold tracking-wide text-[#38bdf8] leading-tight mt-0.5">การบริหารจัดการสาธารณภัย ต.บ่อหลวง</h2>
+            <h2 className="text-[14px] font-bold tracking-wide text-[#06b6d4] leading-tight mt-0.5">การบริหารจัดการสาธารณภัย ต.บ่อหลวง</h2>
           </div>
         </div>
       </header>
 
-      <aside className="absolute top-24 left-4 z-40 w-[340px] bg-[#0c1427]/95 border border-[#1e293b] rounded-2xl shadow-2xl p-5 backdrop-blur-xl pointer-events-auto max-h-[calc(100vh-140px)] overflow-y-auto custom-scrollbar">
-        <div className="bg-[#0f172a] p-4 rounded-xl border border-[#1e293b] mb-6 shadow-inner">
-          <div className="flex items-center space-x-3 mb-2">
-            <span className="text-[#38bdf8] text-2xl drop-shadow-md">☁</span>
-            <h2 className="text-[15px] font-bold tracking-wide text-white">Weather & Air</h2>
+      {/* แผงซ้าย */}
+      <aside className="absolute top-24 left-4 z-40 w-[320px] bg-[#0b1120]/95 border border-[#1e293b] rounded-2xl shadow-2xl p-5 backdrop-blur-xl pointer-events-auto max-h-[calc(100vh-140px)] overflow-y-auto custom-scrollbar">
+        <div className="bg-[#0f172a] p-4 rounded-xl border border-[#1e293b] mb-6 shadow-inner flex items-center space-x-3">
+          <div className="bg-[#06b6d4]/20 p-2 rounded-lg text-[#06b6d4]">
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M17.5 19C19.9853 19 22 16.9853 22 14.5C22 12.1384 20.1837 10.2017 17.8778 10.0153C17.4419 6.62141 14.5492 4 11 4C7.13401 4 4 7.13401 4 11C4 11.238 4.01188 11.4732 4.0349 11.7047C1.7828 12.1812 0 14.1378 0 16.5C0 19.5 2.5 22 5.5 22H17.5V19Z" /></svg>
           </div>
-          <p className="text-[10px] text-gray-400 leading-relaxed">
-            ชั้นข้อมูลด้านซ้ายสำหรับพยากรณ์อากาศกรมอุตุนิยมวิทยา<br/>และค่าฝุ่น PM2.5 / AQI
-          </p>
+          <div>
+            <h2 className="text-[15px] font-bold tracking-wide text-white">Weather & Air</h2>
+            <p className="text-[9px] text-gray-400 mt-0.5">ชั้นข้อมูลด้านซ้ายสำหรับพยากรณ์อากาศกรมอุตุนิยมวิทยาและค่าฝุ่น PM2.5 / AQI</p>
+          </div>
         </div>
 
         <div className="space-y-6">
           <div>
-            <div className="flex items-center mb-4"><div className="flex items-center text-[10px] text-gray-400 tracking-widest font-semibold"><span className="mr-2">☁</span> WEATHER API</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
-            <div className="space-y-4 pl-1">
-              <CustomToggle label="พยากรณ์อากาศกรมอุตุนิยมวิทยา" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} dotColor="#3b82f6" />
-              <CustomToggle label="ปริมาณน้ำฝนสะสม (TMD)" active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#06b6d4" />
+            <div className="flex items-center mb-3"><span className="text-[10px] text-gray-400 tracking-widest font-bold">☁ WEATHER API</span><div className="flex-1 border-t border-[#1e293b] ml-3"></div></div>
+            <div className="space-y-1 pl-1">
+              <CustomToggle label="พยากรณ์อากาศกรมอุตุนิยมวิทยา" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} />
+              <CustomToggle label="ปริมาณน้ำฝนสะสม (TMD)" active={tmdRain} onClick={() => setTmdRain(!tmdRain)} />
             </div>
           </div>
           <div>
-            <div className="flex items-center mb-4"><div className="flex items-center text-[10px] text-gray-400 tracking-widest font-semibold"><span className="mr-2">≈</span> AIR QUALITY</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
+            <div className="flex items-center mb-3"><span className="text-[10px] text-gray-400 tracking-widest font-bold">≈ AIR QUALITY</span><div className="flex-1 border-t border-[#1e293b] ml-3"></div></div>
             <div className="pl-1">
-              <CustomToggle label="ค่าฝุ่น PM2.5 / AQI (ระดับประเทศ)" active={pm25} onClick={() => setPm25(!pm25)} dotColor="#0ea5e9" />
+              <CustomToggle label="ค่าฝุ่น PM2.5 / AQI" active={pm25} onClick={() => setPm25(!pm25)} />
             </div>
           </div>
           <div>
-            <div className="flex items-center mb-4"><div className="flex items-center text-[10px] text-gray-400 tracking-widest font-semibold"><span className="mr-2">🗺️</span> WINDY WEATHER MAP</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
+            <div className="flex items-center mb-3"><span className="text-[10px] text-gray-400 tracking-widest font-bold">🗺️ WINDY WEATHER MAP</span><div className="flex-1 border-t border-[#1e293b] ml-3"></div></div>
             <div className="pl-1 mb-4">
-              <CustomToggle label="เปิด/ปิดข้อมูลสภาพอากาศ Windy" active={windyLayer} onClick={() => setWindyLayer(!windyLayer)} dotColor="#eab308" />
+              <CustomToggle label="เปิด/ปิดข้อมูลสภาพอากาศ Windy" active={windyLayer} onClick={() => setWindyLayer(!windyLayer)} />
             </div>
             {windyLayer && (
-              <div className="bg-[#0f172a] rounded-xl border border-[#1e293b] p-4 mx-1">
-                <div className="flex items-center space-x-2 mb-3"><span className="text-[14px]">🌧️</span><span className="text-[12px] font-bold text-white">ข้อมูลสภาพอากาศ Windy</span></div>
+              <div className="bg-[#0f172a] rounded-xl border border-[#1e293b] p-4 mx-1 shadow-inner">
+                <div className="flex items-center space-x-2 mb-3"><span className="text-[12px] font-bold text-gray-200">ข้อมูลสภาพอากาศ Windy</span></div>
                 <div className="space-y-2">
-                  <div onClick={() => setWindyType('wind')} className={`flex items-center space-x-3 p-2.5 rounded-lg border cursor-pointer transition-colors select-none ${windyType === 'wind' ? 'border-[#38bdf8]/40 bg-[#38bdf8]/10' : 'border-gray-700/40 hover:bg-white/5'}`}>
-                    <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center ${windyType === 'wind' ? 'border-[#38bdf8]' : 'border-gray-400'}`}>{windyType === 'wind' && <div className="w-2 h-2 bg-[#38bdf8] rounded-full"></div>}</div>
-                    <span className={`text-[12px] ${windyType === 'wind' ? 'text-white' : 'text-gray-300'}`}>ลม (Wind)</span>
+                  <div onClick={() => setWindyType('wind')} className={`flex items-center space-x-3 p-2.5 rounded-lg border cursor-pointer transition-all select-none ${windyType === 'wind' ? 'border-[#06b6d4]/40 bg-[#06b6d4]/10' : 'border-[#1e293b] hover:bg-white/5'}`}>
+                    <div className={`w-3.5 h-3.5 rounded-full border-[1.5px] flex items-center justify-center ${windyType === 'wind' ? 'border-[#06b6d4]' : 'border-gray-500'}`}>{windyType === 'wind' && <div className="w-1.5 h-1.5 bg-[#06b6d4] rounded-full"></div>}</div>
+                    <span className={`text-[12px] ${windyType === 'wind' ? 'text-white' : 'text-gray-400'}`}>ลม (Wind)</span>
                   </div>
-                  <div onClick={() => setWindyType('temp')} className={`flex items-center space-x-3 p-2.5 rounded-lg border cursor-pointer transition-colors select-none ${windyType === 'temp' ? 'border-[#38bdf8]/40 bg-[#38bdf8]/10' : 'border-gray-700/40 hover:bg-white/5'}`}>
-                    <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center ${windyType === 'temp' ? 'border-[#38bdf8]' : 'border-gray-400'}`}>{windyType === 'temp' && <div className="w-2 h-2 bg-[#38bdf8] rounded-full"></div>}</div>
-                    <span className={`text-[12px] ${windyType === 'temp' ? 'text-white' : 'text-gray-300'}`}>อุณหภูมิ (Temperature)</span>
+                  <div onClick={() => setWindyType('temp')} className={`flex items-center space-x-3 p-2.5 rounded-lg border cursor-pointer transition-all select-none ${windyType === 'temp' ? 'border-[#06b6d4]/40 bg-[#06b6d4]/10' : 'border-[#1e293b] hover:bg-white/5'}`}>
+                    <div className={`w-3.5 h-3.5 rounded-full border-[1.5px] flex items-center justify-center ${windyType === 'temp' ? 'border-[#06b6d4]' : 'border-gray-500'}`}>{windyType === 'temp' && <div className="w-1.5 h-1.5 bg-[#06b6d4] rounded-full"></div>}</div>
+                    <span className={`text-[12px] ${windyType === 'temp' ? 'text-white' : 'text-gray-400'}`}>อุณหภูมิ (Temperature)</span>
                   </div>
-                  <div onClick={() => setWindyType('rain')} className={`flex items-center space-x-3 p-2.5 rounded-lg border cursor-pointer transition-colors select-none ${windyType === 'rain' ? 'border-[#38bdf8]/40 bg-[#38bdf8]/10' : 'border-gray-700/40 hover:bg-white/5'}`}>
-                    <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center ${windyType === 'rain' ? 'border-[#38bdf8]' : 'border-gray-400'}`}>{windyType === 'rain' && <div className="w-2 h-2 bg-[#38bdf8] rounded-full"></div>}</div>
-                    <span className={`text-[12px] ${windyType === 'rain' ? 'text-white' : 'text-gray-300'}`}>ฝนและฟ้าผ่า (Rain)</span>
+                  <div onClick={() => setWindyType('rain')} className={`flex items-center space-x-3 p-2.5 rounded-lg border cursor-pointer transition-all select-none ${windyType === 'rain' ? 'border-[#06b6d4]/40 bg-[#06b6d4]/10' : 'border-[#1e293b] hover:bg-white/5'}`}>
+                    <div className={`w-3.5 h-3.5 rounded-full border-[1.5px] flex items-center justify-center ${windyType === 'rain' ? 'border-[#06b6d4]' : 'border-gray-500'}`}>{windyType === 'rain' && <div className="w-1.5 h-1.5 bg-[#06b6d4] rounded-full"></div>}</div>
+                    <span className={`text-[12px] ${windyType === 'rain' ? 'text-white' : 'text-gray-400'}`}>ฝนและฟ้าผ่า (Rain)</span>
                   </div>
                 </div>
-                <p className="text-[9px] text-gray-500 mt-4 px-2 leading-relaxed">
-                  Windy ดึงข้อมูลสภาพอากาศจากข้อมูล GFS แม่นยำและ<br/>smooth กว่าดาวเทียมทั่วไป
-                </p>
               </div>
             )}
           </div>
@@ -655,74 +621,85 @@ export default function BoLuangDashboard() {
       </aside>
 
       <div className="absolute bottom-6 left-6 z-[60] flex items-center space-x-2 pointer-events-auto">
-        <div className="bg-[#0c1427]/95 backdrop-blur-md border border-[#1e293b] rounded-full px-4 py-2 flex items-center space-x-4 shadow-[0_0_15px_rgba(0,0,0,0.5)] text-[10px] font-mono text-gray-400">
+        <div className="bg-[#0b1120]/95 backdrop-blur-md border border-[#1e293b] rounded-full px-4 py-2 flex items-center space-x-4 shadow-[0_0_15px_rgba(0,0,0,0.5)] text-[10px] font-mono text-gray-400">
           <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-[#1e293b] rounded-full flex items-center justify-center text-white text-[10px]">✛</div>
-            <span className="font-semibold text-gray-300">Base map: Windy Weather + Dark Matter</span>
+            <span className="font-semibold text-gray-400">Base map: Windy Weather + Dark Matter</span>
           </div>
-          <div className="w-px h-3 bg-gray-600"></div>
-          <span className="font-semibold text-gray-300">CRS: WGS84</span>
-          <div className="w-px h-3 bg-gray-600"></div>
-          <span ref={coordsRef} className="text-[#38bdf8] w-[135px] font-bold">14.8700° N &nbsp; 100.9925° E</span>
+          <div className="w-px h-3 bg-[#334155]"></div>
+          <span className="font-semibold text-gray-400">CRS: WGS84</span>
+          <div className="w-px h-3 bg-[#334155]"></div>
+          <span ref={coordsRef} className="text-[#06b6d4] w-[135px] font-bold">14.8700° N &nbsp; 100.9925° E</span>
         </div>
       </div>
 
-      <div className="absolute bottom-6 right-40 z-[60] pointer-events-auto">
-        <div className="bg-[#0c1427]/95 backdrop-blur-md border border-[#1e293b] rounded-full px-4 py-2 flex items-center space-x-2 shadow-[0_0_15px_rgba(0,0,0,0.5)] text-[10px] text-gray-400 font-semibold">
-          <span className="text-[#38bdf8] text-[12px]">☁</span>
-          <span className="text-gray-300">Weather data: Windy.com</span>
-        </div>
-      </div>
-
-      <aside className={`absolute top-24 right-0 z-40 transition-transform duration-500 ease-in-out flex pointer-events-auto ${isRightPanelOpen ? 'translate-x-0' : 'translate-x-[320px]'}`}>
+      {/* แผงขวา (Redesign ตาม Reference) */}
+      <aside className={`absolute top-24 right-0 z-40 transition-transform duration-500 ease-in-out flex pointer-events-auto ${isRightPanelOpen ? 'translate-x-0' : 'translate-x-[340px]'}`}>
         <div className="relative mr-4 flex">
-          <button onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="absolute -left-[30px] top-4 w-[30px] h-12 bg-[#0c1427]/95 border-y border-l border-[#1e293b] rounded-l-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#1e293b] transition-colors shadow-[-4px_0_10px_rgba(0,0,0,0.3)] backdrop-blur-md z-50 cursor-pointer">
+          <button onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="absolute -left-[30px] top-4 w-[30px] h-12 bg-[#0b1120]/95 border-y border-l border-[#1e293b] rounded-l-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#1e293b] transition-colors shadow-[-4px_0_10px_rgba(0,0,0,0.3)] backdrop-blur-md z-50 cursor-pointer">
             <svg className={`w-4 h-4 transform transition-transform duration-300 ${isRightPanelOpen ? 'rotate-0' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
           </button>
-          <div className="w-[320px] bg-[#0c1427]/95 border border-[#1e293b] rounded-xl shadow-2xl p-5 backdrop-blur-xl h-[calc(100vh-140px)] overflow-y-auto custom-scrollbar">
-            <div className="flex items-start space-x-3 mb-3">
-              <div className="mt-1 text-[#56b6c2]"><svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" /></svg></div>
-              <div className="w-full">
-                <h2 className="text-[16px] font-semibold tracking-wide text-white">Layers</h2>
-                <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">เปิด/ปิด ขอบเขตความรับผิดชอบและชั้นข้อมูลระดับเทศบาล</p>
+          
+          <div className="w-[340px] bg-[#0b1120]/95 border border-[#1e293b] rounded-xl shadow-2xl p-5 backdrop-blur-xl h-[calc(100vh-140px)] overflow-y-auto custom-scrollbar">
+            
+            {/* Header ขวาแบบมีสถานะ Active/Zoom */}
+            <div className="bg-[#0f172a] p-4 rounded-xl border border-[#1e293b] mb-6 shadow-inner">
+              <div className="flex items-start space-x-3">
+                <div className="bg-[#06b6d4]/20 p-2 rounded-lg text-[#06b6d4]">
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" /></svg>
+                </div>
+                <div>
+                  <h2 className="text-[15px] font-bold tracking-wide text-white">Layers</h2>
+                  <p className="text-[9px] text-gray-400 mt-0.5">เปิด/ปิด ขอบเขตความรับผิดชอบและชั้นข้อมูล</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2 mt-4 pt-3 border-t border-[#1e293b]">
+                <span className="bg-[#06b6d4]/10 text-[#06b6d4] px-2.5 py-1 rounded text-[10px] font-bold border border-[#06b6d4]/20 flex items-center"><div className="w-1.5 h-1.5 rounded-full bg-[#06b6d4] mr-1.5"></div> Active: {activeLayersCount}</span>
+                <span className="bg-[#334155]/30 text-gray-300 px-2.5 py-1 rounded text-[10px] font-bold border border-[#334155]">Zoom: {currentZoom}</span>
               </div>
             </div>
-            <div className="space-y-5 mt-6">
+
+            <div className="space-y-6">
+              
+              {/* ส่วน REPORT TOOL ปุ่มสีส้มแบบ Reference */}
               <div>
-                <div className="flex items-center mb-3"><div className="flex items-center text-[10px] text-[#38bdf8] tracking-widest font-semibold"><span className="mr-2">🗺️</span> GIS MAP LAYERS</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
-                <div className="space-y-3 pl-1">
-                  <CustomToggle label="แผนที่ดาวเทียม (Satellite)" active={satelliteLayer} onClick={() => setSatelliteLayer(!satelliteLayer)} dotColor="#10b981" />
-                  <CustomToggle label="ขอบเขตตำบลบ่อหลวง" active={showBoluang} onClick={() => setShowBoluang(!showBoluang)} dotColor="#38bdf8" />
-                  <CustomToggle label="ขอบเขต 13 หมู่บ้าน (ชี้เพื่อดูชื่อ)" active={showBlock} onClick={() => setShowBlock(!showBlock)} dotColor="#fcd34d" />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center mb-3"><div className="flex items-center text-[10px] text-green-400 tracking-widest font-semibold"><span className="mr-2">🔒</span> LAND RECORDS</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
-                <div className="flex items-center justify-between pl-1">
-                  <CustomToggle label="แปลงที่ดินรายบุคคล" active={showParcel} onClick={() => setShowParcel(!showParcel)} dotColor="#4ade80" />
-                  <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded border border-red-500/30">Admin Only</span>
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center mb-3"><div className="flex items-center text-[10px] text-[#fb923c] tracking-widest font-semibold"><span className="mr-2 text-transparent">v</span> REPORT TOOL</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
+                <div className="flex items-center mb-3"><span className="text-[10px] text-gray-400 tracking-widest font-bold">REPORT TOOL</span><div className="flex-1 border-t border-[#1e293b] ml-3"></div></div>
                 <div className="px-1">
-                  <button 
-                    onClick={() => setShowScanModal(true)}
-                    className="w-full py-2.5 bg-gradient-to-r from-[#fb923c] to-[#f97316] hover:from-[#f97316] hover:to-[#ea580c] rounded-lg text-[13px] font-medium text-white shadow-[0_4px_15px_rgba(249,115,22,0.3)] flex items-center justify-center space-x-2 transition-all active:scale-95 cursor-pointer"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                    <span>สแกนแจ้งจุดเสี่ยงภัย/สาธารณภัย</span>
+                  <button onClick={() => setShowScanModal(true)} className="w-full py-3 bg-gradient-to-r from-[#f97316] to-[#ec4899] hover:brightness-110 rounded-xl text-[13px] font-bold text-white shadow-[0_4px_15px_rgba(249,115,22,0.3)] flex items-center justify-center space-x-2 transition-all cursor-pointer">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                    <span>สแกนแจ้งจุดเสี่ยง/สาธารณภัย</span>
                   </button>
                 </div>
               </div>
+
               <div>
-                <div className="flex items-center mb-4"><div className="flex items-center text-[10px] text-[#f97316] tracking-widest font-semibold"><span className="mr-2">🚨</span> HAZARD & REPORTS</div><div className="flex-1 border-t border-gray-700/60 ml-3"></div></div>
-                <div className="space-y-4 pl-1">
-                  <CustomToggle label="จุดแจ้งเหตุประชาชน (สีแดง)" active={citizenReport} onClick={() => setCitizenReport(!citizenReport)} dotColor="#ef4444" />
-                  <CustomToggle label="จุดเสี่ยงแผ่นดินไหว (ชี้เพื่อดูระดับ)" active={earthquakeLayer} onClick={() => setEarthquakeLayer(!earthquakeLayer)} dotColor="#a855f7" />
-                  <CustomToggle label="จุดความร้อน Hotspot (สีส้ม)" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#f97316" />
+                <div className="flex items-center mb-3"><span className="text-[10px] text-[#06b6d4] tracking-widest font-bold">GIS MAP LAYERS</span><div className="flex-1 border-t border-[#1e293b] ml-3"></div></div>
+                <div className="space-y-1 pl-1">
+                  <CustomToggle label="แผนที่ดาวเทียม (Satellite)" active={satelliteLayer} onClick={() => setSatelliteLayer(!satelliteLayer)} />
+                  <CustomToggle label="ขอบเขตตำบลบ่อหลวง" active={showBoluang} onClick={() => setShowBoluang(!showBoluang)} />
+                  <CustomToggle label="ขอบเขต 13 หมู่บ้าน (ชี้เพื่อดูชื่อ)" active={showBlock} onClick={() => setShowBlock(!showBlock)} />
+                  <div className="flex items-center justify-between">
+                    <CustomToggle label="แปลงที่ดินรายบุคคล" active={showParcel} onClick={() => setShowParcel(!showParcel)} />
+                    <span className="text-[9px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20">Admin Only</span>
+                  </div>
                 </div>
               </div>
+
+              <div>
+                <div className="flex items-center mb-3"><span className="text-[10px] text-gray-400 tracking-widest font-bold">CITIZEN REPORTS</span><div className="flex-1 border-t border-[#1e293b] ml-3"></div></div>
+                <div className="space-y-1 pl-1">
+                  <CustomToggle label="จุดแจ้งเหตุประชาชน (สีแดง)" active={citizenReport} onClick={() => setCitizenReport(!citizenReport)} dotColor="#ef4444" />
+                </div>
+              </div>
+
+              {/* ส่วน NATURAL HAZARD เปิดไว้เป็นค่าเริ่มต้น */}
+              <div>
+                <div className="flex items-center mb-3"><span className="text-[10px] text-gray-400 tracking-widest font-bold">NATURAL HAZARD</span><div className="flex-1 border-t border-[#1e293b] ml-3"></div></div>
+                <div className="space-y-1 pl-1">
+                  <CustomToggle label="จุดเสี่ยงแผ่นดินไหว" active={earthquakeLayer} onClick={() => setEarthquakeLayer(!earthquakeLayer)} dotColor="#c084fc" />
+                  <CustomToggle label="จุดความร้อน Hotspot" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#f97316" />
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
