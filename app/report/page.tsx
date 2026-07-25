@@ -580,7 +580,7 @@ export default function BoLuangDashboard() {
             <div className="bg-gradient-to-br from-[#38bdf8] to-[#2563eb] p-2 rounded-xl shadow-[0_4px_10px_rgba(37,99,235,0.4)]">
               <span className="text-white text-[20px]">🌧️</span>
             </div>
-            <h2 className="text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">Weather & Airo</h2>
+            <h2 className="text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">Weather & Air</h2>
           </div>
           <p className="text-[12px] text-gray-400 mt-1 leading-relaxed">ชั้นข้อมูลด้านซ้ายสำหรับพยากรณ์อากาศกรมอุตุนิยมวิทยาและค่าฝุ่น PM2.5 / AQI</p>
         </div>
