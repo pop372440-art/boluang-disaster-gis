@@ -4,19 +4,19 @@ import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js';
-import Swal from 'sweetalert2'; // สำหรับทำ Popup แจ้งเตือนสวยๆ
+import Swal from 'sweetalert2'; 
+import { useMapEvents } from 'react-leaflet'; // 🌟 ย้ายมา Import ตรงนี้แทน (แก้ Error Vercel)
 
-// 🌟 ตั้งค่า Supabase (ใช้ URL และ Key ของคุณ)
-// แนะนำให้ดึงจากไฟล์ .env.local แต่ถ้าทดสอบสามารถใส่ตรงๆ ก่อนได้
+// 🌟 ตั้งค่า Supabase 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dGpqaHZ2dGFzd3pod2hvd2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDA3NjcsImV4cCI6MjA5MjExNjc2N30.Jjqi1LWgxEgpT2nBdjuNyoLxEP_VQcKf3GEbIYKPI8Y';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'ใส่_SUPABASE_ANON_KEY_ของคุณตรงนี้';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// 🗺️ โหลด Leaflet Components แบบ Dynamic (ป้องกัน Error ฝั่ง Server)
+// 🗺️ โหลด Leaflet Components แบบ Dynamic
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
-const useMapEvents = dynamic(() => import('react-leaflet').then(mod => mod.useMapEvents), { ssr: false });
+// ❌ เอาการโหลด useMapEvents แบบ dynamic ออกไปแล้ว เพื่อแก้ Error
 
 export default function ReportPage() {
   const [mounted, setMounted] = useState(false);
