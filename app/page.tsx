@@ -3,6 +3,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
+import { createClient } from '@supabase/supabase-js'; // 🌟 นำเข้า Supabase
+
+// 🌟 ตั้งค่า Supabase 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'ใส่_SUPABASE_ANON_KEY_ของคุณตรงนี้';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // 🗺️ โหลด Leaflet แบบ Dynamic
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
@@ -14,7 +20,7 @@ const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.Circl
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 
-// 💎 UI Component: Toggle กล่องพรีเมียม (แบบ Clean & Fast กล่องสีพื้นเหมือนกันหมดทุกสถานะ)
+// 💎 UI Component: Toggle แบบ Clean & Fast
 const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio = false }: any) => (
   <div 
     className="flex items-center space-x-3 px-3 py-1.5 rounded-xl border border-[#1e293b] bg-[#0b132b]/50 hover:bg-[#1e293b]/80 transition-colors duration-200 cursor-pointer select-none mb-1"
@@ -81,7 +87,7 @@ export default function BoLuangDashboard() {
   const [showBoluang, setShowBoluang] = useState(false);   
   const [showBlock, setShowBlock] = useState(false);        
   const [showParcel, setShowParcel] = useState(false);      
-  const [citizenReport, setCitizenReport] = useState(false);
+  const [citizenReport, setCitizenReport] = useState(true); // 🌟 เปิดแจ้งเหตุประชาชนเป็นค่าเริ่มต้น
   const [earthquakeLayer, setEarthquakeLayer] = useState(true);        
   const [hotspot, setHotspot] = useState(true);
   const [showLandslide, setShowLandslide] = useState(false);
@@ -93,6 +99,7 @@ export default function BoLuangDashboard() {
   const [realWeatherData, setRealWeatherData] = useState<any>(null);
   const [villageRainData, setVillageRainData] = useState<any[]>([]); 
   const [nationalAirData, setNationalAirData] = useState<any[]>([]);
+  const [disasterReports, setDisasterReports] = useState<any[]>([]); // 🌟 State เก็บข้อมูลจาก Supabase
   
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
@@ -103,7 +110,6 @@ export default function BoLuangDashboard() {
 
   const [mapRef, setMapRef] = useState<any>(null);
   
-  // 🌟 กำหนดจุดศูนย์กลางเริ่มต้น
   const initialCenter = { lat: 14.8700, lng: 100.9925, zoom: 6 };
   const [iframeState, setIframeState] = useState(initialCenter);
   const [transform, setTransform] = useState({ x: 0, y: 0 });
@@ -139,12 +145,31 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang);
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
     loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
-    
-    // GISTDA API และข้อมูลภัยพิบัติอื่นๆ
     loadGeoJSON(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=AF9B1EEFF30042208F1DE95B579E7F90`, setGeoHotspot);
     loadGeoJSON(`/geojson/earthquake.geojson?v=${ts}`, setGeoEarthquake);
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
+
+  // 🌟 ดึงข้อมูลแจ้งเหตุจาก Supabase เมื่อเปิด Layer "จุดแจ้งเหตุประชาชน"
+  useEffect(() => {
+    if (!citizenReport) return;
+
+    const fetchReports = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('boluang_disaster_reports')
+          .select('*')
+          .order('created_at', { ascending: false }); // เรียงจากใหม่ไปเก่า
+
+        if (error) throw error;
+        if (data) setDisasterReports(data);
+      } catch (error) {
+        console.error('Error fetching disaster reports:', error);
+      }
+    };
+
+    fetchReports();
+  }, [citizenReport]);
 
   useEffect(() => {
     if (mapRef && (showBoluang || showBlock)) {
@@ -320,6 +345,23 @@ export default function BoLuangDashboard() {
 
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
   
+  // 🌟 สร้างไอคอนรายงานจุดเสี่ยงภัย (ไซเรนสีแดง กระพริบ)
+  const createReportIcon = useMemo(() => {
+    if (!L) return () => null;
+    return () => L.divIcon({
+      className: 'bg-transparent border-none',
+      html: `
+        <div class="relative flex items-center justify-center w-10 h-10">
+          <div class="absolute inset-0 bg-[#ef4444] rounded-full blur-[8px] opacity-60 animate-pulse"></div>
+          <div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#ef4444] rounded-full shadow-[0_0_15px_rgba(239,68,68,0.9)] z-10">
+            <span class="text-[#ef4444] text-[14px]">🚨</span>
+          </div>
+        </div>
+      `,
+      iconSize: [40, 40], iconAnchor: [20, 20]
+    });
+  }, [L]);
+
   const createPm25Icon = useMemo(() => {
     if (!L) return () => null;
     return (pmVal: number, wCode: number) => {
@@ -382,6 +424,14 @@ export default function BoLuangDashboard() {
           font-family: inherit !important; font-size: 14px !important; font-weight: 600 !important; 
           padding: 6px 14px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
         }
+
+        /* 🌟 CSS สำหรับ Popup แจ้งเหตุประชาชน */
+        .popup-report .leaflet-popup-content-wrapper {
+          background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #ef4444 !important;
+          border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden;
+        }
+        .popup-report .leaflet-popup-tip { background-color: rgba(15, 23, 42, 0.95) !important; border-top: 1px solid #ef4444 !important; border-left: 1px solid #ef4444 !important; }
+        .popup-report .leaflet-popup-content { margin: 0 !important; }
 
         .custom-dark-popup .leaflet-popup-content-wrapper {
           background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #1e293b !important;
@@ -458,7 +508,6 @@ export default function BoLuangDashboard() {
             {showBlock && geoBlock && <GeoJSON key="block-layer" data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
             {showParcel && geoParcel && <GeoJSON key="parcel-layer" data={geoParcel} style={styleParcel} />}
             
-            {/* 🌟 แสดงผลชั้นข้อมูลพื้นที่เสี่ยงดินถล่ม */}
             {showLandslide && geoLandslide && (
               <GeoJSON 
                 key="landslide-layer" 
@@ -471,6 +520,37 @@ export default function BoLuangDashboard() {
                 }} 
               />
             )}
+
+            {/* 🌟 แสดงหมุดแจ้งเหตุจาก Supabase บนแผนที่ */}
+            {citizenReport && disasterReports.map((report) => (
+              <Marker 
+                key={`report-${report.id}`} 
+                position={[report.latitude, report.longitude]} 
+                icon={createReportIcon()}
+              >
+                <Popup className="popup-report">
+                  <div className="w-[300px]">
+                    <div className="bg-[#ef4444] px-5 py-3 font-bold text-white text-[15px] flex items-center shadow-sm">
+                      <span className="mr-2 text-[18px]">🚨</span> แจ้งเหตุ: {report.risk_type}
+                    </div>
+                    <div className="p-5 bg-[#0f172a]/95 backdrop-blur-sm">
+                      <div className="text-[14px] text-gray-300 font-medium mb-4 flex items-center justify-between">
+                        <span>ความรุนแรง: <span className="bg-[#ef4444] text-white px-2 py-1 rounded text-[13px] font-bold ml-1">ระดับ {report.severity_level}</span></span>
+                        <span className="text-yellow-400 border border-yellow-400/50 bg-yellow-400/10 px-2 py-0.5 rounded text-[11px]">{report.status}</span>
+                      </div>
+                      <div className="border-t border-[#1e293b] py-3 text-[13px] text-gray-300 leading-relaxed font-semibold">
+                        📍 พื้นที่: <span className="text-white">{report.village_name}</span><br/>
+                        📝 รายละเอียด: <span className="text-gray-400 font-normal">{report.description}</span><br/>
+                        👤 ผู้แจ้ง: <span className="text-[#38bdf8]">{report.reporter_name}</span> <span className="text-[11px] text-gray-500">({report.reporter_role})</span>
+                      </div>
+                      <div className="border-t border-[#1e293b] pt-3 text-[11px] text-gray-500 font-mono text-right">
+                        แจ้งเมื่อ: {new Date(report.created_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })} น.
+                      </div>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
 
             {tmdRain && villageRainData.map((station) => {
               const style = getRainCircleStyle(station.rainSum);
@@ -749,6 +829,7 @@ export default function BoLuangDashboard() {
                   <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
                 </div>
                 <div className="space-y-1">
+                  {/* 🌟 ปุ่มเปิด/ปิด จุดแจ้งเหตุประชาชน */}
                   <CustomToggleBox label="จุดแจ้งเหตุประชาชน (สีแดง)" active={citizenReport} onClick={() => setCitizenReport(!citizenReport)} dotColor="#ef4444" />
                 </div>
               </div>
