@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
-import { createClient } from '@supabase/supabase-js'; // 🌟 นำเข้า Supabase
+import { createClient } from '@supabase/supabase-js'; 
 
 // 🌟 ตั้งค่า Supabase 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co';
@@ -87,7 +87,7 @@ export default function BoLuangDashboard() {
   const [showBoluang, setShowBoluang] = useState(false);   
   const [showBlock, setShowBlock] = useState(false);        
   const [showParcel, setShowParcel] = useState(false);      
-  const [citizenReport, setCitizenReport] = useState(true); // 🌟 เปิดแจ้งเหตุประชาชนเป็นค่าเริ่มต้น
+  const [citizenReport, setCitizenReport] = useState(true); 
   const [earthquakeLayer, setEarthquakeLayer] = useState(true);        
   const [hotspot, setHotspot] = useState(true);
   const [showLandslide, setShowLandslide] = useState(false);
@@ -99,7 +99,7 @@ export default function BoLuangDashboard() {
   const [realWeatherData, setRealWeatherData] = useState<any>(null);
   const [villageRainData, setVillageRainData] = useState<any[]>([]); 
   const [nationalAirData, setNationalAirData] = useState<any[]>([]);
-  const [disasterReports, setDisasterReports] = useState<any[]>([]); // 🌟 State เก็บข้อมูลจาก Supabase
+  const [disasterReports, setDisasterReports] = useState<any[]>([]); 
   
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
@@ -150,7 +150,7 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
 
-  // 🌟 ดึงข้อมูลแจ้งเหตุจาก Supabase เมื่อเปิด Layer "จุดแจ้งเหตุประชาชน"
+  // 🌟 ดึงข้อมูลแจ้งเหตุจาก Supabase 
   useEffect(() => {
     if (!citizenReport) return;
 
@@ -159,7 +159,7 @@ export default function BoLuangDashboard() {
         const { data, error } = await supabase
           .from('boluang_disaster_reports')
           .select('*')
-          .order('created_at', { ascending: false }); // เรียงจากใหม่ไปเก่า
+          .order('created_at', { ascending: false }); 
 
         if (error) throw error;
         if (data) setDisasterReports(data);
@@ -345,7 +345,6 @@ export default function BoLuangDashboard() {
 
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
   
-  // 🌟 สร้างไอคอนรายงานจุดเสี่ยงภัย (ไซเรนสีแดง กระพริบ)
   const createReportIcon = useMemo(() => {
     if (!L) return () => null;
     return () => L.divIcon({
@@ -521,7 +520,7 @@ export default function BoLuangDashboard() {
               />
             )}
 
-            {/* 🌟 แสดงหมุดแจ้งเหตุจาก Supabase บนแผนที่ */}
+            {/* 🌟 แสดงหมุดแจ้งเหตุจาก Supabase บนแผนที่ (พร้อมพิกัด GPS) */}
             {citizenReport && disasterReports.map((report) => (
               <Marker 
                 key={`report-${report.id}`} 
@@ -529,7 +528,7 @@ export default function BoLuangDashboard() {
                 icon={createReportIcon()}
               >
                 <Popup className="popup-report">
-                  <div className="w-[300px]">
+                  <div className="w-[320px]">
                     <div className="bg-[#ef4444] px-5 py-3 font-bold text-white text-[15px] flex items-center shadow-sm">
                       <span className="mr-2 text-[18px]">🚨</span> แจ้งเหตุ: {report.risk_type}
                     </div>
@@ -540,6 +539,8 @@ export default function BoLuangDashboard() {
                       </div>
                       <div className="border-t border-[#1e293b] py-3 text-[13px] text-gray-300 leading-relaxed font-semibold">
                         📍 พื้นที่: <span className="text-white">{report.village_name}</span><br/>
+                        {/* 🎯 เพิ่มบรรทัดพิกัด สามารถดับเบิ้ลคลิกเพื่อคลุมดำและก๊อปปี้ได้ง่ายๆ */}
+                        🎯 พิกัด (GPS): <span className="text-[#4ade80] font-mono select-all cursor-text">{report.latitude.toFixed(6)}, {report.longitude.toFixed(6)}</span><br/>
                         📝 รายละเอียด: <span className="text-gray-400 font-normal">{report.description}</span><br/>
                         👤 ผู้แจ้ง: <span className="text-[#38bdf8]">{report.reporter_name}</span> <span className="text-[11px] text-gray-500">({report.reporter_role})</span>
                       </div>
@@ -829,7 +830,6 @@ export default function BoLuangDashboard() {
                   <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
                 </div>
                 <div className="space-y-1">
-                  {/* 🌟 ปุ่มเปิด/ปิด จุดแจ้งเหตุประชาชน */}
                   <CustomToggleBox label="จุดแจ้งเหตุประชาชน (สีแดง)" active={citizenReport} onClick={() => setCitizenReport(!citizenReport)} dotColor="#ef4444" />
                 </div>
               </div>
