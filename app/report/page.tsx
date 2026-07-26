@@ -8,8 +8,8 @@ import Swal from 'sweetalert2'; // สำหรับทำ Popup แจ้ง�
 
 // 🌟 ตั้งค่า Supabase (ใช้ URL และ Key ของคุณ)
 // แนะนำให้ดึงจากไฟล์ .env.local แต่ถ้าทดสอบสามารถใส่ตรงๆ ก่อนได้
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'ใส่_SUPABASE_URL_ของคุณตรงนี้';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'ใส่_SUPABASE_ANON_KEY_ของคุณตรงนี้';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co/rest/v1/';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dGpqaHZ2dGFzd3pod2hvd2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDA3NjcsImV4cCI6MjA5MjExNjc2N30.Jjqi1LWgxEgpT2nBdjuNyoLxEP_VQcKf3GEbIYKPI8Y';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // 🗺️ โหลด Leaflet Components แบบ Dynamic (ป้องกัน Error ฝั่ง Server)
