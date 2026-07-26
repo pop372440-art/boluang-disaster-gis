@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2'; 
-import { useMapEvents } from 'react-leaflet'; // 🌟 ย้ายมา Import ตรงนี้แทน (แก้ Error Vercel)
+import { useMapEvents } from 'react-leaflet';
 
 // 🌟 ตั้งค่า Supabase 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co';
@@ -16,16 +16,20 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
-// ❌ เอาการโหลด useMapEvents แบบ dynamic ออกไปแล้ว เพื่อแก้ Error
+const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
 
 export default function ReportPage() {
   const [mounted, setMounted] = useState(false);
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // 🌟 State สำหรับแผนที่และข้อมูล GeoJSON
+  const [mapRef, setMapRef] = useState<any>(null);
+  const [geoBlock, setGeoBlock] = useState<any>(null);
 
   // 📝 ข้อมูลฟอร์ม
   const [formData, setFormData] = useState({
-    village_name: 'บ้านบ่อหลวง',
+    village_name: '',
     risk_type: 'ไฟป่า / หมอกควัน',
     severity_level: 3,
     description: '',
@@ -35,7 +39,76 @@ export default function ReportPage() {
 
   useEffect(() => {
     setMounted(true);
+    
+    // 🌟 โหลดข้อมูล block.json เพื่อสกัดชื่อและพิกัดหมู่บ้าน (เหมือนหน้า Dashboard)
+    const fetchBlockData = async () => {
+      try {
+        const ts = Date.now();
+        const res = await fetch(`/geojson/block.json?v=${ts}`);
+        if (res.ok) {
+          let data = await res.json();
+          if (Array.isArray(data)) data = { type: "FeatureCollection", features: data };
+          setGeoBlock(data);
+        }
+      } catch (e) {
+        console.error("Error loading block.json", e);
+      }
+    };
+    fetchBlockData();
   }, []);
+
+  // 🌟 ฟังก์ชันจัดการชื่อหมู่บ้านให้สวยงาม
+  const formatVillageName = (rawName: any) => {
+    if (!rawName) return 'พื้นที่หมู่บ้าน';
+    const safeName = String(rawName); 
+    let cName = safeName.replace(/^(บ้าน|บ\.|หมู่ที่\s*\d+|หมู่\s*\d+)/, '').replace(/\s+/g, '');
+    if (cName.includes('บ่อหลวง')) cName = 'บ้านบ่อหลวง';
+    else if (cName === 'ขุน' || cName.includes('บ้านขุน')) cName = 'บ้านขุน';
+    else cName = `บ้าน${cName}`;
+    return cName;
+  };
+
+  // 🌟 คำนวณรายชื่อหมู่บ้านและจุดกึ่งกลาง (Center) จากไฟล์ GeoJSON
+  const villageList = useMemo(() => {
+    const vMap: Record<string, { sumLat: number, sumLng: number, count: number }> = {};
+    if (geoBlock && geoBlock.features) {
+      geoBlock.features.forEach((f: any) => {
+        const props = f.properties || {};
+        let rawName = props.own_villag || props.name_th || props.vil_name || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || 'ไม่ระบุ'}`;
+        let cName = formatVillageName(rawName);
+        let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+        const extractCoords = (coords: any[]) => {
+          if (!coords) return;
+          if (typeof coords[0] === 'number') {
+            if (coords[1] < minLat) minLat = coords[1];
+            if (coords[1] > maxLat) maxLat = coords[1];
+            if (coords[0] < minLng) minLng = coords[0];
+            if (coords[0] > maxLng) maxLng = coords[0];
+          } else if (Array.isArray(coords)) { coords.forEach(extractCoords); }
+        };
+        extractCoords(f.geometry?.coordinates);
+        if (minLat !== Infinity) {
+          if (!vMap[cName]) vMap[cName] = { sumLat: 0, sumLng: 0, count: 0 };
+          vMap[cName].sumLat += (minLat + maxLat) / 2;
+          vMap[cName].sumLng += (minLng + maxLng) / 2;
+          vMap[cName].count += 1;
+        }
+      });
+    }
+    
+    const result = Object.keys(vMap).map(name => ({ 
+      name, 
+      lat: vMap[name].sumLat / vMap[name].count, 
+      lng: vMap[name].sumLng / vMap[name].count 
+    }));
+
+    // ตั้งค่าเริ่มต้นให้ Dropdown ถ้ารายการถูกดึงมาสำเร็จ
+    if (result.length > 0 && !formData.village_name) {
+      setFormData(prev => ({ ...prev, village_name: result[0].name }));
+    }
+    
+    return result;
+  }, [geoBlock]);
 
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
 
@@ -64,6 +137,22 @@ export default function ReportPage() {
     return position === null ? null : <Marker position={position} icon={customIcon}></Marker>;
   };
 
+  // 🌟 เมื่อเลือกหมู่บ้าน ให้แผนที่บิน (FlyTo) ไปที่พิกัดนั้น
+  const handleVillageChange = (e: any) => {
+    const selectedName = e.target.value;
+    setFormData(prev => ({ ...prev, village_name: selectedName }));
+
+    if (mapRef && villageList.length > 0) {
+      const targetVillage = villageList.find(v => v.name === selectedName);
+      if (targetVillage) {
+        mapRef.flyTo([targetVillage.lat, targetVillage.lng], 15, {
+          duration: 1.5,
+          easeLinearity: 0.25
+        });
+      }
+    }
+  };
+
   const handleInputChange = (e: any) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -89,7 +178,6 @@ export default function ReportPage() {
     setIsSubmitting(true);
 
     try {
-      // ส่งข้อมูลเข้าตาราง boluang_disaster_reports
       const { data, error } = await supabase
         .from('boluang_disaster_reports')
         .insert([
@@ -113,7 +201,6 @@ export default function ReportPage() {
         text: 'ข้อมูลของคุณถูกส่งไปยังศูนย์รับเรื่องแล้วครับ',
         confirmButtonColor: '#10b981'
       }).then(() => {
-        // ล้างข้อมูลหลังส่งเสร็จ
         setFormData({ ...formData, description: '', reporter_name: '' });
         setPosition(null);
       });
@@ -127,12 +214,6 @@ export default function ReportPage() {
   };
 
   if (!mounted) return <div className="h-screen w-screen bg-gray-100 flex items-center justify-center">Loading...</div>;
-
-  const villages = [
-    'บ้านบ่อหลวง', 'บ้านวังกะทะ', 'บ้านแม่ลาย', 'บ้านแม่ลอง', 'บ้านขุน',
-    'บ้านทุ่งป่าคา', 'บ้านดง', 'บ้านกิ่วทัพยั้ง', 'บ้านแม่สะนาม', 'บ้านอมเม็ง',
-    'บ้านพะยอ', 'บ้านแม่จอน', 'บ้านบ่อพะแวน'
-  ];
 
   const riskTypes = ['ไฟป่า / หมอกควัน', 'ดินโคลนถล่ม / ดินสไลด์', 'น้ำป่าไหลหลาก / น้ำท่วม', 'ต้นไม้ล้มขวางทาง', 'แผ่นดินไหว', 'อื่นๆ'];
 
@@ -163,8 +244,17 @@ export default function ReportPage() {
             {/* 1. พื้นที่ */}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">📌 1. พื้นที่หมู่บ้านที่พบเหตุ</label>
-              <select name="village_name" value={formData.village_name} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white">
-                {villages.map(v => <option key={v} value={v}>{v}</option>)}
+              <select 
+                name="village_name" 
+                value={formData.village_name} 
+                onChange={handleVillageChange} 
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white"
+              >
+                {villageList.length > 0 ? (
+                  villageList.map((v: any) => <option key={v.name} value={v.name}>{v.name}</option>)
+                ) : (
+                  <option value="">กำลังโหลดข้อมูลหมู่บ้าน...</option>
+                )}
               </select>
             </div>
 
@@ -245,9 +335,25 @@ export default function ReportPage() {
 
       {/* 🗺️ ฝั่งขวา: แผนที่ Leaflet */}
       <div className="flex-1 h-full relative bg-gray-900 z-0">
-        <MapContainer center={[18.1633, 98.3744]} zoom={13} maxZoom={20} className="w-full h-full cursor-crosshair">
+        <MapContainer 
+          center={[18.1633, 98.3744]} 
+          zoom={13} 
+          maxZoom={20} 
+          className="w-full h-full cursor-crosshair"
+          ref={setMapRef} // 🌟 เพิ่ม ref ให้แผนที่เพื่อสั่ง FlyTo ได้
+        >
           {/* ใช้ Google Satellite เป็น Base Map */}
           <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} attribution="Google Maps Satellite" />
+          
+          {/* แสดงขอบเขตหมู่บ้าน (เส้นประสีขาวบางๆ) เพื่อให้ผู้แจ้งรู้ว่าอยู่หมู่บ้านไหน */}
+          {geoBlock && (
+             <GeoJSON 
+               data={geoBlock} 
+               style={{ color: 'rgba(255,255,255,0.4)', weight: 1.5, fillOpacity: 0, dashArray: '4, 4' }} 
+               interactive={false}
+             />
+          )}
+
           <LocationMarker />
         </MapContainer>
         
