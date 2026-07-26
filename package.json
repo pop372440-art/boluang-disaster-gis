@@ -16,8 +16,8 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-leaflet": "^5.0.0"
-    "@supabase/supabase-js": "^2.39.3",  <--- (บรรทัดที่เพิ่มใหม่)
-    "sweetalert2": "^11.10.5"            <--- (บรรทัดที่เพิ่มใหม่)
+    "@supabase/supabase-js": "^2.39.3",
+    "sweetalert2": "^11.10.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
