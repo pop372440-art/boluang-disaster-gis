@@ -159,6 +159,8 @@ export default function BoLuangDashboard() {
         const { data, error } = await supabase
           .from('boluang_disaster_reports')
           .select('*')
+          // 👇 เพิ่มบรรทัดนี้: คัดกรองเอาเฉพาะสถานะที่ "ไม่เท่ากับ (!=)" ดำเนินการเสร็จแล้ว
+          .neq('status', 'ดำเนินการเสร็จแล้ว') 
           .order('created_at', { ascending: false }); 
 
         if (error) throw error;
