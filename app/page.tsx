@@ -841,7 +841,7 @@ export default function BoLuangDashboard() {
             <svg className={`w-5 h-5 transform transition-transform duration-300 ${isRightPanelOpen ? 'rotate-0' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
           </button>
           
-          <div className="w-[360px] bg-[#0b132b]/95 border border-[#1e293b] rounded-xl shadow-2xl p-5 backdrop-blur-xl max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar">
+          <div className="w-[360px] bg-[#0b132b]/95 border border-[#1e293b] rounded-xl shadow-2xl p-5 backdrop-blur-xl max-h-[calc(100vh-240px)] overflow-y-auto custom-scrollbar">
             
             <div className="mb-4 flex flex-col items-start border-b border-[#1e293b] pb-3">
               <div className="flex items-center space-x-3 mb-2">
