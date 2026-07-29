@@ -764,22 +764,42 @@ export default function BoLuangDashboard() {
         </div>
       </aside>
 
-      {/* 🌟 Widget สถิติผู้เข้าชม (Visitor Counter) - ฉบับ Pro (มุมขวาล่าง) */}
+      {/* 🌟 Widget สถิติผู้เข้าชม (Visitor Counter) - ฉบับปรับปรุงให้สื่อความหมายชัดเจน */}
       <div className="absolute bottom-[40px] right-6 z-[60] pointer-events-auto">
-        <div className="bg-[#0f172a]/90 backdrop-blur-md border border-[#1e293b] rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] p-3 flex items-center space-x-4">
-          <div className="bg-gradient-to-br from-[#8b5cf6] to-[#3b82f6] p-2 rounded-xl shadow-inner">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-          </div>
-          <div className="flex flex-col pr-2">
-            <div className="flex items-center justify-between space-x-4 border-b border-gray-700 pb-1 mb-1">
-              <span className="text-[11px] font-bold text-gray-400 tracking-wider">TODAY</span>
-              <span className="text-[14px] font-bold text-[#38bdf8] font-mono">{visitStats.today.toLocaleString()}</span>
+        <div className="bg-[#0b132b]/95 backdrop-blur-xl border border-[#1e293b] rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.6)] overflow-hidden w-[220px]">
+          
+          {/* ส่วนหัว (Header) - ใส่ชื่อให้ชัดเจนพร้อมไฟกระพริบ */}
+          <div className="bg-gradient-to-r from-[#1e293b] to-[#0f172a] px-3 py-2.5 border-b border-[#334155] flex items-center space-x-2.5 shadow-sm">
+            <div className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#10b981]"></span>
             </div>
-            <div className="flex items-center justify-between space-x-4">
-              <span className="text-[11px] font-bold text-gray-400 tracking-wider">TOTAL</span>
-              <span className="text-[14px] font-bold text-white font-mono">{visitStats.total.toLocaleString()}</span>
+            <span className="text-[13px] font-bold text-gray-200 tracking-wide">สถิติผู้เข้าชมเว็บไซต์</span>
+          </div>
+          
+          {/* ส่วนข้อมูล (Body) */}
+          <div className="p-3.5 space-y-3">
+            {/* ข้อมูลวันนี้ */}
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] text-gray-400 font-medium flex items-center">
+                <span className="mr-1.5 text-[14px]">📅</span> เข้าชมวันนี้
+              </span>
+              <div className="bg-[#10b981]/10 px-2 py-0.5 rounded border border-[#10b981]/20">
+                <span className="text-[14px] font-bold text-[#10b981] font-mono">{visitStats.today.toLocaleString()}</span>
+              </div>
+            </div>
+            
+            {/* ข้อมูลยอดรวม */}
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] text-gray-400 font-medium flex items-center">
+                <span className="mr-1.5 text-[14px]">📈</span> ยอดรวมทั้งหมด
+              </span>
+              <div className="bg-[#38bdf8]/10 px-2 py-0.5 rounded border border-[#38bdf8]/20">
+                <span className="text-[14px] font-bold text-[#38bdf8] font-mono">{visitStats.total.toLocaleString()}</span>
+              </div>
             </div>
           </div>
+
         </div>
       </div>
 
