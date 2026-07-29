@@ -101,6 +101,9 @@ export default function BoLuangDashboard() {
   const [nationalAirData, setNationalAirData] = useState<any[]>([]);
   const [disasterReports, setDisasterReports] = useState<any[]>([]); 
   
+  // 👁️ State สำหรับนับจำนวนผู้เข้าชม
+  const [visitStats, setVisitStats] = useState({ today: 0, total: 0 });
+  
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
   const [geoParcel, setGeoParcel] = useState<any>(null);
@@ -150,26 +153,57 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
 
+  // 👁️ ฟังก์ชันบันทึกและดึงสถิติคนเข้าชม (ทำงานเมื่อเว็บโหลดเสร็จ)
+  useEffect(() => {
+    if (!mounted) return;
+    const handleVisitorCount = async () => {
+      try {
+        // 1. เช็คว่าเป็นคนใหม่หรือแค่กด F5
+        let sessionId = sessionStorage.getItem('bl_session_id');
+        if (!sessionId) {
+          sessionId = Math.random().toString(36).substring(2, 15); // สร้างรหัสสุ่ม
+          sessionStorage.setItem('bl_session_id', sessionId);
+          // ส่งข้อมูลบันทึกลง Database เราเอง
+          await supabase.from('visitor_logs').insert([{ session_id: sessionId }]);
+        }
+
+        // 2. ดึงยอดทั้งหมด (Total)
+        const { count: totalCount } = await supabase
+          .from('visitor_logs')
+          .select('*', { count: 'exact', head: true });
+
+        // 3. ดึงยอดวันนี้ (Today)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // รีเซ็ตเวลาเป็น 00:00:00
+        const { count: todayCount } = await supabase
+          .from('visitor_logs')
+          .select('*', { count: 'exact', head: true })
+          .gte('visited_at', today.toISOString()); // ดึงเฉพาะเวลาที่มากกว่าเที่ยงคืน
+
+        setVisitStats({ today: todayCount || 0, total: totalCount || 0 });
+      } catch (error) {
+        console.error('Error fetching visitor stats:', error);
+      }
+    };
+    handleVisitorCount();
+  }, [mounted]);
+
   // 🌟 ดึงข้อมูลแจ้งเหตุจาก Supabase 
   useEffect(() => {
     if (!citizenReport) return;
-
     const fetchReports = async () => {
       try {
         const { data, error } = await supabase
           .from('boluang_disaster_reports')
           .select('*')
-          // 👇 เพิ่มบรรทัดนี้: คัดกรองเอาเฉพาะสถานะที่ "ไม่เท่ากับ (!=)" ดำเนินการเสร็จแล้ว
           .neq('status', 'ดำเนินการเสร็จแล้ว') 
           .order('created_at', { ascending: false }); 
-
         if (error) throw error;
         if (data) setDisasterReports(data);
       } catch (error) {
         console.error('Error fetching disaster reports:', error);
       }
     };
-
     fetchReports();
   }, [citizenReport]);
 
@@ -541,7 +575,6 @@ export default function BoLuangDashboard() {
                       </div>
                       <div className="border-t border-[#1e293b] py-3 text-[13px] text-gray-300 leading-relaxed font-semibold">
                         📍 พื้นที่: <span className="text-white">{report.village_name}</span><br/>
-                        {/* 🎯 เพิ่มบรรทัดพิกัด สามารถดับเบิ้ลคลิกเพื่อคลุมดำและก๊อปปี้ได้ง่ายๆ */}
                         🎯 พิกัด (GPS): <span className="text-[#4ade80] font-mono select-all cursor-text">{report.latitude.toFixed(6)}, {report.longitude.toFixed(6)}</span><br/>
                         📝 รายละเอียด: <span className="text-gray-400 font-normal">{report.description}</span><br/>
                         👤 ผู้แจ้ง: <span className="text-[#38bdf8]">{report.reporter_name}</span> <span className="text-[11px] text-gray-500">({report.reporter_role})</span>
@@ -731,6 +764,25 @@ export default function BoLuangDashboard() {
         </div>
       </aside>
 
+      {/* 🌟 Widget สถิติผู้เข้าชม (Visitor Counter) - ฉบับ Pro (มุมขวาล่าง) */}
+      <div className="absolute bottom-[40px] right-6 z-[60] pointer-events-auto">
+        <div className="bg-[#0f172a]/90 backdrop-blur-md border border-[#1e293b] rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] p-3 flex items-center space-x-4">
+          <div className="bg-gradient-to-br from-[#8b5cf6] to-[#3b82f6] p-2 rounded-xl shadow-inner">
+            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+          </div>
+          <div className="flex flex-col pr-2">
+            <div className="flex items-center justify-between space-x-4 border-b border-gray-700 pb-1 mb-1">
+              <span className="text-[11px] font-bold text-gray-400 tracking-wider">TODAY</span>
+              <span className="text-[14px] font-bold text-[#38bdf8] font-mono">{visitStats.today.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between space-x-4">
+              <span className="text-[11px] font-bold text-gray-400 tracking-wider">TOTAL</span>
+              <span className="text-[14px] font-bold text-white font-mono">{visitStats.total.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* 🌟 แถบ Credit ด้านซ้าย */}
       <div className="absolute bottom-4 left-4 z-[60] flex flex-wrap gap-2 pointer-events-auto max-w-[60%]">
         <div className="bg-[#0b132b]/80 backdrop-blur-md border border-[#1e293b] rounded-full px-3 py-1.5 shadow-sm text-[11px] font-mono text-gray-400">
@@ -746,8 +798,7 @@ export default function BoLuangDashboard() {
 
       {/* 🌟 แถบ Credit สภาพอากาศ Windy */}
       <div 
-        className="absolute bottom-6 right-5 z-[60] pointer-events-auto transition-transform duration-500 ease-in-out"
-        style={{ transform: isRightPanelOpen ? 'translateX(-370px)' : 'translateX(0)' }}
+        className="absolute bottom-4 right-1/2 translate-x-1/2 z-[60] pointer-events-auto"
       >
         <div className="bg-[#0b132b]/80 backdrop-blur-md border border-[#1e293b] rounded-full px-3 py-1.5 shadow-sm text-[11px] font-mono text-gray-400 flex items-center space-x-1.5">
           <span className="text-[#38bdf8]">💨</span>
