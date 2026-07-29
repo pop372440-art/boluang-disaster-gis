@@ -764,11 +764,15 @@ export default function BoLuangDashboard() {
         </div>
       </aside>
 
-      {/* 🌟 Widget สถิติผู้เข้าชม (Visitor Counter) - ฉบับปรับปรุงให้สื่อความหมายชัดเจน */}
-      <div className="absolute bottom-[40px] right-6 z-[60] pointer-events-auto">
+     {/* 🌟 Widget สถิติผู้เข้าชม (Visitor Counter) - ฉบับหลบอัตโนมัติ */}
+      <div 
+        className={`absolute bottom-[40px] z-[60] pointer-events-auto transition-all duration-500 ease-in-out ${
+          isRightPanelOpen ? 'right-[390px]' : 'right-6'
+        }`}
+      >
         <div className="bg-[#0b132b]/95 backdrop-blur-xl border border-[#1e293b] rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.6)] overflow-hidden w-[220px]">
           
-          {/* ส่วนหัว (Header) - ใส่ชื่อให้ชัดเจนพร้อมไฟกระพริบ */}
+          {/* ส่วนหัว (Header) */}
           <div className="bg-gradient-to-r from-[#1e293b] to-[#0f172a] px-3 py-2.5 border-b border-[#334155] flex items-center space-x-2.5 shadow-sm">
             <div className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
@@ -779,7 +783,6 @@ export default function BoLuangDashboard() {
           
           {/* ส่วนข้อมูล (Body) */}
           <div className="p-3.5 space-y-3">
-            {/* ข้อมูลวันนี้ */}
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-gray-400 font-medium flex items-center">
                 <span className="mr-1.5 text-[14px]">📅</span> เข้าชมวันนี้
@@ -788,8 +791,6 @@ export default function BoLuangDashboard() {
                 <span className="text-[14px] font-bold text-[#10b981] font-mono">{visitStats.today.toLocaleString()}</span>
               </div>
             </div>
-            
-            {/* ข้อมูลยอดรวม */}
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-gray-400 font-medium flex items-center">
                 <span className="mr-1.5 text-[14px]">📈</span> ยอดรวมทั้งหมด
