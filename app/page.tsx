@@ -62,7 +62,16 @@ const getWeatherEmoji = (code: number) => {
   return '☀️';
 };
 
-// 📍 พิกัดครบ 77 จังหวัดทั่วประเทศไทย
+// 🌈 ฟังก์ชันคำนวณสีสำหรับค่าฝุ่น PM2.5 ตามมาตรฐาน
+const getPm25Color = (val: number) => {
+  if (val <= 15.0) return { border: '#38bdf8', shadow: 'rgba(56,189,248,0.5)' }; // สีฟ้า (ดีมาก)
+  if (val <= 25.0) return { border: '#4ade80', shadow: 'rgba(74,222,128,0.5)' }; // สีเขียว (ดี)
+  if (val <= 37.5) return { border: '#facc15', shadow: 'rgba(250,204,21,0.5)' }; // สีเหลือง (ปานกลาง)
+  if (val <= 75.0) return { border: '#f97316', shadow: 'rgba(249,115,22,0.5)' }; // สีส้ม (เริ่มมีผลกระทบ)
+  return { border: '#ef4444', shadow: 'rgba(239,68,68,0.5)' }; // สีแดง (มีผลกระทบต่อสุขภาพ)
+};
+
+// 📍 พิกัดครบ 77 จังหวัดทั่วประเทศไทย (ฐานข้อมูลกลาง)
 const thaiProvinces = [
   { name: 'กรุงเทพมหานคร', lat: 13.7563, lng: 100.5018 }, { name: 'สมุทรปราการ', lat: 13.5993, lng: 100.5968 },
   { name: 'นนทบุรี', lat: 13.8591, lng: 100.5217 }, { name: 'ปทุมธานี', lat: 14.0208, lng: 100.5250 },
@@ -105,21 +114,15 @@ const thaiProvinces = [
   { name: 'นราธิวาส', lat: 6.4255, lng: 101.8253 }
 ];
 
-const nationalStations = [
-  { name: 'เชียงใหม่', lat: 18.7883, lng: 98.9853 }, { name: 'ขอนแก่น', lat: 16.4322, lng: 102.8236 },
-  { name: 'นครราชสีมา', lat: 14.9799, lng: 102.0978 }, { name: 'กรุงเทพมหานคร', lat: 13.7563, lng: 100.5018 },
-  { name: 'ชลบุรี', lat: 13.3611, lng: 100.9847 }, { name: 'สงขลา', lat: 7.1897, lng: 100.5954 }
-];
-
 export default function BoLuangDashboard() {
   const [mounted, setMounted] = useState(false);
   const [qrUrl, setQrUrl] = useState('');
   const coordsRef = useRef<HTMLSpanElement>(null);
 
   // 🎛️ State แผงควบคุม ซ้าย
-  const [tmdWeather, setTmdWeather] = useState(true);
+  const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
-  const [pm25, setPm25] = useState(false);
+  const [pm25, setPm25] = useState(true); // 🌟 เปิด PM2.5 ไว้เป็นค่าเริ่มต้นให้เห็นผลลัพธ์ทันที
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
 
@@ -137,8 +140,8 @@ export default function BoLuangDashboard() {
   const [showScanModal, setShowScanModal] = useState(false);
 
   // 📡 ข้อมูล API & GeoJSON
-  const [provincialWeatherData, setProvincialWeatherData] = useState<any[]>([]); // 🌟 ใช้ตัวนี้เป็นฐานข้อมูลกลางครบ 77 จังหวัด
-  const [nationalAirData, setNationalAirData] = useState<any[]>([]);
+  const [provincialWeatherData, setProvincialWeatherData] = useState<any[]>([]); 
+  const [nationalAirData, setNationalAirData] = useState<any[]>([]); // 🌟 สำหรับเก็บค่าฝุ่น 77 จังหวัด
   const [disasterReports, setDisasterReports] = useState<any[]>([]); 
   
   // 👁️ State สำหรับนับจำนวนผู้เข้าชม
@@ -208,7 +211,7 @@ export default function BoLuangDashboard() {
     handleVisitorCount();
   }, [mounted]);
 
-  // 🌟 ดึงข้อมูลพยากรณ์อากาศและน้ำฝน 77 จังหวัด (API เดียวจบ)
+  // 🌟 ดึงข้อมูลพยากรณ์อากาศและน้ำฝน 77 จังหวัด
   useEffect(() => {
     if (!tmdWeather && !tmdRain) {
       setProvincialWeatherData([]);
@@ -219,7 +222,6 @@ export default function BoLuangDashboard() {
         const lats = thaiProvinces.map(p => p.lat.toFixed(4)).join(',');
         const lngs = thaiProvinces.map(p => p.lng.toFixed(4)).join(',');
         
-        // ดึงทั้งสภาพอากาศปัจจุบัน และ น้ำฝนสะสมรายวัน ใน Call เดียว
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weathercode&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Asia%2FBangkok`;
         const res = await fetch(url);
         const data = await res.json();
@@ -230,7 +232,7 @@ export default function BoLuangDashboard() {
             temp: data[i]?.current?.temperature_2m || 0,
             humidity: data[i]?.current?.relative_humidity_2m || 0,
             rain: data[i]?.current?.precipitation || 0, 
-            rainSum: data[i]?.daily?.precipitation_sum?.[0] || 0, // น้ำฝนสะสม
+            rainSum: data[i]?.daily?.precipitation_sum?.[0] || 0,
             wind: (data[i]?.current?.wind_speed_10m / 3.6) || 0,
             wCode: data[i]?.current?.weathercode || 0,
             tempMin: data[i]?.daily?.temperature_2m_min?.[0] || 0,
@@ -245,13 +247,13 @@ export default function BoLuangDashboard() {
     fetchProvincialWeather();
   }, [tmdWeather, tmdRain]);
 
-  // 🌟 ดึงข้อมูล PM2.5
+  // 🌟 ดึงข้อมูล PM2.5 สำหรับ 77 จังหวัดเต็มรูปแบบ
   useEffect(() => {
     if (!pm25) { setNationalAirData([]); return; }
     const fetchNationalAir = async () => {
       try {
-        const lats = nationalStations.map(s => s.lat.toFixed(4)).join(',');
-        const lngs = nationalStations.map(s => s.lng.toFixed(4)).join(',');
+        const lats = thaiProvinces.map(s => s.lat.toFixed(4)).join(',');
+        const lngs = thaiProvinces.map(s => s.lng.toFixed(4)).join(',');
         const [aqiRes, wxRes] = await Promise.all([
           fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lngs}&current=pm2_5&timezone=Asia%2FBangkok`),
           fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=weathercode&timezone=Asia%2FBangkok`)
@@ -259,12 +261,14 @@ export default function BoLuangDashboard() {
         const aqiData = await aqiRes.json();
         const wxData = await wxRes.json();
         if (Array.isArray(aqiData) && Array.isArray(wxData)) {
-          const formatted = nationalStations.map((station, i) => ({
-            ...station, pm25Val: aqiData[i]?.current?.pm2_5 || 0, wCode: wxData[i]?.current?.weathercode || 0
+          const formatted = thaiProvinces.map((station, i) => ({
+            ...station, 
+            pm25Val: aqiData[i]?.current?.pm2_5 || 0, 
+            wCode: wxData[i]?.current?.weathercode || 0
           }));
           setNationalAirData(formatted);
         }
-      } catch (error) { console.error(error); }
+      } catch (error) { console.error('Error fetching national PM2.5:', error); }
     };
     fetchNationalAir();
   }, [pm25]);
@@ -339,7 +343,7 @@ export default function BoLuangDashboard() {
     let color = '#38bdf8'; let fillColor = '#7dd3fc'; 
     if (rainSum === 0) { color = '#94a3b8'; fillColor = '#cbd5e1'; radius = 7; } 
     else if (rainSum > 5 && rainSum <= 20) { color = '#10b981'; fillColor = '#34d399'; } 
-    else if (rainSum > 20 && rainSum <= 50) { color = '#facc15'; fillColor = '#fde047'; } // เหลืองตามภาพ 
+    else if (rainSum > 20 && rainSum <= 50) { color = '#facc15'; fillColor = '#fde047'; } 
     else if (rainSum > 50) { color = '#ef4444'; fillColor = '#f87171'; }
     return { radius, color, fillColor, fillOpacity: 0.5, weight: 2.5 };
   };
@@ -389,7 +393,6 @@ export default function BoLuangDashboard() {
 
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
   
-  // 🌟 ไอคอนพยากรณ์อากาศ
   const createTmdIcon = useMemo(() => {
     if (!L) return () => null;
     return (wCode: number) => {
@@ -400,6 +403,21 @@ export default function BoLuangDashboard() {
         </div>
       `;
       return L.divIcon({ className: 'bg-transparent border-none', html, iconSize: [36, 36], iconAnchor: [18, 18] });
+    };
+  }, [L]);
+
+  // 🌟 สร้างไอคอน PM2.5 แบบหล่อเท่ (เหมือนรูปตัวอย่างเป๊ะๆ)
+  const createPm25Icon = useMemo(() => {
+    if (!L) return () => null;
+    return (pmVal: number) => {
+      const { border, shadow } = getPm25Color(pmVal);
+      const html = `
+        <div class="relative flex flex-col items-center justify-center w-[48px] h-[48px] bg-[#0f172a]/95 border-[2px] rounded-xl backdrop-blur-md transition-transform hover:scale-110 z-10" style="border-color: ${border}; box-shadow: 0 0 15px ${shadow};">
+          <span class="text-white font-bold text-[15px] leading-none mt-1 z-0">${pmVal.toFixed(1)}</span>
+          <span class="text-[10px] font-bold mt-1.5 z-0 tracking-widest" style="color: ${border};">PM2.5</span>
+        </div>
+      `;
+      return L.divIcon({ className: 'bg-transparent border-none', html, iconSize: [48, 48], iconAnchor: [24, 24] });
     };
   }, [L]);
 
@@ -417,21 +435,6 @@ export default function BoLuangDashboard() {
       `,
       iconSize: [40, 40], iconAnchor: [20, 20]
     });
-  }, [L]);
-
-  const createPm25Icon = useMemo(() => {
-    if (!L) return () => null;
-    return (pmVal: number, wCode: number) => {
-      const emoji = getWeatherEmoji(wCode);
-      const html = `
-        <div class="relative flex flex-col items-center justify-center w-[48px] h-[40px] bg-[#0f172a]/95 border-[1px] border-[#334155] rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.6)] backdrop-blur-md">
-          <div class="absolute -top-[12px] -left-[12px] w-6 h-6 bg-[#1e293b] rounded-full border border-[#475569] flex items-center justify-center text-[12px] shadow-lg z-10">${emoji}</div>
-          <span class="text-white font-bold text-[14px] leading-none mt-1.5 z-0">${pmVal.toFixed(1)}</span>
-          <span class="text-[#38bdf8] text-[9px] font-bold mt-1 z-0 tracking-wider">PM2.5</span>
-        </div>
-      `;
-      return L.divIcon({ className: 'bg-transparent border-none', html, iconSize: [48, 40], iconAnchor: [24, 20] });
-    };
   }, [L]);
 
   const createHotspotIcon = useMemo(() => {
@@ -502,6 +505,7 @@ export default function BoLuangDashboard() {
         .popup-tmd-rain .leaflet-popup-close-button { color: #0f172a !important; font-size: 18px !important; padding-top: 5px !important; padding-right: 10px !important; z-index: 50; }
         .popup-tmd-rain .leaflet-popup-close-button:hover { color: #ffffff !important; background: transparent !important; }
 
+        /* 🌟 CSS สำหรับ Popup แจ้งเหตุ (แดง) */
         .popup-report .leaflet-popup-content-wrapper {
           background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #ef4444 !important;
           border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden;
@@ -509,6 +513,7 @@ export default function BoLuangDashboard() {
         .popup-report .leaflet-popup-tip { background-color: rgba(15, 23, 42, 0.95) !important; border-top: 1px solid #ef4444 !important; border-left: 1px solid #ef4444 !important; }
         .popup-report .leaflet-popup-content { margin: 0 !important; }
 
+        /* 🌟 CSS สำหรับ Popup พื้นฐาน (สีดำ/เทา) */
         .custom-dark-popup .leaflet-popup-content-wrapper {
           background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #1e293b !important;
           border-radius: 12px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; backdrop-filter: blur(8px) !important; padding: 0 !important; overflow: hidden;
@@ -660,6 +665,31 @@ export default function BoLuangDashboard() {
               );
             })}
 
+            {/* 🌟 หมุดค่าฝุ่น PM2.5 (77 จังหวัดเต็มรูปแบบ) */}
+            {pm25 && nationalAirData.map((station, i) => {
+              const areaName = station.name === 'กรุงเทพมหานคร' ? station.name : `อ.เมือง${station.name}, ${station.name}`;
+              const { border } = getPm25Color(station.pm25Val);
+              return (
+                <Marker key={`national-pm25-${i}`} position={[station.lat, station.lng]} icon={createPm25Icon(station.pm25Val)}>
+                  <Popup className="custom-dark-popup">
+                    <div className="px-6 py-5 text-[14px] font-bold text-white text-center w-[220px]">
+                      พื้นที่: {areaName}<br/>
+                      <div className="mt-3 px-3 py-2.5 rounded-lg bg-[#0b132b] border border-[#1e293b] shadow-inner">
+                        <span className="text-[12px] text-gray-400 font-normal block mb-1">ค่าฝุ่น PM2.5</span>
+                        <span className="font-bold text-[24px]" style={{color: border}}>
+                          {station.pm25Val.toFixed(1)} <span className="text-[12px] font-normal text-gray-400">µg/m³</span>
+                        </span>
+                      </div>
+                      <span className="text-[12px] text-gray-400 font-normal mt-3 block flex items-center justify-center gap-1.5">
+                        <span className="text-[16px]">{getWeatherEmoji(station.wCode)}</span> 
+                        สภาพอากาศ: {getWmoWeatherDesc(station.wCode)}
+                      </span>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
+
             {/* 🌟 แสดงหมุดแจ้งเหตุจาก Supabase บนแผนที่ */}
             {citizenReport && disasterReports.map((report) => (
               <Marker 
@@ -687,17 +717,6 @@ export default function BoLuangDashboard() {
                         แจ้งเมื่อ: {new Date(report.created_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })} น.
                       </div>
                     </div>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-
-            {pm25 && nationalAirData.map((station) => (
-              <Marker key={`national-pm25-${station.name}`} position={[station.lat, station.lng]} icon={createPm25Icon(station.pm25Val, station.wCode)}>
-                <Popup className="custom-dark-popup">
-                  <div className="px-5 py-4 text-[14px] font-bold text-white text-center">
-                    จ.{station.name}<br/>
-                    <span className="text-[12px] text-gray-400 font-normal mt-1 block">สภาพอากาศ: {getWmoWeatherDesc(station.wCode)}</span>
                   </div>
                 </Popup>
               </Marker>
