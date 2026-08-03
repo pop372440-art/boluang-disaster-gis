@@ -20,7 +20,7 @@ const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.Circl
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 
-// 💎 UI Component: Toggle
+// 💎 UI Component: Toggle แบบ Clean & Fast
 const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio = false }: any) => (
   <div 
     className="flex items-center space-x-3 px-3 py-1.5 rounded-xl border border-[#1e293b] bg-[#0b132b]/50 hover:bg-[#1e293b]/80 transition-colors duration-200 cursor-pointer select-none mb-1"
@@ -62,32 +62,53 @@ const getWeatherEmoji = (code: number) => {
   return '☀️';
 };
 
-// 📍 พิกัดจังหวัดสำหรับโชว์สภาพอากาศ TMD ภาพรวม
+// 📍 พิกัดครบ 77 จังหวัดทั่วประเทศไทย
 const thaiProvinces = [
-  { name: 'อ.เมืองเชียงใหม่, เชียงใหม่', lat: 18.7883, lng: 98.9853 },
-  { name: 'อ.เมืองเชียงราย, เชียงราย', lat: 19.9070, lng: 99.8325 },
-  { name: 'อ.เมืองแม่ฮ่องสอน, แม่ฮ่องสอน', lat: 19.3020, lng: 97.9654 },
-  { name: 'อ.เมืองน่าน, น่าน', lat: 18.7756, lng: 100.7730 },
-  { name: 'อ.เมืองพิษณุโลก, พิษณุโลก', lat: 16.8211, lng: 100.2659 },
-  { name: 'อ.เมืองขอนแก่น, ขอนแก่น', lat: 16.4322, lng: 102.8236 },
-  { name: 'อ.เมืองอุดรธานี, อุดรธานี', lat: 17.4138, lng: 102.7872 },
-  { name: 'อ.เมืองนครราชสีมา, นครราชสีมา', lat: 14.9799, lng: 102.0978 },
-  { name: 'อ.เมืองอุบลราชธานี, อุบลราชธานี', lat: 15.2448, lng: 104.8473 },
-  { name: 'กรุงเทพมหานคร', lat: 13.7563, lng: 100.5018 },
-  { name: 'อ.เมืองชลบุรี, ชลบุรี', lat: 13.3611, lng: 100.9847 },
-  { name: 'อ.เมืองกาญจนบุรี, กาญจนบุรี', lat: 14.0041, lng: 99.5328 },
-  { name: 'อ.หัวหิน, ประจวบคีรีขันธ์', lat: 12.5684, lng: 99.9577 },
-  { name: 'อ.เมืองสุราษฎร์ธานี, สุราษฎร์ธานี', lat: 9.1342, lng: 99.3334 },
-  { name: 'อ.เมืองภูเก็ต, ภูเก็ต', lat: 7.9519, lng: 98.3381 },
-  { name: 'อ.หาดใหญ่, สงขลา', lat: 7.0097, lng: 100.4705 }
+  { name: 'กรุงเทพมหานคร', lat: 13.7563, lng: 100.5018 }, { name: 'สมุทรปราการ', lat: 13.5993, lng: 100.5968 },
+  { name: 'นนทบุรี', lat: 13.8591, lng: 100.5217 }, { name: 'ปทุมธานี', lat: 14.0208, lng: 100.5250 },
+  { name: 'พระนครศรีอยุธยา', lat: 14.3516, lng: 100.5774 }, { name: 'อ่างทอง', lat: 14.5896, lng: 100.4550 },
+  { name: 'ลพบุรี', lat: 14.7995, lng: 100.6534 }, { name: 'สิงห์บุรี', lat: 14.8936, lng: 100.4015 },
+  { name: 'ชัยนาท', lat: 15.1852, lng: 100.1251 }, { name: 'สระบุรี', lat: 14.5289, lng: 100.9101 },
+  { name: 'ชลบุรี', lat: 13.3611, lng: 100.9847 }, { name: 'ระยอง', lat: 12.6814, lng: 101.2816 },
+  { name: 'จันทบุรี', lat: 12.6113, lng: 102.1039 }, { name: 'ตราด', lat: 12.2428, lng: 102.5175 },
+  { name: 'ฉะเชิงเทรา', lat: 13.6904, lng: 101.0718 }, { name: 'ปราจีนบุรี', lat: 14.0510, lng: 101.3726 },
+  { name: 'นครนายก', lat: 14.2069, lng: 101.2131 }, { name: 'สระแก้ว', lat: 13.8240, lng: 102.0646 },
+  { name: 'นครราชสีมา', lat: 14.9799, lng: 102.0978 }, { name: 'บุรีรัมย์', lat: 14.9930, lng: 103.1029 },
+  { name: 'สุรินทร์', lat: 14.8818, lng: 103.4936 }, { name: 'ศรีสะเกษ', lat: 15.1186, lng: 104.3220 },
+  { name: 'อุบลราชธานี', lat: 15.2448, lng: 104.8473 }, { name: 'ยโสธร', lat: 15.7926, lng: 104.1453 },
+  { name: 'ชัยภูมิ', lat: 15.8066, lng: 102.0315 }, { name: 'อำนาจเจริญ', lat: 15.8597, lng: 104.6258 },
+  { name: 'บึงกาฬ', lat: 18.3608, lng: 103.6456 }, { name: 'หนองบัวลำภู', lat: 17.2032, lng: 102.4390 },
+  { name: 'ขอนแก่น', lat: 16.4322, lng: 102.8236 }, { name: 'อุดรธานี', lat: 17.4138, lng: 102.7872 },
+  { name: 'เลย', lat: 17.4860, lng: 101.7223 }, { name: 'หนองคาย', lat: 17.8783, lng: 102.7420 },
+  { name: 'มหาสารคาม', lat: 16.1848, lng: 103.3007 }, { name: 'ร้อยเอ็ด', lat: 16.0538, lng: 103.6520 },
+  { name: 'กาฬสินธุ์', lat: 16.4328, lng: 103.5061 }, { name: 'สกลนคร', lat: 17.1664, lng: 104.1486 },
+  { name: 'นครพนม', lat: 17.4048, lng: 104.7811 }, { name: 'มุกดาหาร', lat: 16.5443, lng: 104.7172 },
+  { name: 'เชียงใหม่', lat: 18.7883, lng: 98.9853 }, { name: 'ลำพูน', lat: 18.5745, lng: 99.0087 },
+  { name: 'ลำปาง', lat: 18.2888, lng: 99.4925 }, { name: 'อุตรดิตถ์', lat: 17.6201, lng: 100.0993 },
+  { name: 'แพร่', lat: 18.1446, lng: 100.1403 }, { name: 'น่าน', lat: 18.7756, lng: 100.7730 },
+  { name: 'พะเยา', lat: 19.1666, lng: 99.9022 }, { name: 'เชียงราย', lat: 19.9070, lng: 99.8325 },
+  { name: 'แม่ฮ่องสอน', lat: 19.3020, lng: 97.9654 }, { name: 'นครสวรรค์', lat: 15.6987, lng: 100.1221 },
+  { name: 'อุทัยธานี', lat: 15.3835, lng: 100.0246 }, { name: 'กำแพงเพชร', lat: 16.4828, lng: 99.5257 },
+  { name: 'ตาก', lat: 16.8839, lng: 99.1258 }, { name: 'สุโขทัย', lat: 17.0053, lng: 99.8262 },
+  { name: 'พิษณุโลก', lat: 16.8211, lng: 100.2659 }, { name: 'พิจิตร', lat: 16.4419, lng: 100.3488 },
+  { name: 'เพชรบูรณ์', lat: 16.4206, lng: 101.1554 }, { name: 'ราชบุรี', lat: 13.5283, lng: 99.8128 },
+  { name: 'กาญจนบุรี', lat: 14.0041, lng: 99.5328 }, { name: 'สุพรรณบุรี', lat: 14.4742, lng: 100.1123 },
+  { name: 'นครปฐม', lat: 13.8140, lng: 100.0371 }, { name: 'สมุทรสาคร', lat: 13.5475, lng: 100.2736 },
+  { name: 'สมุทรสงคราม', lat: 13.4102, lng: 100.0000 }, { name: 'เพชรบุรี', lat: 13.1121, lng: 99.9437 },
+  { name: 'ประจวบคีรีขันธ์', lat: 11.8124, lng: 99.7975 }, { name: 'ชุมพร', lat: 10.4955, lng: 99.1777 },
+  { name: 'ระนอง', lat: 9.9698, lng: 98.6355 }, { name: 'สุราษฎร์ธานี', lat: 9.1342, lng: 99.3334 },
+  { name: 'พังงา', lat: 8.4501, lng: 98.5283 }, { name: 'ภูเก็ต', lat: 7.9519, lng: 98.3381 },
+  { name: 'กระบี่', lat: 8.0586, lng: 98.9174 }, { name: 'นครศรีธรรมราช', lat: 8.4304, lng: 99.9631 },
+  { name: 'ตรัง', lat: 7.5563, lng: 99.6114 }, { name: 'พัทลุง', lat: 7.6166, lng: 100.0776 },
+  { name: 'สตูล', lat: 6.6121, lng: 100.0668 }, { name: 'สงขลา', lat: 7.1897, lng: 100.5954 },
+  { name: 'ปัตตานี', lat: 6.8673, lng: 101.2501 }, { name: 'ยะลา', lat: 6.5411, lng: 101.2804 },
+  { name: 'นราธิวาส', lat: 6.4255, lng: 101.8253 }
 ];
 
 const nationalStations = [
-  { name: 'เชียงใหม่', lat: 18.7883, lng: 98.9853 }, { name: 'เชียงราย', lat: 19.9070, lng: 99.8325 },
-  { name: 'แม่ฮ่องสอน', lat: 19.3020, lng: 97.9654 }, { name: 'น่าน', lat: 18.7756, lng: 100.7730 },
-  { name: 'ตาก', lat: 16.8839, lng: 99.1258 }, { name: 'พิษณุโลก', lat: 16.8211, lng: 100.2659 },
-  { name: 'ขอนแก่น', lat: 16.4322, lng: 102.8236 }, { name: 'อุดรธานี', lat: 17.4138, lng: 102.7872 },
-  { name: 'อุบลราชธานี', lat: 15.2448, lng: 104.8473 }, { name: 'นครราชสีมา', lat: 14.9799, lng: 102.0978 }
+  { name: 'เชียงใหม่', lat: 18.7883, lng: 98.9853 }, { name: 'ขอนแก่น', lat: 16.4322, lng: 102.8236 },
+  { name: 'นครราชสีมา', lat: 14.9799, lng: 102.0978 }, { name: 'กรุงเทพมหานคร', lat: 13.7563, lng: 100.5018 },
+  { name: 'ชลบุรี', lat: 13.3611, lng: 100.9847 }, { name: 'สงขลา', lat: 7.1897, lng: 100.5954 }
 ];
 
 export default function BoLuangDashboard() {
@@ -108,18 +129,19 @@ export default function BoLuangDashboard() {
   const [showBlock, setShowBlock] = useState(false);        
   const [showParcel, setShowParcel] = useState(false);      
   const [citizenReport, setCitizenReport] = useState(true); 
-  const [earthquakeLayer, setEarthquakeLayer] = useState(true);        
-  const [hotspot, setHotspot] = useState(true);
+  const [earthquakeLayer, setEarthquakeLayer] = useState(false);        
+  const [hotspot, setHotspot] = useState(false);
   const [showLandslide, setShowLandslide] = useState(false);
   
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [showScanModal, setShowScanModal] = useState(false);
 
   // 📡 ข้อมูล API & GeoJSON
-  const [provincialWeatherData, setProvincialWeatherData] = useState<any[]>([]);
-  const [villageRainData, setVillageRainData] = useState<any[]>([]); 
+  const [provincialWeatherData, setProvincialWeatherData] = useState<any[]>([]); // 🌟 ใช้ตัวนี้เป็นฐานข้อมูลกลางครบ 77 จังหวัด
   const [nationalAirData, setNationalAirData] = useState<any[]>([]);
   const [disasterReports, setDisasterReports] = useState<any[]>([]); 
+  
+  // 👁️ State สำหรับนับจำนวนผู้เข้าชม
   const [visitStats, setVisitStats] = useState({ today: 0, total: 0 });
   
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
@@ -163,7 +185,7 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
 
-  // 👁️ บันทึกและดึงสถิติคนเข้าชม
+  // 👁️ ฟังก์ชันบันทึกและดึงสถิติคนเข้าชม
   useEffect(() => {
     if (!mounted) return;
     const handleVisitorCount = async () => {
@@ -186,9 +208,9 @@ export default function BoLuangDashboard() {
     handleVisitorCount();
   }, [mounted]);
 
-  // 🌤️ ดึงข้อมูลพยากรณ์อากาศระดับจังหวัด (TMD API)
+  // 🌟 ดึงข้อมูลพยากรณ์อากาศและน้ำฝน 77 จังหวัด (API เดียวจบ)
   useEffect(() => {
-    if (!tmdWeather) {
+    if (!tmdWeather && !tmdRain) {
       setProvincialWeatherData([]);
       return;
     }
@@ -196,7 +218,9 @@ export default function BoLuangDashboard() {
       try {
         const lats = thaiProvinces.map(p => p.lat.toFixed(4)).join(',');
         const lngs = thaiProvinces.map(p => p.lng.toFixed(4)).join(',');
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weathercode&daily=temperature_2m_max,temperature_2m_min&timezone=Asia%2FBangkok`;
+        
+        // ดึงทั้งสภาพอากาศปัจจุบัน และ น้ำฝนสะสมรายวัน ใน Call เดียว
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weathercode&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Asia%2FBangkok`;
         const res = await fetch(url);
         const data = await res.json();
         
@@ -205,7 +229,8 @@ export default function BoLuangDashboard() {
             ...prov,
             temp: data[i]?.current?.temperature_2m || 0,
             humidity: data[i]?.current?.relative_humidity_2m || 0,
-            rain: data[i]?.current?.precipitation || 0,
+            rain: data[i]?.current?.precipitation || 0, 
+            rainSum: data[i]?.daily?.precipitation_sum?.[0] || 0, // น้ำฝนสะสม
             wind: (data[i]?.current?.wind_speed_10m / 3.6) || 0,
             wCode: data[i]?.current?.weathercode || 0,
             tempMin: data[i]?.daily?.temperature_2m_min?.[0] || 0,
@@ -218,7 +243,31 @@ export default function BoLuangDashboard() {
       }
     };
     fetchProvincialWeather();
-  }, [tmdWeather]);
+  }, [tmdWeather, tmdRain]);
+
+  // 🌟 ดึงข้อมูล PM2.5
+  useEffect(() => {
+    if (!pm25) { setNationalAirData([]); return; }
+    const fetchNationalAir = async () => {
+      try {
+        const lats = nationalStations.map(s => s.lat.toFixed(4)).join(',');
+        const lngs = nationalStations.map(s => s.lng.toFixed(4)).join(',');
+        const [aqiRes, wxRes] = await Promise.all([
+          fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lngs}&current=pm2_5&timezone=Asia%2FBangkok`),
+          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=weathercode&timezone=Asia%2FBangkok`)
+        ]);
+        const aqiData = await aqiRes.json();
+        const wxData = await wxRes.json();
+        if (Array.isArray(aqiData) && Array.isArray(wxData)) {
+          const formatted = nationalStations.map((station, i) => ({
+            ...station, pm25Val: aqiData[i]?.current?.pm2_5 || 0, wCode: wxData[i]?.current?.weathercode || 0
+          }));
+          setNationalAirData(formatted);
+        }
+      } catch (error) { console.error(error); }
+    };
+    fetchNationalAir();
+  }, [pm25]);
 
   // 🌟 ดึงข้อมูลแจ้งเหตุจาก Supabase 
   useEffect(() => {
@@ -245,6 +294,14 @@ export default function BoLuangDashboard() {
     }
   }, [showBoluang, showBlock, mapRef]);
 
+  const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
+  const getVillageColor = (feature: any) => {
+    const props = feature?.properties || {};
+    const nameStr = String(props.own_villag || props.name_th || props.name || props.zone_name || props.id || "0");
+    const colorIndex = nameStr.length % BLOCK_COLORS.length;
+    return props.fill || BLOCK_COLORS[colorIndex];
+  };
+
   const formatVillageName = (rawName: any) => {
     if (!rawName) return 'พื้นที่หมู่บ้าน';
     const safeName = String(rawName); 
@@ -253,88 +310,6 @@ export default function BoLuangDashboard() {
     else if (cName === 'ขุน' || cName.includes('บ้านขุน')) cName = 'บ้านขุน';
     else cName = `บ้าน${cName}`;
     return cName;
-  };
-
-  const villageLabels = useMemo(() => {
-    const vMap: Record<string, { sumLat: number, sumLng: number, count: number }> = {};
-    if (geoBlock && geoBlock.features) {
-      geoBlock.features.forEach((f: any) => {
-        const props = f.properties || {};
-        let rawName = props.own_villag || props.name_th || props.vil_name || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || 'ไม่ระบุ'}`;
-        let cName = formatVillageName(rawName);
-        let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
-        const extractCoords = (coords: any[]) => {
-          if (!coords) return;
-          if (typeof coords[0] === 'number') {
-            if (coords[1] < minLat) minLat = coords[1];
-            if (coords[1] > maxLat) maxLat = coords[1];
-            if (coords[0] < minLng) minLng = coords[0];
-            if (coords[0] > maxLng) maxLng = coords[0];
-          } else if (Array.isArray(coords)) { coords.forEach(extractCoords); }
-        };
-        extractCoords(f.geometry?.coordinates);
-        if (minLat !== Infinity) {
-          if (!vMap[cName]) vMap[cName] = { sumLat: 0, sumLng: 0, count: 0 };
-          vMap[cName].sumLat += (minLat + maxLat) / 2;
-          vMap[cName].sumLng += (minLng + maxLng) / 2;
-          vMap[cName].count += 1;
-        }
-      });
-    }
-    return Object.keys(vMap).map(name => ({ name, lat: vMap[name].sumLat / vMap[name].count, lng: vMap[name].sumLng / vMap[name].count }));
-  }, [geoBlock]);
-
-  useEffect(() => {
-    if (!tmdRain || !villageLabels || villageLabels.length === 0) return;
-    const fetchVillageRain = async () => {
-      try {
-        const lats = villageLabels.map(v => v.lat.toFixed(4)).join(',');
-        const lngs = villageLabels.map(v => v.lng.toFixed(4)).join(',');
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&daily=precipitation_sum,temperature_2m_max,temperature_2m_min,weathercode&timezone=Asia%2FBangkok`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          const formatted = villageLabels.map((v, i) => ({
-            ...v, rainSum: data[i]?.daily?.precipitation_sum?.[0] || 0,
-            tempMax: data[i]?.daily?.temperature_2m_max?.[0] || 0, tempMin: data[i]?.daily?.temperature_2m_min?.[0] || 0,
-            wCode: data[i]?.daily?.weathercode?.[0] || 0, apiDate: data[i]?.daily?.time?.[0] || new Date().toISOString().split('T')[0]
-          }));
-          setVillageRainData(formatted);
-        }
-      } catch (error) { console.error(error); }
-    };
-    fetchVillageRain();
-  }, [tmdRain, villageLabels]);
-
-  useEffect(() => {
-    if (!pm25) { setNationalAirData([]); return; }
-    const fetchNationalAir = async () => {
-      try {
-        const lats = nationalStations.map(s => s.lat.toFixed(4)).join(',');
-        const lngs = nationalStations.map(s => s.lng.toFixed(4)).join(',');
-        const [aqiRes, wxRes] = await Promise.all([
-          fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lngs}&current=pm2_5&timezone=Asia%2FBangkok`),
-          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=weathercode&timezone=Asia%2FBangkok`)
-        ]);
-        const aqiData = await aqiRes.json();
-        const wxData = await wxRes.json();
-        if (Array.isArray(aqiData) && Array.isArray(wxData)) {
-          const formatted = nationalStations.map((station, i) => ({
-            ...station, pm25Val: aqiData[i]?.current?.pm2_5 || 0, wCode: wxData[i]?.current?.weathercode || 0
-          }));
-          setNationalAirData(formatted);
-        }
-      } catch (error) { console.error(error); }
-    };
-    fetchNationalAir();
-  }, [pm25]);
-
-  const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
-  const getVillageColor = (feature: any) => {
-    const props = feature?.properties || {};
-    const nameStr = String(props.own_villag || props.name_th || props.name || props.zone_name || props.id || "0");
-    const colorIndex = nameStr.length % BLOCK_COLORS.length;
-    return props.fill || BLOCK_COLORS[colorIndex];
   };
 
   const getBlockStyle = (feature: any) => ({ fillColor: getVillageColor(feature), weight: 1.5, color: 'rgba(255, 255, 255, 0.3)', fillOpacity: 0.12, dashArray: '3, 3' });
@@ -358,14 +333,15 @@ export default function BoLuangDashboard() {
     });
   };
 
+  // 🌧️ ฟังก์ชันคำนวณสีและขนาดจุดน้ำฝน
   const getRainCircleStyle = (rainSum: number) => {
     let radius = 8 + (rainSum * 1.5); if (radius > 35) radius = 35; 
     let color = '#38bdf8'; let fillColor = '#7dd3fc'; 
     if (rainSum === 0) { color = '#94a3b8'; fillColor = '#cbd5e1'; radius = 7; } 
     else if (rainSum > 5 && rainSum <= 20) { color = '#10b981'; fillColor = '#34d399'; } 
-    else if (rainSum > 20 && rainSum <= 50) { color = '#eab308'; fillColor = '#facc15'; } 
+    else if (rainSum > 20 && rainSum <= 50) { color = '#facc15'; fillColor = '#fde047'; } // เหลืองตามภาพ 
     else if (rainSum > 50) { color = '#ef4444'; fillColor = '#f87171'; }
-    return { radius, color, fillColor, fillOpacity: 0.7, weight: 2.5 };
+    return { radius, color, fillColor, fillOpacity: 0.5, weight: 2.5 };
   };
 
   const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0, interactive: false }; 
@@ -413,6 +389,7 @@ export default function BoLuangDashboard() {
 
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
   
+  // 🌟 ไอคอนพยากรณ์อากาศ
   const createTmdIcon = useMemo(() => {
     if (!L) return () => null;
     return (wCode: number) => {
@@ -505,7 +482,7 @@ export default function BoLuangDashboard() {
           padding: 6px 14px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
         }
 
-        /* 🌟 CSS สำหรับ Popup พยากรณ์อากาศ TMD */
+        /* 🌟 CSS สำหรับ Popup พยากรณ์อากาศ TMD (ฟ้า) */
         .popup-tmd-weather .leaflet-popup-content-wrapper {
           background-color: #0f172a !important; color: #e2e8f0 !important; border: 1px solid #38bdf8 !important;
           border-radius: 10px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important; padding: 0 !important; overflow: hidden;
@@ -514,6 +491,16 @@ export default function BoLuangDashboard() {
         .popup-tmd-weather .leaflet-popup-content { margin: 0 !important; width: 280px !important; }
         .popup-tmd-weather .leaflet-popup-close-button { color: #0f172a !important; font-size: 18px !important; padding-top: 5px !important; padding-right: 10px !important; z-index: 50; }
         .popup-tmd-weather .leaflet-popup-close-button:hover { color: #ffffff !important; background: transparent !important; }
+
+        /* 🌟 CSS สำหรับ Popup น้ำฝนสะสม TMD (เหลือง) */
+        .popup-tmd-rain .leaflet-popup-content-wrapper {
+          background-color: #0f172a !important; color: #e2e8f0 !important; border: 1px solid #facc15 !important;
+          border-radius: 10px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important; padding: 0 !important; overflow: hidden;
+        }
+        .popup-tmd-rain .leaflet-popup-tip { background-color: #0f172a !important; border-top: 1px solid #facc15 !important; border-left: 1px solid #facc15 !important; }
+        .popup-tmd-rain .leaflet-popup-content { margin: 0 !important; width: 280px !important; }
+        .popup-tmd-rain .leaflet-popup-close-button { color: #0f172a !important; font-size: 18px !important; padding-top: 5px !important; padding-right: 10px !important; z-index: 50; }
+        .popup-tmd-rain .leaflet-popup-close-button:hover { color: #ffffff !important; background: transparent !important; }
 
         .popup-report .leaflet-popup-content-wrapper {
           background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #ef4444 !important;
@@ -610,35 +597,70 @@ export default function BoLuangDashboard() {
               />
             )}
 
-            {/* 🌟 หมุดพยากรณ์อากาศระดับจังหวัด (TMD) */}
-            {tmdWeather && provincialWeatherData.map((prov, i) => (
-              <Marker key={`prov-wx-${i}`} position={[prov.lat, prov.lng]} icon={createTmdIcon(prov.wCode)}>
-                <Popup className="popup-tmd-weather">
-                  <div>
-                    <div className="bg-[#38bdf8] px-4 py-3 font-bold text-[#0f172a] text-[15px] flex items-center shadow-sm">
-                      <span className="mr-2 text-[18px]">🌧️</span> พยากรณ์อากาศ
+            {/* 🌟 หมุดพยากรณ์อากาศ 77 จังหวัด */}
+            {tmdWeather && provincialWeatherData.map((prov, i) => {
+              const areaName = prov.name === 'กรุงเทพมหานคร' ? prov.name : `อ.เมือง${prov.name}, ${prov.name}`;
+              return (
+                <Marker key={`prov-wx-${i}`} position={[prov.lat, prov.lng]} icon={createTmdIcon(prov.wCode)}>
+                  <Popup className="popup-tmd-weather">
+                    <div>
+                      <div className="bg-[#38bdf8] px-4 py-3 font-bold text-[#0f172a] text-[15px] flex items-center shadow-sm">
+                        <span className="mr-2 text-[18px]">☁️</span> พยากรณ์อากาศ
+                      </div>
+                      <div className="p-4 bg-[#0f172a]">
+                        <div className="text-[14px] font-bold text-white mb-3 pb-2 border-b border-[#1e293b]">
+                          พื้นที่: {areaName}
+                        </div>
+                        <div className="text-[13px] text-gray-300 space-y-2 font-medium mb-4">
+                          <div>สภาพอากาศ: <span className="text-white">{getWmoWeatherDesc(prov.wCode)}</span></div>
+                          <div>อุณหภูมิ: <span className="text-[#38bdf8] font-bold text-[15px]">{prov.tempMin.toFixed(1)}° – {prov.tempMax.toFixed(2)}°C</span></div>
+                          <div>ฝน: <span className="text-white">{prov.rain} มม.</span></div>
+                          <div>ความชื้น: <span className="text-white">{prov.humidity}%</span></div>
+                          <div>ลม: <span className="text-white">{prov.wind.toFixed(2)} ม./วินาที</span></div>
+                        </div>
+                        <div className="text-[10px] text-gray-500 font-mono text-left pt-3 border-t border-[#1e293b]">
+                          ข้อมูลจาก TMD API · {new Date().toISOString().split('T')[0]}T00:00:00+07:00
+                        </div>
+                      </div>
                     </div>
-                    <div className="p-4 bg-[#0f172a]">
-                      <div className="text-[14px] font-bold text-white mb-3 pb-2 border-b border-[#1e293b]">
-                        พื้นที่: {prov.name}
-                      </div>
-                      <div className="text-[13px] text-gray-300 space-y-2 font-medium mb-4">
-                        <div>สภาพอากาศ: <span className="text-white">{getWmoWeatherDesc(prov.wCode)}</span></div>
-                        <div>อุณหภูมิ: <span className="text-[#38bdf8] font-bold text-[15px]">{prov.tempMin.toFixed(1)}° – {prov.tempMax.toFixed(2)}°C</span></div>
-                        <div>ฝน: <span className="text-white">{prov.rain} มม.</span></div>
-                        <div>ความชื้น: <span className="text-white">{prov.humidity}%</span></div>
-                        <div>ลม: <span className="text-white">{prov.wind.toFixed(2)} ม./วินาที</span></div>
-                      </div>
-                      <div className="text-[10px] text-gray-500 font-mono text-left pt-3 border-t border-[#1e293b]">
-                        ข้อมูลจาก TMD API · {new Date().toISOString().split('T')[0]}T00:00:00+07:00
-                      </div>
-                    </div>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+                  </Popup>
+                </Marker>
+              );
+            })}
 
-            {/* 🌟 แสดงหมุดแจ้งเหตุจาก Supabase บนแผนที่ (พร้อมพิกัด GPS) */}
+            {/* 🌟 หมุดปริมาณน้ำฝนสะสม 77 จังหวัด (สีเหลือง) */}
+            {tmdRain && provincialWeatherData.map((prov, i) => {
+              const style = getRainCircleStyle(prov.rainSum);
+              const areaName = prov.name === 'กรุงเทพมหานคร' ? prov.name : `อ.เมือง${prov.name}, ${prov.name}`;
+              return (
+                <CircleMarker key={`rain-prov-${i}`} center={[prov.lat, prov.lng]} radius={style.radius} pathOptions={{ color: style.color, fillColor: style.fillColor, fillOpacity: style.fillOpacity, weight: style.weight }}>
+                  <Popup className="popup-tmd-rain">
+                    <div>
+                      <div className="bg-[#fcd34d] px-4 py-3 font-bold text-[#0f172a] text-[15px] flex items-center shadow-sm">
+                        <span className="mr-2 text-[18px]">🌧️</span> ปริมาณน้ำฝนสะสม
+                      </div>
+                      <div className="p-4 bg-[#0f172a]">
+                        <div className="text-[14px] font-bold text-white mb-3 pb-2 border-b border-[#1e293b]">
+                          พื้นที่: {areaName}
+                        </div>
+                        <div className="text-[13px] text-gray-300 space-y-2 font-medium mb-4">
+                          <div>ฝนสะสม: <span className="text-[#fcd34d] font-bold text-[15px]">{prov.rainSum.toFixed(1)} มม.</span></div>
+                          <div>ขนาดจุด: <span className="text-white">{style.radius.toFixed(1)} px</span></div>
+                          <div>สภาพอากาศ: <span className="text-white">{getWmoWeatherDesc(prov.wCode)}</span></div>
+                          <div>อุณหภูมิ: <span className="text-white">{prov.tempMin.toFixed(2)}° – {prov.tempMax.toFixed(2)}°C</span></div>
+                        </div>
+                        <div className="text-[10px] text-gray-500 font-mono text-left pt-3 border-t border-[#1e293b] leading-relaxed">
+                          ข้อมูลจาก TMD API · {new Date().toISOString().split('T')[0]}T00:00:00+07:00<br/>
+                          <span className="text-gray-600">- ปรับขนาดจุดตามฝนสะสม</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              );
+            })}
+
+            {/* 🌟 แสดงหมุดแจ้งเหตุจาก Supabase บนแผนที่ */}
             {citizenReport && disasterReports.map((report) => (
               <Marker 
                 key={`report-${report.id}`} 
@@ -669,24 +691,6 @@ export default function BoLuangDashboard() {
                 </Popup>
               </Marker>
             ))}
-
-            {tmdRain && villageRainData.map((station) => {
-              const style = getRainCircleStyle(station.rainSum);
-              return (
-                <CircleMarker key={`rain-local-${station.name}`} center={[station.lat, station.lng]} radius={style.radius} pathOptions={{ color: style.color, fillColor: style.fillColor, fillOpacity: style.fillOpacity, weight: style.weight }}>
-                  <Popup className="custom-dark-popup">
-                    <div className="p-5 flex flex-col text-left min-w-[240px]">
-                      <div className="font-bold text-white text-[15px] mb-3 border-b border-gray-600 pb-2 flex justify-between"><span>{station.name}</span></div>
-                      <div className="space-y-2 mb-2 text-[13px] text-gray-300">
-                        <div className="flex items-center"><span className="font-semibold text-gray-400 w-24">ฝนสะสม:</span> <span className="text-[#38bdf8] font-bold text-[14px]">{station.rainSum.toFixed(1)} มม.</span></div>
-                        <div className="flex items-center"><span className="font-semibold text-gray-400 w-24">สภาพอากาศ:</span> <span>{getWmoWeatherDesc(station.wCode)}</span></div>
-                        <div className="flex items-center"><span className="font-semibold text-gray-400 w-24">อุณหภูมิ:</span> <span>{station.tempMin.toFixed(2)}°C – {station.tempMax.toFixed(2)}°C</span></div>
-                      </div>
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              );
-            })}
 
             {pm25 && nationalAirData.map((station) => (
               <Marker key={`national-pm25-${station.name}`} position={[station.lat, station.lng]} icon={createPm25Icon(station.pm25Val, station.wCode)}>
@@ -837,7 +841,7 @@ export default function BoLuangDashboard() {
             </div>
             <div className="space-y-1">
               <CustomToggleBox label="พยากรณ์อากาศกรมอุตุนิยมวิทยา" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} dotColor="#3b82f6" />
-              <CustomToggleBox label="ปริมาณน้ำฝนสะสม (TMD)" active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#0ea5e9" />
+              <CustomToggleBox label="ปริมาณน้ำฝนสะสม (TMD)" active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#facc15" />
             </div>
           </div>
 
