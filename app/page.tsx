@@ -694,29 +694,49 @@ export default function BoLuangDashboard() {
       </div>
 
       <header className="absolute top-0 left-0 right-0 h-[72px] bg-[#0b132b]/95 border-b border-[#1e293b] backdrop-blur-xl z-40 flex items-center justify-between px-6 pointer-events-auto shadow-md">
-        <div className="flex items-center space-x-4">
-          <div className="flex space-x-2">
-            <div className="w-9 h-9 bg-[#38bdf8]/20 rounded-full border border-[#38bdf8]/50 flex items-center justify-center text-[12px] font-bold text-[#38bdf8] shadow-[0_0_10px_rgba(56,189,248,0.3)]">BL</div>
+        
+        {/* 🌟 ฝั่งซ้าย: โลโก้ + ชื่อระบบ + สถิติผู้เข้าชม */}
+        <div className="flex items-center space-x-6">
+          
+          {/* กลุ่มโลโก้และชื่อ */}
+          <div className="flex items-center space-x-4">
+            <div className="flex space-x-2">
+              <div className="w-9 h-9 bg-[#38bdf8]/20 rounded-full border border-[#38bdf8]/50 flex items-center justify-center text-[12px] font-bold text-[#38bdf8] shadow-[0_0_10px_rgba(56,189,248,0.3)]">BL</div>
+            </div>
+            <div className="flex flex-col border-l-2 border-[#1e293b] pl-4 ml-2">
+              <h1 className="text-[15px] font-bold tracking-wide text-white leading-tight">ระบบสารสนเทศทางภูมิศาสตร์เพื่อ</h1>
+              <h2 className="text-[15px] font-bold tracking-wide text-[#38bdf8] leading-tight mt-1">การบริหารจัดการสาธารณภัย ต.บ่อหลวง</h2>
+            </div>
           </div>
-          <div className="flex flex-col border-l-2 border-[#1e293b] pl-4 ml-2">
-            <h1 className="text-[15px] font-bold tracking-wide text-white leading-tight">ระบบสารสนเทศทางภูมิศาสตร์เพื่อ</h1>
-            <h2 className="text-[15px] font-bold tracking-wide text-[#38bdf8] leading-tight mt-1">การบริหารจัดการสาธารณภัย ต.บ่อหลวง</h2>
-          </div>
-        </div>
 
-        {/* 🌟 ย้ายสถิติผู้เข้าชมมาไว้บน Header (แบบจางๆ มินิมอล) */}
-        <div className="hidden md:flex items-center bg-[#0b132b]/80 backdrop-blur-md border border-[#1e293b] rounded-full px-4 py-1.5 shadow-sm text-[12px] font-mono text-gray-400">
-          <div className="flex items-center space-x-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#10b981]"></span>
-            </span>
-            <span>วันนี้: <span className="text-gray-200">{visitStats.today.toLocaleString()}</span></span>
+          {/* กลุ่มสถิติ (ต่อจากชื่อระบบ มีเส้นคั่น) */}
+          <div className="hidden md:flex flex-col border-l border-[#1e293b] pl-6 justify-center">
+            <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถิติผู้เข้าชม</span>
+            <div className="flex items-center text-[12px] font-mono text-gray-400">
+              <div className="flex items-center space-x-1.5">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#10b981]"></span>
+                </span>
+                <span>วันนี้: <span className="text-[#10b981]">{visitStats.today.toLocaleString()}</span></span>
+              </div>
+              <span className="mx-2 text-gray-600">|</span>
+              <div className="flex items-center space-x-1.5">
+                <span>รวม: <span className="text-[#38bdf8]">{visitStats.total.toLocaleString()}</span></span>
+              </div>
+            </div>
           </div>
-          <span className="mx-3 text-gray-700">|</span>
-          <div className="flex items-center space-x-2">
-            <span>ยอดรวม: <span className="text-gray-200">{visitStats.total.toLocaleString()}</span></span>
-          </div>
+
+        </div>
+        {/* 🌟 ฝั่งขวา: ป้าย GIS Layers · Boluang */}
+        <div className="hidden md:flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-4 py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-default">
+          {/* ไอคอนเรดาร์/สัญญาณ (คล้ายในภาพตัวอย่าง) */}
+          <svg className="w-4 h-4 text-[#2dd4bf] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+          </svg>
+          <span className="text-[13px] font-mono font-medium text-gray-300 tracking-wide">
+            GIS Layers <span className="text-gray-500 mx-1">·</span> Boluang
+          </span>
         </div>
       </header>
 
