@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 
 // 🌟 ตั้งค่า Supabase 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dGpqaHZ2dGFzd3pod2hvd2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDA3NjcsImV4cCI6MjA5MjExNjc2N30.Jjqi1LWgxEgpT2nBdjuNyoLxEP_VQcKf3GEbIYKPI8Y';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'ใส่_SUPABASE_ANON_KEY_ของคุณตรงนี้';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // 🗺️ โหลด Leaflet แบบ Dynamic
@@ -128,19 +128,19 @@ export default function BoLuangDashboard() {
   const [qrUrl, setQrUrl] = useState('');
   const coordsRef = useRef<HTMLSpanElement>(null);
 
-  // 🎛️ State แผงควบคุม ซ้าย
+  // 🎛️ State แผงควบคุม ซ้าย (ปิดทั้งหมดเป็นค่าเริ่มต้น)
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
-  const [pm25, setPm25] = useState(true); 
+  const [pm25, setPm25] = useState(false); 
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
 
-  // 🎛️ State แผงควบคุม ขวา
+  // 🎛️ State แผงควบคุม ขวา (ปิดทั้งหมดเป็นค่าเริ่มต้น)
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   const [showBoluang, setShowBoluang] = useState(false);   
   const [showBlock, setShowBlock] = useState(false);        
   const [showParcel, setShowParcel] = useState(false);      
-  const [citizenReport, setCitizenReport] = useState(true); 
+  const [citizenReport, setCitizenReport] = useState(false); 
   const [earthquakeLayer, setEarthquakeLayer] = useState(false);        
   const [hotspot, setHotspot] = useState(false);
   const [showLandslide, setShowLandslide] = useState(false);
@@ -255,7 +255,7 @@ export default function BoLuangDashboard() {
     fetchProvincialWeather();
   }, [tmdWeather, tmdRain]);
 
-  // 🌟 ดึงข้อมูล PM2.5 และก๊าซต่างๆ 77 จังหวัด (อัปเกรดให้ตรงกับรูปแบบ Popup ใหม่)
+  // 🌟 ดึงข้อมูล PM2.5 และก๊าซต่างๆ 77 จังหวัด
   useEffect(() => {
     if (!pm25) { setNationalAirData([]); return; }
     const fetchNationalAir = async () => {
@@ -730,7 +730,7 @@ export default function BoLuangDashboard() {
                           </div>
                           <div className="flex items-center">
                             <span className="w-16 text-white">AQI:</span>
-                            <span style={{ color: color }} className="text-[16px]">{aqi} ({text})</span>
+                            <span className="text-white">{aqi} <span style={{ color: color }}>({text})</span></span>
                           </div>
                           <div className="flex items-center text-white">
                             <span className="w-16">PM10:</span>
