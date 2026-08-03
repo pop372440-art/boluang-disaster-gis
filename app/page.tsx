@@ -703,6 +703,21 @@ export default function BoLuangDashboard() {
             <h2 className="text-[15px] font-bold tracking-wide text-[#38bdf8] leading-tight mt-1">การบริหารจัดการสาธารณภัย ต.บ่อหลวง</h2>
           </div>
         </div>
+
+        {/* 🌟 ย้ายสถิติผู้เข้าชมมาไว้บน Header (แบบจางๆ มินิมอล) */}
+        <div className="hidden md:flex items-center bg-[#0b132b]/80 backdrop-blur-md border border-[#1e293b] rounded-full px-4 py-1.5 shadow-sm text-[12px] font-mono text-gray-400">
+          <div className="flex items-center space-x-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#10b981]"></span>
+            </span>
+            <span>วันนี้: <span className="text-gray-200">{visitStats.today.toLocaleString()}</span></span>
+          </div>
+          <span className="mx-3 text-gray-700">|</span>
+          <div className="flex items-center space-x-2">
+            <span>ยอดรวม: <span className="text-gray-200">{visitStats.total.toLocaleString()}</span></span>
+          </div>
+        </div>
       </header>
 
       {/* แผงซ้าย */}
@@ -764,47 +779,7 @@ export default function BoLuangDashboard() {
         </div>
       </aside>
 
-     {/* 🌟 Widget สถิติผู้เข้าชม (Visitor Counter) - ฉบับหลบอัตโนมัติ */}
-      <div 
-        className={`absolute bottom-[40px] z-[60] pointer-events-auto transition-all duration-500 ease-in-out ${
-          isRightPanelOpen ? 'right-[390px]' : 'right-6'
-        }`}
-      >
-        <div className="bg-[#0b132b]/95 backdrop-blur-xl border border-[#1e293b] rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.6)] overflow-hidden w-[220px]">
-          
-          {/* ส่วนหัว (Header) */}
-          <div className="bg-gradient-to-r from-[#1e293b] to-[#0f172a] px-3 py-2.5 border-b border-[#334155] flex items-center space-x-2.5 shadow-sm">
-            <div className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#10b981]"></span>
-            </div>
-            <span className="text-[13px] font-bold text-gray-200 tracking-wide">สถิติผู้เข้าชมเว็บไซต์</span>
-          </div>
-          
-          {/* ส่วนข้อมูล (Body) */}
-          <div className="p-3.5 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[12px] text-gray-400 font-medium flex items-center">
-                <span className="mr-1.5 text-[14px]">📅</span> เข้าชมวันนี้
-              </span>
-              <div className="bg-[#10b981]/10 px-2 py-0.5 rounded border border-[#10b981]/20">
-                <span className="text-[14px] font-bold text-[#10b981] font-mono">{visitStats.today.toLocaleString()}</span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[12px] text-gray-400 font-medium flex items-center">
-                <span className="mr-1.5 text-[14px]">📈</span> ยอดรวมทั้งหมด
-              </span>
-              <div className="bg-[#38bdf8]/10 px-2 py-0.5 rounded border border-[#38bdf8]/20">
-                <span className="text-[14px] font-bold text-[#38bdf8] font-mono">{visitStats.total.toLocaleString()}</span>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* 🌟 แถบ Credit ด้านซ้าย */}
+    {/* 🌟 แถบ Credit ด้านซ้าย */}
       <div className="absolute bottom-4 left-4 z-[60] flex flex-wrap gap-2 pointer-events-auto max-w-[60%]">
         <div className="bg-[#0b132b]/80 backdrop-blur-md border border-[#1e293b] rounded-full px-3 py-1.5 shadow-sm text-[11px] font-mono text-gray-400">
           Base map: Windy Weather + Dark Matter
