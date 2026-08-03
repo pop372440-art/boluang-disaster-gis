@@ -1,4 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata } from "export const metadata = {
+  title: 'Bo Luang GIS | ระบบจัดการสาธารณภัย',
+  description: 'ระบบสารสนเทศทางภูมิศาสตร์เพื่อการบริหารจัดการสาธารณภัย ตำบลบ่อหลวง',
+}";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
