@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 
 // 🌟 ตั้งค่า Supabase 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dGpqaHZ2dGFzd3pod2hvd2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDA3NjcsImV4cCI6MjA5MjExNjc2N30.Jjqi1LWgxEgpT2nBdjuNyoLxEP_VQcKf3GEbIYKPI8Y';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'ใส่_SUPABASE_ANON_KEY_ของคุณตรงนี้';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // 🗺️ โหลด Leaflet แบบ Dynamic
@@ -62,13 +62,23 @@ const getWeatherEmoji = (code: number) => {
   return '☀️';
 };
 
-// 🌈 ฟังก์ชันคำนวณสีสำหรับค่าฝุ่น PM2.5 ตามมาตรฐาน
-const getPm25Color = (val: number) => {
-  if (val <= 15.0) return { border: '#38bdf8', shadow: 'rgba(56,189,248,0.5)' }; // สีฟ้า (ดีมาก)
-  if (val <= 25.0) return { border: '#4ade80', shadow: 'rgba(74,222,128,0.5)' }; // สีเขียว (ดี)
-  if (val <= 37.5) return { border: '#facc15', shadow: 'rgba(250,204,21,0.5)' }; // สีเหลือง (ปานกลาง)
-  if (val <= 75.0) return { border: '#f97316', shadow: 'rgba(249,115,22,0.5)' }; // สีส้ม (เริ่มมีผลกระทบ)
-  return { border: '#ef4444', shadow: 'rgba(239,68,68,0.5)' }; // สีแดง (มีผลกระทบต่อสุขภาพ)
+// 🌈 ฟังก์ชันคำนวณสีและ AQI สำหรับค่าฝุ่น PM2.5 ตามมาตรฐานกรมควบคุมมลพิษ
+const getAirQualityDetails = (pm25: number) => {
+  let aqi = 0; let text = ''; let color = ''; let shadow = '';
+  if (pm25 <= 15.0) {
+    aqi = Math.round(pm25 * (25/15)); text = 'ดีมาก'; color = '#38bdf8'; shadow = 'rgba(56,189,248,0.5)';
+  } else if (pm25 <= 25.0) {
+    aqi = Math.round(26 + ((pm25-15.1) * (24/9.9))); text = 'ดี'; color = '#84cc16'; shadow = 'rgba(132,204,22,0.5)'; // สีเขียวตองอ่อนเหมือนในรูป
+  } else if (pm25 <= 37.5) {
+    aqi = Math.round(51 + ((pm25-25.1) * (49/12.4))); text = 'ปานกลาง'; color = '#facc15'; shadow = 'rgba(250,204,21,0.5)';
+  } else if (pm25 <= 75.0) {
+    aqi = Math.round(101 + ((pm25-37.6) * (99/37.4))); text = 'เริ่มมีผลกระทบ'; color = '#f97316'; shadow = 'rgba(249,115,22,0.5)';
+  } else {
+    aqi = Math.round(201 + ((pm25-75.1) * (99/250))); text = 'มีผลกระทบ'; color = '#ef4444'; shadow = 'rgba(239,68,68,0.5)';
+  }
+  // ถ้าค่าเกินเพดานสูงสุดให้ cap ไว้ที่ตัวเลขสมเหตุสมผล
+  if (aqi > 500) aqi = 500;
+  return { aqi, text, color, shadow };
 };
 
 // 📍 พิกัดครบ 77 จังหวัดทั่วประเทศไทย (ฐานข้อมูลกลาง)
@@ -122,7 +132,7 @@ export default function BoLuangDashboard() {
   // 🎛️ State แผงควบคุม ซ้าย
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
-  const [pm25, setPm25] = useState(true); // 🌟 เปิด PM2.5 ไว้เป็นค่าเริ่มต้นให้เห็นผลลัพธ์ทันที
+  const [pm25, setPm25] = useState(true); 
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
 
@@ -141,10 +151,9 @@ export default function BoLuangDashboard() {
 
   // 📡 ข้อมูล API & GeoJSON
   const [provincialWeatherData, setProvincialWeatherData] = useState<any[]>([]); 
-  const [nationalAirData, setNationalAirData] = useState<any[]>([]); // 🌟 สำหรับเก็บค่าฝุ่น 77 จังหวัด
+  const [nationalAirData, setNationalAirData] = useState<any[]>([]);
   const [disasterReports, setDisasterReports] = useState<any[]>([]); 
   
-  // 👁️ State สำหรับนับจำนวนผู้เข้าชม
   const [visitStats, setVisitStats] = useState({ today: 0, total: 0 });
   
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
@@ -247,23 +256,31 @@ export default function BoLuangDashboard() {
     fetchProvincialWeather();
   }, [tmdWeather, tmdRain]);
 
-  // 🌟 ดึงข้อมูล PM2.5 สำหรับ 77 จังหวัดเต็มรูปแบบ
+  // 🌟 ดึงข้อมูล PM2.5 และก๊าซต่างๆ 77 จังหวัด (อัปเกรดให้ดึง PM10, CO, NO2, SO2, O3 ด้วย)
   useEffect(() => {
     if (!pm25) { setNationalAirData([]); return; }
     const fetchNationalAir = async () => {
       try {
         const lats = thaiProvinces.map(s => s.lat.toFixed(4)).join(',');
         const lngs = thaiProvinces.map(s => s.lng.toFixed(4)).join(',');
+        
         const [aqiRes, wxRes] = await Promise.all([
-          fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lngs}&current=pm2_5&timezone=Asia%2FBangkok`),
+          fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lngs}&current=pm2_5,pm10,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=Asia%2FBangkok`),
           fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=weathercode&timezone=Asia%2FBangkok`)
         ]);
         const aqiData = await aqiRes.json();
         const wxData = await wxRes.json();
+        
         if (Array.isArray(aqiData) && Array.isArray(wxData)) {
           const formatted = thaiProvinces.map((station, i) => ({
             ...station, 
             pm25Val: aqiData[i]?.current?.pm2_5 || 0, 
+            pm10Val: aqiData[i]?.current?.pm10 || '—',
+            coVal: aqiData[i]?.current?.carbon_monoxide || '—',
+            no2Val: aqiData[i]?.current?.nitrogen_dioxide || '—',
+            so2Val: aqiData[i]?.current?.sulphur_dioxide || '—',
+            o3Val: aqiData[i]?.current?.ozone || '—',
+            time: aqiData[i]?.current?.time || new Date().toISOString(),
             wCode: wxData[i]?.current?.weathercode || 0
           }));
           setNationalAirData(formatted);
@@ -406,15 +423,14 @@ export default function BoLuangDashboard() {
     };
   }, [L]);
 
-  // 🌟 สร้างไอคอน PM2.5 แบบหล่อเท่ (เหมือนรูปตัวอย่างเป๊ะๆ)
   const createPm25Icon = useMemo(() => {
     if (!L) return () => null;
     return (pmVal: number) => {
-      const { border, shadow } = getPm25Color(pmVal);
+      const { color, shadow } = getAirQualityDetails(pmVal);
       const html = `
-        <div class="relative flex flex-col items-center justify-center w-[48px] h-[48px] bg-[#0f172a]/95 border-[2px] rounded-xl backdrop-blur-md transition-transform hover:scale-110 z-10" style="border-color: ${border}; box-shadow: 0 0 15px ${shadow};">
+        <div class="relative flex flex-col items-center justify-center w-[48px] h-[48px] bg-[#0f172a]/95 border-[2px] rounded-xl backdrop-blur-md transition-transform hover:scale-110 z-10" style="border-color: ${color}; box-shadow: 0 0 15px ${shadow};">
           <span class="text-white font-bold text-[15px] leading-none mt-1 z-0">${pmVal.toFixed(1)}</span>
-          <span class="text-[10px] font-bold mt-1.5 z-0 tracking-widest" style="color: ${border};">PM2.5</span>
+          <span class="text-[10px] font-bold mt-1.5 z-0 tracking-widest" style="color: ${color};">PM2.5</span>
         </div>
       `;
       return L.divIcon({ className: 'bg-transparent border-none', html, iconSize: [48, 48], iconAnchor: [24, 24] });
@@ -484,6 +500,17 @@ export default function BoLuangDashboard() {
           font-family: inherit !important; font-size: 14px !important; font-weight: 600 !important; 
           padding: 6px 14px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
         }
+
+        /* 🌟 CSS สำหรับ Popup ค่าฝุ่น PM2.5 (ดีไซน์ใหม่) */
+        .popup-pm25-custom .leaflet-popup-content-wrapper {
+          background-color: #0f172a !important; color: #e2e8f0 !important;
+          border-radius: 8px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important; padding: 0 !important; overflow: hidden;
+          border: 1px solid #1e293b !important;
+        }
+        .popup-pm25-custom .leaflet-popup-tip { background-color: #0f172a !important; border-top: 1px solid #1e293b !important; border-left: 1px solid #1e293b !important; }
+        .popup-pm25-custom .leaflet-popup-content { margin: 0 !important; width: 280px !important; }
+        .popup-pm25-custom .leaflet-popup-close-button { color: rgba(0,0,0,0.4) !important; font-size: 18px !important; padding-top: 6px !important; padding-right: 12px !important; z-index: 50; }
+        .popup-pm25-custom .leaflet-popup-close-button:hover { color: #0f172a !important; background: transparent !important; }
 
         /* 🌟 CSS สำหรับ Popup พยากรณ์อากาศ TMD (ฟ้า) */
         .popup-tmd-weather .leaflet-popup-content-wrapper {
@@ -665,25 +692,59 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 หมุดค่าฝุ่น PM2.5 (77 จังหวัดเต็มรูปแบบ) */}
+            {/* 🌟 หมุดค่าฝุ่น PM2.5 (ดีไซน์ใหม่) */}
             {pm25 && nationalAirData.map((station, i) => {
-              const areaName = station.name === 'กรุงเทพมหานคร' ? station.name : `อ.เมือง${station.name}, ${station.name}`;
-              const { border } = getPm25Color(station.pm25Val);
+              const { aqi, text, color } = getAirQualityDetails(station.pm25Val);
+              const formattedTime = new Date(station.time).toISOString().replace('T', ' ').substring(0, 16);
+              const stationId = `TH-${(i + 1).toString().padStart(3, '0')}`;
+              const areaName = station.name === 'กรุงเทพมหานคร' ? station.name : `อ.เมือง, ${station.name}`;
+              
               return (
                 <Marker key={`national-pm25-${i}`} position={[station.lat, station.lng]} icon={createPm25Icon(station.pm25Val)}>
-                  <Popup className="custom-dark-popup">
-                    <div className="px-6 py-5 text-[14px] font-bold text-white text-center w-[220px]">
-                      พื้นที่: {areaName}<br/>
-                      <div className="mt-3 px-3 py-2.5 rounded-lg bg-[#0b132b] border border-[#1e293b] shadow-inner">
-                        <span className="text-[12px] text-gray-400 font-normal block mb-1">ค่าฝุ่น PM2.5</span>
-                        <span className="font-bold text-[24px]" style={{color: border}}>
-                          {station.pm25Val.toFixed(1)} <span className="text-[12px] font-normal text-gray-400">µg/m³</span>
-                        </span>
+                  <Popup className="popup-pm25-custom">
+                    <div>
+                      {/* Header ไดนามิกสีตามค่าฝุ่น */}
+                      <div style={{ backgroundColor: color }} className="px-4 py-2.5 font-bold text-[#0f172a] text-[14px] flex items-center shadow-sm">
+                        <span className="mr-2 text-[16px]">🌫️</span> ค่าฝุ่น PM2.5 / AQI
                       </div>
-                      <span className="text-[12px] text-gray-400 font-normal mt-3 block flex items-center justify-center gap-1.5">
-                        <span className="text-[16px]">{getWeatherEmoji(station.wCode)}</span> 
-                        สภาพอากาศ: {getWmoWeatherDesc(station.wCode)}
-                      </span>
+                      
+                      {/* ข้อมูลด้านในสีเข้ม */}
+                      <div className="p-4 bg-[#0f172a] text-[13px] text-gray-200 font-medium">
+                        <div className="font-bold text-white mb-1 text-[13px]">
+                          สถานี: ศูนย์ราชการจังหวัด{station.name}
+                        </div>
+                        <div className="font-bold text-white mb-3 text-[13px]">
+                          พื้นที่: {areaName}
+                        </div>
+                        
+                        <div className="border-t border-[#1e293b] my-3"></div>
+
+                        <div className="space-y-1.5 font-bold text-[14px]">
+                          <div className="flex items-center">
+                            <span className="w-16">PM2.5:</span>
+                            <span style={{ color: color }} className="text-[16px]">{station.pm25Val.toFixed(1)} µg/m³</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="w-16">AQI:</span>
+                            <span className="text-white">{aqi} <span style={{ color: color }}>({text})</span></span>
+                          </div>
+                          <div className="flex items-center font-normal">
+                            <span className="w-16 font-bold">PM10:</span>
+                            <span>{station.pm10Val !== '—' ? `${station.pm10Val} µg/m³` : '—'}</span>
+                          </div>
+                          <div className="flex items-center font-normal text-[13px] pt-1">
+                            O₃: {station.o3Val} · CO: {station.coVal}
+                          </div>
+                          <div className="flex items-center font-normal text-[13px]">
+                            NO₂: {station.no2Val} · SO₂: {station.so2Val}
+                          </div>
+                        </div>
+
+                        <div className="border-t border-[#1e293b] my-3"></div>
+                        <div className="text-[10px] text-gray-500 font-mono tracking-wide">
+                          ข้อมูลค่าฝุ่น · {formattedTime} · Station ID:<br/>{stationId}
+                        </div>
+                      </div>
                     </div>
                   </Popup>
                 </Marker>
