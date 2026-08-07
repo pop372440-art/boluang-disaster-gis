@@ -40,7 +40,7 @@ export default function ReportPage() {
   useEffect(() => {
     setMounted(true);
     
-    // 🌟 โหลดข้อมูล block.json เพื่อสกัดชื่อและพิกัดหมู่บ้าน (เหมือนหน้า Dashboard)
+    // 🌟 โหลดข้อมูล block.json เพื่อสกัดชื่อและพิกัดหมู่บ้าน
     const fetchBlockData = async () => {
       try {
         const ts = Date.now();
@@ -217,12 +217,54 @@ export default function ReportPage() {
 
   const riskTypes = ['ไฟป่า / หมอกควัน', 'ดินโคลนถล่ม / ดินสไลด์', 'น้ำป่าไหลหลาก / น้ำท่วม', 'ต้นไม้ล้มขวางทาง', 'แผ่นดินไหว', 'อื่นๆ'];
 
+  // 🌟 จุดที่มีการปรับแก้เลย์เอาต์ (Responsive) อย่างสมบูรณ์ 🌟
   return (
-    <div className="flex h-screen w-screen bg-white font-sans overflow-hidden">
+    <div className="flex flex-col md:flex-row h-screen w-screen bg-white font-sans overflow-hidden">
       
-      {/* 🔴 ฝั่งซ้าย: ฟอร์มแจ้งเหตุ */}
-      <div className="w-[400px] h-full bg-white shadow-2xl z-10 flex flex-col relative">
-        <div className="bg-red-600 text-white p-5 shadow-md">
+      {/* 🗺️ ฝั่งขวา (หรืออยู่ด้านบน 45% บนมือถือ): แผนที่ Leaflet */}
+      <div className="order-1 md:order-2 w-full h-[45vh] md:h-full md:flex-1 relative bg-gray-900 z-0 flex-shrink-0">
+        <MapContainer 
+          center={[18.1633, 98.3744]} 
+          zoom={13} 
+          maxZoom={20} 
+          className="w-full h-full cursor-crosshair"
+          ref={setMapRef}
+        >
+          {/* ใช้ Google Satellite เป็น Base Map */}
+          <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} attribution="Google Maps Satellite" />
+          
+          {/* แสดงขอบเขตหมู่บ้าน (เส้นประสีขาวบางๆ) */}
+          {geoBlock && (
+             <GeoJSON 
+               data={geoBlock} 
+               style={{ color: 'rgba(255,255,255,0.4)', weight: 1.5, fillOpacity: 0, dashArray: '4, 4' }} 
+               interactive={false}
+             />
+          )}
+
+          <LocationMarker />
+        </MapContainer>
+        
+        {/* แถบสอนใช้งานลอยอยู่บนแผนที่ (โชว์ชัดๆ ให้ปักหมุด) */}
+        {!position && (
+          <div className="absolute top-4 md:top-6 left-1/2 transform -translate-x-1/2 z-[400] pointer-events-none w-[90%] md:w-auto flex justify-center">
+            <div className="bg-black/70 backdrop-blur-md text-white px-4 md:px-6 py-2 md:py-2.5 rounded-full shadow-2xl border border-gray-600 flex items-center space-x-2 animate-bounce">
+              <span className="text-base md:text-lg">👇</span>
+              <span className="text-[12px] md:text-sm font-medium tracking-wide">เลื่อนและคลิกบนแผนที่เพื่อปักหมุดจุดเกิดเหตุ</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 🔴 ฝั่งซ้าย (หรืออยู่ด้านล่าง 55% บนมือถือ): ฟอร์มแจ้งเหตุ */}
+      <div className="order-2 md:order-1 w-full md:w-[400px] h-[55vh] md:h-full bg-white shadow-[0_-10px_20px_rgba(0,0,0,0.15)] md:shadow-2xl z-10 flex flex-col relative flex-shrink-0">
+        
+        <div className="bg-red-600 text-white p-4 md:p-5 shadow-md flex-shrink-0">
+          {/* 📱 แถบดึงสีขาวเล็กๆ ด้านบน (หลอกตาให้ดูเหมือนดึงขึ้นลงได้เฉพาะบนมือถือ) */}
+          <div className="w-full flex justify-center pb-3 md:hidden">
+            <div className="w-12 h-1.5 bg-white/40 rounded-full"></div>
+          </div>
+          
           <div className="flex items-center space-x-3">
             <span className="text-2xl animate-pulse">🚨</span>
             <div>
@@ -232,15 +274,15 @@ export default function ReportPage() {
           </div>
         </div>
 
-        <div className="p-5 overflow-y-auto flex-1 custom-scrollbar">
-          <div className="bg-red-50 border border-red-100 p-3 rounded-lg mb-6">
-            <p className="text-[12px] text-red-600 flex items-start">
+        <div className="p-4 md:p-5 overflow-y-auto flex-1 custom-scrollbar">
+          <div className="bg-red-50 border border-red-100 p-3 rounded-lg mb-5 md:mb-6">
+            <p className="text-[12px] text-red-600 flex items-start leading-relaxed">
               <span className="mr-2">📍</span> 
               กรุณากรอกข้อมูล และ "คลิกบนแผนที่ดาวเทียม" เพื่อปักหมุดพิกัดจุดเกิดเหตุ
             </p>
           </div>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
+          <form className="space-y-4 md:space-y-5" onSubmit={handleSubmit}>
             {/* 1. พื้นที่ */}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">📌 1. พื้นที่หมู่บ้านที่พบเหตุ</label>
@@ -248,7 +290,7 @@ export default function ReportPage() {
                 name="village_name" 
                 value={formData.village_name} 
                 onChange={handleVillageChange} 
-                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white"
+                className="w-full border border-gray-300 rounded-lg p-2.5 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white outline-none"
               >
                 {villageList.length > 0 ? (
                   villageList.map((v: any) => <option key={v.name} value={v.name}>{v.name}</option>)
@@ -261,7 +303,7 @@ export default function ReportPage() {
             {/* 2. ประเภทภัย */}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">🔥 2. ประเภทของสาธารณภัย <span className="text-red-500">*</span></label>
-              <select name="risk_type" value={formData.risk_type} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white">
+              <select name="risk_type" value={formData.risk_type} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-2.5 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white outline-none">
                 {riskTypes.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
@@ -287,18 +329,18 @@ export default function ReportPage() {
             {/* 4. รายละเอียด */}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">📝 4. รายละเอียดและข้อเสนอแนะ <span className="text-red-500">*</span></label>
-              <textarea name="description" value={formData.description} onChange={handleInputChange} rows={3} placeholder="เช่น ไฟป่ากำลังลุกลามเข้าใกล้สวนชาวบ้าน..." className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white resize-none"></textarea>
+              <textarea name="description" value={formData.description} onChange={handleInputChange} rows={3} placeholder="เช่น ไฟป่ากำลังลุกลามเข้าใกล้สวนชาวบ้าน..." className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white resize-none outline-none"></textarea>
             </div>
 
             {/* 5. ผู้แจ้ง */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 pb-4">
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">ชื่อผู้แจ้ง (ไม่บังคับ)</label>
-                <input type="text" name="reporter_name" value={formData.reporter_name} onChange={handleInputChange} placeholder="ระบุชื่อ..." className="w-full border border-gray-300 rounded-lg p-2 text-sm text-gray-700 bg-white" />
+                <input type="text" name="reporter_name" value={formData.reporter_name} onChange={handleInputChange} placeholder="ระบุชื่อ..." className="w-full border border-gray-300 rounded-lg p-2 text-sm text-gray-700 bg-white outline-none" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1">สถานะผู้แจ้ง</label>
-                <select name="reporter_role" value={formData.reporter_role} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-2 text-sm text-gray-700 bg-white">
+                <select name="reporter_role" value={formData.reporter_role} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-2 text-sm text-gray-700 bg-white outline-none">
                   <option value="ประชาชนทั่วไป">ประชาชนทั่วไป</option>
                   <option value="ผู้นำชุมชน/กำนัน/ผู้ใหญ่บ้าน">ผู้นำชุมชน</option>
                   <option value="เจ้าหน้าที่รัฐ/อปท.">เจ้าหน้าที่รัฐ</option>
@@ -309,8 +351,8 @@ export default function ReportPage() {
         </div>
 
         {/* 🚀 ส่วนปุ่มส่งข้อมูลด้านล่างสุด */}
-        <div className="p-5 border-t border-gray-200 bg-gray-50">
-          <div className="flex justify-between items-center mb-4">
+        <div className="p-4 md:p-5 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+          <div className="flex justify-between items-center mb-3 md:mb-4">
             <span className="text-xs font-bold text-gray-500">พิกัดบนแผนที่:</span>
             {position ? (
               <span className="text-xs font-mono font-bold text-green-600 bg-green-100 px-2 py-1 rounded border border-green-200">
@@ -325,7 +367,7 @@ export default function ReportPage() {
             onClick={handleSubmit} 
             disabled={isSubmitting}
             className={`w-full py-3.5 rounded-xl font-bold text-[15px] shadow-lg flex justify-center items-center space-x-2 transition-all ${
-              isSubmitting ? 'bg-gray-400 text-gray-200 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-xl'
+              isSubmitting ? 'bg-gray-400 text-gray-200 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700 hover:shadow-xl active:scale-[0.98]'
             }`}
           >
             {isSubmitting ? <span>กำลังส่งข้อมูล...</span> : <span>แจ้งจุดเสี่ยงภัย / ส่งพิกัด</span>}
@@ -333,40 +375,6 @@ export default function ReportPage() {
         </div>
       </div>
 
-      {/* 🗺️ ฝั่งขวา: แผนที่ Leaflet */}
-      <div className="flex-1 h-full relative bg-gray-900 z-0">
-        <MapContainer 
-          center={[18.1633, 98.3744]} 
-          zoom={13} 
-          maxZoom={20} 
-          className="w-full h-full cursor-crosshair"
-          ref={setMapRef} // 🌟 เพิ่ม ref ให้แผนที่เพื่อสั่ง FlyTo ได้
-        >
-          {/* ใช้ Google Satellite เป็น Base Map */}
-          <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} attribution="Google Maps Satellite" />
-          
-          {/* แสดงขอบเขตหมู่บ้าน (เส้นประสีขาวบางๆ) เพื่อให้ผู้แจ้งรู้ว่าอยู่หมู่บ้านไหน */}
-          {geoBlock && (
-             <GeoJSON 
-               data={geoBlock} 
-               style={{ color: 'rgba(255,255,255,0.4)', weight: 1.5, fillOpacity: 0, dashArray: '4, 4' }} 
-               interactive={false}
-             />
-          )}
-
-          <LocationMarker />
-        </MapContainer>
-        
-        {/* แถบสอนใช้งานลอยอยู่บนแผนที่ */}
-        {!position && (
-          <div className="absolute top-6 left-1/2 transform -translate-x-1/2 z-[400] pointer-events-none">
-            <div className="bg-black/70 backdrop-blur-md text-white px-6 py-2.5 rounded-full shadow-2xl border border-gray-600 flex items-center space-x-2 animate-bounce">
-              <span className="text-lg">🖱️</span>
-              <span className="text-sm font-medium tracking-wide">คลิกจุดที่เกิดเหตุบนแผนที่เพื่อปักหมุด</span>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
