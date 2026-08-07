@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js';
@@ -9,10 +9,9 @@ import { useMapEvents } from 'react-leaflet';
 
 // 🌟 ตั้งค่า Supabase 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'ใส่_KEY_ของคุณที่นี่';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dGpqaHZ2dGFzd3pod2hvd2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDA3NjcsImV4cCI6MjA5MjExNjc2N30.Jjqi1LWgxEgpT2nBdjuNyoLxEP_VQcKf3GEbIYKPI8Y';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// 🗺️ โหลด Leaflet Components แบบ Dynamic
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
@@ -24,11 +23,9 @@ export default function ReportPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingGPS, setIsFetchingGPS] = useState(false);
   
-  // 🌟 State สำหรับแผนที่และข้อมูล GeoJSON
   const [mapRef, setMapRef] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
 
-  // 📝 ข้อมูลฟอร์ม
   const [formData, setFormData] = useState({
     village_name: '',
     risk_type: 'ไฟป่า / หมอกควัน',
@@ -38,7 +35,6 @@ export default function ReportPage() {
     reporter_role: 'ประชาชนทั่วไป'
   });
 
-  // 📸 State สำหรับไฟล์รูปภาพ และ ✅ State สำหรับ PDPA
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [pdpaConsent, setPdpaConsent] = useState(false);
 
@@ -102,7 +98,6 @@ export default function ReportPage() {
   }, [geoBlock]);
 
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
-
   const customIcon = L ? L.divIcon({
     className: 'bg-transparent border-none',
     html: `
@@ -113,8 +108,7 @@ export default function ReportPage() {
         <div class="w-3 h-3 bg-black/40 rounded-full blur-[2px] -mt-1 z-0"></div>
       </div>
     `,
-    iconSize: [32, 40],
-    iconAnchor: [16, 36],
+    iconSize: [32, 40], iconAnchor: [16, 36],
   }) : null;
 
   const LocationMarker = () => {
@@ -122,7 +116,6 @@ export default function ReportPage() {
     return position === null ? null : <Marker position={position} icon={customIcon}></Marker>;
   };
 
-  // 🎯 ฟังก์ชันดึงพิกัด GPS อัตโนมัติ
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
       Swal.fire({ icon: 'error', title: 'ไม่รองรับ GPS', text: 'เบราว์เซอร์ของคุณไม่รองรับการดึงตำแหน่งครับ' });
@@ -158,7 +151,6 @@ export default function ReportPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // ✅ เติมฟังก์ชันนี้กลับมาแล้วครับ (ตัวจัดการปุ่มระดับความรุนแรง)
   const setSeverity = (level: number) => {
     setFormData(prev => ({ ...prev, severity_level: level }));
   };
@@ -169,7 +161,7 @@ export default function ReportPage() {
     }
   };
 
-  // 🚀 ฟังก์ชันหลัก: อัปโหลดรูป & ส่งข้อมูล
+  // 🚀 ฟังก์ชันหลัก: อัปโหลดรูป, บันทึกข้อมูล และโชว์ QR Code 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
 
@@ -187,7 +179,7 @@ export default function ReportPage() {
     try {
       let imageUrl = null;
 
-      // 1. ตรวจสอบว่ามีการแนบไฟล์หรือไม่ ถ้ามีให้อัปโหลดเข้า Storage ก่อน
+      // 1. อัปโหลดรูปเข้า Storage
       if (selectedFiles && selectedFiles.length > 0) {
         const file = selectedFiles[0];
         const fileExt = file.name.split('.').pop();
@@ -200,7 +192,6 @@ export default function ReportPage() {
 
         if (uploadError) throw uploadError;
 
-        // ดึง URL ของรูปภาพแบบ Public
         const { data: publicUrlData } = supabase.storage
           .from('disaster_images')
           .getPublicUrl(filePath);
@@ -208,10 +199,10 @@ export default function ReportPage() {
         imageUrl = publicUrlData.publicUrl;
       }
 
-      // 2. สร้างหมายเลขคำร้อง (Tracking Code) เช่น BL-845920
+      // 2. สร้างหมายเลขคำร้อง (Tracking Code)
       const trackingCode = `BL-${Math.floor(100000 + Math.random() * 900000)}`;
 
-      // 3. บันทึกข้อมูลทั้งหมดลงฐานข้อมูล
+      // 3. บันทึกข้อมูลลงตาราง
       const { error: insertError } = await supabase
         .from('boluang_disaster_reports')
         .insert([
@@ -226,24 +217,36 @@ export default function ReportPage() {
             longitude: position.lng,
             image_url: imageUrl,
             tracking_code: trackingCode,
-            status: 'รับเรื่องแล้ว' // กำหนดสถานะเริ่มต้น
+            status: 'รับเรื่องแล้ว'
           }
         ]);
 
       if (insertError) throw insertError;
 
-      // 4. แจ้งเตือนสำเร็จพร้อมโชว์รหัสติดตาม
+      // 4. สร้างลิงก์ QR Code อัจฉริยะ (ยิงไปหน้า status พร้อมแนบโค้ด)
+      const statusUrl = `${window.location.origin}/status?code=${trackingCode}`;
+      const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(statusUrl)}`;
+
+      // 5. บันทึกรหัสฝังไว้ในเครื่อง (Local Storage)
+      localStorage.setItem('bl_latest_tracking_code', trackingCode);
+
+      // 6. แจ้งเตือนสำเร็จพร้อมโชว์ QR Code เพื่อให้ชาวบ้านแคปจอ
       Swal.fire({
-        icon: 'success',
         title: 'ส่งข้อมูลสำเร็จ!',
         html: `
-          <div class="mt-2 text-sm text-gray-600">เจ้าหน้าที่ได้รับแจ้งเหตุแล้วครับ<br/>หมายเลขติดตามคำร้องของคุณคือ:</div>
-          <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-2xl font-bold text-green-700 tracking-widest select-all cursor-text">
+          <div class="mt-1 text-sm text-gray-600">หมายเลขติดตามคำร้องของคุณคือ:</div>
+          <div class="mt-3 p-2 bg-green-50 border border-green-200 rounded-lg text-2xl font-bold text-green-700 tracking-widest select-all cursor-text">
             ${trackingCode}
           </div>
-          <div class="mt-3 text-xs text-red-500">* กรุณาจดหรือถ่ายรูปหมายเลขนี้ไว้เพื่อเช็คสถานะ</div>
+          <div class="mt-4 flex flex-col items-center justify-center">
+            <span class="text-xs font-bold text-gray-800 mb-2 bg-gray-100 px-3 py-1 rounded-full">📷 แคปหน้าจอนี้เก็บไว้</span>
+            <img src="${qrCodeImageUrl}" alt="QR Code" class="w-40 h-40 object-contain rounded-lg border-2 border-dashed border-gray-300 p-2 shadow-sm" />
+            <span class="text-[11px] text-gray-500 mt-2 leading-tight">
+              นำ QR Code นี้ให้ผู้นำชุมชน หรือ อสม.<br/>สแกนเพื่อตรวจสอบสถานะแทนคุณได้ทันที
+            </span>
+          </div>
         `,
-        confirmButtonText: 'รับทราบ',
+        confirmButtonText: 'ปิดหน้าต่าง',
         confirmButtonColor: '#10b981'
       }).then(() => {
         setFormData({ ...formData, description: '', reporter_name: '' });
@@ -300,7 +303,7 @@ export default function ReportPage() {
               </div>
             </div>
             <a href="/status" className="bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
-              🔍 ติดตามสถานะ
+              🔍 เช็คสถานะ
             </a>
           </div>
         </div>
