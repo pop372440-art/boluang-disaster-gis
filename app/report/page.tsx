@@ -9,7 +9,7 @@ import { useMapEvents } from 'react-leaflet';
 
 // 🌟 ตั้งค่า Supabase 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dGpqaHZ2dGFzd3pod2hvd2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDA3NjcsImV4cCI6MjA5MjExNjc2N30.Jjqi1LWgxEgpT2nBdjuNyoLxEP_VQcKf3GEbIYKPI8Y';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dGpqaHZ2dGFzd3pod2hvd2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDA3NjcsImV4cCI6MjA5MjExNjc2N30.Jjqi1LWgxEgpT2nBdjuNyoLxEP_VQcKf3GEbIYKPI8Y';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // 🗺️ โหลด Leaflet Components แบบ Dynamic
@@ -22,13 +22,13 @@ export default function ReportPage() {
   const [mounted, setMounted] = useState(false);
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isFetchingGPS, setIsFetchingGPS] = useState(false); // สถานะตอนกำลังค้นหา GPS
+  const [isFetchingGPS, setIsFetchingGPS] = useState(false);
   
   // 🌟 State สำหรับแผนที่และข้อมูล GeoJSON
   const [mapRef, setMapRef] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
 
-  // 📝 ข้อมูลฟอร์มที่อัปเกรดแล้ว
+  // 📝 ข้อมูลฟอร์ม
   const [formData, setFormData] = useState({
     village_name: '',
     risk_type: 'ไฟป่า / หมอกควัน',
@@ -194,8 +194,7 @@ export default function ReportPage() {
     setIsSubmitting(true);
 
     try {
-      // 🚀 หมายเหตุ: เดี๋ยวสเตปต่อไปเราจะเขียนโค้ดอัปโหลดไฟล์ไปที่ Supabase Storage ตรงนี้ครับ
-      // const fileUrl = await uploadFileToStorage(selectedFiles);
+      // 🚀 พื้นที่สำหรับอัปโหลดรูปลง Supabase Storage (เดี๋ยวมาต่อกันครับ)
 
       const { data, error } = await supabase
         .from('boluang_disaster_reports')
@@ -209,7 +208,6 @@ export default function ReportPage() {
             reporter_role: formData.reporter_role,
             latitude: position.lat,
             longitude: position.lng,
-            // image_url: fileUrl  <-- เตรียมรอไว้
           }
         ]);
 
@@ -279,7 +277,7 @@ export default function ReportPage() {
 
         <div className="p-4 md:p-5 overflow-y-auto flex-1 custom-scrollbar">
           
-          {/* 🎯 อัปเกรด: กล่องดึงตำแหน่ง GPS แบบอัจฉริยะ */}
+          {/* 🎯 กล่องดึงตำแหน่ง GPS */}
           <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-6 shadow-sm">
             <div className="flex items-start mb-3">
               <span className="text-blue-600 text-lg mr-2">📍</span>
@@ -359,14 +357,13 @@ export default function ReportPage() {
               <textarea name="description" value={formData.description} onChange={handleInputChange} rows={3} placeholder="เช่น ไฟป่ากำลังลุกลามเข้าใกล้สวนชาวบ้าน..." className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white resize-none outline-none transition-all"></textarea>
             </div>
 
-            {/* 📸 อัปเกรด: โซนอัปโหลดภาพ/วิดีโอ */}
+            {/* 📸 โซนอัปโหลดภาพ/วิดีโอ (นำ capture="environment" ออกแล้ว) */}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">📎 5. แนบรูปภาพประกอบ (ถ้ามี)</label>
               <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer bg-white">
                 <input 
                   type="file" 
                   accept="image/*,video/*" 
-                  capture="environment" 
                   multiple
                   onChange={handleFileChange}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
@@ -376,7 +373,7 @@ export default function ReportPage() {
                     <>
                       <span className="text-3xl">✅</span>
                       <span className="text-[13px] font-bold text-green-600">เลือกไฟล์แล้ว {selectedFiles.length} รูป</span>
-                      <span className="text-[11px] text-gray-500">{selectedFiles[0].name}</span>
+                      <span className="text-[11px] text-gray-500 truncate max-w-[200px]">{selectedFiles[0].name}</span>
                     </>
                   ) : (
                     <>
@@ -396,7 +393,7 @@ export default function ReportPage() {
             </div>
 
             {/* ผู้แจ้ง */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 pb-4">
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 mb-1">ชื่อผู้แจ้ง (ไม่บังคับ)</label>
                 <input type="text" name="reporter_name" value={formData.reporter_name} onChange={handleInputChange} placeholder="ระบุชื่อ..." className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] text-gray-700 bg-white outline-none transition-all focus:border-red-500" />
@@ -411,7 +408,7 @@ export default function ReportPage() {
               </div>
             </div>
 
-            {/* ✅ อัปเกรด: กล่องขอความยินยอม PDPA */}
+            {/* ✅ กล่องขอความยินยอม PDPA */}
             <div className={`mt-6 p-4 rounded-xl border transition-all ${pdpaConsent ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-300'}`}>
               <label className="flex items-start space-x-3 cursor-pointer">
                 <div className="flex items-center h-5 mt-0.5">
