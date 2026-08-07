@@ -1,17 +1,18 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2'; 
 import { useMapEvents } from 'react-leaflet';
 
-// 🌟 ตั้งค่า Supabase
+// 🌟 ตั้งค่า Supabase 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dGpqaHZ2dGFzd3pod2hvd2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDA3NjcsImV4cCI6MjA5MjExNjc2N30.Jjqi1LWgxEgpT2nBdjuNyoLxEP_VQcKf3GEbIYKPI8Y';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'ใส่_KEY_ของคุณที่นี่';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// 🗺️ โหลด Leaflet Components แบบ Dynamic
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
@@ -23,9 +24,11 @@ export default function ReportPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingGPS, setIsFetchingGPS] = useState(false);
   
+  // 🌟 State สำหรับแผนที่และข้อมูล GeoJSON
   const [mapRef, setMapRef] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
 
+  // 📝 ข้อมูลฟอร์ม
   const [formData, setFormData] = useState({
     village_name: '',
     risk_type: 'ไฟป่า / หมอกควัน',
@@ -35,6 +38,7 @@ export default function ReportPage() {
     reporter_role: 'ประชาชนทั่วไป'
   });
 
+  // 📸 State สำหรับไฟล์รูปภาพ และ ✅ State สำหรับ PDPA
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [pdpaConsent, setPdpaConsent] = useState(false);
 
@@ -98,6 +102,7 @@ export default function ReportPage() {
   }, [geoBlock]);
 
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
+
   const customIcon = L ? L.divIcon({
     className: 'bg-transparent border-none',
     html: `
@@ -108,7 +113,8 @@ export default function ReportPage() {
         <div class="w-3 h-3 bg-black/40 rounded-full blur-[2px] -mt-1 z-0"></div>
       </div>
     `,
-    iconSize: [32, 40], iconAnchor: [16, 36],
+    iconSize: [32, 40],
+    iconAnchor: [16, 36],
   }) : null;
 
   const LocationMarker = () => {
@@ -116,6 +122,7 @@ export default function ReportPage() {
     return position === null ? null : <Marker position={position} icon={customIcon}></Marker>;
   };
 
+  // 🎯 ฟังก์ชันดึงพิกัด GPS อัตโนมัติ
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
       Swal.fire({ icon: 'error', title: 'ไม่รองรับ GPS', text: 'เบราว์เซอร์ของคุณไม่รองรับการดึงตำแหน่งครับ' });
@@ -149,6 +156,11 @@ export default function ReportPage() {
   const handleInputChange = (e: any) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // ✅ เติมฟังก์ชันนี้กลับมาแล้วครับ (ตัวจัดการปุ่มระดับความรุนแรง)
+  const setSeverity = (level: number) => {
+    setFormData(prev => ({ ...prev, severity_level: level }));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
