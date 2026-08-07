@@ -300,7 +300,7 @@ export default function ReportPage() {
               </div>
             </div>
             <a href="/status" className="bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
-              🔍 เช็คสถานะ
+              🔍 ติดตามสถานะ
             </a>
           </div>
         </div>
