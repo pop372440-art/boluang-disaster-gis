@@ -161,7 +161,6 @@ export default function ReportPage() {
     }
   };
 
-  // 🚀 ฟังก์ชันหลัก: อัปโหลดรูป, บันทึกข้อมูล และโชว์ QR Code 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
 
@@ -179,7 +178,6 @@ export default function ReportPage() {
     try {
       let imageUrl = null;
 
-      // 1. อัปโหลดรูปเข้า Storage
       if (selectedFiles && selectedFiles.length > 0) {
         const file = selectedFiles[0];
         const fileExt = file.name.split('.').pop();
@@ -199,10 +197,8 @@ export default function ReportPage() {
         imageUrl = publicUrlData.publicUrl;
       }
 
-      // 2. สร้างหมายเลขคำร้อง (Tracking Code)
       const trackingCode = `BL-${Math.floor(100000 + Math.random() * 900000)}`;
 
-      // 3. บันทึกข้อมูลลงตาราง
       const { error: insertError } = await supabase
         .from('boluang_disaster_reports')
         .insert([
@@ -223,14 +219,12 @@ export default function ReportPage() {
 
       if (insertError) throw insertError;
 
-      // 4. สร้างลิงก์ QR Code อัจฉริยะ (ยิงไปหน้า status พร้อมแนบโค้ด)
       const statusUrl = `${window.location.origin}/status?code=${trackingCode}`;
       const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(statusUrl)}`;
 
-      // 5. บันทึกรหัสฝังไว้ในเครื่อง (Local Storage)
       localStorage.setItem('bl_latest_tracking_code', trackingCode);
 
-      // 6. แจ้งเตือนสำเร็จพร้อมโชว์ QR Code เพื่อให้ชาวบ้านแคปจอ
+      // 🚀 อัปเกรด Popup: เพิ่มปุ่มกลับหน้าหลัก
       Swal.fire({
         title: 'ส่งข้อมูลสำเร็จ!',
         html: `
@@ -246,13 +240,23 @@ export default function ReportPage() {
             </span>
           </div>
         `,
-        confirmButtonText: 'ปิดหน้าต่าง',
-        confirmButtonColor: '#10b981'
-      }).then(() => {
-        setFormData({ ...formData, description: '', reporter_name: '' });
-        setPosition(null);
-        setSelectedFiles(null);
-        setPdpaConsent(false);
+        showDenyButton: true,
+        confirmButtonText: 'กลับหน้าหลัก',
+        denyButtonText: 'แจ้งเหตุเพิ่ม',
+        confirmButtonColor: '#3b82f6', // สีน้ำเงินสำหรับกลับหน้าหลัก
+        denyButtonColor: '#10b981',    // สีเขียวสำหรับแจ้งเหตุเพิ่ม
+        reverseButtons: true           // สลับตำแหน่งปุ่มให้ดูคุ้นเคย
+      }).then((result) => {
+        if (result.isConfirmed) {
+          // ถ้ากด "กลับหน้าหลัก" ระบบจะพากลับไปหน้าแรก (Landing Page)
+          window.location.href = '/';
+        } else {
+          // ถ้ากด "แจ้งเหตุเพิ่ม" (หรือกดปิดหน้าต่างปกติ) จะเคลียร์ฟอร์มให้กรอกใหม่
+          setFormData({ ...formData, description: '', reporter_name: '' });
+          setPosition(null);
+          setSelectedFiles(null);
+          setPdpaConsent(false);
+        }
       });
 
     } catch (error: any) {
@@ -294,17 +298,24 @@ export default function ReportPage() {
           <div className="w-full flex justify-center pb-3 md:hidden">
             <div className="w-12 h-1.5 bg-white/40 rounded-full"></div>
           </div>
+          
+          {/* 🚀 อัปเกรด: เพิ่มปุ่มกลับหน้าแรกตรงหัวมุม */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <span className="text-2xl animate-pulse">🚨</span>
               <div>
                 <h1 className="text-lg font-bold">รายงานจุดเสี่ยงภัย</h1>
-                <p className="text-xs text-red-200">ระบบแจ้งเหตุสาธารณภัย ต.บ่อหลวง</p>
+                <p className="text-[11px] text-red-200">ระบบแจ้งเหตุ ต.บ่อหลวง</p>
               </div>
             </div>
-            <a href="/status" className="bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
-              🔍 เช็คสถานะ
-            </a>
+            <div className="flex space-x-2">
+              <a href="/" className="bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg text-[11px] md:text-xs font-bold transition-colors shadow-sm flex items-center">
+                🏠 หน้าแรก
+              </a>
+              <a href="/status" className="bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg text-[11px] md:text-xs font-bold transition-colors shadow-sm flex items-center">
+                🔍 สถานะ
+              </a>
+            </div>
           </div>
         </div>
 
