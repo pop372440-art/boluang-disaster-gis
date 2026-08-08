@@ -81,38 +81,76 @@ export default function AdminPanel() {
     await supabase.auth.signOut();
   };
 
-  // ✅ ฟังก์ชัน "ปิดจ๊อบ" อัจฉริยะ
+  // ✅ ฟังก์ชัน "ปิดจ๊อบ" อัจฉริยะ (อัปเกรดแนบรูปได้)
   const handleCloseJob = async (reportId: string, currentRiskType: string) => {
-    const { value: actionText } = await Swal.fire({
+    const { value: formValues } = await Swal.fire({
       title: '📝 บันทึกการปฏิบัติงาน',
-      html: `ระบุรายละเอียดการแก้ไขปัญหา<br/><b>${currentRiskType}</b>`,
-      input: 'textarea',
-      inputPlaceholder: 'เช่น นำรถแบคโฮเข้าเคลียร์พื้นที่เรียบร้อย...',
+      html: `
+        <div class="text-left mb-2 text-sm text-gray-700">ระบุรายละเอียดการแก้ไขปัญหา <b>${currentRiskType}</b></div>
+        <textarea id="swal-input-text" class="swal2-textarea" placeholder="เช่น นำรถแบคโฮเข้าเคลียร์พื้นที่เรียบร้อย..." style="margin: 0 auto 15px auto; width: 100%; font-size: 14px;"></textarea>
+        
+        <div class="text-left mb-2 text-sm font-bold text-gray-700">📷 แนบภาพผลการปฏิบัติงาน (หลังดำเนินการ)</div>
+        <input type="file" id="swal-input-file" class="swal2-file" accept="image/*" style="display: flex; width: 100%; font-size: 14px; margin: 0 auto;">
+      `,
       showCancelButton: true,
       confirmButtonColor: '#10b981',
       cancelButtonColor: '#ef4444',
       confirmButtonText: 'บันทึกและปิดงาน',
       cancelButtonText: 'ยกเลิก',
-      inputValidator: (value) => {
-        if (!value) return 'กรุณาระบุรายละเอียดการดำเนินการครับ!';
+      preConfirm: () => {
+        // ดึงค่าจากกล่อง HTML ที่เราสร้างขึ้นมา
+        const text = (document.getElementById('swal-input-text') as HTMLTextAreaElement).value;
+        const fileInput = document.getElementById('swal-input-file') as HTMLInputElement;
+        const file = fileInput.files ? fileInput.files[0] : null;
+
+        if (!text) {
+          Swal.showValidationMessage('กรุณาระบุรายละเอียดการดำเนินการครับ!');
+          return false;
+        }
+        return { text, file };
       }
     });
 
-    if (actionText) {
+    // ถ้าแอดมินกด "บันทึกและปิดงาน"
+    if (formValues) {
+      const { text: actionText, file: resolveFile } = formValues;
+
       try {
         Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+        let resolvedImageUrl = null;
+
+        // 1. ถ้ามีการแนบไฟล์รูปมาด้วย ให้อัปโหลดเข้า Storage ถัง disaster_images
+        if (resolveFile) {
+          const fileExt = resolveFile.name.split('.').pop();
+          const fileName = `resolved-${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+          const filePath = `reports/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('disaster_images')
+            .upload(filePath, resolveFile);
+
+          if (uploadError) throw uploadError;
+
+          const { data: publicUrlData } = supabase.storage
+            .from('disaster_images')
+            .getPublicUrl(filePath);
+
+          resolvedImageUrl = publicUrlData.publicUrl;
+        }
 
         const now = new Date().toISOString();
         const userEmail = session?.user?.email;
 
-        // อัปเดตข้อมูลขึ้น Database
+        // 2. อัปเดตข้อมูลขึ้น Database
         const { error } = await supabase
           .from('boluang_disaster_reports')
           .update({ 
             status: 'ดำเนินการเสร็จแล้ว',
             action_taken: actionText,
+            resolved_image_url: resolvedImageUrl, // บันทึกรูปการทำงานของเจ้าหน้าที่
             resolved_at: now,
-            resolved_by: userEmail // บันทึกว่าใครเป็นคนกดปิดจ๊อบ
+            resolved_by: userEmail
           })
           .eq('id', reportId);
 
