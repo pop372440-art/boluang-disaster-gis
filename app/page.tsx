@@ -232,7 +232,7 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
 
-  // 👁️ ฟังก์ชันบันทึกและดึงสถิติคนเข้าชม (อัปเกรด Base Count)
+  // 👁️ ฟังก์ชันบันทึกและดึงสถิติคนเข้าชม (แสดงข้อมูลจริง 100% ไม่บวกเพิ่ม)
   useEffect(() => {
     if (!mounted) return;
     const handleVisitorCount = async () => {
@@ -244,12 +244,12 @@ export default function BoLuangDashboard() {
           await supabase.from('visitor_logs').insert([{ session_id: sessionId }]);
         }
         
-        // ดึงยอดรวม "ทั้งหมด"
+        // ดึงยอดรวม "ทั้งหมด" ของจริง
         const { count: totalCount } = await supabase
           .from('visitor_logs')
           .select('*', { count: 'exact', head: true });
           
-        // ดึงยอด "วันนี้"
+        // ดึงยอด "วันนี้" ของจริง
         const today = new Date();
         today.setHours(0, 0, 0, 0); 
         const { count: todayCount } = await supabase
@@ -257,10 +257,12 @@ export default function BoLuangDashboard() {
           .select('*', { count: 'exact', head: true })
           .gte('visited_at', today.toISOString());
           
-       setVisitStats({ 
-          today: (todayCount || 0) + BASE_TODAY, 
-          total: (totalCount || 0) + BASE_TOTAL 
+        // ❌ เอาเวทมนตร์บวกเลขออก แล้วโชว์ข้อมูลจริงจาก Supabase ดิบๆ เลยครับ
+        setVisitStats({ 
+          today: todayCount || 0, 
+          total: totalCount || 0 
         });
+
       } catch (error) {
         console.error('Error fetching visitor stats:', error);
       }
