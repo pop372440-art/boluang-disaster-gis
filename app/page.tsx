@@ -339,31 +339,33 @@ export default function BoLuangDashboard() {
     fetchNationalAir();
   }, [pm25]);
 
-  // 💧 ดึงข้อมูลปริมาณฝน 24 ชม. (ThaiWater - ONWR)
+  // 💧 ดึงข้อมูลปริมาณฝน 24 ชม. 
   useEffect(() => {
     if (!onwrRain) { setOnwrRainData([]); return; }
     const fetchOnwrRain = async () => {
       try {
-        const res = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h');
+        // ❌ ของเดิม: fetch('https://api-v3.thaiwater.net/...');
+        // ✅ เปลี่ยนเป็น:
+        const res = await fetch('/api/rain24'); 
         const json = await res.json();
         if (json && json.data) {
           setOnwrRainData(json.data);
         }
       } catch (error) {
         console.error('Error fetching ONWR Rain:', error);
-        // หากติดปัญหา CORS ในเบราว์เซอร์ ให้แจ้งผู้ใช้
-        console.warn('⚠️ หากข้อมูลไม่แสดง อาจเกิดจากข้อจำกัด CORS ของเซิร์ฟเวอร์ ThaiWater');
       }
     };
     fetchOnwrRain();
   }, [onwrRain]);
 
-  // 💧 ดึงข้อมูลระดับน้ำ (ThaiWater - ONWR)
+  // 💧 ดึงข้อมูลระดับน้ำ
   useEffect(() => {
     if (!onwrWaterLevel) { setOnwrWaterLevelData([]); return; }
     const fetchOnwrWaterLevel = async () => {
       try {
-        const res = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load');
+        // ❌ ของเดิม: fetch('https://api-v3.thaiwater.net/...');
+        // ✅ เปลี่ยนเป็น:
+        const res = await fetch('/api/waterlevel');
         const json = await res.json();
         if (json && json.data) {
           setOnwrWaterLevelData(json.data);
