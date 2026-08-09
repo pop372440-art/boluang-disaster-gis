@@ -139,18 +139,18 @@ export default function BoLuangDashboard() {
   
   const [isMobile, setIsMobile] = useState(false);
 
-  // 🎛️ State แผงควบคุม ซ้าย
+  // แผงควบคุม ซ้าย
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
   const [pm25, setPm25] = useState(false); 
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
 
-  // 🎛️ State หมวดหมู่: ข้อมูลน้ำ (ThaiWater)
+  // ข้อมูลน้ำ (ThaiWater)
   const [onwrRain, setOnwrRain] = useState(false);
   const [onwrWaterLevel, setOnwrWaterLevel] = useState(false);
 
-  // 🎛️ State แผงควบคุม ขวา
+  // แผงควบคุม ขวา
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   const [showBoluang, setShowBoluang] = useState(false);   
   const [showBlock, setShowBlock] = useState(false);        
@@ -169,7 +169,6 @@ export default function BoLuangDashboard() {
   const [nationalAirData, setNationalAirData] = useState<any[]>([]);
   const [disasterReports, setDisasterReports] = useState<any[]>([]); 
   
-  // State เก็บข้อมูลจาก ThaiWater
   const [onwrRainData, setOnwrRainData] = useState<any[]>([]);
   const [onwrWaterLevelData, setOnwrWaterLevelData] = useState<any[]>([]);
 
@@ -275,7 +274,7 @@ export default function BoLuangDashboard() {
     handleVisitorCount();
   }, [mounted]);
 
-  // 🌟 พยากรณ์อากาศ 77 จังหวัด (TMD)
+  // พยากรณ์อากาศ 77 จังหวัด (TMD)
   useEffect(() => {
     if (!tmdWeather && !tmdRain) { setProvincialWeatherData([]); return; }
     const fetchProvincialWeather = async () => {
@@ -305,7 +304,7 @@ export default function BoLuangDashboard() {
     fetchProvincialWeather();
   }, [tmdWeather, tmdRain]);
 
-  // 🌟 ข้อมูลฝุ่น PM2.5 77 จังหวัด
+  // ข้อมูลฝุ่น PM2.5
   useEffect(() => {
     if (!pm25) { setNationalAirData([]); return; }
     const fetchNationalAir = async () => {
@@ -339,7 +338,7 @@ export default function BoLuangDashboard() {
     fetchNationalAir();
   }, [pm25]);
 
-  // 🚀 💧 ดึงข้อมูลปริมาณฝน 24 ชม. (ดึงตรงจากหน้าบ้าน ไม่ผ่าน API Proxy เพื่อลดความหน่วง 5 วิ)
+  // 💧 ดึงข้อมูลปริมาณฝน 24 ชม. 
   useEffect(() => {
     if (!onwrRain) { setOnwrRainData([]); return; }
     const fetchOnwrRain = async () => {
@@ -347,7 +346,6 @@ export default function BoLuangDashboard() {
         const res = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h');
         const json = await res.json();
         
-        // ดักจับโครงสร้างเผื่อ ThaiWater เปลี่ยนแปลง
         let arrData = [];
         if (json && Array.isArray(json.data)) arrData = json.data;
         else if (json && json.data && Array.isArray(json.data.data)) arrData = json.data.data;
@@ -360,7 +358,7 @@ export default function BoLuangDashboard() {
     fetchOnwrRain();
   }, [onwrRain]);
 
-  // 🚀 💧 ดึงข้อมูลระดับน้ำ (ดึงตรงจากหน้าบ้าน + ดักจับโครงสร้างลึก)
+  // 🚀 💧 ดึงข้อมูลระดับน้ำ (ดักจับโครงสร้างลึกสุดขีด)
   useEffect(() => {
     if (!onwrWaterLevel) { setOnwrWaterLevelData([]); return; }
     const fetchOnwrWaterLevel = async () => {
@@ -368,17 +366,32 @@ export default function BoLuangDashboard() {
         const res = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load');
         const json = await res.json();
         
-        // 🛠️ ปัญหาหมุดไม่ขึ้นเกิดจากตรงนี้! โครงสร้างของระดับน้ำมักจะซ้อนกันหลายชั้น
-        let arrData = [];
-        if (json && Array.isArray(json.data)) {
+        let arrData: any[] = [];
+        
+        if (Array.isArray(json)) {
+          arrData = json;
+        } else if (json?.data && Array.isArray(json.data)) {
           arrData = json.data;
-        } else if (json && json.data && Array.isArray(json.data.data)) {
-          arrData = json.data.data;
-        } else if (json && json.data && json.data.waterlevel_data && Array.isArray(json.data.waterlevel_data.data)) {
-          // โครงสร้างที่เจอบ่อยที่สุดใน API ระดับน้ำ สทนช.
+        } else if (json?.data?.waterlevel_data?.data && Array.isArray(json.data.waterlevel_data.data)) {
           arrData = json.data.waterlevel_data.data;
+        } else if (json?.waterlevel_data?.data && Array.isArray(json.waterlevel_data.data)) {
+          arrData = json.waterlevel_data.data;
+        } else {
+          // ฟังก์ชันค้นหา Array ทุกซอกทุกมุม
+          const findArray = (obj: any): any[] | null => {
+            for (let key in obj) {
+              if (Array.isArray(obj[key])) return obj[key];
+              if (typeof obj[key] === 'object' && obj[key] !== null) {
+                const found = findArray(obj[key]);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+          arrData = findArray(json) || [];
         }
         
+        console.log("🌊 แกะกล่องข้อมูลระดับน้ำเจอ:", arrData.length, "สถานี");
         setOnwrWaterLevelData(arrData);
       } catch (error) {
         console.error('Error fetching ONWR Water Level:', error);
@@ -387,7 +400,7 @@ export default function BoLuangDashboard() {
     fetchOnwrWaterLevel();
   }, [onwrWaterLevel]);
 
-  // 🌟 ดึงข้อมูลแจ้งเหตุจาก Supabase 
+  // แจ้งเหตุจาก Supabase 
   useEffect(() => {
     if (!citizenReport) return;
     const fetchReports = async () => {
@@ -578,13 +591,13 @@ export default function BoLuangDashboard() {
     });
   }, [L]);
 
-  // 💧 ไอคอนสำหรับระดับน้ำ (ThaiWater)
+  // 💧 ไอคอนระดับน้ำ
   const createWaterLevelIcon = useMemo(() => {
     if (!L) return () => null;
     return () => L.divIcon({
       className: 'bg-transparent border-none',
       html: `
-        <div class="relative flex items-center justify-center w-[36px] h-[36px] bg-[#0f172a] border-[2px] border-[#3b82f6] rounded-full shadow-[0_0_15px_rgba(59,130,246,0.6)] transition-transform hover:scale-110">
+        <div class="relative flex items-center justify-center w-[36px] h-[36px] bg-[#0f172a] border-[2px] border-[#3b82f6] rounded-full shadow-[0_0_15px_rgba(59,130,246,0.6)] transition-transform hover:scale-110 z-20">
           <span class="text-[16px] drop-shadow-md">🌊</span>
         </div>
       `,
@@ -722,7 +735,7 @@ export default function BoLuangDashboard() {
               />
             )}
 
-            {/* 🌟 หมุดพยากรณ์อากาศ 77 จังหวัด (TMD) */}
+            {/* 🌟 พยากรณ์อากาศ 77 จังหวัด */}
             {tmdWeather && provincialWeatherData.map((prov, i) => {
               const areaName = prov.name === 'กรุงเทพมหานคร' ? prov.name : `อ.เมือง${prov.name}, ${prov.name}`;
               return (
@@ -753,7 +766,7 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 หมุดปริมาณน้ำฝนสะสม 77 จังหวัด (TMD) */}
+            {/* 🌟 ปริมาณน้ำฝนสะสม (TMD) */}
             {tmdRain && provincialWeatherData.map((prov, i) => {
               const style = getRainCircleStyle(prov.rainSum);
               const areaName = prov.name === 'กรุงเทพมหานคร' ? prov.name : `อ.เมือง${prov.name}, ${prov.name}`;
@@ -785,14 +798,20 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 💧 หมุดปริมาณฝน 24 ชม. จากสถานีจริง (ThaiWater ONWR) */}
+            {/* 💧 ปริมาณฝน 24 ชม. (สทนช.) */}
             {onwrRain && onwrRainData.map((station: any, i: number) => {
-              if (!station.station || !station.station.tele_station_lat || !station.station.tele_station_long) return null;
-              const lat = parseFloat(station.station.tele_station_lat);
-              const lng = parseFloat(station.station.tele_station_long);
-              const rainVal = parseFloat(station.rain_24h) || 0;
+              const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat || station?.latitude;
+              const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng || station?.longitude || station?.lon;
+              if (!latStr || !lngStr) return null;
+              
+              const lat = parseFloat(latStr);
+              const lng = parseFloat(lngStr);
+              if (isNaN(lat) || isNaN(lng)) return null;
+
+              const rainVal = parseFloat(station?.rain_24h) || 0;
               const style = getRainCircleStyle(rainVal);
-              const stationName = station.station.tele_station_name?.th || station.station.tele_station_name || 'ไม่ทราบชื่อสถานี';
+              const stationName = station?.station?.tele_station_name?.th || station?.station?.tele_station_name || station?.tele_station_name?.th || station?.tele_station_name || 'ไม่ทราบชื่อสถานี';
+              const provName = station?.station?.province_name?.th || station?.province_name?.th || '-';
               
               return (
                 <CircleMarker key={`onwr-rain-${i}`} center={[lat, lng]} radius={style.radius} pathOptions={{ color: '#2563eb', fillColor: style.fillColor, fillOpacity: style.fillOpacity, weight: style.weight }}>
@@ -806,12 +825,12 @@ export default function BoLuangDashboard() {
                           สถานี: {stationName}
                         </div>
                         <div className="text-[13px] text-gray-300 space-y-2 font-medium mb-4">
-                          <div>จังหวัด: <span className="text-white">{station.station.province_name?.th || '-'}</span></div>
+                          <div>จังหวัด: <span className="text-white">{provName}</span></div>
                           <div>ปริมาณฝน: <span className="text-[#3b82f6] font-bold text-[16px]">{rainVal.toFixed(1)} มม.</span></div>
                         </div>
                         <div className="text-[10px] text-gray-500 font-mono text-left pt-3 border-t border-[#1e293b] leading-relaxed">
                           ข้อมูลจาก สทนช. (ThaiWater)<br/>
-                          Station ID: {station.station.tele_station_id}
+                          Station ID: {station?.station?.tele_station_id || station?.tele_station_id || '-'}
                         </div>
                       </div>
                     </div>
@@ -820,18 +839,30 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🚀 💧 แก้ไขปัญหาหมุดระดับน้ำหาย (รองรับการตั้งชื่อ Key ที่หลากหลายของ สทนช.) */}
+            {/* 🚀 💧 ระดับน้ำ สทนช. (แกะกล่องครอบจักรวาล) */}
             {onwrWaterLevel && onwrWaterLevelData.map((station: any, i: number) => {
-              if (!station.station || !station.station.tele_station_lat || !station.station.tele_station_long) return null;
-              const lat = parseFloat(station.station.tele_station_lat);
-              const lng = parseFloat(station.station.tele_station_long);
+              // 1. ดึงพิกัด
+              const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat || station?.latitude;
+              const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng || station?.longitude || station?.lon;
               
-              // 🛠️ สทนช. บางครั้งใช้คำว่า waterlevel, บางครั้งใช้ water_level เราเลยต้องดักจับให้หมด
-              const waterLevel = parseFloat(station.waterlevel || station.water_level || station.waterlevel_msl) || 0;
+              if (!latStr || !lngStr) return null;
               
-              const stationName = station.station.tele_station_name?.th || station.station.tele_station_name || 'ไม่ทราบชื่อสถานี';
-              const discharge = station.discharge || station.discharge_rate ? `${station.discharge || station.discharge_rate} ลบ.ม./วินาที` : 'ไม่มีข้อมูล';
-              const time = station.waterlevel_datetime || station.water_level_datetime || '-';
+              const lat = parseFloat(latStr);
+              const lng = parseFloat(lngStr);
+              if (isNaN(lat) || isNaN(lng)) return null;
+              
+              // 2. ดึงค่าระดับน้ำ
+              const waterLevelRaw = station?.waterlevel || station?.water_level || station?.waterlevel_msl || station?.wl || station?.station?.water_level;
+              const waterLevel = parseFloat(waterLevelRaw) || 0;
+              
+              // 3. ดึงชื่อสถานี
+              const stationName = station?.station?.tele_station_name?.th || station?.station?.tele_station_name || station?.tele_station_name?.th || station?.tele_station_name || station?.name?.th || station?.name || 'ไม่ทราบชื่อสถานี';
+              
+              // 4. ข้อมูลอื่นๆ
+              const basin = station?.station?.basin?.basin_name?.th || station?.basin?.basin_name?.th || station?.basin_name || '-';
+              const dischargeRaw = station?.discharge || station?.discharge_rate || station?.flow;
+              const discharge = dischargeRaw ? `${dischargeRaw} ลบ.ม./วินาที` : 'ไม่มีข้อมูล';
+              const time = station?.waterlevel_datetime || station?.water_level_datetime || station?.datetime || '-';
               
               return (
                 <Marker key={`onwr-water-${i}`} position={[lat, lng]} icon={createWaterLevelIcon()}>
@@ -845,7 +876,7 @@ export default function BoLuangDashboard() {
                           สถานี: {stationName}
                         </div>
                         <div className="text-[13px] text-gray-300 space-y-2 font-medium mb-4">
-                          <div>ลุ่มน้ำ: <span className="text-white">{station.station.basin?.basin_name?.th || '-'}</span></div>
+                          <div>ลุ่มน้ำ: <span className="text-white">{basin}</span></div>
                           <div>ระดับน้ำ: <span className="text-[#60a5fa] font-bold text-[16px]">{waterLevel.toFixed(2)} ม.รทก.</span></div>
                           <div>อัตราการไหล: <span className="text-white">{discharge}</span></div>
                         </div>
@@ -920,7 +951,7 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 แสดงหมุดแจ้งเหตุจาก Supabase บนแผนที่ */}
+            {/* 🌟 แจ้งเหตุจาก Supabase */}
             {citizenReport && disasterReports.map((report) => (
               <Marker 
                 key={`report-${report.id}`} 
