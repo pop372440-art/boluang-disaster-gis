@@ -146,10 +146,10 @@ export default function BoLuangDashboard() {
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
 
-  // 🎛️ ข้อมูลน้ำ (ONWR & FloodDash)
+  // ข้อมูลน้ำ
   const [onwrRain, setOnwrRain] = useState(false);
   const [onwrWaterLevel, setOnwrWaterLevel] = useState(false);
-  const [floodDash, setFloodDash] = useState(false);
+  const [floodDash, setFloodDash] = useState(false); // 🚀 State สำหรับ FloodDash Iframe
 
   // แผงควบคุม ขวา
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
@@ -170,10 +170,8 @@ export default function BoLuangDashboard() {
   const [nationalAirData, setNationalAirData] = useState<any[]>([]);
   const [disasterReports, setDisasterReports] = useState<any[]>([]); 
   
-  // State เก็บข้อมูลน้ำต่างๆ
   const [onwrRainData, setOnwrRainData] = useState<any[]>([]);
   const [onwrWaterLevelData, setOnwrWaterLevelData] = useState<any[]>([]);
-  const [floodDashData, setFloodDashData] = useState<any[]>([]);
 
   const [visitStats, setVisitStats] = useState({ today: 0, total: 0 });
   
@@ -341,7 +339,7 @@ export default function BoLuangDashboard() {
     fetchNationalAir();
   }, [pm25]);
 
-  // 💧 ดึงข้อมูลปริมาณฝน 24 ชม. (ONWR)
+  // 💧 ดึงข้อมูลปริมาณฝน 24 ชม. 
   useEffect(() => {
     if (!onwrRain) { setOnwrRainData([]); return; }
     const fetchOnwrRain = async () => {
@@ -361,7 +359,7 @@ export default function BoLuangDashboard() {
     fetchOnwrRain();
   }, [onwrRain]);
 
-  // 💧 ดึงข้อมูลระดับน้ำ (ONWR)
+  // 🚀 💧 ดึงข้อมูลระดับน้ำ 
   useEffect(() => {
     if (!onwrWaterLevel) { setOnwrWaterLevelData([]); return; }
     const fetchOnwrWaterLevel = async () => {
@@ -400,37 +398,6 @@ export default function BoLuangDashboard() {
     };
     fetchOnwrWaterLevel();
   }, [onwrWaterLevel]);
-
-  // 🚀 📡 ดึงข้อมูล FloodDash
-  useEffect(() => {
-    if (!floodDash) { setFloodDashData([]); return; }
-    const fetchFloodDash = async () => {
-      try {
-        // 💡 หมายเหตุ: หาก URL หลักนี้ดึงข้อมูลไม่ได้ (Error CORS/HTML) อาจจะต้องเติม /api หรือ /data.json ต่อท้าย URL
-        const res = await fetch('https://flood.nonarkara.org', {
-          headers: { 'Accept': 'application/json' }
-        });
-        
-        const contentType = res.headers.get("content-type");
-        if (contentType && contentType.indexOf("application/json") !== -1) {
-          const json = await res.json();
-          
-          // ค้นหา Array ข้อมูลแบบครอบจักรวาล
-          let arrData: any[] = [];
-          if (Array.isArray(json)) arrData = json;
-          else if (json.data && Array.isArray(json.data)) arrData = json.data;
-          else if (json.features && Array.isArray(json.features)) arrData = json.features; // รองรับ GeoJSON
-          
-          setFloodDashData(arrData);
-        } else {
-          console.warn('⚠️ ข้อมูลจาก FloodDash ไม่ใช่ JSON. อาจต้องตรวจสอบ URL API ที่ใช้ดึงข้อมูลอีกครั้งครับ');
-        }
-      } catch (error) {
-        console.error('Error fetching FloodDash:', error);
-      }
-    };
-    fetchFloodDash();
-  }, [floodDash]);
 
   // แจ้งเหตุจาก Supabase 
   useEffect(() => {
@@ -637,20 +604,6 @@ export default function BoLuangDashboard() {
     });
   }, [L]);
 
-  // 📡 ไอคอน FloodDash (ใช้สีฟ้าอ่อน ให้อารมณ์เหมือนเครือข่ายเซ็นเซอร์)
-  const createFloodDashIcon = useMemo(() => {
-    if (!L) return () => null;
-    return () => L.divIcon({
-      className: 'bg-transparent border-none',
-      html: `
-        <div class="relative flex items-center justify-center w-[36px] h-[36px] bg-[#0f172a] border-[2px] border-[#0ea5e9] rounded-full shadow-[0_0_15px_rgba(14,165,233,0.6)] transition-transform hover:scale-110 z-20">
-          <span class="text-[16px] drop-shadow-md">📡</span>
-        </div>
-      `,
-      iconSize: [36, 36], iconAnchor: [18, 18]
-    });
-  }, [L]);
-
   return (
     <main className="relative w-screen h-screen bg-[#0b132b] font-sans text-white overflow-hidden">
       <style dangerouslySetInnerHTML={{__html: `
@@ -702,7 +655,6 @@ export default function BoLuangDashboard() {
         .popup-quake .leaflet-popup-tip { background-color: rgba(15, 23, 42, 0.95) !important; border-top: 1px solid #a855f7 !important; border-left: 1px solid #a855f7 !important; }
         .popup-quake .leaflet-popup-content { margin: 0 !important; }
 
-        /* 💧 Popup สำหรับ ThaiWater & FloodDash */
         .popup-water .leaflet-popup-content-wrapper { background-color: #0f172a !important; color: #e2e8f0 !important; border: 1px solid #3b82f6 !important; border-radius: 10px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important; padding: 0 !important; overflow: hidden; }
         .popup-water .leaflet-popup-tip { background-color: #0f172a !important; border-top: 1px solid #3b82f6 !important; border-left: 1px solid #3b82f6 !important; }
         .popup-water .leaflet-popup-content { margin: 0 !important; width: 280px !important; }
@@ -746,6 +698,27 @@ export default function BoLuangDashboard() {
               </a>
               <button onClick={() => setShowScanModal(false)} className="py-3 w-full bg-[#1e293b] text-gray-300 font-semibold text-[15px] rounded-xl hover:bg-[#334155] transition-colors">ปิดหน้าต่าง</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🚀 ระบบฝัง Iframe ของ FloodDash (เด้งขึ้นมาทับแผนที่เวลากดเปิด) */}
+      {floodDash && (
+        <div className="absolute inset-0 z-[40] flex items-center justify-center p-4 md:p-8 pointer-events-none animate-fade-in-api">
+          {/* กรอบลอยสำหรับใส่ Iframe */}
+          <div className="w-full h-full max-w-[1200px] max-h-[800px] bg-white rounded-2xl shadow-2xl overflow-hidden relative pointer-events-auto border-4 border-[#38bdf8]">
+            <button 
+              onClick={() => setFloodDash(false)}
+              className="absolute top-2 right-2 md:top-4 md:right-4 z-50 bg-red-500 hover:bg-red-600 text-white w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110"
+            >
+              <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            {/* โหลดหน้าเว็บ FloodDash ของบ่อหลวง */}
+            <iframe 
+              src="https://flood.nonarkara.org/BoLuang?city=%E0%B8%9A%E0%B9%88%E0%B8%AD%E0%B8%AB%E0%B8%A5%E0%B8%A7%E0%B8%87&tv=1" 
+              className="w-full h-full border-none"
+              title="FloodDash Bo Luang"
+            />
           </div>
         </div>
       )}
@@ -887,7 +860,7 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 💧 ระดับน้ำ สทนช. (แกะกล่องครอบจักรวาล) */}
+            {/* 💧 ระดับน้ำ สทนช. */}
             {onwrWaterLevel && onwrWaterLevelData.map((station: any, i: number) => {
               const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat || station?.latitude;
               const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng || station?.longitude || station?.lon;
@@ -926,49 +899,6 @@ export default function BoLuangDashboard() {
                         </div>
                         <div className="text-[10px] text-gray-500 font-mono text-left pt-3 border-t border-[#1e293b] leading-relaxed">
                           ข้อมูลจาก สทนช. (ThaiWater)<br/>
-                          เวลา: {time}
-                        </div>
-                      </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              );
-            })}
-
-            {/* 🚀 📡 เครือข่าย FloodDash (รองรับทั้ง JSON ปกติ และ GeoJSON) */}
-            {floodDash && floodDashData.map((station: any, i: number) => {
-              // ดึงพิกัด
-              const latStr = station?.lat || station?.latitude || station?.tele_station_lat || station?.geometry?.coordinates?.[1];
-              const lngStr = station?.lng || station?.lon || station?.longitude || station?.tele_station_long || station?.geometry?.coordinates?.[0];
-              
-              if (!latStr || !lngStr) return null;
-              
-              const lat = parseFloat(latStr);
-              const lng = parseFloat(lngStr);
-              if (isNaN(lat) || isNaN(lng)) return null;
-              
-              // ดึงข้อมูล
-              const props = station?.properties || station;
-              const stationName = props?.name || props?.station_name || props?.tele_station_name || 'ไม่ทราบชื่อสถานี (FloodDash)';
-              const waterLevel = parseFloat(props?.waterlevel || props?.water_level || props?.wl || props?.level) || 0;
-              const time = props?.datetime || props?.time || props?.updated_at || '-';
-              
-              return (
-                <Marker key={`flood-dash-${i}`} position={[lat, lng]} icon={createFloodDashIcon()}>
-                  <Popup className="popup-water">
-                    <div>
-                      <div className="bg-[#0ea5e9] px-4 py-3 font-bold text-white text-[15px] flex items-center shadow-sm">
-                        <span className="mr-2 text-[18px]">📡</span> เครือข่าย FloodDash
-                      </div>
-                      <div className="p-4 bg-[#0f172a]">
-                        <div className="text-[14px] font-bold text-white mb-3 pb-2 border-b border-[#1e293b]">
-                          สถานี: {stationName}
-                        </div>
-                        <div className="text-[13px] text-gray-300 space-y-2 font-medium mb-4">
-                          <div>ระดับน้ำ: <span className="text-[#38bdf8] font-bold text-[16px]">{waterLevel.toFixed(2)} ม.</span></div>
-                        </div>
-                        <div className="text-[10px] text-gray-500 font-mono text-left pt-3 border-t border-[#1e293b] leading-relaxed">
-                          แหล่งข้อมูล: FloodDash<br/>
                           เวลา: {time}
                         </div>
                       </div>
@@ -1240,7 +1170,7 @@ export default function BoLuangDashboard() {
             <div className="space-y-1 bg-[#0f172a] p-3 rounded-xl border border-[#1e293b]">
               <CustomToggleBox label="ระดับน้ำ (ONWR)" active={onwrWaterLevel} onClick={() => setOnwrWaterLevel(!onwrWaterLevel)} dotColor="#2563eb" />
               <CustomToggleBox label="ปริมาณฝน 24 ชม. (ONWR)" active={onwrRain} onClick={() => setOnwrRain(!onwrRain)} dotColor="#3b82f6" />
-              <CustomToggleBox label="เครือข่าย FloodDash" active={floodDash} onClick={() => setFloodDash(!floodDash)} dotColor="#0ea5e9" />
+              <CustomToggleBox label="รายงานน้ำท่วม FloodDash" active={floodDash} onClick={() => setFloodDash(!floodDash)} dotColor="#ef4444" />
             </div>
           </div>
 
