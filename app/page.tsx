@@ -618,6 +618,9 @@ export default function BoLuangDashboard() {
         .leaflet-div-icon { background: transparent !important; border: none !important; }
         .leaflet-tooltip { pointer-events: none !important; }
         
+        /* 🚀 แก้กรอบดำเวลากดแปลงที่ดิน ตามคำแนะนำของคุณ Sattaya */
+        .leaflet-interactive:focus { outline: none !important; }
+        
         .leaflet-tooltip.village-hover-tooltip { 
           background-color: #ffffff !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; 
           font-family: inherit !important; font-size: 14px !important; font-weight: 600 !important; 
@@ -735,7 +738,7 @@ export default function BoLuangDashboard() {
               />
             )}
 
-            {/* 🌟 พยากรณ์อากาศ 77 จังหวัด */}
+            {/* 🌟 พยากรณ์อากาศ 77 จังหวัด (TMD) */}
             {tmdWeather && provincialWeatherData.map((prov, i) => {
               const areaName = prov.name === 'กรุงเทพมหานคร' ? prov.name : `อ.เมือง${prov.name}, ${prov.name}`;
               return (
