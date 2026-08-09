@@ -21,7 +21,7 @@ const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.Circl
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 
-// 💎 UI Component: Toggle อัจฉริยะ (แก้ปัญหาจอกระตุกด้วย Asynchronous State)
+// 💎 UI Component: Toggle อัจฉริยะ 
 const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio = false }: any) => {
   const [localActive, setLocalActive] = useState(active);
   useEffect(() => { setLocalActive(active); }, [active]);
@@ -73,7 +73,6 @@ const getWeatherEmoji = (code: number) => {
   return '☀️';
 };
 
-// 🌈 ฟังก์ชันคำนวณสีและ AQI สำหรับค่าฝุ่น PM2.5 
 const getAirQualityDetails = (pm25: number) => {
   let aqi = 0; let text = ''; let color = ''; let shadow = '';
   if (pm25 <= 15.0) {
@@ -91,7 +90,6 @@ const getAirQualityDetails = (pm25: number) => {
   return { aqi, text, color, shadow };
 };
 
-// 📍 พิกัดครบ 77 จังหวัดทั่วประเทศไทย
 const thaiProvinces = [
   { name: 'กรุงเทพมหานคร', lat: 13.7563, lng: 100.5018 }, { name: 'สมุทรปราการ', lat: 13.5993, lng: 100.5968 },
   { name: 'นนทบุรี', lat: 13.8591, lng: 100.5217 }, { name: 'ปทุมธานี', lat: 14.0208, lng: 100.5250 },
@@ -139,17 +137,16 @@ export default function BoLuangDashboard() {
   const [qrUrl, setQrUrl] = useState('');
   const coordsRef = useRef<HTMLSpanElement>(null);
   
-  // 📱 ตัวตรวจจับขนาดหน้าจอสำหรับระบบ Responsive
   const [isMobile, setIsMobile] = useState(false);
 
-  // 🎛️ State แผงควบคุม ซ้าย (ปิดทั้งหมดเป็นค่าเริ่มต้น เพื่อความมินิมอล)
+  // แผงควบคุม ซ้าย
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
   const [pm25, setPm25] = useState(false); 
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
 
-  // 🎛️ State แผงควบคุม ขวา (ปิดทั้งหมดเป็นค่าเริ่มต้น)
+  // แผงควบคุม ขวา
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   const [showBoluang, setShowBoluang] = useState(false);   
   const [showBlock, setShowBlock] = useState(false);        
@@ -159,13 +156,11 @@ export default function BoLuangDashboard() {
   const [hotspot, setHotspot] = useState(false);
   const [showLandslide, setShowLandslide] = useState(false);
   
-  // 📱 State การเปิด-ปิด เมนูด้านข้าง
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   
   const [showScanModal, setShowScanModal] = useState(false);
 
-  // 📡 ข้อมูล API & GeoJSON
   const [provincialWeatherData, setProvincialWeatherData] = useState<any[]>([]); 
   const [nationalAirData, setNationalAirData] = useState<any[]>([]);
   const [disasterReports, setDisasterReports] = useState<any[]>([]); 
@@ -207,7 +202,6 @@ export default function BoLuangDashboard() {
     });
   };
 
-  // 📱 ระบบตรวจสอบ Device (Responsive)
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth < 768; 
@@ -249,66 +243,39 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
 
-  // 👁️ ฟังก์ชันบันทึกและดึงสถิติคนเข้าชม (แสดงข้อมูลจริง 100% แบบ Bulletproof)
+  // 👁️ ฟังก์ชันดึงสถิติคนเข้าชม
   useEffect(() => {
     if (!mounted) return;
-    
     const handleVisitorCount = async () => {
-      // --- ส่วนที่ 1: พยายามบันทึกคนเข้าเว็บ ---
       try {
         let sessionId = sessionStorage.getItem('bl_session_id');
         if (!sessionId) {
           sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`; 
           sessionStorage.setItem('bl_session_id', sessionId);
-          
           const { error: insertError } = await supabase.from('visitor_logs').insert([{ session_id: sessionId }]);
-          if (insertError) console.warn('ไม่สามารถบันทึกสถิติใหม่ได้ (อาจติด RLS):', insertError.message);
+          if (insertError) console.warn('ไม่สามารถบันทึกสถิติใหม่ได้:', insertError.message);
         }
-      } catch (error) {
-        console.warn('Error saving visit:', error);
-      }
+      } catch (error) { console.warn('Error saving visit:', error); }
 
-      // --- ส่วนที่ 2: ดึงข้อมูลยอดผู้เข้าชมมาโชว์ (ดึงของจริง 100%) ---
       try {
-        const { count: totalCount, error: totalError } = await supabase
-          .from('visitor_logs')
-          .select('*', { count: 'exact', head: true });
-          
-        if (totalError) console.error('Error fetching total:', totalError.message);
-
+        const { count: totalCount } = await supabase.from('visitor_logs').select('*', { count: 'exact', head: true });
         const today = new Date();
         today.setHours(0, 0, 0, 0); 
-        const { count: todayCount, error: todayError } = await supabase
-          .from('visitor_logs')
-          .select('*', { count: 'exact', head: true })
-          .gte('visited_at', today.toISOString());
-          
-        if (todayError) console.error('Error fetching today:', todayError.message);
-
-        setVisitStats({ 
-          today: todayCount || 0, 
-          total: totalCount || 0 
-        });
-
-      } catch (error) {
-        console.error('Error fetching visitor stats:', error);
-      }
+        const { count: todayCount } = await supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('visited_at', today.toISOString());
+        
+        setVisitStats({ today: todayCount || 0, total: totalCount || 0 });
+      } catch (error) { console.error('Error fetching visitor stats:', error); }
     };
-
     handleVisitorCount();
   }, [mounted]);
 
-  // 🌟 ดึงข้อมูลพยากรณ์อากาศและน้ำฝน 77 จังหวัด
+  // 🌟 พยากรณ์อากาศ 77 จังหวัด
   useEffect(() => {
-    if (!tmdWeather && !tmdRain) {
-      setProvincialWeatherData([]);
-      return;
-    }
+    if (!tmdWeather && !tmdRain) { setProvincialWeatherData([]); return; }
     const fetchProvincialWeather = async () => {
       try {
         const lats = thaiProvinces.map(p => p.lat.toFixed(4)).join(',');
         const lngs = thaiProvinces.map(p => p.lng.toFixed(4)).join(',');
-        
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weathercode&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Asia%2FBangkok`;
         const res = await fetch(url);
         const data = await res.json();
@@ -327,14 +294,12 @@ export default function BoLuangDashboard() {
           }));
           setProvincialWeatherData(formatted);
         }
-      } catch (error) {
-        console.error('Error fetching provincial weather:', error);
-      }
+      } catch (error) { console.error('Error fetching provincial weather:', error); }
     };
     fetchProvincialWeather();
   }, [tmdWeather, tmdRain]);
 
-  // 🌟 ดึงข้อมูล PM2.5 และก๊าซต่างๆ 77 จังหวัด
+  // 🌟 ข้อมูลฝุ่น PM2.5 77 จังหวัด
   useEffect(() => {
     if (!pm25) { setNationalAirData([]); return; }
     const fetchNationalAir = async () => {
@@ -380,9 +345,7 @@ export default function BoLuangDashboard() {
           .order('created_at', { ascending: false }); 
         if (error) throw error;
         if (data) setDisasterReports(data);
-      } catch (error) {
-        console.error('Error fetching disaster reports:', error);
-      }
+      } catch (error) { console.error('Error fetching disaster reports:', error); }
     };
     fetchReports();
   }, [citizenReport]);
@@ -432,7 +395,6 @@ export default function BoLuangDashboard() {
     });
   };
 
-  // 🌧️ ฟังก์ชันคำนวณสีและขนาดจุดน้ำฝน
   const getRainCircleStyle = (rainSum: number) => {
     let radius = 8 + (rainSum * 1.5); if (radius > 35) radius = 35; 
     let color = '#38bdf8'; let fillColor = '#7dd3fc'; 
@@ -447,6 +409,7 @@ export default function BoLuangDashboard() {
   const styleParcel = { color: '#4ade80', fillColor: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
   const styleLandslide = { color: '#ef4444', fillColor: '#ef4444', weight: 1.5, fillOpacity: 0.35, dashArray: '4, 4' };
 
+  // 🚀 อัปเกรดประสิทธิภาพแผนที่ (แก้ปัญหา Request 1,900+ ครั้งของ Windy)
   useEffect(() => {
     if (!mapRef) return;
     const updateSyncData = () => {
@@ -462,8 +425,11 @@ export default function BoLuangDashboard() {
       if (zoom !== syncData.current.zoom) return;
       const initialPoint = mapRef.project(syncData.current, zoom);
       const currentPoint = mapRef.project(mapRef.getCenter(), zoom);
+      
+      // อัปเดตเฉพาะระยะ Transform (Pan) เพื่อขยับ Iframe แบบเบาๆ โดยไม่เปลี่ยน URL (ไม่กระตุก)
       setTransform({ x: initialPoint.x - currentPoint.x, y: initialPoint.y - currentPoint.y });
-      setIframeState(prev => ({ ...prev, lat: mapRef.getCenter().lat, lng: mapRef.getCenter().lng })); 
+      
+      // ❌ เอา setIframeState ออกจากตรงนี้ เพื่อไม่ให้ Windy โหลดซ้ำระหว่างกำลังลากนิ้ว (ลด Request ได้ 99%)
     };
 
     const onMouseMove = (e: any) => {
@@ -473,7 +439,7 @@ export default function BoLuangDashboard() {
     };
 
     mapRef.on('move', onMove); 
-    mapRef.on('moveend', updateSyncData); 
+    mapRef.on('moveend', updateSyncData); // โหลด Iframe ใหม่เฉพาะตอนลากเสร็จ
     mapRef.on('zoomend', updateSyncData);
     mapRef.on('mousemove', onMouseMove); 
     return () => { 
@@ -583,64 +549,33 @@ export default function BoLuangDashboard() {
           padding: 6px 14px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
         }
 
-        /* 🌟 CSS สำหรับ Popup ค่าฝุ่น PM2.5 (ดีไซน์ใหม่) */
-        .popup-pm25-custom .leaflet-popup-content-wrapper {
-          background-color: #0b132b !important; color: #e2e8f0 !important;
-          border-radius: 8px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important; padding: 0 !important; overflow: hidden;
-          border: 1px solid #1e293b !important;
-        }
+        .popup-pm25-custom .leaflet-popup-content-wrapper { background-color: #0b132b !important; color: #e2e8f0 !important; border-radius: 8px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important; padding: 0 !important; overflow: hidden; border: 1px solid #1e293b !important; }
         .popup-pm25-custom .leaflet-popup-tip { background-color: #0b132b !important; border-bottom: 1px solid #1e293b !important; border-right: 1px solid #1e293b !important; }
         .popup-pm25-custom .leaflet-popup-content { margin: 0 !important; width: 290px !important; }
         .popup-pm25-custom .leaflet-popup-close-button { color: rgba(0,0,0,0.4) !important; font-size: 20px !important; padding-top: 6px !important; padding-right: 12px !important; z-index: 50; }
         .popup-pm25-custom .leaflet-popup-close-button:hover { color: rgba(0,0,0,0.8) !important; background: transparent !important; }
 
-        /* 🌟 CSS สำหรับ Popup พยากรณ์อากาศ TMD (ฟ้า) */
-        .popup-tmd-weather .leaflet-popup-content-wrapper {
-          background-color: #0f172a !important; color: #e2e8f0 !important; border: 1px solid #38bdf8 !important;
-          border-radius: 10px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important; padding: 0 !important; overflow: hidden;
-        }
+        .popup-tmd-weather .leaflet-popup-content-wrapper { background-color: #0f172a !important; color: #e2e8f0 !important; border: 1px solid #38bdf8 !important; border-radius: 10px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important; padding: 0 !important; overflow: hidden; }
         .popup-tmd-weather .leaflet-popup-tip { background-color: #0f172a !important; border-top: 1px solid #38bdf8 !important; border-left: 1px solid #38bdf8 !important; }
         .popup-tmd-weather .leaflet-popup-content { margin: 0 !important; width: 280px !important; }
         .popup-tmd-weather .leaflet-popup-close-button { color: #0f172a !important; font-size: 18px !important; padding-top: 5px !important; padding-right: 10px !important; z-index: 50; }
         .popup-tmd-weather .leaflet-popup-close-button:hover { color: #ffffff !important; background: transparent !important; }
 
-        /* 🌟 CSS สำหรับ Popup น้ำฝนสะสม TMD (เหลือง) */
-        .popup-tmd-rain .leaflet-popup-content-wrapper {
-          background-color: #0f172a !important; color: #e2e8f0 !important; border: 1px solid #facc15 !important;
-          border-radius: 10px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important; padding: 0 !important; overflow: hidden;
-        }
+        .popup-tmd-rain .leaflet-popup-content-wrapper { background-color: #0f172a !important; color: #e2e8f0 !important; border: 1px solid #facc15 !important; border-radius: 10px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important; padding: 0 !important; overflow: hidden; }
         .popup-tmd-rain .leaflet-popup-tip { background-color: #0f172a !important; border-top: 1px solid #facc15 !important; border-left: 1px solid #facc15 !important; }
         .popup-tmd-rain .leaflet-popup-content { margin: 0 !important; width: 280px !important; }
         .popup-tmd-rain .leaflet-popup-close-button { color: #0f172a !important; font-size: 18px !important; padding-top: 5px !important; padding-right: 10px !important; z-index: 50; }
         .popup-tmd-rain .leaflet-popup-close-button:hover { color: #ffffff !important; background: transparent !important; }
 
-        /* 🌟 CSS สำหรับ Popup แจ้งเหตุ (แดง) */
-        .popup-report .leaflet-popup-content-wrapper {
-          background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #ef4444 !important;
-          border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden;
-        }
+        .popup-report .leaflet-popup-content-wrapper { background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #ef4444 !important; border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden; }
         .popup-report .leaflet-popup-tip { background-color: rgba(15, 23, 42, 0.95) !important; border-top: 1px solid #ef4444 !important; border-left: 1px solid #ef4444 !important; }
         .popup-report .leaflet-popup-content { margin: 0 !important; }
 
-        /* 🌟 CSS สำหรับ Popup พื้นฐาน (สีดำ/เทา) */
-        .custom-dark-popup .leaflet-popup-content-wrapper {
-          background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #1e293b !important;
-          border-radius: 12px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; backdrop-filter: blur(8px) !important; padding: 0 !important; overflow: hidden;
-        }
-        .custom-dark-popup .leaflet-popup-tip { background-color: rgba(15, 23, 42, 0.95) !important; }
-        .custom-dark-popup .leaflet-popup-content { margin: 0 !important; }
-
-        .popup-hotspot .leaflet-popup-content-wrapper {
-          background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #ea580c !important;
-          border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden;
-        }
+        .popup-hotspot .leaflet-popup-content-wrapper { background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #ea580c !important; border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden; }
         .popup-hotspot .leaflet-popup-tip { background-color: rgba(15, 23, 42, 0.95) !important; border-top: 1px solid #ea580c !important; border-left: 1px solid #ea580c !important; }
         .popup-hotspot .leaflet-popup-content { margin: 0 !important; }
 
-        .popup-quake .leaflet-popup-content-wrapper {
-          background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #a855f7 !important;
-          border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden;
-        }
+        .popup-quake .leaflet-popup-content-wrapper { background-color: rgba(15, 23, 42, 0.95) !important; color: #e2e8f0 !important; border: 1px solid #a855f7 !important; border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden; }
         .popup-quake .leaflet-popup-tip { background-color: rgba(15, 23, 42, 0.95) !important; border-top: 1px solid #a855f7 !important; border-left: 1px solid #a855f7 !important; }
         .popup-quake .leaflet-popup-content { margin: 0 !important; }
 
@@ -655,7 +590,7 @@ export default function BoLuangDashboard() {
         .animate-fade-in-api { animation: fadeIn 0.3s ease-out forwards; }
       `}} />
 
-      {/* 📱 ฉากหลังเบลอ (Backdrop) สำหรับมือถือ ป้องกันการกดผิด */}
+      {/* 📱 ฉากหลังเบลอ (Backdrop) สำหรับมือถือ */}
       {isMobile && (isLeftPanelOpen || isRightPanelOpen) && (
         <div 
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
@@ -689,12 +624,16 @@ export default function BoLuangDashboard() {
 
       {/* 🗺️ โครงสร้างแผนที่หลัก */}
       <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">
-        <div 
-          className={`absolute pointer-events-none transition-opacity duration-700 ${windyLayer ? 'opacity-100 saturate-150' : 'opacity-0'}`}
-          style={{ top: '-100vh', left: '-100vw', width: '300vw', height: '300vh', transform: `translate(${transform.x}px, ${transform.y}px)`, willChange: 'transform', zIndex: 0 }}
-        >
-          <iframe width="100%" height="100%" frameBorder="0" src={windyMapUrl} />
-        </div>
+        
+        {/* 🚀 อัปเกรด: โหลด Iframe เฉพาะตอนเปิดใช้งาน ลดภาระเบราว์เซอร์ */}
+        {windyLayer && (
+          <div 
+            className="absolute pointer-events-none transition-opacity duration-700 opacity-100 saturate-150"
+            style={{ top: '-100vh', left: '-100vw', width: '300vw', height: '300vh', transform: `translate(${transform.x}px, ${transform.y}px)`, willChange: 'transform', zIndex: 0 }}
+          >
+            <iframe width="100%" height="100%" frameBorder="0" src={windyMapUrl} />
+          </div>
+        )}
 
         <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>
           <MapContainer center={[14.8700, 100.9925]} zoom={isMobile ? 5 : 6} maxZoom={20} zoomControl={false} attributionControl={false} className="w-full h-full" ref={setMapRef}>
@@ -848,7 +787,7 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 แสดงหมุดแจ้งเหตุจาก Supabase บนแผนที่ (อัปเกรดแสดงรูปภาพ) */}
+            {/* 🌟 แสดงหมุดแจ้งเหตุจาก Supabase บนแผนที่ (อัปเกรดแสดงรูปภาพขนาดย่อ) */}
             {citizenReport && disasterReports.map((report) => (
               <Marker 
                 key={`report-${report.id}`} 
@@ -874,13 +813,13 @@ export default function BoLuangDashboard() {
                         👤 ผู้แจ้ง: <span className="text-[#38bdf8]">{report.reporter_name}</span> <span className="text-[11px] text-gray-500">({report.reporter_role})</span>
                       </div>
 
-                      {/* 📸 ส่วนที่เพิ่มเข้ามาใหม่: โชว์รูปภาพขนาดย่อ และกดเพื่อขยายได้ */}
+                      {/* 📸 โชว์รูปภาพขนาดย่อ และกดเพื่อขยายได้ */}
                       {report.image_url && (
                         <div className="border-t border-[#1e293b] pt-3 mt-1">
                           <div 
                             className="relative group cursor-pointer overflow-hidden rounded-lg border border-[#1e293b] hover:border-[#38bdf8] transition-colors"
                             onClick={(e) => {
-                              e.stopPropagation(); // ป้องกันการเด้งทับซ้อน
+                              e.stopPropagation(); 
                               handleViewImage(report.image_url);
                             }}
                           >
