@@ -139,14 +139,18 @@ export default function BoLuangDashboard() {
   
   const [isMobile, setIsMobile] = useState(false);
 
-  // แผงควบคุม ซ้าย
+  // 🎛️ State แผงควบคุม ซ้าย
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
   const [pm25, setPm25] = useState(false); 
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
 
-  // แผงควบคุม ขวา
+  // 🎛️ State หมวดหมู่ใหม่: ข้อมูลน้ำ (ThaiWater)
+  const [onwrRain, setOnwrRain] = useState(false);
+  const [onwrWaterLevel, setOnwrWaterLevel] = useState(false);
+
+  // 🎛️ State แผงควบคุม ขวา
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   const [showBoluang, setShowBoluang] = useState(false);   
   const [showBlock, setShowBlock] = useState(false);        
@@ -165,6 +169,10 @@ export default function BoLuangDashboard() {
   const [nationalAirData, setNationalAirData] = useState<any[]>([]);
   const [disasterReports, setDisasterReports] = useState<any[]>([]); 
   
+  // State เก็บข้อมูลจาก ThaiWater
+  const [onwrRainData, setOnwrRainData] = useState<any[]>([]);
+  const [onwrWaterLevelData, setOnwrWaterLevelData] = useState<any[]>([]);
+
   const [visitStats, setVisitStats] = useState({ today: 0, total: 0 });
   
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
@@ -182,9 +190,8 @@ export default function BoLuangDashboard() {
   const [currentZoom, setCurrentZoom] = useState(6);
   const syncData = useRef(initialCenter);
 
-  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide].filter(Boolean).length;
+  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel].filter(Boolean).length;
 
-  // 🔍 ฟังก์ชันกดขยายรูปภาพบนแผนที่
   const handleViewImage = (imageUrl: string) => {
     Swal.fire({
       imageUrl: imageUrl,
@@ -243,7 +250,6 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
 
-  // 👁️ ฟังก์ชันดึงสถิติคนเข้าชม
   useEffect(() => {
     if (!mounted) return;
     const handleVisitorCount = async () => {
@@ -269,7 +275,7 @@ export default function BoLuangDashboard() {
     handleVisitorCount();
   }, [mounted]);
 
-  // 🌟 พยากรณ์อากาศ 77 จังหวัด
+  // 🌟 พยากรณ์อากาศ 77 จังหวัด (TMD)
   useEffect(() => {
     if (!tmdWeather && !tmdRain) { setProvincialWeatherData([]); return; }
     const fetchProvincialWeather = async () => {
@@ -332,6 +338,42 @@ export default function BoLuangDashboard() {
     };
     fetchNationalAir();
   }, [pm25]);
+
+  // 💧 ดึงข้อมูลปริมาณฝน 24 ชม. (ThaiWater - ONWR)
+  useEffect(() => {
+    if (!onwrRain) { setOnwrRainData([]); return; }
+    const fetchOnwrRain = async () => {
+      try {
+        const res = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h');
+        const json = await res.json();
+        if (json && json.data) {
+          setOnwrRainData(json.data);
+        }
+      } catch (error) {
+        console.error('Error fetching ONWR Rain:', error);
+        // หากติดปัญหา CORS ในเบราว์เซอร์ ให้แจ้งผู้ใช้
+        console.warn('⚠️ หากข้อมูลไม่แสดง อาจเกิดจากข้อจำกัด CORS ของเซิร์ฟเวอร์ ThaiWater');
+      }
+    };
+    fetchOnwrRain();
+  }, [onwrRain]);
+
+  // 💧 ดึงข้อมูลระดับน้ำ (ThaiWater - ONWR)
+  useEffect(() => {
+    if (!onwrWaterLevel) { setOnwrWaterLevelData([]); return; }
+    const fetchOnwrWaterLevel = async () => {
+      try {
+        const res = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load');
+        const json = await res.json();
+        if (json && json.data) {
+          setOnwrWaterLevelData(json.data);
+        }
+      } catch (error) {
+        console.error('Error fetching ONWR Water Level:', error);
+      }
+    };
+    fetchOnwrWaterLevel();
+  }, [onwrWaterLevel]);
 
   // 🌟 ดึงข้อมูลแจ้งเหตุจาก Supabase 
   useEffect(() => {
@@ -409,7 +451,6 @@ export default function BoLuangDashboard() {
   const styleParcel = { color: '#4ade80', fillColor: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
   const styleLandslide = { color: '#ef4444', fillColor: '#ef4444', weight: 1.5, fillOpacity: 0.35, dashArray: '4, 4' };
 
-  // 🚀 อัปเกรดประสิทธิภาพแผนที่ (แก้ปัญหา Request 1,900+ ครั้งของ Windy)
   useEffect(() => {
     if (!mapRef) return;
     const updateSyncData = () => {
@@ -425,11 +466,7 @@ export default function BoLuangDashboard() {
       if (zoom !== syncData.current.zoom) return;
       const initialPoint = mapRef.project(syncData.current, zoom);
       const currentPoint = mapRef.project(mapRef.getCenter(), zoom);
-      
-      // อัปเดตเฉพาะระยะ Transform (Pan) เพื่อขยับ Iframe แบบเบาๆ โดยไม่เปลี่ยน URL (ไม่กระตุก)
       setTransform({ x: initialPoint.x - currentPoint.x, y: initialPoint.y - currentPoint.y });
-      
-      // ❌ เอา setIframeState ออกจากตรงนี้ เพื่อไม่ให้ Windy โหลดซ้ำระหว่างกำลังลากนิ้ว (ลด Request ได้ 99%)
     };
 
     const onMouseMove = (e: any) => {
@@ -439,7 +476,7 @@ export default function BoLuangDashboard() {
     };
 
     mapRef.on('move', onMove); 
-    mapRef.on('moveend', updateSyncData); // โหลด Iframe ใหม่เฉพาะตอนลากเสร็จ
+    mapRef.on('moveend', updateSyncData); 
     mapRef.on('zoomend', updateSyncData);
     mapRef.on('mousemove', onMouseMove); 
     return () => { 
@@ -529,11 +566,24 @@ export default function BoLuangDashboard() {
     });
   }, [L]);
 
+  // 💧 ไอคอนสำหรับระดับน้ำ (ThaiWater)
+  const createWaterLevelIcon = useMemo(() => {
+    if (!L) return () => null;
+    return () => L.divIcon({
+      className: 'bg-transparent border-none',
+      html: `
+        <div class="relative flex items-center justify-center w-[36px] h-[36px] bg-[#0f172a] border-[2px] border-[#3b82f6] rounded-full shadow-[0_0_15px_rgba(59,130,246,0.6)] transition-transform hover:scale-110">
+          <span class="text-[16px] drop-shadow-md">🌊</span>
+        </div>
+      `,
+      iconSize: [36, 36], iconAnchor: [18, 18]
+    });
+  }, [L]);
+
   return (
     <main className="relative w-screen h-screen bg-[#0b132b] font-sans text-white overflow-hidden">
       <style dangerouslySetInnerHTML={{__html: `
         .leaflet-container { background: transparent !important; cursor: crosshair !important; }
-        /* 📱 ปรับระยะขอบของปุ่ม Zoom บนแผนที่ ให้หลบ Header ในมือถือ */
         .leaflet-top.leaflet-left { top: 90px !important; left: 10px !important; }
         @media (min-width: 768px) {
           .leaflet-top.leaflet-left { top: 90px !important; left: 370px !important; }
@@ -579,6 +629,13 @@ export default function BoLuangDashboard() {
         .popup-quake .leaflet-popup-tip { background-color: rgba(15, 23, 42, 0.95) !important; border-top: 1px solid #a855f7 !important; border-left: 1px solid #a855f7 !important; }
         .popup-quake .leaflet-popup-content { margin: 0 !important; }
 
+        /* 💧 Popup สำหรับ ThaiWater */
+        .popup-water .leaflet-popup-content-wrapper { background-color: #0f172a !important; color: #e2e8f0 !important; border: 1px solid #3b82f6 !important; border-radius: 10px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important; padding: 0 !important; overflow: hidden; }
+        .popup-water .leaflet-popup-tip { background-color: #0f172a !important; border-top: 1px solid #3b82f6 !important; border-left: 1px solid #3b82f6 !important; }
+        .popup-water .leaflet-popup-content { margin: 0 !important; width: 280px !important; }
+        .popup-water .leaflet-popup-close-button { color: #0f172a !important; font-size: 18px !important; padding-top: 5px !important; padding-right: 10px !important; z-index: 50; }
+        .popup-water .leaflet-popup-close-button:hover { color: #ffffff !important; background: transparent !important; }
+
         .leaflet-popup-close-button { color: #cbd5e1 !important; font-size: 16px !important; padding-top: 4px !important; padding-right: 8px !important; z-index: 50;}
         .leaflet-popup-close-button:hover { color: #ef4444 !important; background: transparent !important; }
 
@@ -590,7 +647,6 @@ export default function BoLuangDashboard() {
         .animate-fade-in-api { animation: fadeIn 0.3s ease-out forwards; }
       `}} />
 
-      {/* 📱 ฉากหลังเบลอ (Backdrop) สำหรับมือถือ */}
       {isMobile && (isLeftPanelOpen || isRightPanelOpen) && (
         <div 
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
@@ -598,7 +654,6 @@ export default function BoLuangDashboard() {
         />
       )}
 
-      {/* Modal สแกน QR Code */}
       {showScanModal && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-[#0f172a] border border-[#1e293b] w-[90%] max-w-[400px] rounded-2xl shadow-2xl p-8 relative flex flex-col items-center justify-center mx-auto text-center animate-fade-in-api">
@@ -622,10 +677,7 @@ export default function BoLuangDashboard() {
         </div>
       )}
 
-      {/* 🗺️ โครงสร้างแผนที่หลัก */}
       <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">
-        
-        {/* 🚀 อัปเกรด: โหลด Iframe เฉพาะตอนเปิดใช้งาน ลดภาระเบราว์เซอร์ */}
         {windyLayer && (
           <div 
             className="absolute pointer-events-none transition-opacity duration-700 opacity-100 saturate-150"
@@ -658,7 +710,7 @@ export default function BoLuangDashboard() {
               />
             )}
 
-            {/* 🌟 หมุดพยากรณ์อากาศ 77 จังหวัด */}
+            {/* 🌟 หมุดพยากรณ์อากาศ 77 จังหวัด (TMD) */}
             {tmdWeather && provincialWeatherData.map((prov, i) => {
               const areaName = prov.name === 'กรุงเทพมหานคร' ? prov.name : `อ.เมือง${prov.name}, ${prov.name}`;
               return (
@@ -689,7 +741,7 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 หมุดปริมาณน้ำฝนสะสม 77 จังหวัด (สีเหลือง) */}
+            {/* 🌟 หมุดปริมาณน้ำฝนสะสม 77 จังหวัด (TMD) */}
             {tmdRain && provincialWeatherData.map((prov, i) => {
               const style = getRainCircleStyle(prov.rainSum);
               const areaName = prov.name === 'กรุงเทพมหานคร' ? prov.name : `อ.เมือง${prov.name}, ${prov.name}`;
@@ -721,7 +773,78 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 หมุดค่าฝุ่น PM2.5 (ดีไซน์ใหม่ถอดแบบเป๊ะๆ) */}
+            {/* 💧 หมุดปริมาณฝน 24 ชม. จากสถานีจริง (ThaiWater ONWR) */}
+            {onwrRain && onwrRainData.map((station: any, i: number) => {
+              if (!station.station || !station.station.tele_station_lat || !station.station.tele_station_long) return null;
+              const lat = parseFloat(station.station.tele_station_lat);
+              const lng = parseFloat(station.station.tele_station_long);
+              const rainVal = parseFloat(station.rain_24h) || 0;
+              const style = getRainCircleStyle(rainVal);
+              const stationName = station.station.tele_station_name?.th || station.station.tele_station_name || 'ไม่ทราบชื่อสถานี';
+              
+              return (
+                <CircleMarker key={`onwr-rain-${i}`} center={[lat, lng]} radius={style.radius} pathOptions={{ color: '#2563eb', fillColor: style.fillColor, fillOpacity: style.fillOpacity, weight: style.weight }}>
+                  <Popup className="popup-tmd-rain">
+                    <div>
+                      <div className="bg-[#3b82f6] px-4 py-3 font-bold text-white text-[15px] flex items-center shadow-sm">
+                        <span className="mr-2 text-[18px]">🌧️</span> ปริมาณฝน 24 ชม. (สทนช.)
+                      </div>
+                      <div className="p-4 bg-[#0f172a]">
+                        <div className="text-[14px] font-bold text-white mb-3 pb-2 border-b border-[#1e293b]">
+                          สถานี: {stationName}
+                        </div>
+                        <div className="text-[13px] text-gray-300 space-y-2 font-medium mb-4">
+                          <div>จังหวัด: <span className="text-white">{station.station.province_name?.th || '-'}</span></div>
+                          <div>ปริมาณฝน: <span className="text-[#3b82f6] font-bold text-[16px]">{rainVal.toFixed(1)} มม.</span></div>
+                        </div>
+                        <div className="text-[10px] text-gray-500 font-mono text-left pt-3 border-t border-[#1e293b] leading-relaxed">
+                          ข้อมูลจาก สทนช. (ThaiWater)<br/>
+                          Station ID: {station.station.tele_station_id}
+                        </div>
+                      </div>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              );
+            })}
+
+            {/* 💧 หมุดระดับน้ำ จากสถานีจริง (ThaiWater ONWR) */}
+            {onwrWaterLevel && onwrWaterLevelData.map((station: any, i: number) => {
+              if (!station.station || !station.station.tele_station_lat || !station.station.tele_station_long) return null;
+              const lat = parseFloat(station.station.tele_station_lat);
+              const lng = parseFloat(station.station.tele_station_long);
+              const waterLevel = parseFloat(station.water_level) || 0;
+              const stationName = station.station.tele_station_name?.th || station.station.tele_station_name || 'ไม่ทราบชื่อสถานี';
+              const discharge = station.discharge ? `${station.discharge} ลบ.ม./วินาที` : 'ไม่มีข้อมูล';
+              
+              return (
+                <Marker key={`onwr-water-${i}`} position={[lat, lng]} icon={createWaterLevelIcon()}>
+                  <Popup className="popup-water">
+                    <div>
+                      <div className="bg-[#2563eb] px-4 py-3 font-bold text-white text-[15px] flex items-center shadow-sm">
+                        <span className="mr-2 text-[18px]">🌊</span> ระดับน้ำ (สทนช.)
+                      </div>
+                      <div className="p-4 bg-[#0f172a]">
+                        <div className="text-[14px] font-bold text-white mb-3 pb-2 border-b border-[#1e293b]">
+                          สถานี: {stationName}
+                        </div>
+                        <div className="text-[13px] text-gray-300 space-y-2 font-medium mb-4">
+                          <div>ลุ่มน้ำ: <span className="text-white">{station.station.basin?.basin_name?.th || '-'}</span></div>
+                          <div>ระดับน้ำ: <span className="text-[#60a5fa] font-bold text-[16px]">{waterLevel.toFixed(2)} ม.รทก.</span></div>
+                          <div>อัตราการไหล: <span className="text-white">{discharge}</span></div>
+                        </div>
+                        <div className="text-[10px] text-gray-500 font-mono text-left pt-3 border-t border-[#1e293b] leading-relaxed">
+                          ข้อมูลจาก สทนช. (ThaiWater)<br/>
+                          เวลา: {station.water_level_datetime || '-'}
+                        </div>
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
+
+            {/* 🌟 หมุดค่าฝุ่น PM2.5 */}
             {pm25 && nationalAirData.map((station, i) => {
               const { aqi, text, color } = getAirQualityDetails(station.pm25Val);
               const formattedTime = new Date(station.time).toISOString().replace('T', ' ').substring(0, 16);
@@ -735,19 +858,13 @@ export default function BoLuangDashboard() {
                 <Marker key={`national-pm25-${i}`} position={[station.lat, station.lng]} icon={createPm25Icon(station.pm25Val)}>
                   <Popup className="popup-pm25-custom">
                     <div className="flex flex-col">
-                      {/* Header ไดนามิกสีตามค่าฝุ่น */}
                       <div style={{ backgroundColor: color }} className="px-4 py-3 font-bold text-[#0f172a] text-[15px] flex items-center shadow-sm rounded-t-lg relative">
                         <span className="mr-2 text-[18px]">🌫️</span> ค่าฝุ่น PM2.5 / AQI
                       </div>
                       
-                      {/* ข้อมูลด้านในสีเข้มแบบในภาพ */}
                       <div className="p-4 bg-[#0b132b] text-[14px] text-gray-200 font-medium rounded-b-lg">
-                        <div className="font-bold text-white mb-1">
-                          สถานี: ศูนย์ราชการจังหวัด{station.name}
-                        </div>
-                        <div className="font-bold text-white mb-3">
-                          พื้นที่: {areaStr}
-                        </div>
+                        <div className="font-bold text-white mb-1">สถานี: ศูนย์ราชการจังหวัด{station.name}</div>
+                        <div className="font-bold text-white mb-3">พื้นที่: {areaStr}</div>
                         
                         <div className="border-t border-[#1e293b] my-3"></div>
 
@@ -787,7 +904,7 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 แสดงหมุดแจ้งเหตุจาก Supabase บนแผนที่ (อัปเกรดแสดงรูปภาพขนาดย่อ) */}
+            {/* 🌟 แสดงหมุดแจ้งเหตุจาก Supabase บนแผนที่ */}
             {citizenReport && disasterReports.map((report) => (
               <Marker 
                 key={`report-${report.id}`} 
@@ -813,7 +930,6 @@ export default function BoLuangDashboard() {
                         👤 ผู้แจ้ง: <span className="text-[#38bdf8]">{report.reporter_name}</span> <span className="text-[11px] text-gray-500">({report.reporter_role})</span>
                       </div>
 
-                      {/* 📸 โชว์รูปภาพขนาดย่อ และกดเพื่อขยายได้ */}
                       {report.image_url && (
                         <div className="border-t border-[#1e293b] pt-3 mt-1">
                           <div 
@@ -828,7 +944,6 @@ export default function BoLuangDashboard() {
                               alt="ภาพแจ้งเหตุ" 
                               className="w-full h-[120px] object-cover group-hover:scale-105 transition-transform duration-500" 
                             />
-                            {/* เลเยอร์สีดำโปร่งแสงตอนเอาเมาส์ไปวาง */}
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                               <span className="text-white text-[12px] font-bold bg-[#0b132b]/80 border border-[#38bdf8] px-3 py-1.5 rounded-full shadow-lg flex items-center space-x-1.5 backdrop-blur-sm">
                                 <span>🔍</span> <span>คลิกดูรูปขยาย</span>
@@ -924,15 +1039,9 @@ export default function BoLuangDashboard() {
         </div>
       </div>
 
-      {/* 🌟 Header หลัก (Responsive) */}
       <header className="absolute top-0 left-0 right-0 h-[72px] bg-[#0b132b]/95 border-b border-[#1e293b] backdrop-blur-xl z-[80] flex items-center justify-between px-4 md:px-6 pointer-events-auto shadow-md">
         <div className="flex items-center space-x-4 md:space-x-6">
-          
-          {/* 📱 ปุ่มเปิดเมนูซ้ายสำหรับมือถือ */}
-          <button 
-            onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)}
-            className="md:hidden p-2 bg-[#1e293b] rounded-lg text-gray-300 hover:text-white"
-          >
+          <button onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)} className="md:hidden p-2 bg-[#1e293b] rounded-lg text-gray-300 hover:text-white">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
 
@@ -946,7 +1055,6 @@ export default function BoLuangDashboard() {
             </div>
           </div>
 
-          {/* สถิติ (ซ่อนในมือถือ) */}
           <div className="hidden lg:flex flex-col border-l border-[#1e293b] pl-6 justify-center">
             <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถิติผู้เข้าชม</span>
             <div className="flex items-center text-[12px] font-mono text-gray-400">
@@ -965,11 +1073,7 @@ export default function BoLuangDashboard() {
           </div>
         </div>
 
-        {/* 📱 ปุ่มเปิดเมนูขวา (Layers) ทำหน้าที่เป็น Badge ในจอใหญ่ */}
-        <div 
-          onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
-          className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer"
-        >
+        <div onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer">
           <svg className="w-4 h-4 text-[#2dd4bf] mr-1.5 md:mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
           </svg>
@@ -979,24 +1083,33 @@ export default function BoLuangDashboard() {
         </div>
       </header>
 
-      {/* 🌟 แผงควบคุม ซ้าย (Responsive: Off-canvas บนมือถือ) */}
-      <aside 
-        className={`absolute top-[80px] md:top-24 z-[70] w-[300px] md:w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-r-2xl md:rounded-2xl shadow-2xl p-4 md:p-5 backdrop-blur-xl pointer-events-auto max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar transition-transform duration-500 ease-in-out ${isLeftPanelOpen ? 'translate-x-0 left-0 md:left-4' : '-translate-x-full left-0 md:left-4'}`}
-      >
+      <aside className={`absolute top-[80px] md:top-24 z-[70] w-[300px] md:w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-r-2xl md:rounded-2xl shadow-2xl p-4 md:p-5 backdrop-blur-xl pointer-events-auto max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar transition-transform duration-500 ease-in-out ${isLeftPanelOpen ? 'translate-x-0 left-0 md:left-4' : '-translate-x-full left-0 md:left-4'}`}>
         <div className="mb-4 flex flex-col items-start border-b border-[#1e293b] pb-3 relative">
-          {/* ปุ่มกากบาทปิด (เฉพาะมือถือ) */}
           <button onClick={() => setIsLeftPanelOpen(false)} className="md:hidden absolute top-0 right-0 text-gray-500 hover:text-white"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
-          
           <div className="flex items-center space-x-3 mb-2">
             <div className="bg-gradient-to-br from-[#38bdf8] to-[#2563eb] p-2 rounded-xl shadow-[0_4px_10px_rgba(37,99,235,0.4)]">
               <span className="text-white text-[18px]">🌧️</span>
             </div>
             <h2 className="text-[18px] md:text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">Weather & Air</h2>
           </div>
-          <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed pr-6">ชั้นข้อมูลด้านซ้ายสำหรับพยากรณ์อากาศกรมอุตุนิยมวิทยาและค่าฝุ่น PM2.5 / AQI</p>
+          <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed pr-6">ชั้นข้อมูลด้านซ้ายสำหรับพยากรณ์อากาศและปริมาณน้ำฝน</p>
         </div>
 
         <div className="space-y-4">
+          
+          {/* 🌟 หมวดหมู่ใหม่ ข้อมูลน้ำ (ThaiWater) */}
+          <div>
+            <div className="flex items-center mb-2">
+              <span className="text-[13px] mr-2">💧</span>
+              <span className="text-[10px] md:text-[11px] text-[#3b82f6] tracking-widest font-bold">HYDRO & FLOOD (สทนช.)</span>
+              <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
+            </div>
+            <div className="space-y-1 bg-[#0f172a] p-3 rounded-xl border border-[#1e293b]">
+              <CustomToggleBox label="ระดับน้ำ (ONWR)" active={onwrWaterLevel} onClick={() => setOnwrWaterLevel(!onwrWaterLevel)} dotColor="#2563eb" />
+              <CustomToggleBox label="ปริมาณฝน 24 ชม. (ONWR)" active={onwrRain} onClick={() => setOnwrRain(!onwrRain)} dotColor="#3b82f6" />
+            </div>
+          </div>
+
           <div>
             <div className="flex items-center mb-2">
               <span className="text-[13px] mr-2">🌦️</span>
@@ -1004,8 +1117,8 @@ export default function BoLuangDashboard() {
               <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
             </div>
             <div className="space-y-1">
-              <CustomToggleBox label="พยากรณ์อากาศกรมอุตุฯ" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} dotColor="#3b82f6" />
-              <CustomToggleBox label="ปริมาณน้ำฝนสะสม (TMD)" active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#facc15" />
+              <CustomToggleBox label="พยากรณ์อากาศ 77 จ. (TMD)" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} dotColor="#38bdf8" />
+              <CustomToggleBox label="ปริมาณฝนสะสม (TMD)" active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#facc15" />
             </div>
           </div>
 
@@ -1043,7 +1156,7 @@ export default function BoLuangDashboard() {
         </div>
       </aside>
 
-      {/* 🌟 แถบ Credit ด้านซ้าย (ซ่อนในมือถือ) */}
+      {/* 🌟 แถบ Credit */}
       <div className="hidden md:flex absolute bottom-4 left-4 z-[60] flex-wrap gap-2 pointer-events-auto max-w-[60%]">
         <div className="bg-[#0b132b]/80 backdrop-blur-md border border-[#1e293b] rounded-full px-3 py-1.5 shadow-sm text-[11px] font-mono text-gray-400">
           Base map: Windy Weather + Dark Matter
@@ -1053,26 +1166,20 @@ export default function BoLuangDashboard() {
         </div>
       </div>
 
-      {/* 🌟 แถบ Credit สภาพอากาศ Windy */}
       <div className="hidden md:flex absolute bottom-4 right-1/2 translate-x-1/2 z-[60] pointer-events-auto">
         <div className="bg-[#0b132b]/80 backdrop-blur-md border border-[#1e293b] rounded-full px-3 py-1.5 shadow-sm text-[11px] font-mono text-gray-400 flex items-center space-x-1.5">
           <span className="text-[#38bdf8]">💨</span>
-          <span>Weather data: Windy.com</span>
+          <span>Data: Windy | TMD | ThaiWater ONWR</span>
         </div>
       </div>
 
-      {/* 🌟 ลายน้ำ Credit Leaflet / OSM / CARTO */}
       <div className="absolute bottom-0 right-0 z-[60] bg-white/70 backdrop-blur-sm px-2 py-0.5 text-[10px] md:text-[11px] text-gray-800 pointer-events-auto">
         <a href="https://leafletjs.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Leaflet</a> | &copy; OSM
       </div>
 
-      {/* 🌟 แผงควบคุม ขวา (Responsive: Off-canvas บนมือถือ) */}
-      <aside 
-        className={`absolute top-[80px] md:top-24 right-0 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto`}
-        style={{ transform: isRightPanelOpen ? 'translateX(0)' : (isMobile ? 'translateX(100%)' : 'translateX(360px)') }}
-      >
+      {/* 🌟 แผงควบคุม ขวา */}
+      <aside className={`absolute top-[80px] md:top-24 right-0 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto`} style={{ transform: isRightPanelOpen ? 'translateX(0)' : (isMobile ? 'translateX(100%)' : 'translateX(360px)') }}>
         <div className="relative md:mr-5 flex w-full md:w-auto">
-          {/* ขอบจับดึงปิด-เปิดเฉพาะหน้าจอคอมพิวเตอร์ */}
           <button onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="hidden md:flex absolute -left-[32px] top-4 w-[32px] h-14 bg-[#0b132b]/95 border-y border-l border-[#1e293b] rounded-l-lg items-center justify-center text-gray-400 hover:text-white hover:bg-[#1e293b] transition-colors shadow-[-4px_0_10px_rgba(0,0,0,0.3)] backdrop-blur-md z-50 cursor-pointer">
             <svg className={`w-5 h-5 transform transition-transform duration-300 ${isRightPanelOpen ? 'rotate-0' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
           </button>
@@ -1080,7 +1187,6 @@ export default function BoLuangDashboard() {
           <div className="w-[300px] md:w-[360px] ml-auto bg-[#0b132b]/95 border border-[#1e293b] rounded-l-2xl md:rounded-xl shadow-2xl p-4 md:p-5 backdrop-blur-xl max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar">
             
             <div className="mb-4 flex flex-col items-start border-b border-[#1e293b] pb-3 relative">
-              {/* ปุ่มกากบาทปิด (เฉพาะมือถือ) */}
               <button onClick={() => setIsRightPanelOpen(false)} className="md:hidden absolute top-0 right-0 text-gray-500 hover:text-white"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
               
               <div className="flex items-center space-x-3 mb-2">
@@ -1089,7 +1195,7 @@ export default function BoLuangDashboard() {
                 </div>
                 <h2 className="text-[18px] md:text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">Layers</h2>
               </div>
-              <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed pr-6">แผงควบคุมชั้นข้อมูลหลักด้านขวา ส่วนข้อมูลสภาพอากาศอยู่ด้านซ้าย</p>
+              <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed pr-6">แผงควบคุมชั้นข้อมูลหลักด้านขวา</p>
               
               <div className="flex items-center space-x-3 mt-3">
                 <div className="flex items-center px-2 py-1 md:px-3 md:py-1.5 rounded-full border border-[#1e293b] bg-[#0f172a]/50">
@@ -1100,7 +1206,6 @@ export default function BoLuangDashboard() {
             </div>
 
             <div className="space-y-4">
-              
               <div>
                 <div className="flex items-center mb-2">
                   <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">REPORT TOOL</span>
