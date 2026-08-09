@@ -146,7 +146,7 @@ export default function BoLuangDashboard() {
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
 
-  // 🎛️ State หมวดหมู่ใหม่: ข้อมูลน้ำ (ThaiWater)
+  // 🎛️ State หมวดหมู่: ข้อมูลน้ำ (ThaiWater)
   const [onwrRain, setOnwrRain] = useState(false);
   const [onwrWaterLevel, setOnwrWaterLevel] = useState(false);
 
@@ -339,18 +339,20 @@ export default function BoLuangDashboard() {
     fetchNationalAir();
   }, [pm25]);
 
-  // 💧 ดึงข้อมูลปริมาณฝน 24 ชม. 
+  // 🚀 💧 ดึงข้อมูลปริมาณฝน 24 ชม. (ดึงตรงจากหน้าบ้าน ไม่ผ่าน API Proxy เพื่อลดความหน่วง 5 วิ)
   useEffect(() => {
     if (!onwrRain) { setOnwrRainData([]); return; }
     const fetchOnwrRain = async () => {
       try {
-        // ❌ ของเดิม: fetch('https://api-v3.thaiwater.net/...');
-        // ✅ เปลี่ยนเป็น:
-        const res = await fetch('/api/rain24'); 
+        const res = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h');
         const json = await res.json();
-        if (json && json.data) {
-          setOnwrRainData(json.data);
-        }
+        
+        // ดักจับโครงสร้างเผื่อ ThaiWater เปลี่ยนแปลง
+        let arrData = [];
+        if (json && Array.isArray(json.data)) arrData = json.data;
+        else if (json && json.data && Array.isArray(json.data.data)) arrData = json.data.data;
+        
+        setOnwrRainData(arrData);
       } catch (error) {
         console.error('Error fetching ONWR Rain:', error);
       }
@@ -358,18 +360,26 @@ export default function BoLuangDashboard() {
     fetchOnwrRain();
   }, [onwrRain]);
 
-  // 💧 ดึงข้อมูลระดับน้ำ
+  // 🚀 💧 ดึงข้อมูลระดับน้ำ (ดึงตรงจากหน้าบ้าน + ดักจับโครงสร้างลึก)
   useEffect(() => {
     if (!onwrWaterLevel) { setOnwrWaterLevelData([]); return; }
     const fetchOnwrWaterLevel = async () => {
       try {
-        // ❌ ของเดิม: fetch('https://api-v3.thaiwater.net/...');
-        // ✅ เปลี่ยนเป็น:
-        const res = await fetch('/api/waterlevel');
+        const res = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load');
         const json = await res.json();
-        if (json && json.data) {
-          setOnwrWaterLevelData(json.data);
+        
+        // 🛠️ ปัญหาหมุดไม่ขึ้นเกิดจากตรงนี้! โครงสร้างของระดับน้ำมักจะซ้อนกันหลายชั้น
+        let arrData = [];
+        if (json && Array.isArray(json.data)) {
+          arrData = json.data;
+        } else if (json && json.data && Array.isArray(json.data.data)) {
+          arrData = json.data.data;
+        } else if (json && json.data && json.data.waterlevel_data && Array.isArray(json.data.waterlevel_data.data)) {
+          // โครงสร้างที่เจอบ่อยที่สุดใน API ระดับน้ำ สทนช.
+          arrData = json.data.waterlevel_data.data;
         }
+        
+        setOnwrWaterLevelData(arrData);
       } catch (error) {
         console.error('Error fetching ONWR Water Level:', error);
       }
@@ -810,14 +820,18 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 💧 หมุดระดับน้ำ จากสถานีจริง (ThaiWater ONWR) */}
+            {/* 🚀 💧 แก้ไขปัญหาหมุดระดับน้ำหาย (รองรับการตั้งชื่อ Key ที่หลากหลายของ สทนช.) */}
             {onwrWaterLevel && onwrWaterLevelData.map((station: any, i: number) => {
               if (!station.station || !station.station.tele_station_lat || !station.station.tele_station_long) return null;
               const lat = parseFloat(station.station.tele_station_lat);
               const lng = parseFloat(station.station.tele_station_long);
-              const waterLevel = parseFloat(station.water_level) || 0;
+              
+              // 🛠️ สทนช. บางครั้งใช้คำว่า waterlevel, บางครั้งใช้ water_level เราเลยต้องดักจับให้หมด
+              const waterLevel = parseFloat(station.waterlevel || station.water_level || station.waterlevel_msl) || 0;
+              
               const stationName = station.station.tele_station_name?.th || station.station.tele_station_name || 'ไม่ทราบชื่อสถานี';
-              const discharge = station.discharge ? `${station.discharge} ลบ.ม./วินาที` : 'ไม่มีข้อมูล';
+              const discharge = station.discharge || station.discharge_rate ? `${station.discharge || station.discharge_rate} ลบ.ม./วินาที` : 'ไม่มีข้อมูล';
+              const time = station.waterlevel_datetime || station.water_level_datetime || '-';
               
               return (
                 <Marker key={`onwr-water-${i}`} position={[lat, lng]} icon={createWaterLevelIcon()}>
@@ -837,7 +851,7 @@ export default function BoLuangDashboard() {
                         </div>
                         <div className="text-[10px] text-gray-500 font-mono text-left pt-3 border-t border-[#1e293b] leading-relaxed">
                           ข้อมูลจาก สทนช. (ThaiWater)<br/>
-                          เวลา: {station.water_level_datetime || '-'}
+                          เวลา: {time}
                         </div>
                       </div>
                     </div>
@@ -1099,7 +1113,6 @@ export default function BoLuangDashboard() {
 
         <div className="space-y-4">
           
-          {/* 🌟 หมวดหมู่ใหม่ ข้อมูลน้ำ (ThaiWater) */}
           <div>
             <div className="flex items-center mb-2">
               <span className="text-[13px] mr-2">💧</span>
