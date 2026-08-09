@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js'; 
+import Swal from 'sweetalert2';
 
 // 🌟 ตั้งค่า Supabase 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co';
@@ -22,13 +23,11 @@ const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ss
 
 // 💎 UI Component: Toggle อัจฉริยะ (แก้ปัญหาจอกระตุกด้วย Asynchronous State)
 const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio = false }: any) => {
-  // สร้าง State จำลองสำหรับปุ่ม เพื่อให้สวิตช์ไหลลื่นทันทีที่กด โดยไม่ต้องรอ Layer โหลดเสร็จ
   const [localActive, setLocalActive] = useState(active);
   useEffect(() => { setLocalActive(active); }, [active]);
 
   const handlePress = () => {
-    setLocalActive(!localActive); // เปลี่ยนสถานะปุ่มทันที (ลื่นไหล 60fps)
-    // หน่วงเวลาให้ UI เปลี่ยนเสร็จก่อน ค่อยเรียกใช้ฟังก์ชันหนักๆ (โหลด Layer)
+    setLocalActive(!localActive);
     setTimeout(() => { onClick(); }, 50);
   };
 
@@ -190,20 +189,38 @@ export default function BoLuangDashboard() {
 
   const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide].filter(Boolean).length;
 
+  // 🔍 ฟังก์ชันกดขยายรูปภาพบนแผนที่
+  const handleViewImage = (imageUrl: string) => {
+    Swal.fire({
+      imageUrl: imageUrl,
+      imageAlt: 'ภาพแจ้งเหตุจากประชาชน',
+      showConfirmButton: false,
+      showCloseButton: true,
+      width: 'auto',
+      padding: '1em',
+      background: '#0f172a',
+      backdrop: 'rgba(0,0,0,0.85)',
+      customClass: {
+        popup: 'border border-gray-700 rounded-2xl shadow-2xl',
+        image: 'rounded-lg max-h-[80vh] object-contain'
+      }
+    });
+  };
+
   // 📱 ระบบตรวจสอบ Device (Responsive)
   useEffect(() => {
     const handleResize = () => {
-      const mobile = window.innerWidth < 768; // น้อยกว่า iPad (768px) ถือว่าเป็น Mobile
+      const mobile = window.innerWidth < 768; 
       setIsMobile(mobile);
       if (mobile) {
-        setIsLeftPanelOpen(false); // ปิดแผงซ้ายบนมือถือ
-        setIsRightPanelOpen(false); // ปิดแผงขวาบนมือถือ
+        setIsLeftPanelOpen(false); 
+        setIsRightPanelOpen(false); 
       } else {
         setIsLeftPanelOpen(true);
         setIsRightPanelOpen(true);
       }
     };
-    handleResize(); // เช็คครั้งแรก
+    handleResize(); 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -232,32 +249,42 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
 
-  // 👁️ ฟังก์ชันบันทึกและดึงสถิติคนเข้าชม (แสดงข้อมูลจริง 100% ไม่บวกเพิ่ม)
+  // 👁️ ฟังก์ชันบันทึกและดึงสถิติคนเข้าชม (แสดงข้อมูลจริง 100% แบบ Bulletproof)
   useEffect(() => {
     if (!mounted) return;
+    
     const handleVisitorCount = async () => {
+      // --- ส่วนที่ 1: พยายามบันทึกคนเข้าเว็บ ---
       try {
         let sessionId = sessionStorage.getItem('bl_session_id');
         if (!sessionId) {
           sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`; 
           sessionStorage.setItem('bl_session_id', sessionId);
-          await supabase.from('visitor_logs').insert([{ session_id: sessionId }]);
+          
+          const { error: insertError } = await supabase.from('visitor_logs').insert([{ session_id: sessionId }]);
+          if (insertError) console.warn('ไม่สามารถบันทึกสถิติใหม่ได้ (อาจติด RLS):', insertError.message);
         }
-        
-        // ดึงยอดรวม "ทั้งหมด" ของจริง
-        const { count: totalCount } = await supabase
+      } catch (error) {
+        console.warn('Error saving visit:', error);
+      }
+
+      // --- ส่วนที่ 2: ดึงข้อมูลยอดผู้เข้าชมมาโชว์ (ดึงของจริง 100%) ---
+      try {
+        const { count: totalCount, error: totalError } = await supabase
           .from('visitor_logs')
           .select('*', { count: 'exact', head: true });
           
-        // ดึงยอด "วันนี้" ของจริง
+        if (totalError) console.error('Error fetching total:', totalError.message);
+
         const today = new Date();
         today.setHours(0, 0, 0, 0); 
-        const { count: todayCount } = await supabase
+        const { count: todayCount, error: todayError } = await supabase
           .from('visitor_logs')
           .select('*', { count: 'exact', head: true })
           .gte('visited_at', today.toISOString());
           
-        // ❌ เอาเวทมนตร์บวกเลขออก แล้วโชว์ข้อมูลจริงจาก Supabase ดิบๆ เลยครับ
+        if (todayError) console.error('Error fetching today:', todayError.message);
+
         setVisitStats({ 
           today: todayCount || 0, 
           total: totalCount || 0 
@@ -267,6 +294,7 @@ export default function BoLuangDashboard() {
         console.error('Error fetching visitor stats:', error);
       }
     };
+
     handleVisitorCount();
   }, [mounted]);
 
@@ -820,7 +848,7 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 แสดงหมุดแจ้งเหตุจาก Supabase บนแผนที่ */}
+            {/* 🌟 แสดงหมุดแจ้งเหตุจาก Supabase บนแผนที่ (อัปเกรดแสดงรูปภาพ) */}
             {citizenReport && disasterReports.map((report) => (
               <Marker 
                 key={`report-${report.id}`} 
@@ -833,19 +861,48 @@ export default function BoLuangDashboard() {
                       <span className="mr-2 text-[18px]">🚨</span> แจ้งเหตุ: {report.risk_type}
                     </div>
                     <div className="p-5 bg-[#0f172a]/95 backdrop-blur-sm">
+                      
                       <div className="text-[14px] text-gray-300 font-medium mb-4 flex items-center justify-between">
                         <span>ความรุนแรง: <span className="bg-[#ef4444] text-white px-2 py-1 rounded text-[13px] font-bold ml-1">ระดับ {report.severity_level}</span></span>
                         <span className="text-yellow-400 border border-yellow-400/50 bg-yellow-400/10 px-2 py-0.5 rounded text-[11px]">{report.status}</span>
                       </div>
+                      
                       <div className="border-t border-[#1e293b] py-3 text-[13px] text-gray-300 leading-relaxed font-semibold">
                         📍 พื้นที่: <span className="text-white">{report.village_name}</span><br/>
                         🎯 พิกัด (GPS): <span className="text-[#4ade80] font-mono select-all cursor-text">{report.latitude.toFixed(6)}, {report.longitude.toFixed(6)}</span><br/>
                         📝 รายละเอียด: <span className="text-gray-400 font-normal">{report.description}</span><br/>
                         👤 ผู้แจ้ง: <span className="text-[#38bdf8]">{report.reporter_name}</span> <span className="text-[11px] text-gray-500">({report.reporter_role})</span>
                       </div>
-                      <div className="border-t border-[#1e293b] pt-3 text-[11px] text-gray-500 font-mono text-right">
+
+                      {/* 📸 ส่วนที่เพิ่มเข้ามาใหม่: โชว์รูปภาพขนาดย่อ และกดเพื่อขยายได้ */}
+                      {report.image_url && (
+                        <div className="border-t border-[#1e293b] pt-3 mt-1">
+                          <div 
+                            className="relative group cursor-pointer overflow-hidden rounded-lg border border-[#1e293b] hover:border-[#38bdf8] transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation(); // ป้องกันการเด้งทับซ้อน
+                              handleViewImage(report.image_url);
+                            }}
+                          >
+                            <img 
+                              src={report.image_url} 
+                              alt="ภาพแจ้งเหตุ" 
+                              className="w-full h-[120px] object-cover group-hover:scale-105 transition-transform duration-500" 
+                            />
+                            {/* เลเยอร์สีดำโปร่งแสงตอนเอาเมาส์ไปวาง */}
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                              <span className="text-white text-[12px] font-bold bg-[#0b132b]/80 border border-[#38bdf8] px-3 py-1.5 rounded-full shadow-lg flex items-center space-x-1.5 backdrop-blur-sm">
+                                <span>🔍</span> <span>คลิกดูรูปขยาย</span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="border-t border-[#1e293b] pt-3 mt-3 text-[11px] text-gray-500 font-mono text-right">
                         แจ้งเมื่อ: {new Date(report.created_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })} น.
                       </div>
+
                     </div>
                   </div>
                 </Popup>
