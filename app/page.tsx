@@ -232,22 +232,39 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
 
-  // 👁️ ฟังก์ชันบันทึกและดึงสถิติคนเข้าชม
+  // 👁️ ฟังก์ชันบันทึกและดึงสถิติคนเข้าชม (อัปเกรด Base Count)
   useEffect(() => {
     if (!mounted) return;
     const handleVisitorCount = async () => {
       try {
         let sessionId = sessionStorage.getItem('bl_session_id');
         if (!sessionId) {
-          sessionId = Math.random().toString(36).substring(2, 15); 
+          sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`; 
           sessionStorage.setItem('bl_session_id', sessionId);
           await supabase.from('visitor_logs').insert([{ session_id: sessionId }]);
         }
-        const { count: totalCount } = await supabase.from('visitor_logs').select('*', { count: 'exact', head: true });
+        
+        // ดึงยอดรวม "ทั้งหมด"
+        const { count: totalCount } = await supabase
+          .from('visitor_logs')
+          .select('*', { count: 'exact', head: true });
+          
+        // ดึงยอด "วันนี้"
         const today = new Date();
         today.setHours(0, 0, 0, 0); 
-        const { count: todayCount } = await supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('visited_at', today.toISOString());
-        setVisitStats({ today: todayCount || 0, total: totalCount || 0 });
+        const { count: todayCount } = await supabase
+          .from('visitor_logs')
+          .select('*', { count: 'exact', head: true })
+          .gte('visited_at', today.toISOString());
+          
+        // 🎩 เวทมนตร์: ตกแต่งตัวเลขให้ดูน่าเชื่อถือ (บวกค่าเริ่มต้น)
+        const BASE_TOTAL = 1250; // ตัวเลขยอดรวมที่ต้องการบวกเพิ่ม
+        const BASE_TODAY = 12;   // ตัวเลขยอดวันนี้ที่ต้องการบวกเพิ่ม
+
+        setVisitStats({ 
+          today: (todayCount || 0) + BASE_TODAY, 
+          total: (totalCount || 0) + BASE_TOTAL 
+        });
       } catch (error) {
         console.error('Error fetching visitor stats:', error);
       }
