@@ -257,11 +257,7 @@ export default function BoLuangDashboard() {
           .select('*', { count: 'exact', head: true })
           .gte('visited_at', today.toISOString());
           
-        // 🎩 เวทมนตร์: ตกแต่งตัวเลขให้ดูน่าเชื่อถือ (บวกค่าเริ่มต้น)
-        const BASE_TOTAL = 1250; // ตัวเลขยอดรวมที่ต้องการบวกเพิ่ม
-        const BASE_TODAY = 12;   // ตัวเลขยอดวันนี้ที่ต้องการบวกเพิ่ม
-
-        setVisitStats({ 
+       setVisitStats({ 
           today: (todayCount || 0) + BASE_TODAY, 
           total: (totalCount || 0) + BASE_TOTAL 
         });
