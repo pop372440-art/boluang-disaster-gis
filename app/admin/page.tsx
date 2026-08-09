@@ -49,7 +49,7 @@ export default function AdminPanel() {
       const { data, error } = await supabase
         .from('boluang_disaster_reports')
         .select('*')
-        .neq('status', 'ดำเนินการเสร็จแล้ว') // ดึงเฉพาะเคสที่ยังไม่เสร็จ
+        .neq('status', 'ดำเนินการเสร็จแล้ว') 
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -81,6 +81,24 @@ export default function AdminPanel() {
     await supabase.auth.signOut();
   };
 
+  // 🔍 ฟังก์ชันกดขยายรูปภาพบนแผนที่ (สำหรับ Admin)
+  const handleViewImage = (imageUrl: string) => {
+    Swal.fire({
+      imageUrl: imageUrl,
+      imageAlt: 'ภาพแจ้งเหตุจากประชาชน',
+      showConfirmButton: false,
+      showCloseButton: true,
+      width: 'auto',
+      padding: '1em',
+      background: '#1e293b', // สีพื้นหลังให้เข้ากับธีม Admin
+      backdrop: 'rgba(0,0,0,0.85)',
+      customClass: {
+        popup: 'border border-gray-700 rounded-2xl shadow-2xl',
+        image: 'rounded-lg max-h-[80vh] object-contain'
+      }
+    });
+  };
+
   // ✅ ฟังก์ชัน "ปิดจ๊อบ" อัจฉริยะ (อัปเกรดแนบรูปได้)
   const handleCloseJob = async (reportId: string, currentRiskType: string) => {
     const { value: formValues } = await Swal.fire({
@@ -98,7 +116,6 @@ export default function AdminPanel() {
       confirmButtonText: 'บันทึกและปิดงาน',
       cancelButtonText: 'ยกเลิก',
       preConfirm: () => {
-        // ดึงค่าจากกล่อง HTML ที่เราสร้างขึ้นมา
         const text = (document.getElementById('swal-input-text') as HTMLTextAreaElement).value;
         const fileInput = document.getElementById('swal-input-file') as HTMLInputElement;
         const file = fileInput.files ? fileInput.files[0] : null;
@@ -111,7 +128,6 @@ export default function AdminPanel() {
       }
     });
 
-    // ถ้าแอดมินกด "บันทึกและปิดงาน"
     if (formValues) {
       const { text: actionText, file: resolveFile } = formValues;
 
@@ -120,7 +136,6 @@ export default function AdminPanel() {
 
         let resolvedImageUrl = null;
 
-        // 1. ถ้ามีการแนบไฟล์รูปมาด้วย ให้อัปโหลดเข้า Storage ถัง disaster_images
         if (resolveFile) {
           const fileExt = resolveFile.name.split('.').pop();
           const fileName = `resolved-${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
@@ -142,13 +157,12 @@ export default function AdminPanel() {
         const now = new Date().toISOString();
         const userEmail = session?.user?.email;
 
-        // 2. อัปเดตข้อมูลขึ้น Database
         const { error } = await supabase
           .from('boluang_disaster_reports')
           .update({ 
             status: 'ดำเนินการเสร็จแล้ว',
             action_taken: actionText,
-            resolved_image_url: resolvedImageUrl, // บันทึกรูปการทำงานของเจ้าหน้าที่
+            resolved_image_url: resolvedImageUrl, 
             resolved_at: now,
             resolved_by: userEmail
           })
@@ -158,7 +172,6 @@ export default function AdminPanel() {
 
         Swal.fire({ icon: 'success', title: 'ปิดงานสำเร็จ!', text: 'ข้อมูลถูกบันทึกและลบออกจากแผนที่ประชาชนแล้ว', confirmButtonColor: '#10b981' });
         
-        // รีเฟรชตารางใหม่
         fetchActiveReports();
         
       } catch (error) {
@@ -168,12 +181,10 @@ export default function AdminPanel() {
     }
   };
 
-  // ⏳ หน้า Loading รอตรวจสอบระบบ
   if (loadingAuth) {
     return <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white font-sans">กำลังตรวจสอบสิทธิ์...</div>;
   }
 
-  // 🔐 หน้าต่าง Login (ถ้ายังไม่ได้เข้าระบบ)
   if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0f172a] font-sans">
@@ -204,10 +215,8 @@ export default function AdminPanel() {
     );
   }
 
-  // 🎯 หน้า Dashboard สำหรับ Admin (เมื่อ Login ผ่านแล้ว)
   return (
     <div className="min-h-screen bg-[#0f172a] text-white font-sans">
-      {/* Navbar */}
       <header className="bg-[#1e293b] border-b border-gray-700 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
         <div className="flex items-center space-x-3">
           <span className="text-2xl">🚨</span>
@@ -227,7 +236,6 @@ export default function AdminPanel() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="p-6 max-w-7xl mx-auto">
         <div className="flex justify-between items-end mb-6">
           <div>
@@ -239,7 +247,6 @@ export default function AdminPanel() {
           </button>
         </div>
 
-        {/* ตารางข้อมูล */}
         <div className="bg-[#1e293b] rounded-xl border border-gray-700 overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -274,14 +281,36 @@ export default function AdminPanel() {
                           ระดับ {report.severity_level}
                         </span>
                       </td>
+                      
+                      {/* 📸 อัปเกรด: แสดงภาพขนาดย่อ และข้อความ */}
                       <td className="p-4">
-                        <div className="text-sm text-gray-200 line-clamp-2 max-w-xs">{report.description}</div>
-                        <div className="text-xs text-gray-500 mt-1">👤 {report.reporter_name} ({report.reporter_role})</div>
+                        <div className="flex items-start space-x-3">
+                          {report.image_url && (
+                            <div 
+                              className="flex-shrink-0 cursor-pointer relative group"
+                              onClick={() => handleViewImage(report.image_url)}
+                            >
+                              <img 
+                                src={report.image_url} 
+                                alt="รูปแจ้งเหตุ" 
+                                className="w-16 h-16 md:w-20 md:h-14 object-cover rounded-lg border border-gray-600 group-hover:border-blue-400 transition-colors" 
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                                <span className="text-white text-xs drop-shadow-md">🔍</span>
+                              </div>
+                            </div>
+                          )}
+                          <div>
+                            <div className="text-sm text-gray-200 line-clamp-2 max-w-xs">{report.description}</div>
+                            <div className="text-xs text-gray-500 mt-1">👤 {report.reporter_name} ({report.reporter_role})</div>
+                          </div>
+                        </div>
                       </td>
+
                       <td className="p-4 text-right">
                         <button 
                           onClick={() => handleCloseJob(report.id, report.risk_type)}
-                          className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/50 hover:border-emerald-500 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-[0_0_10px_rgba(16,185,129,0.1)] hover:shadow-[0_0_15px_rgba(16,185,129,0.4)]"
+                          className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/50 hover:border-emerald-500 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-[0_0_10px_rgba(16,185,129,0.1)] hover:shadow-[0_0_15px_rgba(16,185,129,0.4)] whitespace-nowrap"
                         >
                           ✅ ปิดจ๊อบ
                         </button>
