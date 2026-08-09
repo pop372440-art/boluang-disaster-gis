@@ -242,8 +242,21 @@ export default function BoLuangDashboard() {
           sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`; 
           sessionStorage.setItem('bl_session_id', sessionId);
           await supabase.from('visitor_logs').insert([{ session_id: sessionId }]);
-        }        
-               
+        }
+        
+        // ดึงยอดรวม "ทั้งหมด" ของจริง
+        const { count: totalCount } = await supabase
+          .from('visitor_logs')
+          .select('*', { count: 'exact', head: true });
+          
+        // ดึงยอด "วันนี้" ของจริง
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); 
+        const { count: todayCount } = await supabase
+          .from('visitor_logs')
+          .select('*', { count: 'exact', head: true })
+          .gte('visited_at', today.toISOString());
+          
         // ❌ เอาเวทมนตร์บวกเลขออก แล้วโชว์ข้อมูลจริงจาก Supabase ดิบๆ เลยครับ
         setVisitStats({ 
           today: todayCount || 0, 
