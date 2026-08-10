@@ -149,7 +149,6 @@ export default function BoLuangDashboard() {
   // ข้อมูลน้ำ
   const [onwrRain, setOnwrRain] = useState(false);
   const [onwrWaterLevel, setOnwrWaterLevel] = useState(false);
-  const [floodDash, setFloodDash] = useState(false); // 🚀 State สำหรับ FloodDash Iframe
 
   // แผงควบคุม ขวา
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
@@ -190,7 +189,7 @@ export default function BoLuangDashboard() {
   const [currentZoom, setCurrentZoom] = useState(6);
   const syncData = useRef(initialCenter);
 
-  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, floodDash].filter(Boolean).length;
+  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel].filter(Boolean).length;
 
   const handleViewImage = (imageUrl: string) => {
     Swal.fire({
@@ -702,27 +701,6 @@ export default function BoLuangDashboard() {
         </div>
       )}
 
-      {/* 🚀 ระบบฝัง Iframe ของ FloodDash (เด้งขึ้นมาทับแผนที่เวลากดเปิด) */}
-      {floodDash && (
-        <div className="absolute inset-0 z-[40] flex items-center justify-center p-4 md:p-8 pointer-events-none animate-fade-in-api">
-          {/* กรอบลอยสำหรับใส่ Iframe */}
-          <div className="w-full h-full max-w-[1200px] max-h-[800px] bg-white rounded-2xl shadow-2xl overflow-hidden relative pointer-events-auto border-4 border-[#38bdf8]">
-            <button 
-              onClick={() => setFloodDash(false)}
-              className="absolute top-2 right-2 md:top-4 md:right-4 z-50 bg-red-500 hover:bg-red-600 text-white w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110"
-            >
-              <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-            {/* โหลดหน้าเว็บ FloodDash ของบ่อหลวง */}
-            <iframe 
-              src="https://flood.nonarkara.org/BoLuang?city=%E0%B8%9A%E0%B9%88%E0%B8%AD%E0%B8%AB%E0%B8%A5%E0%B8%A7%E0%B8%87&tv=1" 
-              className="w-full h-full border-none"
-              title="FloodDash Bo Luang"
-            />
-          </div>
-        </div>
-      )}
-
       <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">
         {windyLayer && (
           <div 
@@ -1170,7 +1148,21 @@ export default function BoLuangDashboard() {
             <div className="space-y-1 bg-[#0f172a] p-3 rounded-xl border border-[#1e293b]">
               <CustomToggleBox label="ระดับน้ำ (ONWR)" active={onwrWaterLevel} onClick={() => setOnwrWaterLevel(!onwrWaterLevel)} dotColor="#2563eb" />
               <CustomToggleBox label="ปริมาณฝน 24 ชม. (ONWR)" active={onwrRain} onClick={() => setOnwrRain(!onwrRain)} dotColor="#3b82f6" />
-              <CustomToggleBox label="รายงานน้ำท่วม FloodDash" active={floodDash} onClick={() => setFloodDash(!floodDash)} dotColor="#ef4444" />
+              
+              {/* 🚀 ปุ่มเปิดลิงก์ FloodDash แทนการใช้ Iframe */}
+              <div 
+                className="flex items-center space-x-3 px-3 py-1.5 rounded-xl border border-[#1e293b] bg-[#0b132b]/50 hover:bg-[#1e293b]/80 transition-colors duration-200 cursor-pointer select-none mb-1 group"
+                onClick={() => window.open('https://flood.nonarkara.org/BoLuang?city=%E0%B8%9A%E0%B9%88%E0%B8%AD%E0%B8%AB%E0%B8%A5%E0%B8%A7%E0%B8%87&tv=1', '_blank')}
+              >
+                <div className="relative w-8 h-4 rounded-full bg-[#1e293b] flex items-center justify-center flex-shrink-0 border border-gray-600 group-hover:border-[#0ea5e9] transition-colors">
+                  <svg className="w-2.5 h-2.5 text-gray-400 group-hover:text-[#0ea5e9] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                </div>
+                <div className="flex items-center space-x-2 flex-1">
+                  <div className="w-2.5 h-2.5 rounded-[3px] shadow-sm bg-[#0ea5e9]"></div>
+                  <span className="text-[14px] font-medium text-gray-400 group-hover:text-white transition-colors">รายงานน้ำท่วม FloodDash</span>
+                </div>
+              </div>
+
             </div>
           </div>
 
