@@ -14,6 +14,23 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // 🔑 GISTDA Sphere API Key
 const GISTDA_API_KEY = 'AF9B1EEFF30042208F1DE95B579E7F90';
 
+// 📍 พิกัดอ้างอิงศูนย์กลาง ต.บ่อหลวง สำหรับตีกรอบรัศมี
+const BO_LUANG_LAT = 18.1633;
+const BO_LUANG_LNG = 98.3744;
+const MAX_DISTANCE_KM = 150; // 🎯 กำหนดรัศมีแสดงผลไม่เกิน 150 กม. จากบ่อหลวง
+
+// 🧮 ฟังก์ชันคำนวณระยะทางระหว่างพิกัด (Haversine formula)
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371; // รัศมีโลก (กิโลเมตร)
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // คืนค่าเป็นกิโลเมตร
+};
+
 // 🗺️ โหลด Leaflet แบบ Dynamic
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
@@ -107,9 +124,7 @@ const localAirStations = [
   { name: 'ศูนย์ราชการฯ เชียงใหม่', lat: 18.7883, lng: 98.9853, type: 'province' },
   { name: 'ศูนย์ราชการฯ ลำพูน', lat: 18.5745, lng: 99.0087, type: 'province' },
   { name: 'ศูนย์ราชการฯ ลำปาง', lat: 18.2888, lng: 99.4925, type: 'province' },
-  { name: 'ศูนย์ราชการฯ แม่ฮ่องสอน', lat: 19.3020, lng: 97.9654, type: 'province' },
-  { name: 'ศูนย์ราชการฯ เชียงราย', lat: 19.9070, lng: 99.8325, type: 'province' },
-  { name: 'กรุงเทพมหานคร', lat: 13.7563, lng: 100.5018, type: 'province' }
+  { name: 'ศูนย์ราชการฯ แม่ฮ่องสอน', lat: 19.3020, lng: 97.9654, type: 'province' }
 ];
 
 export default function BoLuangDashboard() {
@@ -118,22 +133,18 @@ export default function BoLuangDashboard() {
   const coordsRef = useRef<HTMLSpanElement>(null);
   
   const [isMobile, setIsMobile] = useState(false);
-
-  // 🚀 เพิ่ม State สำหรับพิกัดผู้ใช้งาน (Locate Me)
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
 
   // แผงควบคุม ซ้าย
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
   const [pm25, setPm25] = useState(false); 
-  const [gistdaPm25Layer, setGistdaPm25Layer] = useState(false); 
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
 
   // ข้อมูลน้ำ
   const [onwrRain, setOnwrRain] = useState(false);
   const [onwrWaterLevel, setOnwrWaterLevel] = useState(false);
-  const [floodDash, setFloodDash] = useState(false);
 
   // แผงควบคุม ขวา
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
@@ -174,7 +185,28 @@ export default function BoLuangDashboard() {
   const [currentZoom, setCurrentZoom] = useState(9);
   const syncData = useRef(initialCenter);
 
-  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, gistdaPm25Layer].filter(Boolean).length;
+  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel].filter(Boolean).length;
+
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) {
+      Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'เบราว์เซอร์ของคุณไม่รองรับระบบ GPS', background: '#0f172a', color: '#fff' });
+      return;
+    }
+    Swal.fire({ title: 'กำลังค้นหาตำแหน่งของคุณ...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLocation({ lat: latitude, lng: longitude });
+        if (mapRef) mapRef.flyTo([latitude, longitude], 15, { duration: 1.5 });
+        Swal.close();
+      },
+      (error) => {
+        console.error(error);
+        Swal.fire({ icon: 'warning', title: 'ไม่สามารถระบุตำแหน่งได้', text: 'กรุณาอนุญาตให้เว็บไซต์เข้าถึงตำแหน่งของคุณ (Location Services) บนเบราว์เซอร์', background: '#0f172a', color: '#fff' });
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
 
   const handleViewImage = (imageUrl: string) => {
     Swal.fire({
@@ -191,44 +223,6 @@ export default function BoLuangDashboard() {
         image: 'rounded-lg max-h-[80vh] object-contain'
       }
     });
-  };
-
-  // 🚀 ฟังก์ชันค้นหาตำแหน่งปัจจุบัน (Locate Me)
-  const handleLocateMe = () => {
-    if (!navigator.geolocation) {
-      Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'เบราว์เซอร์ของคุณไม่รองรับระบบ GPS', background: '#0f172a', color: '#fff' });
-      return;
-    }
-    
-    Swal.fire({
-      title: 'กำลังค้นหาตำแหน่งของคุณ...',
-      allowOutsideClick: false,
-      background: '#0f172a',
-      color: '#fff',
-      didOpen: () => Swal.showLoading()
-    });
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setUserLocation({ lat: latitude, lng: longitude });
-        if (mapRef) {
-          mapRef.flyTo([latitude, longitude], 15, { duration: 1.5 });
-        }
-        Swal.close();
-      },
-      (error) => {
-        console.error(error);
-        Swal.fire({ 
-          icon: 'warning', 
-          title: 'ไม่สามารถระบุตำแหน่งได้', 
-          text: 'กรุณาอนุญาตให้เว็บไซต์เข้าถึงตำแหน่งของคุณ (Location Services) บนเบราว์เซอร์',
-          background: '#0f172a',
-          color: '#fff'
-        });
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
   };
 
   useEffect(() => {
@@ -267,7 +261,10 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang);
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
     loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
+    
+    // GISTDA Hotspot 
     loadGeoJSON(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=${GISTDA_API_KEY}`, setGeoHotspot);
+    
     loadGeoJSON(`/geojson/earthquake.geojson?v=${ts}`, setGeoEarthquake);
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
@@ -297,7 +294,7 @@ export default function BoLuangDashboard() {
     handleVisitorCount();
   }, [mounted]);
 
-  // พยากรณ์อากาศ
+  // พยากรณ์อากาศ (Micro-climate)
   useEffect(() => {
     if (!tmdWeather && !tmdRain) { setLocalWeatherData([]); return; }
     const fetchLocalWeather = async () => {
@@ -327,7 +324,7 @@ export default function BoLuangDashboard() {
     fetchLocalWeather();
   }, [tmdWeather, tmdRain]);
 
-  // ฝุ่น PM2.5 Micro-climate
+  // ฝุ่น PM2.5 (Micro-climate)
   useEffect(() => {
     if (!pm25) { setLocalAirData([]); return; }
     const fetchLocalAir = async () => {
@@ -361,7 +358,7 @@ export default function BoLuangDashboard() {
     fetchLocalAir();
   }, [pm25]);
 
-  // 💧 ดึงข้อมูลฝน 24 ชม.
+  // 🚀 💧 ดึงข้อมูลฝน 24 ชม. (พร้อมระบบ Filter ตีกรอบพื้นที่ 150 กม.)
   useEffect(() => {
     if (!onwrRain) { setOnwrRainData([]); return; }
     const fetchOnwrRain = async () => {
@@ -373,13 +370,23 @@ export default function BoLuangDashboard() {
         if (json && Array.isArray(json.data)) arrData = json.data;
         else if (json && json.data && Array.isArray(json.data.data)) arrData = json.data.data;
         
-        setOnwrRainData(arrData);
+        // 🎯 กรองข้อมูล เอาเฉพาะสถานีที่อยู่ในรัศมี < MAX_DISTANCE_KM
+        const filteredData = arrData.filter((station: any) => {
+          const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat;
+          const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng;
+          if (!latStr || !lngStr) return false;
+          
+          const dist = calculateDistance(BO_LUANG_LAT, BO_LUANG_LNG, parseFloat(latStr), parseFloat(lngStr));
+          return dist <= MAX_DISTANCE_KM; 
+        });
+        
+        setOnwrRainData(filteredData);
       } catch (error) { console.error('Error fetching ONWR Rain:', error); }
     };
     fetchOnwrRain();
   }, [onwrRain]);
 
-  // 💧 ดึงข้อมูลระดับน้ำ
+  // 🚀 💧 ดึงข้อมูลระดับน้ำ (พร้อมระบบ Filter ตีกรอบพื้นที่ 150 กม.)
   useEffect(() => {
     if (!onwrWaterLevel) { setOnwrWaterLevelData([]); return; }
     const fetchOnwrWaterLevel = async () => {
@@ -406,7 +413,17 @@ export default function BoLuangDashboard() {
           arrData = findArray(json) || [];
         }
         
-        setOnwrWaterLevelData(arrData);
+        // 🎯 กรองข้อมูล เอาเฉพาะสถานีที่อยู่ในรัศมี < MAX_DISTANCE_KM
+        const filteredData = arrData.filter((station: any) => {
+          const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat;
+          const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng;
+          if (!latStr || !lngStr) return false;
+          
+          const dist = calculateDistance(BO_LUANG_LAT, BO_LUANG_LNG, parseFloat(latStr), parseFloat(lngStr));
+          return dist <= MAX_DISTANCE_KM; 
+        });
+        
+        setOnwrWaterLevelData(filteredData);
       } catch (error) { console.error('Error fetching ONWR Water Level:', error); }
     };
     fetchOnwrWaterLevel();
@@ -616,7 +633,6 @@ export default function BoLuangDashboard() {
     });
   }, [L]);
 
-  // 🚀 ไอคอนสำหรับพิกัดผู้ใช้งาน (Locate Me) - เป็นจุดเรืองแสงสีฟ้า
   const createUserLocationIcon = useMemo(() => {
     if (!L) return () => null;
     return () => L.divIcon({
@@ -652,7 +668,6 @@ export default function BoLuangDashboard() {
           padding: 6px 14px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
         }
 
-        /* 🚀 CSS สำหรับ Popup ตำแหน่งปัจจุบัน */
         .popup-location .leaflet-popup-content-wrapper { background-color: #0f172a !important; color: #e2e8f0 !important; border: 1px solid #0ea5e9 !important; border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden; }
         .popup-location .leaflet-popup-tip { background-color: #0f172a !important; border-top: 1px solid #0ea5e9 !important; border-left: 1px solid #0ea5e9 !important; }
         .popup-location .leaflet-popup-content { margin: 0 !important; }
@@ -748,7 +763,6 @@ export default function BoLuangDashboard() {
           <MapContainer center={[18.1633, 98.3744]} zoom={isMobile ? 8 : 9} maxZoom={20} zoomControl={false} attributionControl={false} className="w-full h-full" ref={setMapRef}>
             <ZoomControl position="topleft" />
             
-            {/* 🚀 ปุ่ม Locate Me (ค้นหาตำแหน่งของฉัน) */}
             <div className="absolute top-[160px] left-[10px] md:left-[370px] z-[400] transition-all duration-300">
               <button 
                 onClick={handleLocateMe}
@@ -764,7 +778,6 @@ export default function BoLuangDashboard() {
             {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
             {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} />}
             
-            {/* 🚀 หมุดตำแหน่งผู้ใช้งานปัจจุบัน (Locate Me) */}
             {userLocation && (
               <Marker position={[userLocation.lat, userLocation.lng]} icon={createUserLocationIcon()}>
                 <Popup className="popup-location">
