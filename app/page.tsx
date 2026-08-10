@@ -40,12 +40,10 @@ const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 5000) =
     if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
     const data = await res.json();
     
-    // บันทึกข้อมูลสดลง Cache (sessionStorage จะอยู่จนกว่าจะปิดแท็บ)
     sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
     return { data, status: 'LIVE' };
   } catch (error) {
     console.warn(`[API Resilience] ${cacheKey} failed. Attempting to use cache. Error:`, error);
-    // งัดข้อมูลจาก Cache มาใช้แทนถ้าเน็ตหลุดหรือ API ล่ม
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       return { data: JSON.parse(cached).data, status: 'CACHED' };
@@ -64,7 +62,7 @@ const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.Circl
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 
-// 💎 UI Component: Toggle อัจฉริยะ (พร้อมป้ายสถานะ)
+// 💎 UI Component: Toggle อัจฉริยะ 
 const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio = false, apiStatus = '' }: any) => {
   const [localActive, setLocalActive] = useState(active);
   useEffect(() => { setLocalActive(active); }, [active]);
@@ -101,7 +99,6 @@ const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio
   );
 };
 
-// 🌤️ ฟังก์ชันสภาพอากาศ
 const getWmoWeatherDesc = (code: number) => {
   const codes: Record<number, string> = {
     0: 'ท้องฟ้าแจ่มใส', 1: 'มีเมฆบางส่วน', 2: 'มีเมฆครึ้ม', 3: 'เมฆเป็นส่วนมาก', 45: 'มีหมอก', 48: 'มีหมอกหนา', 51: 'ฝนปรอยๆ', 61: 'ฝนตกเล็กน้อย', 63: 'ฝนตกปานกลาง', 65: 'ฝนตกหนัก', 80: 'ฝนตกเป็นหย่อมๆ', 95: 'พายุฝนฟ้าคะนอง'
@@ -144,25 +141,18 @@ export default function BoLuangDashboard() {
   const [isMobile, setIsMobile] = useState(false);
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
 
-  // 🛡️ State สำหรับเก็บสถานะ API (LIVE, CACHED, OFFLINE)
   const [apiStatus, setApiStatus] = useState({ tmd: '', pm25: '', onwrRain: '', onwrWater: '' });
-
-  // 🔍 State ระบบค้นหา
   const [searchQuery, setSearchQuery] = useState('');
 
-  // แผงควบคุม ซ้าย
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
   const [pm25, setPm25] = useState(false); 
-  const [gistdaPm25Layer, setGistdaPm25Layer] = useState(false); 
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
 
-  // ข้อมูลน้ำ
   const [onwrRain, setOnwrRain] = useState(false);
   const [onwrWaterLevel, setOnwrWaterLevel] = useState(false);
 
-  // แผงควบคุม ขวา
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   const [showBoluang, setShowBoluang] = useState(false);   
   const [showBlock, setShowBlock] = useState(false);        
@@ -198,7 +188,25 @@ export default function BoLuangDashboard() {
   const [currentZoom, setCurrentZoom] = useState(9);
   const syncData = useRef(initialCenter);
 
-  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, gistdaPm25Layer].filter(Boolean).length;
+  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel].filter(Boolean).length;
+
+  // 🚀 ฟังก์ชันแสดงภาพขยาย (ถูกนำกลับมาแล้ว!)
+  const handleViewImage = (imageUrl: string) => {
+    Swal.fire({
+      imageUrl: imageUrl,
+      imageAlt: 'ภาพแจ้งเหตุจากประชาชน',
+      showConfirmButton: false,
+      showCloseButton: true,
+      width: 'auto',
+      padding: '1em',
+      background: '#0f172a',
+      backdrop: 'rgba(0,0,0,0.85)',
+      customClass: {
+        popup: 'border border-gray-700 rounded-2xl shadow-2xl',
+        image: 'rounded-lg max-h-[80vh] object-contain'
+      }
+    });
+  };
 
   const handleLocateMe = () => {
     if (!navigator.geolocation) {
@@ -219,7 +227,6 @@ export default function BoLuangDashboard() {
     );
   };
 
-  // 🔍 ฟังก์ชันค้นหาสถานที่ (Search Location) เชื่อมต่อ OpenStreetMap (Nominatim API)
   const handleSearchSubmit = async (e: any) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
@@ -227,7 +234,6 @@ export default function BoLuangDashboard() {
     Swal.fire({ title: 'กำลังค้นหาพิกัด...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
     
     try {
-      // ค้นหาโดยให้ความสำคัญกับเชียงใหม่และประเทศไทยก่อน
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery + ' เชียงใหม่')}&limit=1`);
       const data = await res.json();
       
@@ -235,7 +241,6 @@ export default function BoLuangDashboard() {
         const { lat, lon, display_name } = data[0];
         if (mapRef) mapRef.flyTo([parseFloat(lat), parseFloat(lon)], 14, { duration: 2 });
         Swal.close();
-        // Toast เล็กๆ แจ้งว่าเจอแล้ว
         Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'พบพิกัด', text: display_name.split(',')[0], showConfirmButton: false, timer: 3000, background: '#1e293b', color: '#fff' });
       } else {
         Swal.fire({ icon: 'warning', title: 'ไม่พบสถานที่', text: 'ลองเปลี่ยนคำค้นหาให้กว้างขึ้น เช่น ชื่ออำเภอ หรือ จังหวัด', background: '#0f172a', color: '#fff' });
@@ -631,7 +636,6 @@ export default function BoLuangDashboard() {
           <MapContainer center={[18.1633, 98.3744]} zoom={isMobile ? 8 : 9} maxZoom={20} zoomControl={false} attributionControl={false} className="w-full h-full" ref={setMapRef}>
             <ZoomControl position="topleft" />
             
-            {/* 🚀 ปุ่ม Locate Me (ค้นหาตำแหน่งของฉัน) */}
             <div className="absolute top-[160px] left-[10px] md:left-[370px] z-[400] transition-all duration-300">
               <button 
                 onClick={handleLocateMe}
@@ -1058,7 +1062,6 @@ export default function BoLuangDashboard() {
         </div>
       </header>
 
-      {/* 🌟 แผงควบคุม ซ้าย (หมวดหมู่อากาศและน้ำ) */}
       <aside className={`absolute top-[80px] md:top-24 z-[70] w-[300px] md:w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-r-2xl md:rounded-2xl shadow-2xl p-4 md:p-5 backdrop-blur-xl pointer-events-auto max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar transition-transform duration-500 ease-in-out ${isLeftPanelOpen ? 'translate-x-0 left-0 md:left-4' : '-translate-x-full left-0 md:left-4'}`}>
         <div className="mb-4 flex flex-col items-start border-b border-[#1e293b] pb-3 relative">
           <button onClick={() => setIsLeftPanelOpen(false)} className="md:hidden absolute top-0 right-0 text-gray-500 hover:text-white"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
