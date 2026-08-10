@@ -123,13 +123,14 @@ export default function BoLuangDashboard() {
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
   const [pm25, setPm25] = useState(false); 
-  const [gistdaPm25Layer, setGistdaPm25Layer] = useState(false); // 🚀 เพิ่ม State สำหรับดาวเทียม GISTDA PM2.5
+  const [gistdaPm25Layer, setGistdaPm25Layer] = useState(false); 
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
 
   // ข้อมูลน้ำ
   const [onwrRain, setOnwrRain] = useState(false);
   const [onwrWaterLevel, setOnwrWaterLevel] = useState(false);
+  const [floodDash, setFloodDash] = useState(false);
 
   // แผงควบคุม ขวา
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
@@ -226,7 +227,7 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
     loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
     
-    // 🚀 ใช้ API Key ตัวจริงของ GISTDA Sphere
+    // GISTDA Hotspot 
     loadGeoJSON(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=${GISTDA_API_KEY}`, setGeoHotspot);
     
     loadGeoJSON(`/geojson/earthquake.geojson?v=${ts}`, setGeoEarthquake);
@@ -691,10 +692,10 @@ export default function BoLuangDashboard() {
             {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
             {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} />}
             
-            {/* 🚀 เพิ่มชั้นข้อมูลดาวเทียม PM2.5 จาก GISTDA Sphere API Key */}
+            {/* 🚀 แก้ไข URL ดาวเทียม PM2.5 (เปลี่ยนจาก ms. เป็น api. เพื่อเลี่ยง SSL Error ของ GISTDA) */}
             {gistdaPm25Layer && (
               <TileLayer 
-                url={`https://ms.sphere.gistda.or.th/copernicus/tile/wmts/PM25/{z}/{x}/{y}.png?key=${GISTDA_API_KEY}`}
+                url={`https://api.sphere.gistda.or.th/copernicus/tile/wmts/PM25/{z}/{x}/{y}.png?key=${GISTDA_API_KEY}`}
                 opacity={0.7}
                 maxZoom={20}
               />
@@ -717,7 +718,6 @@ export default function BoLuangDashboard() {
               />
             )}
 
-            {/* 🌟 พยากรณ์อากาศ Micro-climate */}
             {tmdWeather && localWeatherData.map((prov, i) => {
               return (
                 <Marker key={`prov-wx-${i}`} position={[prov.lat, prov.lng]} icon={createTmdIcon(prov.wCode)}>
@@ -749,7 +749,6 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 ปริมาณน้ำฝนสะสม Micro-climate */}
             {tmdRain && localWeatherData.map((prov, i) => {
               const style = getRainCircleStyle(prov.rainSum);
               return (
@@ -782,7 +781,6 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 💧 ปริมาณฝน 24 ชม. (สทนช.) */}
             {onwrRain && onwrRainData.map((station: any, i: number) => {
               const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat || station?.latitude;
               const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng || station?.longitude || station?.lon;
@@ -823,7 +821,6 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 💧 ระดับน้ำ สทนช. */}
             {onwrWaterLevel && onwrWaterLevelData.map((station: any, i: number) => {
               const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat || station?.latitude;
               const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng || station?.longitude || station?.lon;
@@ -871,7 +868,6 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 หมุดค่าฝุ่น PM2.5 Micro-climate */}
             {pm25 && localAirData.map((station, i) => {
               const { aqi, text, color } = getAirQualityDetails(station.pm25Val);
               const formattedTime = new Date(station.time).toISOString().replace('T', ' ').substring(0, 16);
@@ -928,7 +924,6 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 แจ้งเหตุจาก Supabase */}
             {citizenReport && disasterReports.map((report) => (
               <Marker 
                 key={`report-${report.id}`} 
@@ -987,7 +982,6 @@ export default function BoLuangDashboard() {
               </Marker>
             ))}
 
-            {/* 🌟 จุดความร้อน Hotspot จาก GISTDA Sphere API Key */}
             {hotspot && geoHotspot && geoHotspot.features && geoHotspot.features.map((feature: any, i: number) => {
               const geom = feature.geometry;
               if (!geom || geom.type !== 'Point') return null;
@@ -1168,8 +1162,6 @@ export default function BoLuangDashboard() {
             </div>
             <div className="space-y-1">
               <CustomToggleBox label="หมุดค่าฝุ่น PM2.5 (Micro-climate)" active={pm25} onClick={() => setPm25(!pm25)} dotColor="#06b6d4" />
-              
-              {/* 🚀 สวิตช์เปิดชั้นข้อมูลดาวเทียม PM2.5 GISTDA Sphere */}
               <CustomToggleBox label="ดาวเทียม PM2.5 Heatmap (GISTDA)" active={gistdaPm25Layer} onClick={() => setGistdaPm25Layer(!gistdaPm25Layer)} dotColor="#a855f7" />
             </div>
           </div>
