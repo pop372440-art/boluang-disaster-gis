@@ -11,6 +11,9 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtas
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dGpqaHZ2dGFzd3pod2hvd2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDA3NjcsImV4cCI6MjA5MjExNjc2N30.Jjqi1LWgxEgpT2nBdjuNyoLxEP_VQcKf3GEbIYKPI8Y';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// 🔑 GISTDA Sphere API Key
+const GISTDA_API_KEY = 'AF9B1EEFF30042208F1DE95B579E7F90';
+
 // 🗺️ โหลด Leaflet แบบ Dynamic
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
@@ -90,22 +93,17 @@ const getAirQualityDetails = (pm25: number) => {
   return { aqi, text, color, shadow };
 };
 
-// 🚀 อัปเกรด: โละ 77 จังหวัดทิ้ง เปลี่ยนเป็นข้อมูลเจาะจงระดับตำบล/อำเภอ ตามคำแนะนำผู้รีวิว
+// 📍 สถานีตรวจวัดระดับ Micro-climate
 const localAirStations = [
-  // 📍 โซนเจาะลึก: ต.บ่อหลวง และป่าใกล้เคียง (Micro-climate)
   { name: 'ต.บ่อหลวง (ศูนย์กลางเทศบาล)', lat: 18.1633, lng: 98.3744, type: 'local' },
   { name: 'ต.บ่อหลวง (บ้านแม่หืด)', lat: 18.1472, lng: 98.3487, type: 'local' },
   { name: 'ต.บ่อสลี (พื้นที่ติดกัน)', lat: 18.1147, lng: 98.3184, type: 'local' },
-  
-  // 📍 โซนอำเภอใกล้เคียงที่มีผลกระทบ
   { name: 'อ.ฮอด (ตัวอำเภอ)', lat: 18.1908, lng: 98.6133, type: 'district' },
   { name: 'อ.แม่แจ่ม (ดอยอินทนนท์)', lat: 18.4988, lng: 98.3601, type: 'district' },
   { name: 'อ.จอมทอง', lat: 18.4172, lng: 98.6738, type: 'district' },
   { name: 'อ.อมก๋อย', lat: 17.7969, lng: 98.3585, type: 'district' },
   { name: 'อ.แม่สะเรียง (แม่ฮ่องสอน)', lat: 18.1601, lng: 97.9333, type: 'district' },
   { name: 'อ.สบเมย (แม่ฮ่องสอน)', lat: 17.9547, lng: 97.9405, type: 'district' },
-  
-  // 📍 ตัวแทนระดับจังหวัด (ภาพรวม)
   { name: 'ศูนย์ราชการฯ เชียงใหม่', lat: 18.7883, lng: 98.9853, type: 'province' },
   { name: 'ศูนย์ราชการฯ ลำพูน', lat: 18.5745, lng: 99.0087, type: 'province' },
   { name: 'ศูนย์ราชการฯ ลำปาง', lat: 18.2888, lng: 99.4925, type: 'province' },
@@ -125,13 +123,13 @@ export default function BoLuangDashboard() {
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
   const [pm25, setPm25] = useState(false); 
+  const [gistdaPm25Layer, setGistdaPm25Layer] = useState(false); // 🚀 เพิ่ม State สำหรับดาวเทียม GISTDA PM2.5
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
 
   // ข้อมูลน้ำ
   const [onwrRain, setOnwrRain] = useState(false);
   const [onwrWaterLevel, setOnwrWaterLevel] = useState(false);
-  const [floodDash, setFloodDash] = useState(false);
 
   // แผงควบคุม ขวา
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
@@ -148,7 +146,6 @@ export default function BoLuangDashboard() {
   
   const [showScanModal, setShowScanModal] = useState(false);
 
-  // 🚀 เปลี่ยน State เป็น Data เจาะจงพื้นที่
   const [localWeatherData, setLocalWeatherData] = useState<any[]>([]); 
   const [localAirData, setLocalAirData] = useState<any[]>([]);
   const [disasterReports, setDisasterReports] = useState<any[]>([]); 
@@ -167,13 +164,13 @@ export default function BoLuangDashboard() {
 
   const [mapRef, setMapRef] = useState<any>(null);
   
-  const initialCenter = { lat: 18.1633, lng: 98.3744, zoom: 9 }; // ซูมเข้าบ่อหลวงเป็นค่าเริ่มต้น
+  const initialCenter = { lat: 18.1633, lng: 98.3744, zoom: 9 }; 
   const [iframeState, setIframeState] = useState(initialCenter);
   const [transform, setTransform] = useState({ x: 0, y: 0 });
   const [currentZoom, setCurrentZoom] = useState(9);
   const syncData = useRef(initialCenter);
 
-  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, floodDash].filter(Boolean).length;
+  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, gistdaPm25Layer].filter(Boolean).length;
 
   const handleViewImage = (imageUrl: string) => {
     Swal.fire({
@@ -228,7 +225,10 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang);
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
     loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
-    loadGeoJSON(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=AF9B1EEFF30042208F1DE95B579E7F90`, setGeoHotspot);
+    
+    // 🚀 ใช้ API Key ตัวจริงของ GISTDA Sphere
+    loadGeoJSON(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=${GISTDA_API_KEY}`, setGeoHotspot);
+    
     loadGeoJSON(`/geojson/earthquake.geojson?v=${ts}`, setGeoEarthquake);
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
@@ -258,7 +258,7 @@ export default function BoLuangDashboard() {
     handleVisitorCount();
   }, [mounted]);
 
-  // 🚀 อัปเดต: พยากรณ์อากาศแบบ Micro-climate เฉพาะจุด
+  // พยากรณ์อากาศ
   useEffect(() => {
     if (!tmdWeather && !tmdRain) { setLocalWeatherData([]); return; }
     const fetchLocalWeather = async () => {
@@ -288,7 +288,7 @@ export default function BoLuangDashboard() {
     fetchLocalWeather();
   }, [tmdWeather, tmdRain]);
 
-  // 🚀 อัปเดต: ข้อมูลฝุ่น PM2.5 แบบ Micro-climate เจาะจงตำบล/อำเภอ
+  // ฝุ่น PM2.5 Micro-climate
   useEffect(() => {
     if (!pm25) { setLocalAirData([]); return; }
     const fetchLocalAir = async () => {
@@ -322,7 +322,7 @@ export default function BoLuangDashboard() {
     fetchLocalAir();
   }, [pm25]);
 
-  // 💧 ดึงข้อมูลปริมาณฝน 24 ชม. (ONWR)
+  // 💧 ดึงข้อมูลฝน 24 ชม.
   useEffect(() => {
     if (!onwrRain) { setOnwrRainData([]); return; }
     const fetchOnwrRain = async () => {
@@ -335,14 +335,12 @@ export default function BoLuangDashboard() {
         else if (json && json.data && Array.isArray(json.data.data)) arrData = json.data.data;
         
         setOnwrRainData(arrData);
-      } catch (error) {
-        console.error('Error fetching ONWR Rain:', error);
-      }
+      } catch (error) { console.error('Error fetching ONWR Rain:', error); }
     };
     fetchOnwrRain();
   }, [onwrRain]);
 
-  // 💧 ดึงข้อมูลระดับน้ำ (ONWR)
+  // 💧 ดึงข้อมูลระดับน้ำ
   useEffect(() => {
     if (!onwrWaterLevel) { setOnwrWaterLevelData([]); return; }
     const fetchOnwrWaterLevel = async () => {
@@ -351,16 +349,11 @@ export default function BoLuangDashboard() {
         const json = await res.json();
         
         let arrData: any[] = [];
-        
-        if (Array.isArray(json)) {
-          arrData = json;
-        } else if (json?.data && Array.isArray(json.data)) {
-          arrData = json.data;
-        } else if (json?.data?.waterlevel_data?.data && Array.isArray(json.data.waterlevel_data.data)) {
-          arrData = json.data.waterlevel_data.data;
-        } else if (json?.waterlevel_data?.data && Array.isArray(json.waterlevel_data.data)) {
-          arrData = json.waterlevel_data.data;
-        } else {
+        if (Array.isArray(json)) arrData = json;
+        else if (json?.data && Array.isArray(json.data)) arrData = json.data;
+        else if (json?.data?.waterlevel_data?.data && Array.isArray(json.data.waterlevel_data.data)) arrData = json.data.waterlevel_data.data;
+        else if (json?.waterlevel_data?.data && Array.isArray(json.waterlevel_data.data)) arrData = json.waterlevel_data.data;
+        else {
           const findArray = (obj: any): any[] | null => {
             for (let key in obj) {
               if (Array.isArray(obj[key])) return obj[key];
@@ -375,9 +368,7 @@ export default function BoLuangDashboard() {
         }
         
         setOnwrWaterLevelData(arrData);
-      } catch (error) {
-        console.error('Error fetching ONWR Water Level:', error);
-      }
+      } catch (error) { console.error('Error fetching ONWR Water Level:', error); }
     };
     fetchOnwrWaterLevel();
   }, [onwrWaterLevel]);
@@ -700,6 +691,15 @@ export default function BoLuangDashboard() {
             {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
             {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} />}
             
+            {/* 🚀 เพิ่มชั้นข้อมูลดาวเทียม PM2.5 จาก GISTDA Sphere API Key */}
+            {gistdaPm25Layer && (
+              <TileLayer 
+                url={`https://ms.sphere.gistda.or.th/copernicus/tile/wmts/PM25/{z}/{x}/{y}.png?key=${GISTDA_API_KEY}`}
+                opacity={0.7}
+                maxZoom={20}
+              />
+            )}
+
             {showBoluang && geoBoluang && <GeoJSON key="boluang-layer" data={geoBoluang} style={styleBoluang} />}
             {showBlock && geoBlock && <GeoJSON key="block-layer" data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
             {showParcel && geoParcel && <GeoJSON key="parcel-layer" data={geoParcel} style={styleParcel} />}
@@ -717,7 +717,7 @@ export default function BoLuangDashboard() {
               />
             )}
 
-            {/* 🌟 พยากรณ์อากาศรายพื้นที่ (Local Micro-climate) */}
+            {/* 🌟 พยากรณ์อากาศ Micro-climate */}
             {tmdWeather && localWeatherData.map((prov, i) => {
               return (
                 <Marker key={`prov-wx-${i}`} position={[prov.lat, prov.lng]} icon={createTmdIcon(prov.wCode)}>
@@ -749,7 +749,7 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 ปริมาณน้ำฝนสะสมรายพื้นที่ (Local) */}
+            {/* 🌟 ปริมาณน้ำฝนสะสม Micro-climate */}
             {tmdRain && localWeatherData.map((prov, i) => {
               const style = getRainCircleStyle(prov.rainSum);
               return (
@@ -871,7 +871,7 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 อัปเดต: ค่าฝุ่น PM2.5 แบบ Micro-climate */}
+            {/* 🌟 หมุดค่าฝุ่น PM2.5 Micro-climate */}
             {pm25 && localAirData.map((station, i) => {
               const { aqi, text, color } = getAirQualityDetails(station.pm25Val);
               const formattedTime = new Date(station.time).toISOString().replace('T', ' ').substring(0, 16);
@@ -987,6 +987,7 @@ export default function BoLuangDashboard() {
               </Marker>
             ))}
 
+            {/* 🌟 จุดความร้อน Hotspot จาก GISTDA Sphere API Key */}
             {hotspot && geoHotspot && geoHotspot.features && geoHotspot.features.map((feature: any, i: number) => {
               const geom = feature.geometry;
               if (!geom || geom.type !== 'Point') return null;
@@ -1012,7 +1013,7 @@ export default function BoLuangDashboard() {
                           ตำบล: <span className="text-white">{tamName}</span>
                         </div>
                         <div className="border-t border-[#1e293b] pt-3 text-[11px] text-gray-500 font-mono">
-                          Layer: hotspot.geojson
+                          Layer: GISTDA Sphere API
                         </div>
                       </div>
                     </div>
@@ -1165,8 +1166,11 @@ export default function BoLuangDashboard() {
               <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">AIR QUALITY</span>
               <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
             </div>
-            <div>
-              <CustomToggleBox label="ค่าฝุ่น PM2.5 (Micro-climate)" active={pm25} onClick={() => setPm25(!pm25)} dotColor="#06b6d4" />
+            <div className="space-y-1">
+              <CustomToggleBox label="หมุดค่าฝุ่น PM2.5 (Micro-climate)" active={pm25} onClick={() => setPm25(!pm25)} dotColor="#06b6d4" />
+              
+              {/* 🚀 สวิตช์เปิดชั้นข้อมูลดาวเทียม PM2.5 GISTDA Sphere */}
+              <CustomToggleBox label="ดาวเทียม PM2.5 Heatmap (GISTDA)" active={gistdaPm25Layer} onClick={() => setGistdaPm25Layer(!gistdaPm25Layer)} dotColor="#a855f7" />
             </div>
           </div>
 
@@ -1206,7 +1210,7 @@ export default function BoLuangDashboard() {
       <div className="hidden md:flex absolute bottom-4 right-1/2 translate-x-1/2 z-[60] pointer-events-auto">
         <div className="bg-[#0b132b]/80 backdrop-blur-md border border-[#1e293b] rounded-full px-3 py-1.5 shadow-sm text-[11px] font-mono text-gray-400 flex items-center space-x-1.5">
           <span className="text-[#38bdf8]">💨</span>
-          <span>Data: Windy | TMD | ThaiWater | GISTDA API</span>
+          <span>Data: Windy | TMD | ThaiWater | GISTDA Sphere API</span>
         </div>
       </div>
 
@@ -1289,7 +1293,7 @@ export default function BoLuangDashboard() {
                 </div>
                 <div className="space-y-1">
                   <CustomToggleBox label="จุดเสี่ยงแผ่นดินไหว" active={earthquakeLayer} onClick={() => setEarthquakeLayer(!earthquakeLayer)} dotColor="#c084fc" />
-                  <CustomToggleBox label="จุดความร้อน Hotspot" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#ea580c" />
+                  <CustomToggleBox label="จุดความร้อน Hotspot (GISTDA)" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#ea580c" />
                   <CustomToggleBox label="พื้นที่เสี่ยงดินถล่ม" active={showLandslide} onClick={() => setShowLandslide(!showLandslide)} dotColor="#ef4444" />
                 </div>
               </div>
