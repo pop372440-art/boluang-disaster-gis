@@ -14,21 +14,44 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // 🔑 GISTDA Sphere API Key
 const GISTDA_API_KEY = 'AF9B1EEFF30042208F1DE95B579E7F90';
 
-// 📍 พิกัดอ้างอิงศูนย์กลาง ต.บ่อหลวง สำหรับตีกรอบรัศมี
+// 📍 พิกัดอ้างอิงบ่อหลวง
 const BO_LUANG_LAT = 18.1633;
 const BO_LUANG_LNG = 98.3744;
-const MAX_DISTANCE_KM = 150; // 🎯 กำหนดรัศมีแสดงผลไม่เกิน 150 กม. จากบ่อหลวง
+const MAX_DISTANCE_KM = 150;
 
-// 🧮 ฟังก์ชันคำนวณระยะทางระหว่างพิกัด (Haversine formula)
+// 🧮 ฟังก์ชันคำนวณระยะทาง
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371; // รัศมีโลก (กิโลเมตร)
+  const R = 6371; 
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // คืนค่าเป็นกิโลเมตร
+  return R * c; 
+};
+
+// 🛡️ ระบบ API Resilience (ดึงข้อมูลพร้อมระบบ Cache ป้องกันเซิร์ฟเวอร์ล่ม)
+const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 5000) => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+    const data = await res.json();
+    
+    // บันทึกข้อมูลสดลง Cache (sessionStorage จะอยู่จนกว่าจะปิดแท็บ)
+    sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
+    return { data, status: 'LIVE' };
+  } catch (error) {
+    console.warn(`[API Resilience] ${cacheKey} failed. Attempting to use cache. Error:`, error);
+    // งัดข้อมูลจาก Cache มาใช้แทนถ้าเน็ตหลุดหรือ API ล่ม
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      return { data: JSON.parse(cached).data, status: 'CACHED' };
+    }
+    return { data: null, status: 'OFFLINE' };
+  }
 };
 
 // 🗺️ โหลด Leaflet แบบ Dynamic
@@ -41,8 +64,8 @@ const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.Circl
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 
-// 💎 UI Component: Toggle อัจฉริยะ 
-const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio = false }: any) => {
+// 💎 UI Component: Toggle อัจฉริยะ (พร้อมป้ายสถานะ)
+const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio = false, apiStatus = '' }: any) => {
   const [localActive, setLocalActive] = useState(active);
   useEffect(() => { setLocalActive(active); }, [active]);
 
@@ -51,11 +74,15 @@ const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio
     setTimeout(() => { onClick(); }, 50);
   };
 
+  const renderStatusBadge = () => {
+    if (!apiStatus) return null;
+    if (apiStatus === 'LIVE') return <span className="ml-auto text-[8px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">LIVE</span>;
+    if (apiStatus === 'CACHED') return <span className="ml-auto text-[8px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">CACHED</span>;
+    return <span className="ml-auto text-[8px] bg-red-500/20 text-red-400 border border-red-500/50 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">OFFLINE</span>;
+  };
+
   return (
-    <div 
-      className="flex items-center space-x-3 px-3 py-1.5 rounded-xl border border-[#1e293b] bg-[#0b132b]/50 hover:bg-[#1e293b]/80 transition-colors duration-200 cursor-pointer select-none mb-1"
-      onClick={handlePress}
-    >
+    <div className="flex items-center space-x-3 px-3 py-1.5 rounded-xl border border-[#1e293b] bg-[#0b132b]/50 hover:bg-[#1e293b]/80 transition-colors duration-200 cursor-pointer select-none mb-1 group" onClick={handlePress}>
       {isRadio ? (
         <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors ${localActive ? 'border-[#38bdf8]' : 'border-gray-500'}`}>
           {localActive && <div className="w-2 h-2 bg-[#38bdf8] rounded-full"></div>}
@@ -65,9 +92,10 @@ const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio
           <div className={`absolute top-[2px] left-[2px] bg-white rounded-full h-3 w-3 transition-transform duration-300 shadow-sm ${localActive ? 'translate-x-4' : 'translate-x-0'}`}></div>
         </div>
       )}
-      <div className="flex items-center space-x-2 flex-1">
-        {!isRadio && <div className="w-2.5 h-2.5 rounded-[3px] shadow-sm" style={{ backgroundColor: dotColor }}></div>}
-        <span className={`text-[14px] font-medium transition-colors ${localActive ? 'text-white' : 'text-gray-400'}`}>{label}</span>
+      <div className="flex items-center space-x-2 flex-1 w-full">
+        {!isRadio && <div className="w-2.5 h-2.5 rounded-[3px] shadow-sm flex-shrink-0" style={{ backgroundColor: dotColor }}></div>}
+        <span className={`text-[13px] font-medium transition-colors truncate ${localActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>{label}</span>
+        {renderStatusBadge()}
       </div>
     </div>
   );
@@ -76,41 +104,25 @@ const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio
 // 🌤️ ฟังก์ชันสภาพอากาศ
 const getWmoWeatherDesc = (code: number) => {
   const codes: Record<number, string> = {
-    0: 'ท้องฟ้าแจ่มใส', 1: 'มีเมฆบางส่วน', 2: 'มีเมฆครึ้ม', 3: 'เมฆเป็นส่วนมาก',
-    45: 'มีหมอก', 48: 'มีหมอกหนา', 51: 'ฝนปรอยๆ', 61: 'ฝนตกเล็กน้อย', 63: 'ฝนตกปานกลาง', 65: 'ฝนตกหนัก',
-    80: 'ฝนตกเป็นหย่อมๆ', 95: 'พายุฝนฟ้าคะนอง'
+    0: 'ท้องฟ้าแจ่มใส', 1: 'มีเมฆบางส่วน', 2: 'มีเมฆครึ้ม', 3: 'เมฆเป็นส่วนมาก', 45: 'มีหมอก', 48: 'มีหมอกหนา', 51: 'ฝนปรอยๆ', 61: 'ฝนตกเล็กน้อย', 63: 'ฝนตกปานกลาง', 65: 'ฝนตกหนัก', 80: 'ฝนตกเป็นหย่อมๆ', 95: 'พายุฝนฟ้าคะนอง'
   };
   return codes[code] || 'สภาพอากาศปกติ';
 };
 const getWeatherEmoji = (code: number) => {
-  if (code === 0) return '☀️';
-  if (code === 1 || code === 2) return '🌤️';
-  if (code === 3) return '☁️';
-  if (code >= 45 && code <= 48) return '🌫️';
-  if (code >= 51 && code <= 67) return '🌧️';
-  if (code >= 80 && code <= 82) return '🌦️';
-  if (code >= 95) return '⛈️';
-  return '☀️';
+  if (code === 0) return '☀️'; if (code === 1 || code === 2) return '🌤️'; if (code === 3) return '☁️'; if (code >= 45 && code <= 48) return '🌫️'; if (code >= 51 && code <= 67) return '🌧️'; if (code >= 80 && code <= 82) return '🌦️'; if (code >= 95) return '⛈️'; return '☀️';
 };
 
 const getAirQualityDetails = (pm25: number) => {
   let aqi = 0; let text = ''; let color = ''; let shadow = '';
-  if (pm25 <= 15.0) {
-    aqi = Math.round(pm25 * (25/15)); text = 'ดีมาก'; color = '#38bdf8'; shadow = 'rgba(56,189,248,0.5)';
-  } else if (pm25 <= 25.0) {
-    aqi = Math.round(26 + ((pm25-15.1) * (24/9.9))); text = 'ดี'; color = '#84cc16'; shadow = 'rgba(132,204,22,0.5)'; 
-  } else if (pm25 <= 37.5) {
-    aqi = Math.round(51 + ((pm25-25.1) * (49/12.4))); text = 'ปานกลาง'; color = '#facc15'; shadow = 'rgba(250,204,21,0.5)';
-  } else if (pm25 <= 75.0) {
-    aqi = Math.round(101 + ((pm25-37.6) * (99/37.4))); text = 'เริ่มมีผลกระทบ'; color = '#f97316'; shadow = 'rgba(249,115,22,0.5)';
-  } else {
-    aqi = Math.round(201 + ((pm25-75.1) * (99/250))); text = 'มีผลกระทบ'; color = '#ef4444'; shadow = 'rgba(239,68,68,0.5)';
-  }
+  if (pm25 <= 15.0) { aqi = Math.round(pm25 * (25/15)); text = 'ดีมาก'; color = '#38bdf8'; shadow = 'rgba(56,189,248,0.5)'; } 
+  else if (pm25 <= 25.0) { aqi = Math.round(26 + ((pm25-15.1) * (24/9.9))); text = 'ดี'; color = '#84cc16'; shadow = 'rgba(132,204,22,0.5)'; } 
+  else if (pm25 <= 37.5) { aqi = Math.round(51 + ((pm25-25.1) * (49/12.4))); text = 'ปานกลาง'; color = '#facc15'; shadow = 'rgba(250,204,21,0.5)'; } 
+  else if (pm25 <= 75.0) { aqi = Math.round(101 + ((pm25-37.6) * (99/37.4))); text = 'เริ่มมีผลกระทบ'; color = '#f97316'; shadow = 'rgba(249,115,22,0.5)'; } 
+  else { aqi = Math.round(201 + ((pm25-75.1) * (99/250))); text = 'มีผลกระทบ'; color = '#ef4444'; shadow = 'rgba(239,68,68,0.5)'; }
   if (aqi > 500) aqi = 500;
   return { aqi, text, color, shadow };
 };
 
-// 📍 สถานีตรวจวัดระดับ Micro-climate
 const localAirStations = [
   { name: 'ต.บ่อหลวง (ศูนย์กลางเทศบาล)', lat: 18.1633, lng: 98.3744, type: 'local' },
   { name: 'ต.บ่อหลวง (บ้านแม่หืด)', lat: 18.1472, lng: 98.3487, type: 'local' },
@@ -121,10 +133,7 @@ const localAirStations = [
   { name: 'อ.อมก๋อย', lat: 17.7969, lng: 98.3585, type: 'district' },
   { name: 'อ.แม่สะเรียง (แม่ฮ่องสอน)', lat: 18.1601, lng: 97.9333, type: 'district' },
   { name: 'อ.สบเมย (แม่ฮ่องสอน)', lat: 17.9547, lng: 97.9405, type: 'district' },
-  { name: 'ศูนย์ราชการฯ เชียงใหม่', lat: 18.7883, lng: 98.9853, type: 'province' },
-  { name: 'ศูนย์ราชการฯ ลำพูน', lat: 18.5745, lng: 99.0087, type: 'province' },
-  { name: 'ศูนย์ราชการฯ ลำปาง', lat: 18.2888, lng: 99.4925, type: 'province' },
-  { name: 'ศูนย์ราชการฯ แม่ฮ่องสอน', lat: 19.3020, lng: 97.9654, type: 'province' }
+  { name: 'ศูนย์ราชการฯ เชียงใหม่', lat: 18.7883, lng: 98.9853, type: 'province' }
 ];
 
 export default function BoLuangDashboard() {
@@ -135,10 +144,17 @@ export default function BoLuangDashboard() {
   const [isMobile, setIsMobile] = useState(false);
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
 
+  // 🛡️ State สำหรับเก็บสถานะ API (LIVE, CACHED, OFFLINE)
+  const [apiStatus, setApiStatus] = useState({ tmd: '', pm25: '', onwrRain: '', onwrWater: '' });
+
+  // 🔍 State ระบบค้นหา
+  const [searchQuery, setSearchQuery] = useState('');
+
   // แผงควบคุม ซ้าย
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
   const [pm25, setPm25] = useState(false); 
+  const [gistdaPm25Layer, setGistdaPm25Layer] = useState(false); 
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
 
@@ -158,16 +174,13 @@ export default function BoLuangDashboard() {
   
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
-  
   const [showScanModal, setShowScanModal] = useState(false);
 
   const [localWeatherData, setLocalWeatherData] = useState<any[]>([]); 
   const [localAirData, setLocalAirData] = useState<any[]>([]);
   const [disasterReports, setDisasterReports] = useState<any[]>([]); 
-  
   const [onwrRainData, setOnwrRainData] = useState<any[]>([]);
   const [onwrWaterLevelData, setOnwrWaterLevelData] = useState<any[]>([]);
-
   const [visitStats, setVisitStats] = useState({ today: 0, total: 0 });
   
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
@@ -185,12 +198,11 @@ export default function BoLuangDashboard() {
   const [currentZoom, setCurrentZoom] = useState(9);
   const syncData = useRef(initialCenter);
 
-  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel].filter(Boolean).length;
+  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, gistdaPm25Layer].filter(Boolean).length;
 
   const handleLocateMe = () => {
     if (!navigator.geolocation) {
-      Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'เบราว์เซอร์ของคุณไม่รองรับระบบ GPS', background: '#0f172a', color: '#fff' });
-      return;
+      Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'เบราว์เซอร์ของคุณไม่รองรับระบบ GPS', background: '#0f172a', color: '#fff' }); return;
     }
     Swal.fire({ title: 'กำลังค้นหาตำแหน่งของคุณ...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
     navigator.geolocation.getCurrentPosition(
@@ -201,59 +213,59 @@ export default function BoLuangDashboard() {
         Swal.close();
       },
       (error) => {
-        console.error(error);
-        Swal.fire({ icon: 'warning', title: 'ไม่สามารถระบุตำแหน่งได้', text: 'กรุณาอนุญาตให้เว็บไซต์เข้าถึงตำแหน่งของคุณ (Location Services) บนเบราว์เซอร์', background: '#0f172a', color: '#fff' });
+        Swal.fire({ icon: 'warning', title: 'ไม่สามารถระบุตำแหน่งได้', text: 'กรุณาเปิดสิทธิ์ GPS', background: '#0f172a', color: '#fff' });
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
-  const handleViewImage = (imageUrl: string) => {
-    Swal.fire({
-      imageUrl: imageUrl,
-      imageAlt: 'ภาพแจ้งเหตุจากประชาชน',
-      showConfirmButton: false,
-      showCloseButton: true,
-      width: 'auto',
-      padding: '1em',
-      background: '#0f172a',
-      backdrop: 'rgba(0,0,0,0.85)',
-      customClass: {
-        popup: 'border border-gray-700 rounded-2xl shadow-2xl',
-        image: 'rounded-lg max-h-[80vh] object-contain'
+  // 🔍 ฟังก์ชันค้นหาสถานที่ (Search Location) เชื่อมต่อ OpenStreetMap (Nominatim API)
+  const handleSearchSubmit = async (e: any) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    
+    Swal.fire({ title: 'กำลังค้นหาพิกัด...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
+    
+    try {
+      // ค้นหาโดยให้ความสำคัญกับเชียงใหม่และประเทศไทยก่อน
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery + ' เชียงใหม่')}&limit=1`);
+      const data = await res.json();
+      
+      if (data && data.length > 0) {
+        const { lat, lon, display_name } = data[0];
+        if (mapRef) mapRef.flyTo([parseFloat(lat), parseFloat(lon)], 14, { duration: 2 });
+        Swal.close();
+        // Toast เล็กๆ แจ้งว่าเจอแล้ว
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'พบพิกัด', text: display_name.split(',')[0], showConfirmButton: false, timer: 3000, background: '#1e293b', color: '#fff' });
+      } else {
+        Swal.fire({ icon: 'warning', title: 'ไม่พบสถานที่', text: 'ลองเปลี่ยนคำค้นหาให้กว้างขึ้น เช่น ชื่ออำเภอ หรือ จังหวัด', background: '#0f172a', color: '#fff' });
       }
-    });
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'ระบบค้นหาขัดข้อง', background: '#0f172a', color: '#fff' });
+    }
   };
 
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth < 768; 
       setIsMobile(mobile);
-      if (mobile) {
-        setIsLeftPanelOpen(false); 
-        setIsRightPanelOpen(false); 
-      } else {
-        setIsLeftPanelOpen(true);
-        setIsRightPanelOpen(true);
-      }
+      if (mobile) { setIsLeftPanelOpen(false); setIsRightPanelOpen(false); } 
+      else { setIsLeftPanelOpen(true); setIsRightPanelOpen(true); }
     };
-    handleResize(); 
-    window.addEventListener('resize', handleResize);
+    handleResize(); window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') setQrUrl(window.location.origin + '/report');
-
     const ts = Date.now(); 
     const loadGeoJSON = async (url: string, setter: any) => {
       try {
-        const res = await fetch(url, { cache: 'no-store' });
-        if (res.ok) {
-          let data = await res.json();
-          if (Array.isArray(data)) data = { type: "FeatureCollection", features: data };
-          setter(data);
+        const { data } = await fetchWithCache(url, `geojson_cache_${url.split('/').pop()}`, 10000);
+        if (data) {
+          if (Array.isArray(data)) setter({ type: "FeatureCollection", features: data });
+          else setter(data);
         }
       } catch (e) { console.error(e); }
     };
@@ -261,170 +273,120 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang);
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
     loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
-    
-    // GISTDA Hotspot 
     loadGeoJSON(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=${GISTDA_API_KEY}`, setGeoHotspot);
-    
     loadGeoJSON(`/geojson/earthquake.geojson?v=${ts}`, setGeoEarthquake);
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
 
-  useEffect(() => {
-    if (!mounted) return;
-    const handleVisitorCount = async () => {
-      try {
-        let sessionId = sessionStorage.getItem('bl_session_id');
-        if (!sessionId) {
-          sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`; 
-          sessionStorage.setItem('bl_session_id', sessionId);
-          const { error: insertError } = await supabase.from('visitor_logs').insert([{ session_id: sessionId }]);
-          if (insertError) console.warn('ไม่สามารถบันทึกสถิติใหม่ได้:', insertError.message);
-        }
-      } catch (error) { console.warn('Error saving visit:', error); }
-
-      try {
-        const { count: totalCount } = await supabase.from('visitor_logs').select('*', { count: 'exact', head: true });
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); 
-        const { count: todayCount } = await supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('visited_at', today.toISOString());
-        
-        setVisitStats({ today: todayCount || 0, total: totalCount || 0 });
-      } catch (error) { console.error('Error fetching visitor stats:', error); }
-    };
-    handleVisitorCount();
-  }, [mounted]);
-
-  // พยากรณ์อากาศ (Micro-climate)
+  // พยากรณ์อากาศ (TMD API Resilience)
   useEffect(() => {
     if (!tmdWeather && !tmdRain) { setLocalWeatherData([]); return; }
     const fetchLocalWeather = async () => {
-      try {
-        const lats = localAirStations.map(p => p.lat.toFixed(4)).join(',');
-        const lngs = localAirStations.map(p => p.lng.toFixed(4)).join(',');
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weathercode&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Asia%2FBangkok`;
-        const res = await fetch(url);
-        const data = await res.json();
-        
-        if (Array.isArray(data)) {
-          const formatted = localAirStations.map((station, i) => ({
-            ...station,
-            temp: data[i]?.current?.temperature_2m || 0,
-            humidity: data[i]?.current?.relative_humidity_2m || 0,
-            rain: data[i]?.current?.precipitation || 0, 
-            rainSum: data[i]?.daily?.precipitation_sum?.[0] || 0,
-            wind: (data[i]?.current?.wind_speed_10m / 3.6) || 0,
-            wCode: data[i]?.current?.weathercode || 0,
-            tempMin: data[i]?.daily?.temperature_2m_min?.[0] || 0,
-            tempMax: data[i]?.daily?.temperature_2m_max?.[0] || 0,
-          }));
-          setLocalWeatherData(formatted);
-        }
-      } catch (error) { console.error('Error fetching local weather:', error); }
+      const lats = localAirStations.map(p => p.lat.toFixed(4)).join(',');
+      const lngs = localAirStations.map(p => p.lng.toFixed(4)).join(',');
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weathercode&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Asia%2FBangkok`;
+      
+      const { data, status } = await fetchWithCache(url, 'tmd_weather_cache');
+      setApiStatus(prev => ({ ...prev, tmd: status }));
+      
+      if (data && Array.isArray(data)) {
+        const formatted = localAirStations.map((station, i) => ({
+          ...station,
+          temp: data[i]?.current?.temperature_2m || 0, humidity: data[i]?.current?.relative_humidity_2m || 0,
+          rain: data[i]?.current?.precipitation || 0, rainSum: data[i]?.daily?.precipitation_sum?.[0] || 0,
+          wind: (data[i]?.current?.wind_speed_10m / 3.6) || 0, wCode: data[i]?.current?.weathercode || 0,
+          tempMin: data[i]?.daily?.temperature_2m_min?.[0] || 0, tempMax: data[i]?.daily?.temperature_2m_max?.[0] || 0,
+        }));
+        setLocalWeatherData(formatted);
+      }
     };
     fetchLocalWeather();
   }, [tmdWeather, tmdRain]);
 
-  // ฝุ่น PM2.5 (Micro-climate)
+  // ฝุ่น PM2.5 (Resilience)
   useEffect(() => {
     if (!pm25) { setLocalAirData([]); return; }
     const fetchLocalAir = async () => {
-      try {
-        const lats = localAirStations.map(s => s.lat.toFixed(4)).join(',');
-        const lngs = localAirStations.map(s => s.lng.toFixed(4)).join(',');
-        
-        const [aqiRes, wxRes] = await Promise.all([
-          fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lngs}&current=pm2_5,pm10,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=Asia%2FBangkok`),
-          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=weathercode&timezone=Asia%2FBangkok`)
-        ]);
-        const aqiData = await aqiRes.json();
-        const wxData = await wxRes.json();
-        
-        if (Array.isArray(aqiData) && Array.isArray(wxData)) {
-          const formatted = localAirStations.map((station, i) => ({
-            ...station, 
-            pm25Val: aqiData[i]?.current?.pm2_5 || 0, 
-            pm10Val: aqiData[i]?.current?.pm10 || '—',
-            coVal: aqiData[i]?.current?.carbon_monoxide || '—',
-            no2Val: aqiData[i]?.current?.nitrogen_dioxide || '—',
-            so2Val: aqiData[i]?.current?.sulphur_dioxide || '—',
-            o3Val: aqiData[i]?.current?.ozone || '—',
-            time: aqiData[i]?.current?.time || new Date().toISOString(),
-            wCode: wxData[i]?.current?.weathercode || 0
-          }));
-          setLocalAirData(formatted);
-        }
-      } catch (error) { console.error('Error fetching local PM2.5:', error); }
+      const lats = localAirStations.map(s => s.lat.toFixed(4)).join(',');
+      const lngs = localAirStations.map(s => s.lng.toFixed(4)).join(',');
+      const urlAqi = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lngs}&current=pm2_5,pm10,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=Asia%2FBangkok`;
+      const urlWx = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=weathercode&timezone=Asia%2FBangkok`;
+      
+      const [aqiResult, wxResult] = await Promise.all([
+        fetchWithCache(urlAqi, 'pm25_aqi_cache'),
+        fetchWithCache(urlWx, 'pm25_wx_cache')
+      ]);
+      
+      setApiStatus(prev => ({ ...prev, pm25: aqiResult.status === 'LIVE' && wxResult.status === 'LIVE' ? 'LIVE' : (aqiResult.status === 'OFFLINE' ? 'OFFLINE' : 'CACHED') }));
+
+      const aqiData = aqiResult.data; const wxData = wxResult.data;
+      if (Array.isArray(aqiData) && Array.isArray(wxData)) {
+        const formatted = localAirStations.map((station, i) => ({
+          ...station, 
+          pm25Val: aqiData[i]?.current?.pm2_5 || 0, pm10Val: aqiData[i]?.current?.pm10 || '—',
+          coVal: aqiData[i]?.current?.carbon_monoxide || '—', no2Val: aqiData[i]?.current?.nitrogen_dioxide || '—',
+          so2Val: aqiData[i]?.current?.sulphur_dioxide || '—', o3Val: aqiData[i]?.current?.ozone || '—',
+          time: aqiData[i]?.current?.time || new Date().toISOString(), wCode: wxData[i]?.current?.weathercode || 0
+        }));
+        setLocalAirData(formatted);
+      }
     };
     fetchLocalAir();
   }, [pm25]);
 
-  // 🚀 💧 ดึงข้อมูลฝน 24 ชม. (พร้อมระบบ Filter ตีกรอบพื้นที่ 150 กม.)
+  // 💧 ข้อมูลฝน ONWR (Resilience + Geofence)
   useEffect(() => {
     if (!onwrRain) { setOnwrRainData([]); return; }
     const fetchOnwrRain = async () => {
-      try {
-        const res = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h');
-        const json = await res.json();
-        
-        let arrData = [];
-        if (json && Array.isArray(json.data)) arrData = json.data;
-        else if (json && json.data && Array.isArray(json.data.data)) arrData = json.data.data;
-        
-        // 🎯 กรองข้อมูล เอาเฉพาะสถานีที่อยู่ในรัศมี < MAX_DISTANCE_KM
-        const filteredData = arrData.filter((station: any) => {
-          const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat;
-          const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng;
-          if (!latStr || !lngStr) return false;
-          
-          const dist = calculateDistance(BO_LUANG_LAT, BO_LUANG_LNG, parseFloat(latStr), parseFloat(lngStr));
-          return dist <= MAX_DISTANCE_KM; 
-        });
-        
-        setOnwrRainData(filteredData);
-      } catch (error) { console.error('Error fetching ONWR Rain:', error); }
+      const { data: json, status } = await fetchWithCache('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h', 'onwr_rain_cache');
+      setApiStatus(prev => ({ ...prev, onwrRain: status }));
+      
+      let arrData = [];
+      if (json && Array.isArray(json.data)) arrData = json.data;
+      else if (json && json.data && Array.isArray(json.data.data)) arrData = json.data.data;
+      
+      const filteredData = arrData.filter((station: any) => {
+        const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat;
+        const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng;
+        if (!latStr || !lngStr) return false;
+        return calculateDistance(BO_LUANG_LAT, BO_LUANG_LNG, parseFloat(latStr), parseFloat(lngStr)) <= MAX_DISTANCE_KM; 
+      });
+      setOnwrRainData(filteredData);
     };
     fetchOnwrRain();
   }, [onwrRain]);
 
-  // 🚀 💧 ดึงข้อมูลระดับน้ำ (พร้อมระบบ Filter ตีกรอบพื้นที่ 150 กม.)
+  // 💧 ข้อมูลระดับน้ำ ONWR (Resilience + Geofence)
   useEffect(() => {
     if (!onwrWaterLevel) { setOnwrWaterLevelData([]); return; }
     const fetchOnwrWaterLevel = async () => {
-      try {
-        const res = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load');
-        const json = await res.json();
-        
-        let arrData: any[] = [];
-        if (Array.isArray(json)) arrData = json;
-        else if (json?.data && Array.isArray(json.data)) arrData = json.data;
-        else if (json?.data?.waterlevel_data?.data && Array.isArray(json.data.waterlevel_data.data)) arrData = json.data.waterlevel_data.data;
-        else if (json?.waterlevel_data?.data && Array.isArray(json.waterlevel_data.data)) arrData = json.waterlevel_data.data;
-        else {
-          const findArray = (obj: any): any[] | null => {
-            for (let key in obj) {
-              if (Array.isArray(obj[key])) return obj[key];
-              if (typeof obj[key] === 'object' && obj[key] !== null) {
-                const found = findArray(obj[key]);
-                if (found) return found;
-              }
+      const { data: json, status } = await fetchWithCache('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load', 'onwr_water_cache');
+      setApiStatus(prev => ({ ...prev, onwrWater: status }));
+      
+      let arrData: any[] = [];
+      if (Array.isArray(json)) arrData = json;
+      else if (json?.data && Array.isArray(json.data)) arrData = json.data;
+      else if (json?.data?.waterlevel_data?.data && Array.isArray(json.data.waterlevel_data.data)) arrData = json.data.waterlevel_data.data;
+      else if (json?.waterlevel_data?.data && Array.isArray(json.waterlevel_data.data)) arrData = json.waterlevel_data.data;
+      else {
+        const findArray = (obj: any): any[] | null => {
+          for (let key in obj) {
+            if (Array.isArray(obj[key])) return obj[key];
+            if (typeof obj[key] === 'object' && obj[key] !== null) {
+              const found = findArray(obj[key]); if (found) return found;
             }
-            return null;
-          };
-          arrData = findArray(json) || [];
-        }
-        
-        // 🎯 กรองข้อมูล เอาเฉพาะสถานีที่อยู่ในรัศมี < MAX_DISTANCE_KM
-        const filteredData = arrData.filter((station: any) => {
-          const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat;
-          const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng;
-          if (!latStr || !lngStr) return false;
-          
-          const dist = calculateDistance(BO_LUANG_LAT, BO_LUANG_LNG, parseFloat(latStr), parseFloat(lngStr));
-          return dist <= MAX_DISTANCE_KM; 
-        });
-        
-        setOnwrWaterLevelData(filteredData);
-      } catch (error) { console.error('Error fetching ONWR Water Level:', error); }
+          } return null;
+        };
+        arrData = findArray(json) || [];
+      }
+      
+      const filteredData = arrData.filter((station: any) => {
+        const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat;
+        const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng;
+        if (!latStr || !lngStr) return false;
+        return calculateDistance(BO_LUANG_LAT, BO_LUANG_LNG, parseFloat(latStr), parseFloat(lngStr)) <= MAX_DISTANCE_KM; 
+      });
+      setOnwrWaterLevelData(filteredData);
     };
     fetchOnwrWaterLevel();
   }, [onwrWaterLevel]);
@@ -434,12 +396,7 @@ export default function BoLuangDashboard() {
     if (!citizenReport) return;
     const fetchReports = async () => {
       try {
-        const { data, error } = await supabase
-          .from('boluang_disaster_reports')
-          .select('*')
-          .neq('status', 'ดำเนินการเสร็จแล้ว') 
-          .order('created_at', { ascending: false }); 
-        if (error) throw error;
+        const { data, error } = await supabase.from('boluang_disaster_reports').select('*').neq('status', 'ดำเนินการเสร็จแล้ว').order('created_at', { ascending: false }); 
         if (data) setDisasterReports(data);
       } catch (error) { console.error('Error fetching disaster reports:', error); }
     };
@@ -447,9 +404,7 @@ export default function BoLuangDashboard() {
   }, [citizenReport]);
 
   useEffect(() => {
-    if (mapRef && (showBoluang || showBlock)) {
-      mapRef.flyTo([18.1633, 98.3744], 12, { duration: 2.5, easeLinearity: 0.25 });
-    }
+    if (mapRef && (showBoluang || showBlock)) { mapRef.flyTo([18.1633, 98.3744], 12, { duration: 2.5, easeLinearity: 0.25 }); }
   }, [showBoluang, showBlock, mapRef]);
 
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
@@ -464,9 +419,7 @@ export default function BoLuangDashboard() {
     if (!rawName) return 'พื้นที่หมู่บ้าน';
     const safeName = String(rawName); 
     let cName = safeName.replace(/^(บ้าน|บ\.|หมู่ที่\s*\d+|หมู่\s*\d+)/, '').replace(/\s+/g, '');
-    if (cName.includes('บ่อหลวง')) cName = 'บ้านบ่อหลวง';
-    else if (cName === 'ขุน' || cName.includes('บ้านขุน')) cName = 'บ้านขุน';
-    else cName = `บ้าน${cName}`;
+    if (cName.includes('บ่อหลวง')) cName = 'บ้านบ่อหลวง'; else if (cName === 'ขุน' || cName.includes('บ้านขุน')) cName = 'บ้านขุน'; else cName = `บ้าน${cName}`;
     return cName;
   };
 
@@ -480,13 +433,11 @@ export default function BoLuangDashboard() {
     layer.bindTooltip(villageName, { sticky: true, direction: 'auto', className: 'village-hover-tooltip', permanent: false });
     layer.on({
       mouseover: (e: any) => {
-        const targetLayer = e.target;
-        targetLayer.setStyle({ weight: 3, color: '#ffffff', fillColor: defaultColor, fillOpacity: 0.7, dashArray: '' });
+        const targetLayer = e.target; targetLayer.setStyle({ weight: 3, color: '#ffffff', fillColor: defaultColor, fillOpacity: 0.7, dashArray: '' });
         if (targetLayer.bringToFront) targetLayer.bringToFront(); 
       },
       mouseout: (e: any) => {
-        const targetLayer = e.target;
-        targetLayer.setStyle({ weight: 1.5, color: 'rgba(255, 255, 255, 0.3)', fillOpacity: 0.12, dashArray: '3, 3' });
+        const targetLayer = e.target; targetLayer.setStyle({ weight: 1.5, color: 'rgba(255, 255, 255, 0.3)', fillOpacity: 0.12, dashArray: '3, 3' });
       }
     });
   };
@@ -511,8 +462,7 @@ export default function BoLuangDashboard() {
       const center = mapRef.getCenter(); const zoom = mapRef.getZoom();
       syncData.current = { lat: center.lat, lng: center.lng, zoom: zoom };
       setIframeState({ lat: center.lat, lng: center.lng, zoom: zoom });
-      setCurrentZoom(zoom);
-      setTransform({ x: 0, y: 0 });
+      setCurrentZoom(zoom); setTransform({ x: 0, y: 0 });
     };
 
     const onMove = () => {
@@ -523,38 +473,20 @@ export default function BoLuangDashboard() {
       setTransform({ x: initialPoint.x - currentPoint.x, y: initialPoint.y - currentPoint.y });
     };
 
-    const onMouseMove = (e: any) => {
-      if (coordsRef.current) {
-        coordsRef.current.innerText = `${e.latlng.lat.toFixed(4)}°N ${e.latlng.lng.toFixed(4)}°E`;
-      }
-    };
+    const onMouseMove = (e: any) => { if (coordsRef.current) coordsRef.current.innerText = `${e.latlng.lat.toFixed(4)}°N ${e.latlng.lng.toFixed(4)}°E`; };
 
-    mapRef.on('move', onMove); 
-    mapRef.on('moveend', updateSyncData); 
-    mapRef.on('zoomend', updateSyncData);
-    mapRef.on('mousemove', onMouseMove); 
-    return () => { 
-      mapRef.off('move', onMove); 
-      mapRef.off('moveend', updateSyncData); 
-      mapRef.off('zoomend', updateSyncData); 
-      mapRef.off('mousemove', onMouseMove); 
-    };
+    mapRef.on('move', onMove); mapRef.on('moveend', updateSyncData); mapRef.on('zoomend', updateSyncData); mapRef.on('mousemove', onMouseMove); 
+    return () => { mapRef.off('move', onMove); mapRef.off('moveend', updateSyncData); mapRef.off('zoomend', updateSyncData); mapRef.off('mousemove', onMouseMove); };
   }, [mapRef]);
 
+  const L = typeof window !== 'undefined' ? require('leaflet') : null;
   const windyMapUrl = `https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=%C2%B0C&metricWind=km/h&zoom=${iframeState.zoom}&overlay=${windyType}&product=ecmwf&level=surface&lat=${iframeState.lat}&lon=${iframeState.lng}&detailLat=${iframeState.lat}&detailLon=${iframeState.lng}&marker=false`;
 
-  const L = typeof window !== 'undefined' ? require('leaflet') : null;
-  
   const createTmdIcon = useMemo(() => {
     if (!L) return () => null;
     return (wCode: number) => {
       const emoji = getWeatherEmoji(wCode);
-      const html = `
-        <div class="flex items-center justify-center w-[36px] h-[36px] bg-[#0f172a] border-[2px] border-[#38bdf8] rounded-full shadow-[0_0_15px_rgba(56,189,248,0.5)] transition-transform hover:scale-110">
-          <span class="text-[18px] drop-shadow-md">${emoji}</span>
-        </div>
-      `;
-      return L.divIcon({ className: 'bg-transparent border-none', html, iconSize: [36, 36], iconAnchor: [18, 18] });
+      return L.divIcon({ className: 'bg-transparent border-none', html: `<div class="flex items-center justify-center w-[36px] h-[36px] bg-[#0f172a] border-[2px] border-[#38bdf8] rounded-full shadow-[0_0_15px_rgba(56,189,248,0.5)] transition-transform hover:scale-110"><span class="text-[18px] drop-shadow-md">${emoji}</span></div>`, iconSize: [36, 36], iconAnchor: [18, 18] });
     };
   }, [L]);
 
@@ -562,89 +494,33 @@ export default function BoLuangDashboard() {
     if (!L) return () => null;
     return (pmVal: number) => {
       const { color, shadow } = getAirQualityDetails(pmVal);
-      const html = `
-        <div class="relative flex flex-col items-center justify-center w-[48px] h-[48px] bg-[#0f172a]/95 border-[2px] rounded-xl backdrop-blur-md transition-transform hover:scale-110 z-10" style="border-color: ${color}; box-shadow: 0 0 15px ${shadow};">
-          <span class="text-white font-bold text-[15px] leading-none mt-1 z-0">${pmVal.toFixed(1)}</span>
-          <span class="text-[10px] font-bold mt-1.5 z-0 tracking-widest" style="color: ${color};">PM2.5</span>
-        </div>
-      `;
-      return L.divIcon({ className: 'bg-transparent border-none', html, iconSize: [48, 48], iconAnchor: [24, 24] });
+      return L.divIcon({ className: 'bg-transparent border-none', html: `<div class="relative flex flex-col items-center justify-center w-[48px] h-[48px] bg-[#0f172a]/95 border-[2px] rounded-xl backdrop-blur-md transition-transform hover:scale-110 z-10" style="border-color: ${color}; box-shadow: 0 0 15px ${shadow};"><span class="text-white font-bold text-[15px] leading-none mt-1 z-0">${pmVal.toFixed(1)}</span><span class="text-[10px] font-bold mt-1.5 z-0 tracking-widest" style="color: ${color};">PM2.5</span></div>`, iconSize: [48, 48], iconAnchor: [24, 24] });
     };
   }, [L]);
 
   const createReportIcon = useMemo(() => {
     if (!L) return () => null;
-    return () => L.divIcon({
-      className: 'bg-transparent border-none',
-      html: `
-        <div class="relative flex items-center justify-center w-10 h-10">
-          <div class="absolute inset-0 bg-[#ef4444] rounded-full blur-[8px] opacity-60 animate-pulse"></div>
-          <div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#ef4444] rounded-full shadow-[0_0_15px_rgba(239,68,68,0.9)] z-10">
-            <span class="text-[#ef4444] text-[14px]">🚨</span>
-          </div>
-        </div>
-      `,
-      iconSize: [40, 40], iconAnchor: [20, 20]
-    });
+    return () => L.divIcon({ className: 'bg-transparent border-none', html: `<div class="relative flex items-center justify-center w-10 h-10"><div class="absolute inset-0 bg-[#ef4444] rounded-full blur-[8px] opacity-60 animate-pulse"></div><div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#ef4444] rounded-full shadow-[0_0_15px_rgba(239,68,68,0.9)] z-10"><span class="text-[#ef4444] text-[14px]">🚨</span></div></div>`, iconSize: [40, 40], iconAnchor: [20, 20] });
   }, [L]);
 
   const createHotspotIcon = useMemo(() => {
     if (!L) return () => null;
-    return () => L.divIcon({
-      className: 'bg-transparent border-none',
-      html: `
-        <div class="relative flex items-center justify-center w-10 h-10">
-          <div class="absolute inset-0 bg-[#ea580c] rounded-full blur-[8px] opacity-60"></div>
-          <div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#ea580c] rounded-full shadow-[0_0_15px_rgba(234,88,12,0.9)] z-10">
-            <span class="text-[#ea580c] text-[14px]">🔥</span>
-          </div>
-        </div>
-      `,
-      iconSize: [40, 40], iconAnchor: [20, 20]
-    });
+    return () => L.divIcon({ className: 'bg-transparent border-none', html: `<div class="relative flex items-center justify-center w-10 h-10"><div class="absolute inset-0 bg-[#ea580c] rounded-full blur-[8px] opacity-60"></div><div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#ea580c] rounded-full shadow-[0_0_15px_rgba(234,88,12,0.9)] z-10"><span class="text-[#ea580c] text-[14px]">🔥</span></div></div>`, iconSize: [40, 40], iconAnchor: [20, 20] });
   }, [L]);
 
   const createQuakeIcon = useMemo(() => {
     if (!L) return () => null;
-    return () => L.divIcon({
-      className: 'bg-transparent border-none',
-      html: `
-        <div class="relative flex items-center justify-center w-10 h-10">
-          <div class="absolute inset-0 bg-[#c084fc] rounded-full blur-[8px] opacity-50"></div>
-          <div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#c084fc] rounded-full shadow-[0_0_15px_rgba(192,132,252,0.9)] z-10">
-            <span class="text-[#c084fc] text-[14px] font-bold">〰</span>
-          </div>
-        </div>
-      `,
-      iconSize: [40, 40], iconAnchor: [20, 20]
-    });
+    return () => L.divIcon({ className: 'bg-transparent border-none', html: `<div class="relative flex items-center justify-center w-10 h-10"><div class="absolute inset-0 bg-[#c084fc] rounded-full blur-[8px] opacity-50"></div><div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#c084fc] rounded-full shadow-[0_0_15px_rgba(192,132,252,0.9)] z-10"><span class="text-[#c084fc] text-[14px] font-bold">〰</span></div></div>`, iconSize: [40, 40], iconAnchor: [20, 20] });
   }, [L]);
 
   const createWaterLevelIcon = useMemo(() => {
     if (!L) return () => null;
-    return () => L.divIcon({
-      className: 'bg-transparent border-none',
-      html: `
-        <div class="relative flex items-center justify-center w-[36px] h-[36px] bg-[#0f172a] border-[2px] border-[#3b82f6] rounded-full shadow-[0_0_15px_rgba(59,130,246,0.6)] transition-transform hover:scale-110 z-20">
-          <span class="text-[16px] drop-shadow-md">🌊</span>
-        </div>
-      `,
-      iconSize: [36, 36], iconAnchor: [18, 18]
-    });
+    return () => L.divIcon({ className: 'bg-transparent border-none', html: `<div class="relative flex items-center justify-center w-[36px] h-[36px] bg-[#0f172a] border-[2px] border-[#3b82f6] rounded-full shadow-[0_0_15px_rgba(59,130,246,0.6)] transition-transform hover:scale-110 z-20"><span class="text-[16px] drop-shadow-md">🌊</span></div>`, iconSize: [36, 36], iconAnchor: [18, 18] });
   }, [L]);
 
   const createUserLocationIcon = useMemo(() => {
     if (!L) return () => null;
-    return () => L.divIcon({
-      className: 'bg-transparent border-none',
-      html: `
-        <div class="relative flex items-center justify-center w-8 h-8">
-          <div class="absolute inset-0 bg-[#38bdf8] rounded-full blur-[6px] opacity-70 animate-ping"></div>
-          <div class="relative flex items-center justify-center w-5 h-5 bg-[#0ea5e9] border-[2px] border-white rounded-full shadow-lg z-10"></div>
-        </div>
-      `,
-      iconSize: [32, 32], iconAnchor: [16, 16]
-    });
+    return () => L.divIcon({ className: 'bg-transparent border-none', html: `<div class="relative flex items-center justify-center w-8 h-8"><div class="absolute inset-0 bg-[#38bdf8] rounded-full blur-[6px] opacity-70 animate-ping"></div><div class="relative flex items-center justify-center w-5 h-5 bg-[#0ea5e9] border-[2px] border-white rounded-full shadow-lg z-10"></div></div>`, iconSize: [32, 32], iconAnchor: [16, 16] });
   }, [L]);
 
   return (
@@ -652,22 +528,14 @@ export default function BoLuangDashboard() {
       <style dangerouslySetInnerHTML={{__html: `
         .leaflet-container { background: transparent !important; cursor: crosshair !important; }
         .leaflet-top.leaflet-left { top: 90px !important; left: 10px !important; }
-        @media (min-width: 768px) {
-          .leaflet-top.leaflet-left { top: 90px !important; left: 370px !important; }
-        }
+        @media (min-width: 768px) { .leaflet-top.leaflet-left { top: 90px !important; left: 370px !important; } }
         .leaflet-bar a { background-color: #0f172a !important; color: #fff !important; border: 1px solid #1e293b !important; border-radius: 8px !important; }
         .leaflet-bar a:hover { background-color: #1e293b !important; }
         .leaflet-div-icon { background: transparent !important; border: none !important; }
         .leaflet-tooltip { pointer-events: none !important; }
-        
         .leaflet-interactive:focus { outline: none !important; }
+        .leaflet-tooltip.village-hover-tooltip { background-color: #ffffff !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; font-family: inherit !important; font-size: 14px !important; font-weight: 600 !important; padding: 6px 14px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; }
         
-        .leaflet-tooltip.village-hover-tooltip { 
-          background-color: #ffffff !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; 
-          font-family: inherit !important; font-size: 14px !important; font-weight: 600 !important; 
-          padding: 6px 14px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
-        }
-
         .popup-location .leaflet-popup-content-wrapper { background-color: #0f172a !important; color: #e2e8f0 !important; border: 1px solid #0ea5e9 !important; border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden; }
         .popup-location .leaflet-popup-tip { background-color: #0f172a !important; border-top: 1px solid #0ea5e9 !important; border-left: 1px solid #0ea5e9 !important; }
         .popup-location .leaflet-popup-content { margin: 0 !important; }
@@ -763,6 +631,7 @@ export default function BoLuangDashboard() {
           <MapContainer center={[18.1633, 98.3744]} zoom={isMobile ? 8 : 9} maxZoom={20} zoomControl={false} attributionControl={false} className="w-full h-full" ref={setMapRef}>
             <ZoomControl position="topleft" />
             
+            {/* 🚀 ปุ่ม Locate Me (ค้นหาตำแหน่งของฉัน) */}
             <div className="absolute top-[160px] left-[10px] md:left-[370px] z-[400] transition-all duration-300">
               <button 
                 onClick={handleLocateMe}
@@ -1160,24 +1029,20 @@ export default function BoLuangDashboard() {
               <div className="w-8 h-8 md:w-9 md:h-9 bg-[#38bdf8]/20 rounded-full border border-[#38bdf8]/50 flex items-center justify-center text-[11px] md:text-[12px] font-bold text-[#38bdf8] shadow-[0_0_10px_rgba(56,189,248,0.3)]">BL</div>
             </div>
             <div className="flex flex-col border-l-2 border-[#1e293b] pl-3 md:pl-4">
-              <h1 className="text-[12px] md:text-[15px] font-bold tracking-wide text-white leading-tight">ระบบสารสนเทศภูมิศาสตร์</h1>
-              <h2 className="text-[11px] md:text-[15px] font-bold tracking-wide text-[#38bdf8] leading-tight mt-0.5">ต.บ่อหลวง</h2>
+              <h1 className="text-[12px] md:text-[15px] font-bold tracking-wide text-white leading-tight">ศูนย์บัญชาการภัยพิบัติ</h1>
+              <h2 className="text-[11px] md:text-[15px] font-bold tracking-wide text-[#38bdf8] leading-tight mt-0.5">ต.บ่อหลวง จ.เชียงใหม่</h2>
             </div>
           </div>
 
           <div className="hidden lg:flex flex-col border-l border-[#1e293b] pl-6 justify-center">
-            <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถิติผู้เข้าชม</span>
+            <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถานะระบบ</span>
             <div className="flex items-center text-[12px] font-mono text-gray-400">
               <div className="flex items-center space-x-1.5">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#10b981]"></span>
                 </span>
-                <span>วันนี้: <span className="text-[#10b981]">{visitStats.today.toLocaleString()}</span></span>
-              </div>
-              <span className="mx-2 text-gray-600">|</span>
-              <div className="flex items-center space-x-1.5">
-                <span>รวม: <span className="text-[#38bdf8]">{visitStats.total.toLocaleString()}</span></span>
+                <span className="text-[#10b981]">ระบบออนไลน์</span>
               </div>
             </div>
           </div>
@@ -1188,74 +1053,82 @@ export default function BoLuangDashboard() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
           </svg>
           <span className="text-[11px] md:text-[13px] font-mono font-medium text-gray-300 tracking-wide">
-            Layers <span className="hidden md:inline text-gray-500 mx-1">· Boluang</span>
+            แผงควบคุม <span className="hidden md:inline text-gray-500 mx-1">· Layers</span>
           </span>
         </div>
       </header>
 
+      {/* 🌟 แผงควบคุม ซ้าย (หมวดหมู่อากาศและน้ำ) */}
       <aside className={`absolute top-[80px] md:top-24 z-[70] w-[300px] md:w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-r-2xl md:rounded-2xl shadow-2xl p-4 md:p-5 backdrop-blur-xl pointer-events-auto max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar transition-transform duration-500 ease-in-out ${isLeftPanelOpen ? 'translate-x-0 left-0 md:left-4' : '-translate-x-full left-0 md:left-4'}`}>
         <div className="mb-4 flex flex-col items-start border-b border-[#1e293b] pb-3 relative">
           <button onClick={() => setIsLeftPanelOpen(false)} className="md:hidden absolute top-0 right-0 text-gray-500 hover:text-white"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
           <div className="flex items-center space-x-3 mb-2">
             <div className="bg-gradient-to-br from-[#38bdf8] to-[#2563eb] p-2 rounded-xl shadow-[0_4px_10px_rgba(37,99,235,0.4)]">
-              <span className="text-white text-[18px]">🌧️</span>
+              <span className="text-white text-[18px]">⛅</span>
             </div>
-            <h2 className="text-[18px] md:text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">Weather & Air</h2>
+            <h2 className="text-[18px] md:text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">ฝนและสภาพอากาศ</h2>
           </div>
-          <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed pr-6">ชั้นข้อมูลด้านซ้ายสำหรับพยากรณ์อากาศและปริมาณน้ำฝน</p>
+          <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed pr-6">ข้อมูลอุตุนิยมวิทยาและคุณภาพอากาศ</p>
         </div>
 
         <div className="space-y-4">
           
+          {/* 🌟 1. หมวดสภาพอากาศ */}
           <div>
             <div className="flex items-center mb-2">
+              <span className="text-[13px] mr-2">🌦️</span>
+              <span className="text-[10px] md:text-[11px] text-[#38bdf8] tracking-widest font-bold">พยากรณ์และปริมาณฝน</span>
+              <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
+            </div>
+            <div className="space-y-1">
+              <CustomToggleBox label="พยากรณ์อากาศ (รายพื้นที่)" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} dotColor="#38bdf8" apiStatus={apiStatus.tmd} />
+              <CustomToggleBox label="ฝนสะสม 24 ชม. (TMD)" active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#facc15" apiStatus={apiStatus.tmd} />
+            </div>
+          </div>
+
+          {/* 🌟 2. หมวดคุณภาพอากาศ */}
+          <div>
+            <div className="flex items-center mb-2">
+              <span className="text-[13px] mr-2">🌫️</span>
+              <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">คุณภาพอากาศ (AIR QUALITY)</span>
+              <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
+            </div>
+            <div className="space-y-1">
+              <CustomToggleBox label="ค่าฝุ่น PM2.5 (รายพื้นที่)" active={pm25} onClick={() => setPm25(!pm25)} dotColor="#06b6d4" apiStatus={apiStatus.pm25} />
+            </div>
+          </div>
+
+          {/* 🌟 3. หมวดน้ำและน้ำท่วม */}
+          <div className="mt-4 pt-4 border-t border-[#1e293b]">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] p-2 rounded-xl shadow-[0_4px_10px_rgba(37,99,235,0.4)]">
+                <span className="text-white text-[18px]">🌊</span>
+              </div>
+              <h2 className="text-[18px] md:text-[20px] font-serif font-bold tracking-wide text-[#60a5fa]">น้ำและน้ำท่วม</h2>
+            </div>
+
+            <div className="flex items-center mb-2">
               <span className="text-[13px] mr-2">💧</span>
-              <span className="text-[10px] md:text-[11px] text-[#3b82f6] tracking-widest font-bold">HYDRO & FLOOD (สทนช. / เครือข่าย)</span>
+              <span className="text-[10px] md:text-[11px] text-blue-400 tracking-widest font-bold">ข้อมูลแหล่งน้ำ (สทนช.)</span>
               <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
             </div>
             <div className="space-y-1 bg-[#0f172a] p-3 rounded-xl border border-[#1e293b]">
-              <CustomToggleBox label="ระดับน้ำ (ONWR)" active={onwrWaterLevel} onClick={() => setOnwrWaterLevel(!onwrWaterLevel)} dotColor="#2563eb" />
-              <CustomToggleBox label="ปริมาณฝน 24 ชม. (ONWR)" active={onwrRain} onClick={() => setOnwrRain(!onwrRain)} dotColor="#3b82f6" />
+              <CustomToggleBox label="ระดับน้ำในพื้นที่" active={onwrWaterLevel} onClick={() => setOnwrWaterLevel(!onwrWaterLevel)} dotColor="#2563eb" apiStatus={apiStatus.onwrWater} />
+              <CustomToggleBox label="ปริมาณฝน 24 ชม. (สถานี)" active={onwrRain} onClick={() => setOnwrRain(!onwrRain)} dotColor="#3b82f6" apiStatus={apiStatus.onwrRain} />
               
-              <div 
-                className="flex items-center space-x-3 px-3 py-1.5 rounded-xl border border-[#1e293b] bg-[#0b132b]/50 hover:bg-[#1e293b]/80 transition-colors duration-200 cursor-pointer select-none mb-1 group"
-                onClick={() => window.open('https://flood.nonarkara.org/BoLuang?city=%E0%B8%9A%E0%B9%88%E0%B8%AD%E0%B8%AB%E0%B8%A5%E0%B8%A7%E0%B8%87&tv=1', '_blank')}
-              >
+              <div className="flex items-center space-x-3 px-3 py-1.5 rounded-xl border border-[#1e293b] bg-[#0b132b]/50 hover:bg-[#1e293b]/80 transition-colors duration-200 cursor-pointer select-none mb-1 group" onClick={() => window.open('https://flood.nonarkara.org/BoLuang?city=%E0%B8%9A%E0%B9%88%E0%B8%AD%E0%B8%AB%E0%B8%A5%E0%B8%A7%E0%B8%87&tv=1', '_blank')}>
                 <div className="relative w-8 h-4 rounded-full bg-[#1e293b] flex items-center justify-center flex-shrink-0 border border-gray-600 group-hover:border-[#0ea5e9] transition-colors">
                   <svg className="w-2.5 h-2.5 text-gray-400 group-hover:text-[#0ea5e9] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                 </div>
                 <div className="flex items-center space-x-2 flex-1">
                   <div className="w-2.5 h-2.5 rounded-[3px] shadow-sm bg-[#0ea5e9]"></div>
-                  <span className="text-[14px] font-medium text-gray-400 group-hover:text-white transition-colors">รายงานน้ำท่วม FloodDash</span>
+                  <span className="text-[13px] font-medium text-gray-400 group-hover:text-white transition-colors">สรุปรายงานน้ำท่วม (FloodDash)</span>
                 </div>
               </div>
-
             </div>
           </div>
-
-          <div>
-            <div className="flex items-center mb-2">
-              <span className="text-[13px] mr-2">🌦️</span>
-              <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">WEATHER API</span>
-              <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
-            </div>
-            <div className="space-y-1">
-              <CustomToggleBox label="พยากรณ์อากาศรายพื้นที่ (TMD)" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} dotColor="#38bdf8" />
-              <CustomToggleBox label="ปริมาณฝนสะสม (TMD)" active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#facc15" />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center mb-2">
-              <span className="text-[13px] mr-2">🌫️</span>
-              <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">AIR QUALITY</span>
-              <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
-            </div>
-            <div className="space-y-1">
-              <CustomToggleBox label="หมุดค่าฝุ่น PM2.5 (Micro-climate)" active={pm25} onClick={() => setPm25(!pm25)} dotColor="#06b6d4" />
-            </div>
-          </div>
-
+          
+          {/* 🌟 4. หมวดแผนที่ลม */}
           <div>
             <div className="flex items-center mb-2">
               <span className="text-[13px] mr-2">🗺️</span>
@@ -1263,15 +1136,15 @@ export default function BoLuangDashboard() {
               <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
             </div>
             <div className="mb-3">
-              <CustomToggleBox label="เปิด/ปิดข้อมูล Windy" active={windyLayer} onClick={() => setWindyLayer(!windyLayer)} dotColor="#facc15" />
+              <CustomToggleBox label="เปิด/ปิดข้อมูลพายุ Windy" active={windyLayer} onClick={() => setWindyLayer(!windyLayer)} dotColor="#facc15" />
             </div>
             {windyLayer && (
               <div className="bg-[#0f172a] rounded-xl border border-[#1e293b] p-3 md:p-4 shadow-inner">
-                <div className="flex items-center space-x-2 mb-3"><span className="text-[13px] font-bold text-gray-200">🌧️ ข้อมูล Windy</span></div>
+                <div className="flex items-center space-x-2 mb-3"><span className="text-[13px] font-bold text-gray-200">🌧️ ข้อมูลแสดงผล</span></div>
                 <div className="space-y-1">
-                  <CustomToggleBox label="ลม (Wind)" active={windyType === 'wind'} onClick={() => setWindyType('wind')} isRadio={true} />
+                  <CustomToggleBox label="ลมพายุ (Wind)" active={windyType === 'wind'} onClick={() => setWindyType('wind')} isRadio={true} />
                   <CustomToggleBox label="อุณหภูมิ (Temperature)" active={windyType === 'temp'} onClick={() => setWindyType('temp')} isRadio={true} />
-                  <CustomToggleBox label="ฝนและฟ้าผ่า (Rain)" active={windyType === 'rain'} onClick={() => setWindyType('rain')} isRadio={true} />
+                  <CustomToggleBox label="กลุ่มฝน (Rain)" active={windyType === 'rain'} onClick={() => setWindyType('rain')} isRadio={true} />
                 </div>
               </div>
             )}
@@ -1279,10 +1152,10 @@ export default function BoLuangDashboard() {
         </div>
       </aside>
 
-      {/* 🌟 แถบ Credit */}
+      {/* 🌟 แถบ Credit ล่าง */}
       <div className="hidden md:flex absolute bottom-4 left-4 z-[60] flex-wrap gap-2 pointer-events-auto max-w-[60%]">
         <div className="bg-[#0b132b]/80 backdrop-blur-md border border-[#1e293b] rounded-full px-3 py-1.5 shadow-sm text-[11px] font-mono text-gray-400">
-          Base map: Windy Weather + Dark Matter
+          Base map: Dark Matter
         </div>
         <div className="bg-[#0b132b]/80 backdrop-blur-md border border-[#1e293b] rounded-full px-3 py-1.5 shadow-sm text-[11px] font-mono text-[#38bdf8]">
           <span ref={coordsRef}>18.1633°N 98.3744°E</span>
@@ -1292,7 +1165,7 @@ export default function BoLuangDashboard() {
       <div className="hidden md:flex absolute bottom-4 right-1/2 translate-x-1/2 z-[60] pointer-events-auto">
         <div className="bg-[#0b132b]/80 backdrop-blur-md border border-[#1e293b] rounded-full px-3 py-1.5 shadow-sm text-[11px] font-mono text-gray-400 flex items-center space-x-1.5">
           <span className="text-[#38bdf8]">💨</span>
-          <span>Data: Windy | TMD | ThaiWater | GISTDA Sphere API</span>
+          <span>Data: TMD | ONWR | GISTDA | FloodDash</span>
         </div>
       </div>
 
@@ -1300,7 +1173,7 @@ export default function BoLuangDashboard() {
         <a href="https://leafletjs.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Leaflet</a> | &copy; OSM
       </div>
 
-      {/* 🌟 แผงควบคุม ขวา */}
+      {/* 🌟 แผงควบคุม ขวา (แจ้งเหตุและภัยพิบัติ) */}
       <aside className={`absolute top-[80px] md:top-24 right-0 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto`} style={{ transform: isRightPanelOpen ? 'translateX(0)' : (isMobile ? 'translateX(100%)' : 'translateX(360px)') }}>
         <div className="relative md:mr-5 flex w-full md:w-auto">
           <button onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="hidden md:flex absolute -left-[32px] top-4 w-[32px] h-14 bg-[#0b132b]/95 border-y border-l border-[#1e293b] rounded-l-lg items-center justify-center text-gray-400 hover:text-white hover:bg-[#1e293b] transition-colors shadow-[-4px_0_10px_rgba(0,0,0,0.3)] backdrop-blur-md z-50 cursor-pointer">
@@ -1309,74 +1182,79 @@ export default function BoLuangDashboard() {
           
           <div className="w-[300px] md:w-[360px] ml-auto bg-[#0b132b]/95 border border-[#1e293b] rounded-l-2xl md:rounded-xl shadow-2xl p-4 md:p-5 backdrop-blur-xl max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar">
             
+            {/* 🔍 1. ระบบค้นหาพิกัด (Smart Search) */}
+            <div className="mb-4 bg-[#0f172a] p-1.5 rounded-xl border border-[#1e293b] flex shadow-inner">
+              <form onSubmit={handleSearchSubmit} className="flex w-full">
+                <input 
+                  type="text" 
+                  placeholder="ค้นหาหมู่บ้าน, สถานที่..." 
+                  className="w-full bg-transparent text-sm text-white px-3 py-1.5 outline-none placeholder-gray-500"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                <button type="submit" className="bg-[#38bdf8] text-[#0b132b] px-3 rounded-lg font-bold hover:bg-[#7dd3fc] transition-colors flex items-center justify-center">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                </button>
+              </form>
+            </div>
+
             <div className="mb-4 flex flex-col items-start border-b border-[#1e293b] pb-3 relative">
               <button onClick={() => setIsRightPanelOpen(false)} className="md:hidden absolute top-0 right-0 text-gray-500 hover:text-white"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
               
               <div className="flex items-center space-x-3 mb-2">
-                <div className="bg-gradient-to-br from-[#2dd4bf] to-[#3b82f6] p-2 rounded-xl shadow-[0_4px_10px_rgba(45,212,191,0.3)]">
-                  <svg className="w-5 h-5 md:w-6 md:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h7" /></svg>
+                <div className="bg-gradient-to-br from-[#ef4444] to-[#f97316] p-2 rounded-xl shadow-[0_4px_10px_rgba(239,68,68,0.3)]">
+                  <span className="text-white text-[18px]">🚨</span>
                 </div>
-                <h2 className="text-[18px] md:text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">Layers</h2>
+                <h2 className="text-[18px] md:text-[20px] font-serif font-bold tracking-wide text-[#fca5a5]">แจ้งเหตุ & ภัยธรรมชาติ</h2>
               </div>
-              <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed pr-6">แผงควบคุมชั้นข้อมูลหลักด้านขวา</p>
-              
-              <div className="flex items-center space-x-3 mt-3">
-                <div className="flex items-center px-2 py-1 md:px-3 md:py-1.5 rounded-full border border-[#1e293b] bg-[#0f172a]/50">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#2dd4bf] mr-1.5 shadow-[0_0_5px_#2dd4bf]"></div>
-                  <span className="text-[11px] md:text-[12px] font-bold text-gray-300 tracking-wide">Active: <span className="text-white ml-1">{activeLayersCount}</span></span>
-                </div>
-              </div>
+              <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed pr-6">ระบบรับแจ้งเหตุและเฝ้าระวังภัยพิบัติ</p>
             </div>
 
             <div className="space-y-4">
+              {/* 🌟 2. หมวดแจ้งเหตุประชาชน */}
               <div>
                 <div className="flex items-center mb-2">
-                  <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">REPORT TOOL</span>
+                  <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">CITIZEN REPORTS (รับแจ้งเหตุ)</span>
                   <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
                 </div>
-                <div>
+                <div className="space-y-2">
+                  <CustomToggleBox label="จุดแจ้งเหตุจากประชาชน" active={citizenReport} onClick={() => setCitizenReport(!citizenReport)} dotColor="#ef4444" />
                   <button onClick={() => setShowScanModal(true)} className="w-full py-2.5 bg-gradient-to-r from-[#f97316] to-[#ec4899] hover:brightness-110 rounded-xl text-[13px] md:text-[14px] font-bold text-white shadow-[0_4px_15px_rgba(249,115,22,0.3)] flex items-center justify-center space-x-2 transition-all cursor-pointer">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-                    <span>สแกนแจ้งจุดเสี่ยง/สาธารณภัย</span>
+                    <span>เปิดฟอร์มแจ้งจุดเสี่ยงภัย</span>
                   </button>
                 </div>
               </div>
 
+              {/* 🌟 3. หมวดภัยพิบัติทางธรรมชาติ */}
               <div>
                 <div className="flex items-center mb-2">
-                  <span className="text-[10px] md:text-[11px] text-[#38bdf8] tracking-widest font-bold">GIS MAP LAYERS</span>
+                  <span className="text-[10px] md:text-[11px] text-[#fca5a5] tracking-widest font-bold">NATURAL HAZARDS (เตือนภัย)</span>
                   <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
                 </div>
                 <div className="space-y-1">
-                  <CustomToggleBox label="แผนที่ดาวเทียม (Satellite)" active={satelliteLayer} onClick={() => setSatelliteLayer(!satelliteLayer)} dotColor="#10b981" />
-                  <CustomToggleBox label="ขอบเขตตำบลบ่อหลวง" active={showBoluang} onClick={() => setShowBoluang(!showBoluang)} dotColor="#38bdf8" />
-                  <CustomToggleBox label="ขอบเขต 13 หมู่บ้าน" active={showBlock} onClick={() => setShowBlock(!showBlock)} dotColor="#fcd34d" />
-                  <div className="relative">
-                    <CustomToggleBox label="แปลงที่ดินรายบุคคล" active={showParcel} onClick={() => setShowParcel(!showParcel)} dotColor="#4ade80" />
-                    <span className="absolute right-3 top-2 text-[8px] md:text-[9px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20 pointer-events-none">Admin Only</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center mb-2">
-                  <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">CITIZEN REPORTS</span>
-                  <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
-                </div>
-                <div className="space-y-1">
-                  <CustomToggleBox label="จุดแจ้งเหตุประชาชน (สีแดง)" active={citizenReport} onClick={() => setCitizenReport(!citizenReport)} dotColor="#ef4444" />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center mb-2">
-                  <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">NATURAL HAZARD</span>
-                  <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
-                </div>
-                <div className="space-y-1">
-                  <CustomToggleBox label="จุดเสี่ยงแผ่นดินไหว" active={earthquakeLayer} onClick={() => setEarthquakeLayer(!earthquakeLayer)} dotColor="#c084fc" />
-                  <CustomToggleBox label="จุดความร้อน Hotspot (GISTDA)" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#ea580c" />
+                  <CustomToggleBox label="จุดความร้อน/ไฟป่า (Hotspot)" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#ea580c" />
                   <CustomToggleBox label="พื้นที่เสี่ยงดินถล่ม" active={showLandslide} onClick={() => setShowLandslide(!showLandslide)} dotColor="#ef4444" />
+                  <CustomToggleBox label="รอยเลื่อนแผ่นดินไหว" active={earthquakeLayer} onClick={() => setEarthquakeLayer(!earthquakeLayer)} dotColor="#c084fc" />
+                </div>
+              </div>
+
+              {/* 🌟 4. หมวดแผนที่และขอบเขตพื้นที่ */}
+              <div className="mt-4 pt-4 border-t border-[#1e293b]">
+                <div className="flex items-center mb-2">
+                  <span className="text-[10px] md:text-[11px] text-[#10b981] tracking-widest font-bold">BASEMAP & BOUNDARIES</span>
+                  <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
+                </div>
+                <div className="space-y-1">
+                  <CustomToggleBox label="เปิดแผนที่ดาวเทียม (Satellite)" active={satelliteLayer} onClick={() => setSatelliteLayer(!satelliteLayer)} dotColor="#10b981" />
+                  <CustomToggleBox label="ขอบเขตตำบลบ่อหลวง" active={showBoluang} onClick={() => setShowBoluang(!showBoluang)} dotColor="#38bdf8" />
+                  <CustomToggleBox label="โซน 13 หมู่บ้าน" active={showBlock} onClick={() => setShowBlock(!showBlock)} dotColor="#fcd34d" />
+                  
+                  {/* 🛡️ โหมดเจ้าหน้าที่ */}
+                  <div className="relative mt-2 pt-2 border-t border-[#1e293b]/50">
+                    <CustomToggleBox label="แปลงที่ดินรายบุคคล" active={showParcel} onClick={() => setShowParcel(!showParcel)} dotColor="#4ade80" />
+                    <span className="absolute right-3 top-4 text-[8px] md:text-[9px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20 pointer-events-none flex items-center"><span className="mr-1">🔒</span> เจ้าหน้าที่</span>
+                  </div>
                 </div>
               </div>
 
