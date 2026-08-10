@@ -119,10 +119,14 @@ export default function BoLuangDashboard() {
   
   const [isMobile, setIsMobile] = useState(false);
 
+  // 🚀 เพิ่ม State สำหรับพิกัดผู้ใช้งาน (Locate Me)
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+
   // แผงควบคุม ซ้าย
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
   const [pm25, setPm25] = useState(false); 
+  const [gistdaPm25Layer, setGistdaPm25Layer] = useState(false); 
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
 
@@ -170,7 +174,7 @@ export default function BoLuangDashboard() {
   const [currentZoom, setCurrentZoom] = useState(9);
   const syncData = useRef(initialCenter);
 
-  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel].filter(Boolean).length;
+  const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, gistdaPm25Layer].filter(Boolean).length;
 
   const handleViewImage = (imageUrl: string) => {
     Swal.fire({
@@ -187,6 +191,44 @@ export default function BoLuangDashboard() {
         image: 'rounded-lg max-h-[80vh] object-contain'
       }
     });
+  };
+
+  // 🚀 ฟังก์ชันค้นหาตำแหน่งปัจจุบัน (Locate Me)
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) {
+      Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'เบราว์เซอร์ของคุณไม่รองรับระบบ GPS', background: '#0f172a', color: '#fff' });
+      return;
+    }
+    
+    Swal.fire({
+      title: 'กำลังค้นหาตำแหน่งของคุณ...',
+      allowOutsideClick: false,
+      background: '#0f172a',
+      color: '#fff',
+      didOpen: () => Swal.showLoading()
+    });
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLocation({ lat: latitude, lng: longitude });
+        if (mapRef) {
+          mapRef.flyTo([latitude, longitude], 15, { duration: 1.5 });
+        }
+        Swal.close();
+      },
+      (error) => {
+        console.error(error);
+        Swal.fire({ 
+          icon: 'warning', 
+          title: 'ไม่สามารถระบุตำแหน่งได้', 
+          text: 'กรุณาอนุญาตให้เว็บไซต์เข้าถึงตำแหน่งของคุณ (Location Services) บนเบราว์เซอร์',
+          background: '#0f172a',
+          color: '#fff'
+        });
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
 
   useEffect(() => {
@@ -225,10 +267,7 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang);
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
     loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
-    
-    // GISTDA Hotspot (จะดึงข้อมูลมาแสดงเมื่อมีการเกิดจุดความร้อนจริงๆ)
     loadGeoJSON(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=${GISTDA_API_KEY}`, setGeoHotspot);
-    
     loadGeoJSON(`/geojson/earthquake.geojson?v=${ts}`, setGeoEarthquake);
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
@@ -577,6 +616,21 @@ export default function BoLuangDashboard() {
     });
   }, [L]);
 
+  // 🚀 ไอคอนสำหรับพิกัดผู้ใช้งาน (Locate Me) - เป็นจุดเรืองแสงสีฟ้า
+  const createUserLocationIcon = useMemo(() => {
+    if (!L) return () => null;
+    return () => L.divIcon({
+      className: 'bg-transparent border-none',
+      html: `
+        <div class="relative flex items-center justify-center w-8 h-8">
+          <div class="absolute inset-0 bg-[#38bdf8] rounded-full blur-[6px] opacity-70 animate-ping"></div>
+          <div class="relative flex items-center justify-center w-5 h-5 bg-[#0ea5e9] border-[2px] border-white rounded-full shadow-lg z-10"></div>
+        </div>
+      `,
+      iconSize: [32, 32], iconAnchor: [16, 16]
+    });
+  }, [L]);
+
   return (
     <main className="relative w-screen h-screen bg-[#0b132b] font-sans text-white overflow-hidden">
       <style dangerouslySetInnerHTML={{__html: `
@@ -597,6 +651,11 @@ export default function BoLuangDashboard() {
           font-family: inherit !important; font-size: 14px !important; font-weight: 600 !important; 
           padding: 6px 14px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
         }
+
+        /* 🚀 CSS สำหรับ Popup ตำแหน่งปัจจุบัน */
+        .popup-location .leaflet-popup-content-wrapper { background-color: #0f172a !important; color: #e2e8f0 !important; border: 1px solid #0ea5e9 !important; border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden; }
+        .popup-location .leaflet-popup-tip { background-color: #0f172a !important; border-top: 1px solid #0ea5e9 !important; border-left: 1px solid #0ea5e9 !important; }
+        .popup-location .leaflet-popup-content { margin: 0 !important; }
 
         .popup-pm25-custom .leaflet-popup-content-wrapper { background-color: #0b132b !important; color: #e2e8f0 !important; border-radius: 8px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important; padding: 0 !important; overflow: hidden; border: 1px solid #1e293b !important; }
         .popup-pm25-custom .leaflet-popup-tip { background-color: #0b132b !important; border-bottom: 1px solid #1e293b !important; border-right: 1px solid #1e293b !important; }
@@ -688,9 +747,38 @@ export default function BoLuangDashboard() {
         <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>
           <MapContainer center={[18.1633, 98.3744]} zoom={isMobile ? 8 : 9} maxZoom={20} zoomControl={false} attributionControl={false} className="w-full h-full" ref={setMapRef}>
             <ZoomControl position="topleft" />
+            
+            {/* 🚀 ปุ่ม Locate Me (ค้นหาตำแหน่งของฉัน) */}
+            <div className="absolute top-[160px] left-[10px] md:left-[370px] z-[400] transition-all duration-300">
+              <button 
+                onClick={handleLocateMe}
+                className="w-[34px] h-[34px] bg-[#0f172a]/90 backdrop-blur-sm border border-[#1e293b] rounded-lg shadow-lg flex items-center justify-center text-[#38bdf8] hover:text-white hover:bg-[#1e293b] transition-all duration-200 group"
+                title="ค้นหาตำแหน่งของฉัน"
+              >
+                <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 7h1M6 12H5m7 6v1m4-7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              </button>
+            </div>
+
             {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
             {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} />}
             
+            {/* 🚀 หมุดตำแหน่งผู้ใช้งานปัจจุบัน (Locate Me) */}
+            {userLocation && (
+              <Marker position={[userLocation.lat, userLocation.lng]} icon={createUserLocationIcon()}>
+                <Popup className="popup-location">
+                  <div className="p-3 bg-[#0f172a] text-center min-w-[180px]">
+                    <div className="text-[#38bdf8] font-bold text-[15px] mb-2 border-b border-[#1e293b] pb-2 flex items-center justify-center space-x-1.5">
+                      <span>📍</span> <span>ตำแหน่งของคุณ</span>
+                    </div>
+                    <div className="text-gray-300 text-[13px] font-mono mb-1">Lat: <span className="text-white">{userLocation.lat.toFixed(6)}</span></div>
+                    <div className="text-gray-300 text-[13px] font-mono">Lng: <span className="text-white">{userLocation.lng.toFixed(6)}</span></div>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
+
             {showBoluang && geoBoluang && <GeoJSON key="boluang-layer" data={geoBoluang} style={styleBoluang} />}
             {showBlock && geoBlock && <GeoJSON key="block-layer" data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
             {showParcel && geoParcel && <GeoJSON key="parcel-layer" data={geoParcel} style={styleParcel} />}
@@ -708,7 +796,6 @@ export default function BoLuangDashboard() {
               />
             )}
 
-            {/* 🌟 พยากรณ์อากาศรายพื้นที่ (Local Micro-climate) */}
             {tmdWeather && localWeatherData.map((prov, i) => {
               return (
                 <Marker key={`prov-wx-${i}`} position={[prov.lat, prov.lng]} icon={createTmdIcon(prov.wCode)}>
@@ -740,7 +827,6 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 ปริมาณน้ำฝนสะสมรายพื้นที่ (Local) */}
             {tmdRain && localWeatherData.map((prov, i) => {
               const style = getRainCircleStyle(prov.rainSum);
               return (
@@ -773,7 +859,6 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 💧 ปริมาณฝน 24 ชม. (สทนช.) */}
             {onwrRain && onwrRainData.map((station: any, i: number) => {
               const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat || station?.latitude;
               const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng || station?.longitude || station?.lon;
@@ -814,7 +899,6 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 💧 ระดับน้ำ สทนช. */}
             {onwrWaterLevel && onwrWaterLevelData.map((station: any, i: number) => {
               const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat || station?.latitude;
               const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng || station?.longitude || station?.lon;
@@ -862,7 +946,6 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 ค่าฝุ่น PM2.5 Micro-climate */}
             {pm25 && localAirData.map((station, i) => {
               const { aqi, text, color } = getAirQualityDetails(station.pm25Val);
               const formattedTime = new Date(station.time).toISOString().replace('T', ' ').substring(0, 16);
@@ -919,7 +1002,6 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {/* 🌟 แจ้งเหตุจาก Supabase */}
             {citizenReport && disasterReports.map((report) => (
               <Marker 
                 key={`report-${report.id}`} 
@@ -978,7 +1060,6 @@ export default function BoLuangDashboard() {
               </Marker>
             ))}
 
-            {/* 🌟 จุดความร้อน Hotspot จาก GISTDA Sphere API Key */}
             {hotspot && geoHotspot && geoHotspot.features && geoHotspot.features.map((feature: any, i: number) => {
               const geom = feature.geometry;
               if (!geom || geom.type !== 'Point') return null;
