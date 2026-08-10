@@ -6,20 +6,20 @@ import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js'; 
 import Swal from 'sweetalert2';
 
-// 🌟 ตั้งค่า Supabase 
+// ==========================================
+// 🌟 1. การตั้งค่าระบบ (Config)
+// ==========================================
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dGpqaHZ2dGFzd3pod2hvd2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDA3NjcsImV4cCI6MjA5MjExNjc2N30.Jjqi1LWgxEgpT2nBdjuNyoLxEP_VQcKf3GEbIYKPI8Y';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// 🔑 GISTDA Sphere API Key
 const GISTDA_API_KEY = 'AF9B1EEFF30042208F1DE95B579E7F90';
 
-// 📍 พิกัดอ้างอิงบ่อหลวง
 const BO_LUANG_LAT = 18.1633;
 const BO_LUANG_LNG = 98.3744;
 const MAX_DISTANCE_KM = 150;
 
-// 🏥 พิกัดศูนย์พักพิงและจุดปลอดภัย (Safe Zones) - ข้อมูลสมมติเพื่อสาธิตระบบ
+// 🏥 พิกัดศูนย์พักพิงและจุดปลอดภัย (Safe Zones)
 const safeZonesData = [
   { id: 1, name: 'รพ.สต. บ่อหลวง (ศูนย์การแพทย์)', lat: 18.1655, lng: 98.3712, type: 'hospital' },
   { id: 2, name: 'เทศบาลตำบลบ่อหลวง (ศูนย์บัญชาการ)', lat: 18.1633, lng: 98.3744, type: 'shelter' },
@@ -27,7 +27,11 @@ const safeZonesData = [
   { id: 4, name: 'โรงเรียนบ้านบ่อหลวง (จุดพักพิงชั่วคราว)', lat: 18.1680, lng: 98.3690, type: 'school' }
 ];
 
-// 🧮 ฟังก์ชันคำนวณระยะทาง (Haversine)
+// ==========================================
+// 🛠️ 2. ฟังก์ชันเสริม (Utils)
+// ==========================================
+
+// 🧮 คำนวณระยะทาง
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371; 
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -37,7 +41,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c; 
 };
 
-// 🛡️ ระบบ API Resilience
+// 🛡️ API Resilience (มี Cache ป้องกันระบบล่ม)
 const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 5000) => {
   try {
     const controller = new AbortController();
@@ -47,16 +51,22 @@ const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 5000) =
     
     if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
     const data = await res.json();
+    
     sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
     return { data, status: 'LIVE' };
   } catch (error) {
+    console.warn(`[API Resilience] ${cacheKey} failed. Using cache. Error:`, error);
     const cached = sessionStorage.getItem(cacheKey);
-    if (cached) return { data: JSON.parse(cached).data, status: 'CACHED' };
+    if (cached) {
+      return { data: JSON.parse(cached).data, status: 'CACHED' };
+    }
     return { data: null, status: 'OFFLINE' };
   }
 };
 
-// 🗺️ โหลด Leaflet
+// ==========================================
+// 🗺️ 3. โหลด Leaflet และ Component
+// ==========================================
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
@@ -65,11 +75,14 @@ const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { 
 const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.CircleMarker), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 
-// 💎 UI Component
 const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio = false, apiStatus = '' }: any) => {
   const [localActive, setLocalActive] = useState(active);
   useEffect(() => { setLocalActive(active); }, [active]);
-  const handlePress = () => { setLocalActive(!localActive); setTimeout(() => { onClick(); }, 50); };
+
+  const handlePress = () => {
+    setLocalActive(!localActive);
+    setTimeout(() => { onClick(); }, 50);
+  };
 
   const renderStatusBadge = () => {
     if (!apiStatus) return null;
@@ -98,6 +111,9 @@ const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio
   );
 };
 
+// ==========================================
+// 🌦️ 4. ฟังก์ชันข้อมูลอากาศ
+// ==========================================
 const getWmoWeatherDesc = (code: number) => {
   const codes: Record<number, string> = { 0: 'แจ่มใส', 1: 'มีเมฆบางส่วน', 2: 'มีเมฆครึ้ม', 3: 'เมฆเป็นส่วนมาก', 45: 'มีหมอก', 48: 'หมอกหนา', 51: 'ฝนปรอยๆ', 61: 'ฝนเล็กน้อย', 63: 'ฝนปานกลาง', 65: 'ฝนตกหนัก', 80: 'ฝนเป็นหย่อมๆ', 95: 'พายุฝนฟ้าคะนอง' };
   return codes[code] || 'ปกติ';
@@ -127,6 +143,9 @@ const localAirStations = [
   { name: 'ศูนย์ราชการฯ เชียงใหม่', lat: 18.7883, lng: 98.9853, type: 'province' }
 ];
 
+// ==========================================
+// 🚀 5. MAIN COMPONENT 
+// ==========================================
 export default function BoLuangDashboard() {
   const [mounted, setMounted] = useState(false);
   const [qrUrl, setQrUrl] = useState('');
@@ -138,15 +157,20 @@ export default function BoLuangDashboard() {
   const [apiStatus, setApiStatus] = useState({ tmd: '', pm25: '', onwrRain: '', onwrWater: '' });
   const [searchQuery, setSearchQuery] = useState('');
 
+  // ----------------------------------------
+  // State: Sidebar ด้านซ้าย
+  // ----------------------------------------
   const [tmdWeather, setTmdWeather] = useState(false);
   const [tmdRain, setTmdRain] = useState(false);
   const [pm25, setPm25] = useState(false); 
   const [windyLayer, setWindyLayer] = useState(false); 
   const [windyType, setWindyType] = useState('rain'); 
-
   const [onwrRain, setOnwrRain] = useState(false);
   const [onwrWaterLevel, setOnwrWaterLevel] = useState(false);
 
+  // ----------------------------------------
+  // State: Sidebar ด้านขวา
+  // ----------------------------------------
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
   const [showBoluang, setShowBoluang] = useState(false);   
   const [showBlock, setShowBlock] = useState(false);        
@@ -155,12 +179,15 @@ export default function BoLuangDashboard() {
   const [earthquakeLayer, setEarthquakeLayer] = useState(false);        
   const [hotspot, setHotspot] = useState(false);
   const [showLandslide, setShowLandslide] = useState(false);
-  const [showSafeZone, setShowSafeZone] = useState(true); // 🚀 เปิด Layer จุดปลอดภัยเป็นค่าเริ่มต้น
+  const [showSafeZone, setShowSafeZone] = useState(true); 
   
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [showScanModal, setShowScanModal] = useState(false);
 
+  // ----------------------------------------
+  // State: Data ข้อมูลจาก API
+  // ----------------------------------------
   const [localWeatherData, setLocalWeatherData] = useState<any[]>([]); 
   const [localAirData, setLocalAirData] = useState<any[]>([]);
   const [disasterReports, setDisasterReports] = useState<any[]>([]); 
@@ -185,17 +212,31 @@ export default function BoLuangDashboard() {
 
   const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, showSafeZone].filter(Boolean).length;
 
+  // ==========================================
+  // 🎯 Action Functions
+  // ==========================================
+  
   const handleViewImage = (imageUrl: string) => {
     Swal.fire({
-      imageUrl: imageUrl, imageAlt: 'ภาพ', showConfirmButton: false, showCloseButton: true, width: 'auto', padding: '1em', background: '#0f172a', backdrop: 'rgba(0,0,0,0.85)',
-      customClass: { popup: 'border border-gray-700 rounded-2xl shadow-2xl', image: 'rounded-lg max-h-[80vh] object-contain' }
+      imageUrl: imageUrl,
+      imageAlt: 'ภาพแจ้งเหตุจากประชาชน',
+      showConfirmButton: false,
+      showCloseButton: true,
+      width: 'auto',
+      padding: '1em',
+      background: '#0f172a',
+      backdrop: 'rgba(0,0,0,0.85)',
+      customClass: {
+        popup: 'border border-gray-700 rounded-2xl shadow-2xl',
+        image: 'rounded-lg max-h-[80vh] object-contain'
+      }
     });
   };
 
-  // 🚀 ฟังก์ชัน Locate Me พร้อมระบบประเมินความเสี่ยงอัตโนมัติ (Hyper-Local)
   const handleLocateMe = () => {
     if (!navigator.geolocation) {
-      Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'เบราว์เซอร์ไม่รองรับ GPS', background: '#0f172a', color: '#fff' }); return;
+      Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'เบราว์เซอร์ไม่รองรับ GPS', background: '#0f172a', color: '#fff' }); 
+      return;
     }
     Swal.fire({ title: 'กำลังวิเคราะห์พิกัดของคุณ...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
     
@@ -203,17 +244,23 @@ export default function BoLuangDashboard() {
       (position) => {
         const { latitude, longitude } = position.coords;
         setUserLocation({ lat: latitude, lng: longitude });
-        if (mapRef) mapRef.flyTo([latitude, longitude], 15, { duration: 1.5 });
+        
+        if (mapRef) {
+          mapRef.flyTo([latitude, longitude], 15, { duration: 1.5 });
+        }
 
         // 1. หาจุดปลอดภัยที่ใกล้ที่สุด
         let nearestSZ: any = null;
         let minDistance = Infinity;
         safeZonesData.forEach(sz => {
            const d = calculateDistance(latitude, longitude, sz.lat, sz.lng);
-           if (d < minDistance) { minDistance = d; nearestSZ = sz; }
+           if (d < minDistance) { 
+             minDistance = d; 
+             nearestSZ = sz; 
+           }
         });
 
-        // 2. เช็คว่าอยู่ใกล้พื้นที่เสี่ยงดินถล่มหรือไม่ (จำลองการเช็ครัศมี 1.5 กม. จากจุดข้อมูลขอบเขต)
+        // 2. เช็คความเสี่ยงดินถล่ม
         let inRisk = false;
         if (geoLandslide && geoLandslide.features) {
            geoLandslide.features.forEach((f: any) => {
@@ -221,7 +268,7 @@ export default function BoLuangDashboard() {
                  const pLng = f.geometry.coordinates[0][0][0];
                  const pLat = f.geometry.coordinates[0][0][1];
                  const d = calculateDistance(latitude, longitude, pLat, pLng);
-                 if (d < 1.5) inRisk = true; // เสี่ยงถ้าอยู่ใกล้ขอบ < 1.5 km
+                 if (d < 1.5) inRisk = true; 
               }
            });
         }
@@ -242,7 +289,10 @@ export default function BoLuangDashboard() {
                        </div>
                        <p class="text-xs text-gray-500">โปรดติดตามประกาศจากเทศบาลอย่างใกล้ชิด</p>
                      </div>`,
-              background: '#0f172a', color: '#fff', confirmButtonColor: '#ef4444', confirmButtonText: 'รับทราบ'
+              background: '#0f172a', 
+              color: '#fff', 
+              confirmButtonColor: '#ef4444', 
+              confirmButtonText: 'รับทราบ'
            });
         } else {
            Swal.fire({
@@ -263,35 +313,54 @@ export default function BoLuangDashboard() {
     e.preventDefault();
     if (!searchQuery.trim()) return;
     Swal.fire({ title: 'กำลังค้นหาพิกัด...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
+    
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery + ' เชียงใหม่')}&limit=1`);
       const data = await res.json();
+      
       if (data && data.length > 0) {
         const { lat, lon, display_name } = data[0];
-        if (mapRef) mapRef.flyTo([parseFloat(lat), parseFloat(lon)], 14, { duration: 2 });
+        if (mapRef) {
+          mapRef.flyTo([parseFloat(lat), parseFloat(lon)], 14, { duration: 2 });
+        }
         Swal.close();
         Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'พบพิกัด', text: display_name.split(',')[0], showConfirmButton: false, timer: 3000, background: '#1e293b', color: '#fff' });
       } else {
         Swal.fire({ icon: 'warning', title: 'ไม่พบสถานที่', text: 'ลองเปลี่ยนคำค้นหาให้กว้างขึ้น', background: '#0f172a', color: '#fff' });
       }
-    } catch (error) { Swal.fire({ icon: 'error', title: 'ระบบค้นหาขัดข้อง', background: '#0f172a', color: '#fff' }); }
+    } catch (error) { 
+      Swal.fire({ icon: 'error', title: 'ระบบค้นหาขัดข้อง', background: '#0f172a', color: '#fff' }); 
+    }
   };
 
+  // ==========================================
+  // ⚙️ UseEffects สำหรับดึงข้อมูล
+  // ==========================================
+  
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth < 768; 
       setIsMobile(mobile);
-      if (mobile) { setIsLeftPanelOpen(false); setIsRightPanelOpen(false); } 
-      else { setIsLeftPanelOpen(true); setIsRightPanelOpen(true); }
+      if (mobile) { 
+        setIsLeftPanelOpen(false); 
+        setIsRightPanelOpen(false); 
+      } else { 
+        setIsLeftPanelOpen(true); 
+        setIsRightPanelOpen(true); 
+      }
     };
-    handleResize(); window.addEventListener('resize', handleResize);
+    handleResize(); 
+    window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
     setMounted(true);
-    if (typeof window !== 'undefined') setQrUrl(window.location.origin + '/report');
+    if (typeof window !== 'undefined') {
+      setQrUrl(window.location.origin + '/report');
+    }
     const ts = Date.now(); 
+
     const loadGeoJSON = async (url: string, setter: any) => {
       try {
         const { data } = await fetchWithCache(url, `geojson_cache_${url.split('/').pop()}`, 10000);
@@ -299,7 +368,9 @@ export default function BoLuangDashboard() {
           if (Array.isArray(data)) setter({ type: "FeatureCollection", features: data });
           else setter(data);
         }
-      } catch (e) { console.error(e); }
+      } catch (e) { 
+        console.error(e); 
+      }
     };
 
     loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang);
@@ -311,21 +382,60 @@ export default function BoLuangDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!tmdWeather && !tmdRain) { setLocalWeatherData([]); return; }
+    if (!mounted) return;
+    const handleVisitorCount = async () => {
+      try {
+        let sessionId = sessionStorage.getItem('bl_session_id');
+        if (!sessionId) {
+          sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`; 
+          sessionStorage.setItem('bl_session_id', sessionId);
+          const { error: insertError } = await supabase.from('visitor_logs').insert([{ session_id: sessionId }]);
+          if (insertError) console.warn('ไม่สามารถบันทึกสถิติใหม่ได้:', insertError.message);
+        }
+      } catch (error) { 
+        console.warn('Error saving visit:', error); 
+      }
+
+      try {
+        const { count: totalCount } = await supabase.from('visitor_logs').select('*', { count: 'exact', head: true });
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); 
+        const { count: todayCount } = await supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('visited_at', today.toISOString());
+        
+        setVisitStats({ today: todayCount || 0, total: totalCount || 0 });
+      } catch (error) { 
+        console.error('Error fetching visitor stats:', error); 
+      }
+    };
+    handleVisitorCount();
+  }, [mounted]);
+
+  // พยากรณ์อากาศ (TMD API Resilience)
+  useEffect(() => {
+    if (!tmdWeather && !tmdRain) { 
+      setLocalWeatherData([]); 
+      return; 
+    }
+
     const fetchLocalWeather = async () => {
       const lats = localAirStations.map(p => p.lat.toFixed(4)).join(',');
       const lngs = localAirStations.map(p => p.lng.toFixed(4)).join(',');
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weathercode&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Asia%2FBangkok`;
+      
       const { data, status } = await fetchWithCache(url, 'tmd_weather_cache');
       setApiStatus(prev => ({ ...prev, tmd: status }));
       
       if (data && Array.isArray(data)) {
         const formatted = localAirStations.map((station, i) => ({
           ...station,
-          temp: data[i]?.current?.temperature_2m || 0, humidity: data[i]?.current?.relative_humidity_2m || 0,
-          rain: data[i]?.current?.precipitation || 0, rainSum: data[i]?.daily?.precipitation_sum?.[0] || 0,
-          wind: (data[i]?.current?.wind_speed_10m / 3.6) || 0, wCode: data[i]?.current?.weathercode || 0,
-          tempMin: data[i]?.daily?.temperature_2m_min?.[0] || 0, tempMax: data[i]?.daily?.temperature_2m_max?.[0] || 0,
+          temp: data[i]?.current?.temperature_2m || 0, 
+          humidity: data[i]?.current?.relative_humidity_2m || 0,
+          rain: data[i]?.current?.precipitation || 0, 
+          rainSum: data[i]?.daily?.precipitation_sum?.[0] || 0,
+          wind: (data[i]?.current?.wind_speed_10m / 3.6) || 0, 
+          wCode: data[i]?.current?.weathercode || 0,
+          tempMin: data[i]?.daily?.temperature_2m_min?.[0] || 0, 
+          tempMax: data[i]?.daily?.temperature_2m_max?.[0] || 0,
         }));
         setLocalWeatherData(formatted);
       }
@@ -333,25 +443,40 @@ export default function BoLuangDashboard() {
     fetchLocalWeather();
   }, [tmdWeather, tmdRain]);
 
+  // ฝุ่น PM2.5 (Resilience)
   useEffect(() => {
-    if (!pm25) { setLocalAirData([]); return; }
+    if (!pm25) { 
+      setLocalAirData([]); 
+      return; 
+    }
+
     const fetchLocalAir = async () => {
       const lats = localAirStations.map(s => s.lat.toFixed(4)).join(',');
       const lngs = localAirStations.map(s => s.lng.toFixed(4)).join(',');
       const urlAqi = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lngs}&current=pm2_5,pm10,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=Asia%2FBangkok`;
       const urlWx = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=weathercode&timezone=Asia%2FBangkok`;
       
-      const [aqiResult, wxResult] = await Promise.all([ fetchWithCache(urlAqi, 'pm25_aqi_cache'), fetchWithCache(urlWx, 'pm25_wx_cache') ]);
+      const [aqiResult, wxResult] = await Promise.all([
+        fetchWithCache(urlAqi, 'pm25_aqi_cache'),
+        fetchWithCache(urlWx, 'pm25_wx_cache')
+      ]);
+      
       setApiStatus(prev => ({ ...prev, pm25: aqiResult.status === 'LIVE' && wxResult.status === 'LIVE' ? 'LIVE' : (aqiResult.status === 'OFFLINE' ? 'OFFLINE' : 'CACHED') }));
 
-      const aqiData = aqiResult.data; const wxData = wxResult.data;
+      const aqiData = aqiResult.data; 
+      const wxData = wxResult.data;
+
       if (Array.isArray(aqiData) && Array.isArray(wxData)) {
         const formatted = localAirStations.map((station, i) => ({
           ...station, 
-          pm25Val: aqiData[i]?.current?.pm2_5 || 0, pm10Val: aqiData[i]?.current?.pm10 || '—',
-          coVal: aqiData[i]?.current?.carbon_monoxide || '—', no2Val: aqiData[i]?.current?.nitrogen_dioxide || '—',
-          so2Val: aqiData[i]?.current?.sulphur_dioxide || '—', o3Val: aqiData[i]?.current?.ozone || '—',
-          time: aqiData[i]?.current?.time || new Date().toISOString(), wCode: wxData[i]?.current?.weathercode || 0
+          pm25Val: aqiData[i]?.current?.pm2_5 || 0, 
+          pm10Val: aqiData[i]?.current?.pm10 || '—',
+          coVal: aqiData[i]?.current?.carbon_monoxide || '—', 
+          no2Val: aqiData[i]?.current?.nitrogen_dioxide || '—',
+          so2Val: aqiData[i]?.current?.sulphur_dioxide || '—', 
+          o3Val: aqiData[i]?.current?.ozone || '—',
+          time: aqiData[i]?.current?.time || new Date().toISOString(), 
+          wCode: wxData[i]?.current?.weathercode || 0
         }));
         setLocalAirData(formatted);
       }
@@ -359,18 +484,29 @@ export default function BoLuangDashboard() {
     fetchLocalAir();
   }, [pm25]);
 
+  // 💧 ข้อมูลฝน ONWR (Resilience + Geofence)
   useEffect(() => {
-    if (!onwrRain) { setOnwrRainData([]); return; }
+    if (!onwrRain) { 
+      setOnwrRainData([]); 
+      return; 
+    }
+
     const fetchOnwrRain = async () => {
       const { data: json, status } = await fetchWithCache('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h', 'onwr_rain_cache');
       setApiStatus(prev => ({ ...prev, onwrRain: status }));
+      
       let arrData = [];
-      if (json && Array.isArray(json.data)) arrData = json.data; else if (json && json.data && Array.isArray(json.data.data)) arrData = json.data.data;
+      if (json && Array.isArray(json.data)) {
+        arrData = json.data;
+      } else if (json && json.data && Array.isArray(json.data.data)) {
+        arrData = json.data.data;
+      }
       
       const filteredData = arrData.filter((station: any) => {
         const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat;
         const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng;
         if (!latStr || !lngStr) return false;
+
         return calculateDistance(BO_LUANG_LAT, BO_LUANG_LNG, parseFloat(latStr), parseFloat(lngStr)) <= MAX_DISTANCE_KM; 
       });
       setOnwrRainData(filteredData);
@@ -378,25 +514,45 @@ export default function BoLuangDashboard() {
     fetchOnwrRain();
   }, [onwrRain]);
 
+  // 💧 ข้อมูลระดับน้ำ ONWR (Resilience + Geofence)
   useEffect(() => {
-    if (!onwrWaterLevel) { setOnwrWaterLevelData([]); return; }
+    if (!onwrWaterLevel) { 
+      setOnwrWaterLevelData([]); 
+      return; 
+    }
+
     const fetchOnwrWaterLevel = async () => {
       const { data: json, status } = await fetchWithCache('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load', 'onwr_water_cache');
       setApiStatus(prev => ({ ...prev, onwrWater: status }));
+      
       let arrData: any[] = [];
-      if (Array.isArray(json)) arrData = json; else if (json?.data && Array.isArray(json.data)) arrData = json.data;
-      else if (json?.data?.waterlevel_data?.data && Array.isArray(json.data.waterlevel_data.data)) arrData = json.data.waterlevel_data.data;
-      else if (json?.waterlevel_data?.data && Array.isArray(json.waterlevel_data.data)) arrData = json.waterlevel_data.data;
-      else {
+      if (Array.isArray(json)) {
+        arrData = json;
+      } else if (json?.data && Array.isArray(json.data)) {
+        arrData = json.data;
+      } else if (json?.data?.waterlevel_data?.data && Array.isArray(json.data.waterlevel_data.data)) {
+        arrData = json.data.waterlevel_data.data;
+      } else if (json?.waterlevel_data?.data && Array.isArray(json.waterlevel_data.data)) {
+        arrData = json.waterlevel_data.data;
+      } else {
         const findArray = (obj: any): any[] | null => {
-          for (let key in obj) { if (Array.isArray(obj[key])) return obj[key]; if (typeof obj[key] === 'object' && obj[key] !== null) { const found = findArray(obj[key]); if (found) return found; } } return null;
-        }; arrData = findArray(json) || [];
+          for (let key in obj) {
+            if (Array.isArray(obj[key])) return obj[key];
+            if (typeof obj[key] === 'object' && obj[key] !== null) {
+              const found = findArray(obj[key]); 
+              if (found) return found;
+            }
+          } 
+          return null;
+        };
+        arrData = findArray(json) || [];
       }
       
       const filteredData = arrData.filter((station: any) => {
         const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat;
         const lngStr = station?.station?.tele_station_long || station?.tele_station_long || station?.lng;
         if (!latStr || !lngStr) return false;
+
         return calculateDistance(BO_LUANG_LAT, BO_LUANG_LNG, parseFloat(latStr), parseFloat(lngStr)) <= MAX_DISTANCE_KM; 
       });
       setOnwrWaterLevelData(filteredData);
@@ -404,31 +560,74 @@ export default function BoLuangDashboard() {
     fetchOnwrWaterLevel();
   }, [onwrWaterLevel]);
 
+  // แจ้งเหตุจาก Supabase 
   useEffect(() => {
     if (!citizenReport) return;
     const fetchReports = async () => {
       try {
-        const { data, error } = await supabase.from('boluang_disaster_reports').select('*').neq('status', 'ดำเนินการเสร็จแล้ว').order('created_at', { ascending: false }); 
+        const { data, error } = await supabase
+          .from('boluang_disaster_reports')
+          .select('*')
+          .neq('status', 'ดำเนินการเสร็จแล้ว')
+          .order('created_at', { ascending: false }); 
+        
+        if (error) throw error;
         if (data) setDisasterReports(data);
-      } catch (error) { console.error('Error fetching disaster reports:', error); }
+      } catch (error) { 
+        console.error('Error fetching disaster reports:', error); 
+      }
     };
     fetchReports();
   }, [citizenReport]);
 
+  useEffect(() => {
+    if (mapRef && (showBoluang || showBlock)) { 
+      mapRef.flyTo([18.1633, 98.3744], 12, { duration: 2.5, easeLinearity: 0.25 }); 
+    }
+  }, [showBoluang, showBlock, mapRef]);
+
+  // ==========================================
+  // 🎨 การตกแต่งและสร้าง Style (GeoJSON)
+  // ==========================================
+  
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
   const getVillageColor = (feature: any) => {
     const props = feature?.properties || {};
-    return props.fill || BLOCK_COLORS[String(props.id || props.name || "0").length % BLOCK_COLORS.length];
+    const nameStr = String(props.own_villag || props.name_th || props.name || props.zone_name || props.id || "0");
+    const colorIndex = nameStr.length % BLOCK_COLORS.length;
+    return props.fill || BLOCK_COLORS[colorIndex];
+  };
+
+  const formatVillageName = (rawName: any) => {
+    if (!rawName) return 'พื้นที่หมู่บ้าน';
+    const safeName = String(rawName); 
+    let cName = safeName.replace(/^(บ้าน|บ\.|หมู่ที่\s*\d+|หมู่\s*\d+)/, '').replace(/\s+/g, '');
+    if (cName.includes('บ่อหลวง')) cName = 'บ้านบ่อหลวง';
+    else if (cName === 'ขุน' || cName.includes('บ้านขุน')) cName = 'บ้านขุน';
+    else cName = `บ้าน${cName}`;
+    return cName;
   };
 
   const getBlockStyle = (feature: any) => ({ fillColor: getVillageColor(feature), weight: 1.5, color: 'rgba(255, 255, 255, 0.3)', fillOpacity: 0.12, dashArray: '3, 3' });
   const onEachBlockFeature = (feature: any, layer: any) => {
     const props = feature?.properties || {};
-    const villageName = String(props.name_th || props.name || `หมู่ที่ ${props.id || ''}`);
-    layer.bindTooltip(villageName, { sticky: true, direction: 'auto', className: 'village-hover-tooltip' });
+    const rawName = props.own_villag || props.name_th || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || ''}`;
+    const villageName = formatVillageName(rawName);
+    const defaultColor = getVillageColor(feature);
+
+    layer.bindTooltip(villageName, { sticky: true, direction: 'auto', className: 'village-hover-tooltip', permanent: false });
     layer.on({
-      mouseover: (e: any) => { e.target.setStyle({ weight: 3, color: '#ffffff', fillOpacity: 0.7, dashArray: '' }); e.target.bringToFront(); },
-      mouseout: (e: any) => { e.target.setStyle({ weight: 1.5, color: 'rgba(255, 255, 255, 0.3)', fillOpacity: 0.12, dashArray: '3, 3' }); }
+      mouseover: (e: any) => {
+        const targetLayer = e.target;
+        targetLayer.setStyle({ weight: 3, color: '#ffffff', fillColor: defaultColor, fillOpacity: 0.7, dashArray: '' });
+        if (targetLayer.bringToFront) {
+          targetLayer.bringToFront();
+        }
+      },
+      mouseout: (e: any) => {
+        const targetLayer = e.target;
+        targetLayer.setStyle({ weight: 1.5, color: 'rgba(255, 255, 255, 0.3)', fillOpacity: 0.12, dashArray: '3, 3' });
+      }
     });
   };
 
@@ -445,22 +644,35 @@ export default function BoLuangDashboard() {
   const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0, interactive: false }; 
   const styleParcel = { color: '#4ade80', fillColor: '#4ade80', weight: 1, fillOpacity: 0.2 }; 
   
-  // 🚀 ปรับ CSS ดินถล่มให้เป็น Heatmap-style (ไม่มีเส้นขอบ, ไล่ความโปร่งใส)
+  // 🚀 ปรับ CSS ดินถล่มให้เป็น Heatmap-style
   const styleLandslide = (feature: any) => {
     const risk = String(feature.properties?.risk || feature.properties?.Risk || '');
-    let color = '#facc15'; let opacity = 0.3;
-    if (risk.includes('สูง') || risk.includes('High')) { color = '#ef4444'; opacity = 0.6; }
-    else if (risk.includes('ปานกลาง') || risk.includes('Moderate')) { color = '#f97316'; opacity = 0.4; }
-    return { color: color, fillColor: color, weight: 0, fillOpacity: opacity }; // weight: 0 คือการลบ Border
+    let color = '#facc15';
+    let opacity = 0.3;
+
+    if (risk.includes('สูง') || risk.includes('High')) {
+      color = '#ef4444';
+      opacity = 0.6;
+    } else if (risk.includes('ปานกลาง') || risk.includes('Moderate')) {
+      color = '#f97316';
+      opacity = 0.4;
+    }
+
+    return { color: color, fillColor: color, weight: 0, fillOpacity: opacity };
   };
 
+  // ----------------------------------------
+  // Map Sync Logic
+  // ----------------------------------------
   useEffect(() => {
     if (!mapRef) return;
     const updateSyncData = () => {
-      const center = mapRef.getCenter(); const zoom = mapRef.getZoom();
+      const center = mapRef.getCenter(); 
+      const zoom = mapRef.getZoom();
       syncData.current = { lat: center.lat, lng: center.lng, zoom: zoom };
       setIframeState({ lat: center.lat, lng: center.lng, zoom: zoom });
-      setCurrentZoom(zoom); setTransform({ x: 0, y: 0 });
+      setCurrentZoom(zoom); 
+      setTransform({ x: 0, y: 0 });
     };
 
     const onMove = () => {
@@ -471,12 +683,26 @@ export default function BoLuangDashboard() {
       setTransform({ x: initialPoint.x - currentPoint.x, y: initialPoint.y - currentPoint.y });
     };
 
-    const onMouseMove = (e: any) => { if (coordsRef.current) coordsRef.current.innerText = `${e.latlng.lat.toFixed(4)}°N ${e.latlng.lng.toFixed(4)}°E`; };
+    const onMouseMove = (e: any) => { 
+      if (coordsRef.current) coordsRef.current.innerText = `${e.latlng.lat.toFixed(4)}°N ${e.latlng.lng.toFixed(4)}°E`; 
+    };
 
-    mapRef.on('move', onMove); mapRef.on('moveend', updateSyncData); mapRef.on('zoomend', updateSyncData); mapRef.on('mousemove', onMouseMove); 
-    return () => { mapRef.off('move', onMove); mapRef.off('moveend', updateSyncData); mapRef.off('zoomend', updateSyncData); mapRef.off('mousemove', onMouseMove); };
+    mapRef.on('move', onMove); 
+    mapRef.on('moveend', updateSyncData); 
+    mapRef.on('zoomend', updateSyncData); 
+    mapRef.on('mousemove', onMouseMove); 
+
+    return () => { 
+      mapRef.off('move', onMove); 
+      mapRef.off('moveend', updateSyncData); 
+      mapRef.off('zoomend', updateSyncData); 
+      mapRef.off('mousemove', onMouseMove); 
+    };
   }, [mapRef]);
 
+  // ==========================================
+  // 🖼️ การสร้าง Custom Icons (Leaflet)
+  // ==========================================
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
   const windyMapUrl = `https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=%C2%B0C&metricWind=km/h&zoom=${iframeState.zoom}&overlay=${windyType}&product=ecmwf&level=surface&lat=${iframeState.lat}&lon=${iframeState.lng}&detailLat=${iframeState.lat}&detailLon=${iframeState.lng}&marker=false`;
 
@@ -521,12 +747,14 @@ export default function BoLuangDashboard() {
     return () => L.divIcon({ className: 'bg-transparent border-none', html: `<div class="relative flex items-center justify-center w-8 h-8"><div class="absolute inset-0 bg-[#38bdf8] rounded-full blur-[6px] opacity-70 animate-ping"></div><div class="relative flex items-center justify-center w-5 h-5 bg-[#0ea5e9] border-[2px] border-white rounded-full shadow-lg z-10"></div></div>`, iconSize: [32, 32], iconAnchor: [16, 16] });
   }, [L]);
 
-  // 🚀 ไอคอนจุดปลอดภัย (Safe Zone) โล่สีเขียว
   const createSafeZoneIcon = useMemo(() => {
     if (!L) return () => null;
     return () => L.divIcon({ className: 'bg-transparent border-none', html: `<div class="relative flex items-center justify-center w-10 h-10"><div class="absolute inset-0 bg-[#10b981] rounded-full blur-[8px] opacity-40"></div><div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#10b981] rounded-full shadow-[0_0_15px_rgba(16,185,129,0.9)] z-10"><span class="text-[#10b981] text-[13px]">🛡️</span></div></div>`, iconSize: [40, 40], iconAnchor: [20, 20] });
   }, [L]);
 
+  // ==========================================
+  // 🚀 โครงสร้างหน้าเว็บหลัก (HTML UI)
+  // ==========================================
   return (
     <main className="relative w-screen h-screen bg-[#0b132b] font-sans text-white overflow-hidden">
       <style dangerouslySetInnerHTML={{__html: `
@@ -595,6 +823,7 @@ export default function BoLuangDashboard() {
         .animate-fade-in-api { animation: fadeIn 0.3s ease-out forwards; }
       `}} />
 
+      {/* ม่านดำเวลาเปิด Sidebar ในมือถือ */}
       {isMobile && (isLeftPanelOpen || isRightPanelOpen) && (
         <div 
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
@@ -602,6 +831,7 @@ export default function BoLuangDashboard() {
         />
       )}
 
+      {/* Modal สแกนแจ้งเหตุ */}
       {showScanModal && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="bg-[#0f172a] border border-[#1e293b] w-[90%] max-w-[400px] rounded-2xl shadow-2xl p-8 relative flex flex-col items-center justify-center mx-auto text-center animate-fade-in-api">
@@ -625,6 +855,7 @@ export default function BoLuangDashboard() {
         </div>
       )}
 
+      {/* 🗺️ ระบบแผนที่หลัก */}
       <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">
         {windyLayer && (
           <div 
@@ -639,6 +870,7 @@ export default function BoLuangDashboard() {
           <MapContainer center={[18.1633, 98.3744]} zoom={isMobile ? 10 : 11} maxZoom={20} zoomControl={false} attributionControl={false} className="w-full h-full" ref={setMapRef}>
             <ZoomControl position="topleft" />
             
+            {/* 🚀 ปุ่ม Locate Me (ค้นหาตำแหน่งของฉัน) */}
             <div className="absolute top-[160px] left-[10px] md:left-[370px] z-[400] transition-all duration-300">
               <button 
                 onClick={handleLocateMe}
@@ -654,6 +886,7 @@ export default function BoLuangDashboard() {
             {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
             {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} />}
             
+            {/* 🚀 หมุดตำแหน่งผู้ใช้งานปัจจุบัน (Locate Me) */}
             {userLocation && (
               <Marker position={[userLocation.lat, userLocation.lng]} icon={createUserLocationIcon()}>
                 <Popup className="popup-location">
@@ -668,6 +901,7 @@ export default function BoLuangDashboard() {
               </Marker>
             )}
 
+            {/* 🚀 หมุดศูนย์พักพิง/ปลอดภัย */}
             {showSafeZone && safeZonesData.map((sz, i) => (
               <Marker key={`safezone-${i}`} position={[sz.lat, sz.lng]} icon={createSafeZoneIcon()}>
                 <Popup className="popup-safezone">
@@ -1038,6 +1272,9 @@ export default function BoLuangDashboard() {
         </div>
       </div>
 
+      {/* ========================================== */}
+      {/* 🚀 ส่วน Navbar และ Header ด้านบน */}
+      {/* ========================================== */}
       <header className="absolute top-0 left-0 right-0 h-[72px] bg-[#0b132b]/95 border-b border-[#1e293b] backdrop-blur-xl z-[80] flex items-center justify-between px-4 md:px-6 pointer-events-auto shadow-md">
         <div className="flex items-center space-x-4 md:space-x-6">
           <button onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)} className="md:hidden p-2 bg-[#1e293b] rounded-lg text-gray-300 hover:text-white">
@@ -1078,9 +1315,14 @@ export default function BoLuangDashboard() {
         </div>
       </header>
 
+      {/* ========================================== */}
+      {/* 🚀 ส่วน Sidebar ซ้าย (ข้อมูลอากาศ/น้ำ) */}
+      {/* ========================================== */}
       <aside className={`absolute top-[80px] md:top-24 z-[70] w-[300px] md:w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-r-2xl md:rounded-2xl shadow-2xl p-4 md:p-5 backdrop-blur-xl pointer-events-auto max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar transition-transform duration-500 ease-in-out ${isLeftPanelOpen ? 'translate-x-0 left-0 md:left-4' : '-translate-x-full left-0 md:left-4'}`}>
         <div className="mb-4 flex flex-col items-start border-b border-[#1e293b] pb-3 relative">
-          <button onClick={() => setIsLeftPanelOpen(false)} className="md:hidden absolute top-0 right-0 text-gray-500 hover:text-white"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+          <button onClick={() => setIsLeftPanelOpen(false)} className="md:hidden absolute top-0 right-0 text-gray-500 hover:text-white">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
           <div className="flex items-center space-x-3 mb-2">
             <div className="bg-gradient-to-br from-[#38bdf8] to-[#2563eb] p-2 rounded-xl shadow-[0_4px_10px_rgba(37,99,235,0.4)]">
               <span className="text-white text-[18px]">⛅</span>
@@ -1092,6 +1334,7 @@ export default function BoLuangDashboard() {
 
         <div className="space-y-4">
           
+          {/* หมวดพยากรณ์อากาศ */}
           <div>
             <div className="flex items-center mb-2">
               <span className="text-[13px] mr-2">🌦️</span>
@@ -1104,6 +1347,7 @@ export default function BoLuangDashboard() {
             </div>
           </div>
 
+          {/* หมวดคุณภาพอากาศ */}
           <div>
             <div className="flex items-center mb-2">
               <span className="text-[13px] mr-2">🌫️</span>
@@ -1115,6 +1359,7 @@ export default function BoLuangDashboard() {
             </div>
           </div>
 
+          {/* หมวดน้ำและน้ำท่วม */}
           <div className="mt-4 pt-4 border-t border-[#1e293b]">
             <div className="flex items-center space-x-3 mb-4">
               <div className="bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] p-2 rounded-xl shadow-[0_4px_10px_rgba(37,99,235,0.4)]">
@@ -1144,6 +1389,7 @@ export default function BoLuangDashboard() {
             </div>
           </div>
           
+          {/* หมวดแผนที่ลม */}
           <div>
             <div className="flex items-center mb-2 mt-4 pt-4 border-t border-[#1e293b]">
               <span className="text-[13px] mr-2">🗺️</span>
@@ -1167,26 +1413,9 @@ export default function BoLuangDashboard() {
         </div>
       </aside>
 
-      <div className="hidden md:flex absolute bottom-4 left-4 z-[60] flex-wrap gap-2 pointer-events-auto max-w-[60%]">
-        <div className="bg-[#0b132b]/80 backdrop-blur-md border border-[#1e293b] rounded-full px-3 py-1.5 shadow-sm text-[11px] font-mono text-gray-400">
-          Base map: Dark Matter
-        </div>
-        <div className="bg-[#0b132b]/80 backdrop-blur-md border border-[#1e293b] rounded-full px-3 py-1.5 shadow-sm text-[11px] font-mono text-[#38bdf8]">
-          <span ref={coordsRef}>18.1633°N 98.3744°E</span>
-        </div>
-      </div>
-
-      <div className="hidden md:flex absolute bottom-4 right-1/2 translate-x-1/2 z-[60] pointer-events-auto">
-        <div className="bg-[#0b132b]/80 backdrop-blur-md border border-[#1e293b] rounded-full px-3 py-1.5 shadow-sm text-[11px] font-mono text-gray-400 flex items-center space-x-1.5">
-          <span className="text-[#38bdf8]">💨</span>
-          <span>Data: TMD | ONWR | GISTDA | FloodDash</span>
-        </div>
-      </div>
-
-      <div className="absolute bottom-0 right-0 z-[60] bg-white/70 backdrop-blur-sm px-2 py-0.5 text-[10px] md:text-[11px] text-gray-800 pointer-events-auto">
-        <a href="https://leafletjs.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Leaflet</a> | &copy; OSM
-      </div>
-
+      {/* ========================================== */}
+      {/* 🚀 ส่วน Sidebar ขวา (แจ้งเหตุ/ภัยธรรมชาติ/แผนที่) */}
+      {/* ========================================== */}
       <aside className={`absolute top-[80px] md:top-24 right-0 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto`} style={{ transform: isRightPanelOpen ? 'translateX(0)' : (isMobile ? 'translateX(100%)' : 'translateX(360px)') }}>
         <div className="relative md:mr-5 flex w-full md:w-auto">
           <button onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="hidden md:flex absolute -left-[32px] top-4 w-[32px] h-14 bg-[#0b132b]/95 border-y border-l border-[#1e293b] rounded-l-lg items-center justify-center text-gray-400 hover:text-white hover:bg-[#1e293b] transition-colors shadow-[-4px_0_10px_rgba(0,0,0,0.3)] backdrop-blur-md z-50 cursor-pointer">
@@ -1195,9 +1424,16 @@ export default function BoLuangDashboard() {
           
           <div className="w-[300px] md:w-[360px] ml-auto bg-[#0b132b]/95 border border-[#1e293b] rounded-l-2xl md:rounded-xl shadow-2xl p-4 md:p-5 backdrop-blur-xl max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar">
             
+            {/* 🔍 ระบบค้นหาพิกัด (Smart Search) */}
             <div className="mb-4 bg-[#0f172a] p-1.5 rounded-xl border border-[#1e293b] flex shadow-inner">
               <form onSubmit={handleSearchSubmit} className="flex w-full">
-                <input type="text" placeholder="ค้นหาหมู่บ้าน, สถานที่..." className="w-full bg-transparent text-sm text-white px-3 py-1.5 outline-none placeholder-gray-500" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                <input 
+                  type="text" 
+                  placeholder="ค้นหาหมู่บ้าน, ถนน, สถานที่..." 
+                  className="w-full bg-transparent text-sm text-white px-3 py-1.5 outline-none placeholder-gray-500"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
                 <button type="submit" className="bg-[#38bdf8] text-[#0b132b] px-3 rounded-lg font-bold hover:bg-[#7dd3fc] transition-colors flex items-center justify-center">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                 </button>
@@ -1205,7 +1441,10 @@ export default function BoLuangDashboard() {
             </div>
 
             <div className="mb-4 flex flex-col items-start border-b border-[#1e293b] pb-3 relative">
-              <button onClick={() => setIsRightPanelOpen(false)} className="md:hidden absolute top-0 right-0 text-gray-500 hover:text-white"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+              <button onClick={() => setIsRightPanelOpen(false)} className="md:hidden absolute top-0 right-0 text-gray-500 hover:text-white">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+              
               <div className="flex items-center space-x-3 mb-2">
                 <div className="bg-gradient-to-br from-[#ef4444] to-[#f97316] p-2 rounded-xl shadow-[0_4px_10px_rgba(239,68,68,0.3)]">
                   <span className="text-white text-[18px]">🚨</span>
@@ -1216,6 +1455,8 @@ export default function BoLuangDashboard() {
             </div>
 
             <div className="space-y-4">
+              
+              {/* แจ้งเหตุประชาชน */}
               <div>
                 <div className="flex items-center mb-2">
                   <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">CITIZEN REPORTS (รับแจ้งเหตุ)</span>
@@ -1230,6 +1471,7 @@ export default function BoLuangDashboard() {
                 </div>
               </div>
 
+              {/* ภัยพิบัติทางธรรมชาติ */}
               <div>
                 <div className="flex items-center mb-2">
                   <span className="text-[10px] md:text-[11px] text-[#fca5a5] tracking-widest font-bold">NATURAL HAZARDS (เตือนภัย)</span>
@@ -1237,15 +1479,13 @@ export default function BoLuangDashboard() {
                 </div>
                 <div className="space-y-1">
                   <CustomToggleBox label="จุดความร้อน/ไฟป่า (Hotspot)" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#ea580c" />
-                  
-                  {/* 🚀 ชั้นข้อมูล Safe Zone ที่เพิ่มเข้ามาใหม่ */}
                   <CustomToggleBox label="จุดปลอดภัย / ศูนย์พักพิง" active={showSafeZone} onClick={() => setShowSafeZone(!showSafeZone)} dotColor="#10b981" />
-                  
                   <CustomToggleBox label="พื้นที่เสี่ยงดินถล่ม (Heatmap)" active={showLandslide} onClick={() => setShowLandslide(!showLandslide)} dotColor="#ef4444" />
                   <CustomToggleBox label="รอยเลื่อนแผ่นดินไหว" active={earthquakeLayer} onClick={() => setEarthquakeLayer(!earthquakeLayer)} dotColor="#c084fc" />
                 </div>
               </div>
 
+              {/* แผนที่และขอบเขตพื้นที่ */}
               <div className="mt-4 pt-4 border-t border-[#1e293b]">
                 <div className="flex items-center mb-2">
                   <span className="text-[10px] md:text-[11px] text-[#10b981] tracking-widest font-bold">BASEMAP & BOUNDARIES</span>
@@ -1256,9 +1496,12 @@ export default function BoLuangDashboard() {
                   <CustomToggleBox label="ขอบเขตตำบลบ่อหลวง" active={showBoluang} onClick={() => setShowBoluang(!showBoluang)} dotColor="#38bdf8" />
                   <CustomToggleBox label="โซน 13 หมู่บ้าน" active={showBlock} onClick={() => setShowBlock(!showBlock)} dotColor="#fcd34d" />
                   
+                  {/* โหมดเจ้าหน้าที่ (Admin Only) */}
                   <div className="relative mt-2 pt-2 border-t border-[#1e293b]/50">
                     <CustomToggleBox label="แปลงที่ดินรายบุคคล" active={showParcel} onClick={() => setShowParcel(!showParcel)} dotColor="#4ade80" />
-                    <span className="absolute right-3 top-4 text-[8px] md:text-[9px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20 pointer-events-none flex items-center"><span className="mr-1">🔒</span> เจ้าหน้าที่</span>
+                    <span className="absolute right-3 top-4 text-[8px] md:text-[9px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20 pointer-events-none flex items-center">
+                      <span className="mr-1">🔒</span> เจ้าหน้าที่
+                    </span>
                   </div>
                 </div>
               </div>
