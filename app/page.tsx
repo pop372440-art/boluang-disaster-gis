@@ -1234,7 +1234,29 @@ export default function BoLuangDashboard() {
                         </div>
                       )}
 
-                      <div className="border-t border-[#1e293b] pt-3 mt-3 text-[11px] text-gray-500 font-mono text-right">
+                      {/* 🚀 ชุดปุ่ม นำทาง / Google Maps (ระดับ Pro) */}
+                      <div className="mt-4 pt-3 border-t border-[#1e293b] flex items-center justify-between">
+                        <div className="flex space-x-2 w-full">
+                          <a 
+                            href={`https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex-1 bg-[#003ea1] hover:bg-[#002f7a] text-white text-[12px] font-bold py-2 rounded-lg flex items-center justify-center transition-colors shadow-md"
+                          >
+                            📍 เปิดใน Google Maps
+                          </a>
+                          <a 
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${report.latitude},${report.longitude}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex-1 bg-[#f1f5f9] hover:bg-[#e2e8f0] text-gray-800 text-[12px] font-bold py-2 rounded-lg flex items-center justify-center transition-colors shadow-md"
+                          >
+                            🚗 นำทาง
+                          </a>
+                        </div>
+                      </div>
+
+                      <div className="pt-3 mt-2 text-[10px] text-gray-500 font-mono text-center">
                         แจ้งเมื่อ: {new Date(report.created_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })} น.
                       </div>
 
