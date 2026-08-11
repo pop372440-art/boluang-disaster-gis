@@ -251,20 +251,36 @@ export default function FloodDashboard() {
           </div>
         </div>
 
-        {/* 🌐 FloodDash Iframe (ฝังหน้าเว็บทั้งหน้าไว้ตรงนี้เลย) */}
-        <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+        {/* 🌐 FloodDash Portal (เปลี่ยนจาก Iframe เป็น Launcher) */}
+        <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl overflow-hidden shadow-2xl flex flex-col mb-6">
           <div className="bg-gradient-to-r from-[#1e3a8a] to-[#1e293b] px-4 py-3 flex flex-col md:flex-row items-start md:items-center justify-between border-b border-[#334155]">
             <span className="text-white text-sm font-bold flex items-center mb-2 md:mb-0">
               <span className="text-xl mr-2">🌍</span> ฐานข้อมูลแจ้งเหตุ FloodDash (ระบบภายนอก)
             </span>
+          </div>
+          
+          {/* พื้นที่ Launcher แจ้งเตือนการป้องกันความปลอดภัย */}
+          <div className="w-full h-[250px] md:h-[300px] bg-[#0b132b] relative flex flex-col items-center justify-center p-6 text-center">
+            {/* เอฟเฟกต์แสง */}
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-blue-500 rounded-full blur-[80px] opacity-10 pointer-events-none"></div>
+            
+            <div className="w-16 h-16 bg-[#1e293b] rounded-full flex items-center justify-center mb-4 border border-[#334155] shadow-lg relative z-10">
+              <span className="text-2xl">🛡️</span>
+            </div>
+            <h3 className="text-lg md:text-xl font-bold text-white mb-2 relative z-10">ระบบป้องกันความปลอดภัยของ FloodDash</h3>
+            <p className="text-gray-400 text-xs md:text-sm max-w-md mb-6 relative z-10 leading-relaxed">
+              เว็บไซต์ต้นทางมีการตั้งค่าความปลอดภัย <span className="text-blue-400 font-mono">X-Frame-Options</span> ไม่อนุญาตให้ฝังหน้าเว็บลงในระบบอื่น กรุณากดปุ่มด้านล่างเพื่อเปิดดูรายงานในหน้าต่างใหม่
+            </p>
             <a 
               href="https://flood.nonarkara.org" 
               target="_blank" rel="noopener noreferrer"
-              className="bg-white/10 hover:bg-white/20 border border-white/30 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center space-x-1"
+              className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center space-x-2 shadow-[0_0_15px_rgba(37,99,235,0.4)] hover:shadow-[0_0_25px_rgba(37,99,235,0.6)] relative z-10"
             >
-              <span>เปิดเต็มจอในแท็บใหม่ ↗</span>
+              <span>เปิดระบบ FloodDash (แท็บใหม่) ↗</span>
             </a>
           </div>
+        </div>
+          
           <div className="w-full h-[500px] md:h-[650px] bg-white relative">
             <iframe 
               src="https://flood.nonarkara.org" 
