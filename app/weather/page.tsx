@@ -240,7 +240,7 @@ export default function WeatherDashboard() {
                 type="text" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="เช่น ร้องกวาง, แพร่, เชียงใหม่" 
+                placeholder="เช่น เชียงใหม่,ฮอด,บ่อหลวง,บ่อพะแวน" 
                 className="w-full bg-white border border-gray-300 text-gray-800 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:border-transparent shadow-sm"
               />
             </form>
