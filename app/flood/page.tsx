@@ -128,7 +128,6 @@ export default function FloodDashboard() {
         }
 
         setStations(mergedStations);
-        // เนื่องจากฝังเว็บ FloodDash ทั้งหน้าแล้ว ตัวเลข Alert จะไม่สามารถนับจากเว็บเขาได้ตรงๆ จึงตั้งเป็นค่าว่างไว้
         setSummary({ total: mergedStations.length, critical: crit, highRisk: high, warning: warn, maxRain: maxR, floodDashAlerts: 0 });
 
       } catch (error) {
@@ -142,18 +141,21 @@ export default function FloodDashboard() {
   return (
     <div className="min-h-screen bg-[#0b132b] text-white font-sans selection:bg-[#3b82f6] selection:text-white pb-10">
       
-      {/* 🚀 Header */}
-      <header className="bg-[#0f172a] border-b border-[#1e293b] px-4 md:px-6 py-3 flex justify-between items-center sticky top-0 z-50 shadow-md">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-[#60a5fa] to-[#2563eb] rounded-lg flex items-center justify-center shadow-lg"><span className="text-white">🌊</span></div>
-          <div className="flex space-x-4 text-sm font-bold overflow-x-auto custom-scrollbar hidden md:flex">
-            <Link href="/" className="text-gray-400 hover:text-white transition-colors">แดชบอร์ดหลัก</Link>
-            <span className="text-[#3b82f6] border-b-2 border-[#3b82f6] pb-1">สถานการณ์น้ำป่า/ดินถล่ม</span>
-            <Link href="/weather" className="text-gray-400 hover:text-white transition-colors">สภาพอากาศ</Link>
+      {/* 🚀 Header (กู้คืนเอกลักษณ์ Bo Luang Flood Watch กลับมาแล้วครับ!) */}
+      <header className="bg-[#0f172a]/90 backdrop-blur-xl border-b border-[#1e293b] px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
+        <div className="flex items-center space-x-3 md:space-x-4">
+          <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-[#60a5fa] to-[#2563eb] rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.4)]">
+            <svg className="w-6 h-6 md:w-7 md:h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-[16px] md:text-[20px] font-extrabold text-white leading-tight tracking-wide">ระบบเฝ้าระวังน้ำท่วมและน้ำป่า</h1>
+            <p className="text-[11px] md:text-[13px] text-[#60a5fa] font-bold mt-0.5">Bo Luang Flood Watch</p>
           </div>
         </div>
-        <Link href="/" className="bg-[#1e293b] hover:bg-[#334155] border border-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-all">
-          ⬅️ กลับหน้าหลัก
+        <Link href="/" className="flex items-center space-x-2 bg-[#1e293b] hover:bg-[#334155] border border-gray-700 px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all shadow-sm">
+          <span>⬅️</span> <span className="hidden md:inline">กลับหน้าแผนที่หลัก</span>
         </Link>
       </header>
 
@@ -263,7 +265,6 @@ export default function FloodDashboard() {
               <span>เปิดเต็มจอในแท็บใหม่ ↗</span>
             </a>
           </div>
-          {/* พื้นที่สำหรับหน้าเว็บ FloodDash */}
           <div className="w-full h-[500px] md:h-[650px] bg-white relative">
             <iframe 
               src="https://flood.nonarkara.org" 
