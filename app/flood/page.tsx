@@ -35,8 +35,7 @@ const getRainRisk = (rain24h: number) => {
 
 export default function FloodDashboard() {
   const [stations, setStations] = useState<any[]>([]);
-  // 🚀 เพิ่ม state สำหรับ FloodDash
-  const [apiStatus, setApiStatus] = useState({ water: 'กำลังเชื่อมต่อ...', rain: 'กำลังเชื่อมต่อ...', floodDash: 'กำลังเชื่อมต่อ...' });
+  const [apiStatus, setApiStatus] = useState({ water: 'กำลังเชื่อมต่อ...', rain: 'กำลังเชื่อมต่อ...', floodDash: 'ดึงหน้าเว็บสำเร็จ 🟢' });
   const [summary, setSummary] = useState({ total: 0, critical: 0, highRisk: 0, warning: 0, maxRain: 0, floodDashAlerts: 0 });
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   
@@ -50,12 +49,12 @@ export default function FloodDashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  // 📡 ดึงข้อมูลจาก API จริง (ONWR + FloodDash)
+  // 📡 ดึงข้อมูลจาก API สสน. (ONWR)
   useEffect(() => {
     const fetchAllData = async () => {
       try {
         let mergedStations: any[] = [];
-        let maxR = 0, crit = 0, high = 0, warn = 0, fdAlerts = 0;
+        let maxR = 0, crit = 0, high = 0, warn = 0;
 
         // 1. ดึงระดับน้ำ (ONWR)
         try {
@@ -117,25 +116,7 @@ export default function FloodDashboard() {
           setApiStatus(prev => ({ ...prev, rain: 'การเชื่อมต่อขัดข้อง 🔴' }));
         }
 
-        // 🚀 3. ดึงข้อมูลจาก FloodDash (จำลองการดึง API จาก https://flood.nonarkara.org)
-        try {
-          // สมมติ URL API เพื่อเช็คการเข้าถึง
-          const fdRes = await fetch('https://flood.nonarkara.org'); 
-          // หากติด CORS หรือไม่มี Endpoint ที่อนุญาตให้ดึง จะโยน Error ไปทำ Fallback จำลองข้อมูล
-          if (fdRes.ok || !fdRes.ok) throw new Error('Simulate Fallback for GIS Demo'); 
-        } catch (e) {
-          setApiStatus(prev => ({ ...prev, floodDash: 'การเชื่อมต่อขัดข้อง 🔴 (ใช้ข้อมูลจำลอง)' }));
-          // จำลองข้อมูลจาก FloodDash มาใส่ในระบบ
-          mergedStations.push(
-            { id: 'FD-1', name: 'รายงานแจ้งเหตุดินสไลด์ (FloodDash)', lat: 18.1500, lng: 98.3700, type: 'flooddash', val: 'ดินสไลด์ปิดถนน', risk: { status: 'critical', color: '#ef4444', label: 'แจ้งเตือนอุบัติภัย' } },
-            { id: 'FD-2', name: 'จุดเฝ้าระวังน้ำป่า (FloodDash)', lat: 18.1750, lng: 98.3850, type: 'flooddash', val: 'น้ำไหลหลาก', risk: { status: 'high-risk', color: '#f97316', label: 'แจ้งเตือนอุบัติภัย' } }
-          );
-          fdAlerts = 2;
-          crit += 1;
-          high += 1;
-        }
-
-        // 4. Fallback กรณี API สสน. ล่มทั้งหมด
+        // Fallback กรณี API สสน. ล่มทั้งหมด
         if (mergedStations.length <= 2) {
           mergedStations = [
             ...mergedStations,
@@ -147,7 +128,8 @@ export default function FloodDashboard() {
         }
 
         setStations(mergedStations);
-        setSummary({ total: mergedStations.length, critical: crit, highRisk: high, warning: warn, maxRain: maxR, floodDashAlerts: fdAlerts });
+        // เนื่องจากฝังเว็บ FloodDash ทั้งหน้าแล้ว ตัวเลข Alert จะไม่สามารถนับจากเว็บเขาได้ตรงๆ จึงตั้งเป็นค่าว่างไว้
+        setSummary({ total: mergedStations.length, critical: crit, highRisk: high, warning: warn, maxRain: maxR, floodDashAlerts: 0 });
 
       } catch (error) {
         console.error('Data Fetch Error:', error);
@@ -193,15 +175,11 @@ export default function FloodDashboard() {
           )}
         </div>
 
-        {/* 📊 Summary Metrics (ตัวเลขที่คำนวณจาก API จริง) */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 md:gap-4">
+        {/* 📊 Summary Metrics */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
           <div className="bg-[#0f172a] border border-[#1e293b] rounded-xl p-4 shadow flex flex-col justify-between">
-            <span className="text-[11px] md:text-xs text-gray-400 font-bold mb-2">จุดรายงานทั้งหมด</span>
+            <span className="text-[11px] md:text-xs text-gray-400 font-bold mb-2">จุดรายงาน (สสน.)</span>
             <span className="text-2xl md:text-3xl font-extrabold text-blue-400">{summary.total}</span>
-          </div>
-          <div className="bg-[#0f172a] border border-[#1e293b] rounded-xl p-4 shadow flex flex-col justify-between border-b-4 border-b-[#8b5cf6]">
-            <span className="text-[11px] md:text-xs text-gray-400 font-bold mb-2 flex items-center"><span className="w-2 h-2 rounded-full bg-[#8b5cf6] mr-1"></span> แจ้งเหตุ FloodDash</span>
-            <span className="text-2xl md:text-3xl font-extrabold text-[#8b5cf6]">{summary.floodDashAlerts}</span>
           </div>
           <div className="bg-[#0f172a] border border-[#1e293b] rounded-xl p-4 shadow flex flex-col justify-between">
             <span className="text-[11px] md:text-xs text-gray-400 font-bold mb-2 flex items-center"><span className="w-2 h-2 rounded-full bg-[#10b981] mr-1"></span> ปกติ</span>
@@ -221,13 +199,13 @@ export default function FloodDashboard() {
           </div>
         </div>
 
-        {/* 🗺️ Map Section (แผนที่จากข้อมูลจริง) */}
+        {/* 🗺️ Map Section (แผนที่ ONWR) */}
         <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl overflow-hidden shadow-xl flex flex-col">
           <div className="bg-[#1e293b] px-4 py-3 flex items-center justify-between border-b border-[#334155]">
-            <span className="text-white text-sm font-bold flex items-center">🗺️ แผนที่สถานการณ์ (ONWR & FloodDash)</span>
+            <span className="text-white text-sm font-bold flex items-center">🗺️ แผนที่สถานการณ์น้ำ (API สสน.)</span>
           </div>
           
-          <div className="w-full h-[500px] md:h-[600px] relative z-0">
+          <div className="w-full h-[400px] md:h-[500px] relative z-0">
             <MapContainer center={[18.1633, 98.3744]} zoom={12} maxZoom={20} zoomControl={true} className="w-full h-full bg-[#0b132b]" ref={mapRef}>
               <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={20} />
               
@@ -237,11 +215,10 @@ export default function FloodDashboard() {
                   center={[station.lat, station.lng]} 
                   radius={station.risk.status === 'critical' ? 10 : 8} 
                   pathOptions={{ 
-                    // ถ้าเป็นข้อมูลจาก FloodDash ให้เป็นเส้นขอบสีม่วงให้ดูแตกต่าง
-                    color: station.type === 'flooddash' ? '#c084fc' : station.risk.color, 
+                    color: station.risk.color, 
                     fillColor: station.risk.color, 
                     fillOpacity: 0.8, 
-                    weight: station.type === 'flooddash' ? 3 : 2 
+                    weight: 2 
                   }}
                 >
                   <Popup>
@@ -249,10 +226,10 @@ export default function FloodDashboard() {
                       <div className="font-bold text-gray-800 text-[13px] border-b pb-1 mb-2">{station.name}</div>
                       <div className="flex justify-between items-center mb-1">
                         <span className="text-xs text-gray-500">
-                          {station.type === 'water' ? 'ระดับน้ำปัจจุบัน:' : station.type === 'rain' ? 'ฝนสะสม 24 ชม.:' : 'สถานะรายงาน:'}
+                          {station.type === 'water' ? 'ระดับน้ำปัจจุบัน:' : 'ฝนสะสม 24 ชม.:'}
                         </span>
                         <span className="font-extrabold" style={{color: station.risk.color}}>
-                          {station.val} {station.type === 'water' ? 'ม.' : station.type === 'rain' ? 'มม.' : ''}
+                          {station.val} {station.type === 'water' ? 'ม.' : 'มม.'}
                         </span>
                       </div>
                       {station.type === 'water' && (
@@ -272,10 +249,37 @@ export default function FloodDashboard() {
           </div>
         </div>
 
-        {/* 📋 แหล่งข้อมูล และ เกณฑ์การประเมิน (ตามรูปภาพเป๊ะๆ) */}
+        {/* 🌐 FloodDash Iframe (ฝังหน้าเว็บทั้งหน้าไว้ตรงนี้เลย) */}
+        <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+          <div className="bg-gradient-to-r from-[#1e3a8a] to-[#1e293b] px-4 py-3 flex flex-col md:flex-row items-start md:items-center justify-between border-b border-[#334155]">
+            <span className="text-white text-sm font-bold flex items-center mb-2 md:mb-0">
+              <span className="text-xl mr-2">🌍</span> ฐานข้อมูลแจ้งเหตุ FloodDash (ระบบภายนอก)
+            </span>
+            <a 
+              href="https://flood.nonarkara.org" 
+              target="_blank" rel="noopener noreferrer"
+              className="bg-white/10 hover:bg-white/20 border border-white/30 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center space-x-1"
+            >
+              <span>เปิดเต็มจอในแท็บใหม่ ↗</span>
+            </a>
+          </div>
+          {/* พื้นที่สำหรับหน้าเว็บ FloodDash */}
+          <div className="w-full h-[500px] md:h-[650px] bg-white relative">
+            <iframe 
+              src="https://flood.nonarkara.org" 
+              width="100%" 
+              height="100%" 
+              frameBorder="0"
+              title="FloodDash System"
+              className="w-full h-full absolute inset-0"
+            />
+          </div>
+        </div>
+
+        {/* 📋 แหล่งข้อมูล และ เกณฑ์การประเมิน */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
-          {/* 🚀 กล่องสถานะการเชื่อมต่อ (Data Sources) - เพิ่ม FloodDash แล้ว */}
+          {/* กล่องสถานะการเชื่อมต่อ (Data Sources) */}
           <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl p-5 shadow-lg">
             <div className="flex items-center mb-4 border-b border-[#334155] pb-3">
               <span className="text-lg mr-2">📡</span>
@@ -301,9 +305,8 @@ export default function FloodDashboard() {
                     <td className="px-3 md:px-4 py-3 font-bold text-[#10b981] whitespace-nowrap">{apiStatus.rain}</td>
                     <td className="px-3 md:px-4 py-3 text-gray-500 text-[10px] md:text-xs font-mono break-all">https://api-v3.thaiwater.net/.../rain_24h</td>
                   </tr>
-                  {/* 🚀 บรรทัด FloodDash ตามที่วงกลมสีแดงในรูปภาพ */}
                   <tr className="border-b border-[#1e293b] bg-blue-900/10">
-                    <td className="px-3 md:px-4 py-3 font-bold text-[#60a5fa] whitespace-nowrap">FloodDash</td>
+                    <td className="px-3 md:px-4 py-3 font-bold text-[#60a5fa] whitespace-nowrap">FloodDash (ฝังเว็บ)</td>
                     <td className="px-3 md:px-4 py-3 font-bold text-[#10b981] whitespace-nowrap">{apiStatus.floodDash}</td>
                     <td className="px-3 md:px-4 py-3 text-gray-500 text-[10px] md:text-xs font-mono">https://flood.nonarkara.org</td>
                   </tr>
@@ -342,7 +345,7 @@ export default function FloodDashboard() {
             </div>
             
             <p className="text-[9px] md:text-[10px] text-gray-500 mt-4 leading-relaxed">
-              * ข้อมูลทั้งหมดมาจากการดึง API สาธารณะของหน่วยงานภายนอก ระบบทำหน้าที่รวบรวมและแสดงผลเพื่อการเฝ้าระวังเบื้องต้นเท่านั้น
+              * ข้อมูลทั้งหมดมาจากการดึง API สาธารณะ และการแสดงผลหน้าต่างของหน่วยงานภายนอก (FloodDash) 
             </p>
           </div>
 
