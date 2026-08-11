@@ -920,63 +920,55 @@ export default function BoLuangDashboard() {
           </div>
         )}
 
-        <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>    
-       {/* 🚀 ชุดปุ่มควบคุมแผนที่ (สไตล์ Google Maps Dark Mode) */}
-            <div className="absolute top-[100px] left-[15px] md:left-[375px] z-[400] flex flex-col space-y-2 transition-all duration-300 pointer-events-auto">
-              
-              {/* 📍 ปุ่ม Locate Me */}
+        {/* 🗺️ ระบบแผนที่หลัก */}
+      <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">
+        {windyLayer && (
+          <div 
+            className="absolute pointer-events-none transition-opacity duration-700 opacity-100 saturate-150"
+            style={{ top: '-100vh', left: '-100vw', width: '300vw', height: '300vh', transform: `translate(${transform.x}px, ${transform.y}px)`, willChange: 'transform', zIndex: 0 }}
+          >
+            <iframe width="100%" height="100%" frameBorder="0" src={windyMapUrl} />
+          </div>
+        )}
+
+        <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>
+          
+          {/* 🚀 ชุดปุ่มควบคุมแผนที่ (ย้ายออกมานอก MapContainer พร้อมตั้งค่า z-[1000] ไม่ให้หายอีกต่อไป) */}
+          <div className="absolute top-[100px] left-[15px] md:left-[375px] z-[1000] flex flex-col space-y-2 transition-all duration-300 pointer-events-auto">
+            
+            {/* 📍 ปุ่ม Locate Me */}
+            <button 
+              onClick={(e) => { e.stopPropagation(); handleLocateMe(); }}
+              className="w-[36px] h-[36px] bg-[#111827]/95 backdrop-blur-md border border-[#334155] rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.5)] flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1f2937] transition-all duration-200 group"
+              title="ตำแหน่งของฉัน"
+            >
+              <svg className="w-5 h-5 group-hover:scale-110 transition-transform text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v2m0 12v2m8-8h-2M6 12H4m14 0a6 6 0 11-12 0 6 6 0 0112 0z" />
+                <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
+              </svg>
+            </button>
+
+            {/* 🔍 กลุ่มปุ่ม Zoom In / Out */}
+            <div className="flex flex-col bg-[#111827]/95 backdrop-blur-md border border-[#334155] rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.5)] overflow-hidden">
               <button 
-                onClick={(e) => { e.stopPropagation(); handleLocateMe(); }}
-                className="w-[36px] h-[36px] bg-[#111827]/95 backdrop-blur-md border border-[#334155] rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.5)] flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1f2937] transition-all duration-200 group"
-                title="ตำแหน่งของฉัน"
+                onClick={(e) => { e.stopPropagation(); mapRef?.zoomIn(); }}
+                className="w-[36px] h-[36px] flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1f2937] transition-colors"
+                title="ซูมเข้า"
               >
-                <svg className="w-5 h-5 group-hover:scale-110 transition-transform text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v2m0 12v2m8-8h-2M6 12H4m14 0a6 6 0 11-12 0 6 6 0 0112 0z" />
-                  <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
-                </svg>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v12m-6-6h12" /></svg>
               </button>
-
-              {/* 🔍 กลุ่มปุ่ม Zoom In / Out */}
-              <div className="flex flex-col bg-[#111827]/95 backdrop-blur-md border border-[#334155] rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.5)] overflow-hidden">
-                <button 
-                  onClick={(e) => { e.stopPropagation(); mapRef?.zoomIn(); }}
-                  className="w-[36px] h-[36px] flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1f2937] transition-colors"
-                  title="ซูมเข้า"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v12m-6-6h12" /></svg>
-                </button>
-                
-                <div className="h-[1px] w-[20px] mx-auto bg-[#334155]"></div>
-                
-                <button 
-                  onClick={(e) => { e.stopPropagation(); mapRef?.zoomOut(); }}
-                  className="w-[36px] h-[36px] flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1f2937] transition-colors"
-                  title="ซูมออก"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
-                </button>
-              </div>
+              
+              <div className="h-[1px] w-[20px] mx-auto bg-[#334155]"></div>
+              
+              <button 
+                onClick={(e) => { e.stopPropagation(); mapRef?.zoomOut(); }}
+                className="w-[36px] h-[36px] flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1f2937] transition-colors"
+                title="ซูมออก"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
+              </button>
             </div>
-
-          <MapContainer center={[18.1633, 98.3744]} zoom={isMobile ? 10 : 11} maxZoom={20} zoomControl={false} attributionControl={false} className="w-full h-full" ref={setMapRef}>
-            
-            {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
-            {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} />}
-            
-            {/* 🚀 หมุดตำแหน่งผู้ใช้งานปัจจุบัน */}
-            {userLocation && (
-              <Marker position={[userLocation.lat, userLocation.lng]} icon={createUserLocationIcon()}>
-                <Popup className="popup-location">
-                  <div className="p-3 bg-[#0f172a] text-center min-w-[180px]">
-                    <div className="text-[#38bdf8] font-bold text-[15px] mb-2 border-b border-[#1e293b] pb-2 flex items-center justify-center space-x-1.5">
-                      <span>📍</span> <span>ตำแหน่งของคุณ</span>
-                    </div>
-                    <div className="text-gray-300 text-[13px] font-mono mb-1">Lat: <span className="text-white">{userLocation.lat.toFixed(6)}</span></div>
-                    <div className="text-gray-300 text-[13px] font-mono">Lng: <span className="text-white">{userLocation.lng.toFixed(6)}</span></div>
-                  </div>
-                </Popup>
-              </Marker>
-            )}
+          </div>
 
             {/* 🚀 หมุดศูนย์พักพิง/ปลอดภัย */}
             {showSafeZone && safeZonesData.map((sz, i) => (
@@ -1376,8 +1368,7 @@ export default function BoLuangDashboard() {
       {/* ========================================== */}
       {/* 🚀 6. แถบเครื่องมือและ Legend */}
       {/* ========================================== */}
-
-      <header className="absolute top-0 left-0 right-0 h-[72px] bg-[#0b132b]/95 border-b border-[#1e293b] backdrop-blur-xl z-[80] flex items-center justify-between px-4 md:px-6 pointer-events-auto shadow-md">
+     <header className="absolute top-0 left-0 right-0 h-[72px] bg-[#0b132b]/95 border-b border-[#1e293b] backdrop-blur-xl z-[80] flex items-center justify-between px-4 md:px-6 pointer-events-auto shadow-md">
         <div className="flex items-center space-x-4 md:space-x-6">
           <button onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)} className="md:hidden p-2 bg-[#1e293b] rounded-lg text-gray-300 hover:text-white">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
@@ -1427,15 +1418,6 @@ export default function BoLuangDashboard() {
           </div>
         </div>
 
-        <div onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer">
-          <svg className="w-4 h-4 text-[#2dd4bf] mr-1.5 md:mr-2 transform rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
-          </svg>
-          <span className="text-[11px] md:text-[13px] font-mono font-medium text-gray-300 tracking-wide">
-            GIS Layers <span className="hidden md:inline text-gray-500 mx-1">· Thailand</span>
-          </span>
-        </div>
-      </header>
         <div onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer">
           <svg className="w-4 h-4 text-[#2dd4bf] mr-1.5 md:mr-2 transform rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
