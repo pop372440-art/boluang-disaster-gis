@@ -1460,7 +1460,7 @@ export default function BoLuangDashboard() {
                 </svg>
               </div>
               
-              {/* ข้อความ (ของการ์ดสภาพอากาศ) */}
+             {/* ข้อความ (ของการ์ดสภาพอากาศ) */}
             <div className="flex flex-col mt-0.5">
               <h3 className="text-[15px] font-extrabold text-white group-hover:text-[#38bdf8] transition-colors leading-tight">ระบบตรวจสอบสภาพอากาศ</h3>
               <p className="text-[12px] font-bold text-[#e2e8f0] mt-1 mb-1">Bo Luang Weather</p>
@@ -1496,11 +1496,10 @@ export default function BoLuangDashboard() {
             </div>
           </div>
         </div>
-        {/* 🌊 สิ้นสุดโค้ดการ์ด Flood Watch 🌊 */}             
-              
+        {/* 🌊 สิ้นสุดโค้ดการ์ด Flood Watch 🌊 */}
         <div className="space-y-4">
-          {/* ... โค้ด CustomToggleBox และเนื้อหาเดิมจะอยู่ต่อจากตรงนี้ครับ ... */}
-          
+          {/* ... โค้ด CustomToggleBox จะอยู่ต่อจากตรงนี้ตามปกติครับ ... */}
+               
           {/* หมวดพยากรณ์อากาศ */}
           <div>
             <div className="flex items-center mb-2">
