@@ -1437,44 +1437,33 @@ export default function BoLuangDashboard() {
       {/* Sidebar ซ้าย (ข้อมูลอากาศ/น้ำ) */}
       <aside className={`absolute top-[80px] md:top-24 z-[70] w-[300px] md:w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-r-2xl md:rounded-2xl shadow-2xl p-4 md:p-5 backdrop-blur-xl pointer-events-auto max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar transition-transform duration-500 ease-in-out ${isLeftPanelOpen ? 'translate-x-0 left-0 md:left-4' : '-translate-x-full left-0 md:left-4'}`}>
         
-        {/* 🌤️ การ์ดเข้าสู่ระบบ Weather Dashboard (สไตล์ Rongkwang) */}
-        <div className="relative mb-6">
-          {/* ปุ่มปิด Sidebar สำหรับมือถือ */}
-          <button onClick={() => setIsLeftPanelOpen(false)} className="md:hidden absolute -top-1 right-0 text-gray-500 hover:text-white z-20">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-
+        {/* 🌤️ การ์ดเข้าสู่ระบบ Weather Dashboard */}
+        <div className="relative mb-4">
           <div 
             onClick={() => window.open('/weather', '_blank')}
             className="bg-[#0f172a] border border-[#1e293b] hover:border-[#0ea5e9]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden"
           >
-            {/* เอฟเฟกต์แสง Background (Glow) */}
             <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#0ea5e9] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
-            
             <div className="flex items-start space-x-4 relative z-10">
-              {/* ไอคอนสีฟ้าแบบแอป Lovable */}
               <div className="w-12 h-12 bg-gradient-to-b from-[#38bdf8] to-[#0284c7] rounded-[14px] flex items-center justify-center shadow-md flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
                 <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
                 </svg>
               </div>
-              
-             {/* ข้อความ (ของการ์ดสภาพอากาศ) */}
-            <div className="flex flex-col mt-0.5">
-              <h3 className="text-[15px] font-extrabold text-white group-hover:text-[#38bdf8] transition-colors leading-tight">ระบบตรวจสอบสภาพอากาศ</h3>
-              <p className="text-[12px] font-bold text-[#e2e8f0] mt-1 mb-1">Bo Luang Weather</p>
-              <p className="text-[11px] text-gray-400 leading-relaxed">ตรวจสอบอุณหภูมิ ปริมาณฝน และการพยากรณ์อากาศในพื้นที่</p>
+              <div className="flex flex-col mt-0.5">
+                <h3 className="text-[15px] font-extrabold text-white group-hover:text-[#38bdf8] transition-colors leading-tight">ระบบตรวจสอบสภาพอากาศ</h3>
+                <p className="text-[12px] font-bold text-[#e2e8f0] mt-1 mb-1">Bo Luang Weather</p>
+                <p className="text-[11px] text-gray-400 leading-relaxed">ตรวจสอบอุณหภูมิ ปริมาณฝน และการพยากรณ์อากาศในพื้นที่</p>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* 🌊 วางโค้ดการ์ดเข้าสู่ระบบ Flood Watch ตรงนี้ครับ 🌊 */}
-        <div className="relative mb-6 mt-4">
+        {/* 🌊 การ์ดเข้าสู่ระบบ Flood Watch */}
+        <div className="relative mb-4">
           <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl p-4 md:p-5 shadow-lg group relative overflow-hidden">
-            {/* เอฟเฟกต์แสง Background (Glow) */}
             <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#3b82f6] rounded-full blur-[50px] opacity-10 group-hover:opacity-25 transition-opacity duration-500"></div>
-            
             <div className="flex items-start space-x-4 relative z-10">
               <div className="w-12 h-12 bg-gradient-to-b from-[#60a5fa] to-[#2563eb] rounded-[14px] flex items-center justify-center shadow-md flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
                 <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1487,7 +1476,7 @@ export default function BoLuangDashboard() {
                 <p className="text-[11px] text-gray-400 leading-relaxed mb-3">ติดตามระดับน้ำลำห้วย แจ้งเตือนน้ำป่าไหลหลาก และดินถล่มในพื้นที่เกษตรกรรม</p>
                 <button 
                   onClick={() => window.open('/flood', '_blank')} 
-                  className="w-full py-2.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center space-x-1.5 shadow-md"
+                  className="w-full py-2.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center space-x-1.5 shadow-md cursor-pointer"
                 >
                   <span>เข้าใช้งานระบบ</span>
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
@@ -1496,7 +1485,7 @@ export default function BoLuangDashboard() {
             </div>
           </div>
         </div>
-        {/* 🌊 สิ้นสุดโค้ดการ์ด Flood Watch 🌊 */}
+                  
         <div className="space-y-4">
           {/* ... โค้ด CustomToggleBox จะอยู่ต่อจากตรงนี้ตามปกติครับ ... */}
                
