@@ -281,17 +281,6 @@ export default function FloodDashboard() {
           </div>
         </div>
           
-          <div className="w-full h-[500px] md:h-[650px] bg-white relative">
-            <iframe 
-              src="https://flood.nonarkara.org" 
-              width="100%" 
-              height="100%" 
-              frameBorder="0"
-              title="FloodDash System"
-              className="w-full h-full absolute inset-0"
-            />
-          </div>
-        </div>
 
         {/* 📋 แหล่งข้อมูล และ เกณฑ์การประเมิน */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
