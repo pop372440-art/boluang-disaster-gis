@@ -78,10 +78,11 @@ const getAqiStatus = (aqi: number) => {
 // ==========================================
 export default function WeatherDashboard() {
   const [windyLayer, setWindyLayer] = useState('radar');
+  const [windyZoom, setWindyZoom] = useState(5); // 🚀 เพิ่ม State สำหรับควบคุม Zoom ของ Windy
   const [searchQuery, setSearchQuery] = useState('');
   const [position, setPosition] = useState({ lat: INITIAL_LAT, lng: INITIAL_LNG });
   const [locationName, setLocationName] = useState('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
-  const [currentTime, setCurrentTime] = useState<Date | null>(null); // State สำหรับนาฬิกา Real-time
+  const [currentTime, setCurrentTime] = useState<Date | null>(null); 
 
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
@@ -118,7 +119,6 @@ export default function WeatherDashboard() {
       const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&accept-language=th`);
       const data = await res.json();
       if (data && data.display_name) {
-        // ใช้ join(' • ') แทนลูกน้ำ เพื่อความสวยงามเหมือนในรูปตัวอย่าง
         const parts = data.display_name.split(',').slice(0, 3).reverse().map((s: string) => s.trim()).join(' • ');
         setLocationName(parts || data.display_name);
       }
@@ -154,7 +154,6 @@ export default function WeatherDashboard() {
         const newLng = parseFloat(lon);
         setPosition({ lat: newLat, lng: newLng });
         
-        // จัดฟอร์แมตชื่อโดยใช้ • คั่น
         const parts = display_name.split(',').slice(0, 3).reverse().map((s: string) => s.trim()).join(' • ');
         setLocationName(parts || display_name);
 
@@ -315,7 +314,7 @@ export default function WeatherDashboard() {
           </div>
         </div>
         
-        {/* 📍 แถบสถานะพื้นที่แบบ Real-time (เพิ่มใหม่ตาม Request) */}
+        {/* 📍 แถบสถานะพื้นที่แบบ Real-time */}
         <div className="bg-[#1e293b] rounded-2xl p-4 shadow-lg border border-[#334155] flex flex-col md:flex-row items-center justify-between text-sm transition-all mt-4 mb-2">
           <div className="flex items-center space-x-2 text-gray-300 text-center md:text-left">
             <span className="text-red-400 text-lg animate-pulse">📍</span>
@@ -453,35 +452,65 @@ export default function WeatherDashboard() {
             </div>
           </div>
 
-          {/* 📦 กล่อง 7: แผนที่ Windy Interactive */}
-          <div className="col-span-1 md:col-span-4 bg-[#0f172a] p-2 md:p-4 rounded-3xl border border-[#334155] shadow-lg flex flex-col overflow-hidden h-[550px] relative mt-2">
-            <div className="absolute top-6 left-6 right-6 z-10">
-              <div className="bg-[#e2e8f0]/95 backdrop-blur-md border border-white/50 p-1.5 md:p-2 rounded-2xl flex items-center shadow-[0_8px_30px_rgba(0,0,0,0.2)]">
-                <div className="hidden md:flex items-center px-4 border-r border-gray-300 flex-shrink-0">
-                  <span className="text-lg mr-2">🛰️</span>
-                  <div className="flex flex-col">
-                    <span className="text-black font-extrabold text-sm leading-tight">แผนที่อากาศเคลื่อนไหว (Windy)</span>
-                    <span className="text-gray-500 text-[10px]">เรดาร์ฝน ลม เมฆ • {locationName}</span>
-                  </div>
-                </div>
-                <div className="flex space-x-1.5 md:space-x-2 overflow-x-auto custom-scrollbar px-2 w-full pb-1 pt-1">
-                  {WINDY_LAYERS.map((layer) => (
-                    <button 
-                      key={layer.id}
-                      onClick={() => setWindyLayer(layer.id)}
-                      className={`flex items-center space-x-1.5 px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-200 flex-shrink-0
-                        ${windyLayer === layer.id ? 'bg-[#0f4a8a] text-white shadow-md transform scale-105' : 'bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-800'}`}
-                    >
-                      <span className="text-sm">{layer.icon}</span><span>{layer.label}</span>
-                    </button>
-                  ))}
+          {/* 📦 กล่อง 7: แผนที่ Windy Interactive (ปรับปรุงรูปแบบสว่าง & เคลื่อนไหวเต็มรูปแบบ) */}
+          <div className="col-span-1 md:col-span-4 bg-[#f8fafc] p-2 md:p-3 rounded-3xl border border-gray-300 shadow-xl flex flex-col mt-2 h-[600px] md:h-[700px]">
+            
+            {/* Header ของแผงควบคุม Windy */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center px-4 py-2 bg-transparent">
+              <div className="flex items-center space-x-3">
+                <span className="text-2xl drop-shadow-md">🛰️</span>
+                <div className="flex flex-col">
+                  <span className="text-gray-900 font-extrabold text-[15px] md:text-[18px] leading-tight tracking-wide">แผนที่อากาศเคลื่อนไหว (Windy)</span>
+                  <span className="text-gray-500 font-medium text-[10px] md:text-[12px] truncate w-[250px] md:w-auto">เรดาร์ฝน ลม เมฆ และมลพิษแบบเรียลไทม์ • {locationName}</span>
                 </div>
               </div>
+              
+              {/* ชุดปุ่ม Zoom มุมขวาบน */}
+              <div className="flex items-center space-x-2 mt-3 md:mt-0 bg-white rounded-full px-2 py-1 shadow-sm border border-gray-200">
+                 <button onClick={() => setWindyZoom(Math.max(1, windyZoom - 1))} className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-white text-[#0ea5e9] hover:bg-[#e0f2fe] flex items-center justify-center font-bold shadow-sm transition-colors">-</button>
+                 <span className="text-[11px] md:text-xs font-mono text-gray-700 font-bold px-1 md:px-2">z{windyZoom}</span>
+                 <button onClick={() => setWindyZoom(Math.min(20, windyZoom + 1))} className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-white text-[#0ea5e9] hover:bg-[#e0f2fe] flex items-center justify-center font-bold shadow-sm transition-colors">+</button>
+              </div>
             </div>
-            <iframe 
-              width="100%" height="100%" frameBorder="0" className="rounded-2xl mt-14 md:mt-16"
-              src={`https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=%C2%B0C&metricWind=km/h&zoom=10&overlay=${windyLayer}&product=ecmwf&level=surface&lat=${position.lat}&lon=${position.lng}&detailLat=${position.lat}&detailLon=${position.lng}&marker=true`}
-            ></iframe>
+
+            {/* แถบปุ่ม Layer ของ Windy */}
+            <div className="flex space-x-2 overflow-x-auto custom-scrollbar px-4 py-3 w-full mb-1">
+              {WINDY_LAYERS.map((layer) => (
+                <button 
+                  key={layer.id}
+                  onClick={() => setWindyLayer(layer.id)}
+                  className={`flex items-center space-x-1.5 px-4 py-2 rounded-full text-xs md:text-sm font-bold whitespace-nowrap transition-all duration-300 flex-shrink-0 border
+                    ${windyLayer === layer.id 
+                      ? 'bg-[#0f4a8a] text-white border-[#0f4a8a] shadow-md transform scale-105' 
+                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900 shadow-sm'
+                    }`}
+                >
+                  <span className="text-sm md:text-base">{layer.icon}</span><span>{layer.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Iframe ของ Windy (ใช้ embed2.html + calendar=now เพื่อให้แสดง Timeline เคลื่อนไหว) */}
+            <div className="w-full flex-1 rounded-2xl overflow-hidden relative border border-gray-200 shadow-inner">
+              <iframe 
+                width="100%" height="100%" frameBorder="0"
+                src={`https://embed.windy.com/embed2.html?lat=${position.lat}&lon=${position.lng}&detailLat=${position.lat}&detailLon=${position.lng}&zoom=${windyZoom}&level=surface&overlay=${windyLayer}&product=ecmwf&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1`}
+              ></iframe>
+            </div>
+
+            {/* Footer ของแผงควบคุม Windy */}
+            <div className="flex flex-col md:flex-row items-center justify-between px-4 py-2.5 bg-transparent space-y-2 md:space-y-0">
+               <div className="text-[10px] md:text-xs text-gray-500 font-bold flex items-center text-center md:text-left">
+                 <span className="mr-1.5 text-orange-500 text-sm">💡</span> เลื่อนแถบเวลาด้านล่างแผนที่เพื่อดูพยากรณ์ล่วงหน้า
+               </div>
+               <a 
+                 href={`https://www.windy.com/?${position.lat},${position.lng},${windyZoom}`} 
+                 target="_blank" rel="noopener noreferrer" 
+                 className="text-[10px] md:text-xs text-[#0ea5e9] hover:text-[#0284c7] font-bold flex items-center bg-[#e0f2fe]/60 px-3 py-1.5 rounded-lg transition-colors border border-[#bae6fd]"
+               >
+                 เปิดหน้าจอเต็มใน Windy.com ↗
+               </a>
+            </div>
           </div>
 
         </div>
