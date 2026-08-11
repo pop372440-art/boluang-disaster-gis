@@ -1586,25 +1586,30 @@ export default function BoLuangDashboard() {
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
               
-              <div className="flex items-center space-x-3 mb-2">
-                <div className="bg-gradient-to-br from-[#2dd4bf] to-[#3b82f6] p-2 rounded-xl shadow-[0_4px_10px_rgba(45,212,191,0.3)]">
-                  <svg className="w-5 h-5 md:w-6 md:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                  </svg>
+              {/* 🚀 จัด Group ให้อยู่บรรทัดเดียวกัน (Flex Justify Between) */}
+              <div className="flex items-center justify-between w-full mb-2 pr-6 md:pr-0">
+                <div className="flex items-center space-x-3">
+                  <div className="bg-gradient-to-br from-[#2dd4bf] to-[#3b82f6] p-2 rounded-xl shadow-[0_4px_10px_rgba(45,212,191,0.3)] flex-shrink-0">
+                    <svg className="w-5 h-5 md:w-6 md:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                    </svg>
+                  </div>
+                  <h2 className="text-[18px] md:text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">Layers</h2>
                 </div>
-                <h2 className="text-[18px] md:text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">Layers</h2>
+                
+                {/* 🚀 ป้าย Active และ Zoom ขนาดกะทัดรัด ย้ายมาไว้ฝั่งขวา */}
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center px-2 py-1 rounded-full border border-[#1e293b] bg-[#0f172a]/50 shadow-inner">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#2dd4bf] mr-1.5 shadow-[0_0_5px_#2dd4bf]"></div>
+                    <span className="text-[10px] md:text-[11px] font-bold text-gray-300 tracking-wide">Act: <span className="text-white ml-0.5">{activeLayersCount}</span></span>
+                  </div>
+                  <div className="flex items-center px-2 py-1 rounded-full border border-[#1e293b] bg-[#0f172a]/50 shadow-inner">
+                    <span className="text-[10px] md:text-[11px] font-bold text-gray-300 tracking-wide">Zoom: <span className="text-white ml-0.5">{currentZoom}</span></span>
+                  </div>
+                </div>
               </div>
-              <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed pr-6">แผงควบคุมชั้นข้อมูลหลักด้านขวา ส่วนข้อมูลอากาศและค่าฝุ่น PM2.5 / AQI แยกไว้ด้านซ้าย</p>
-              
-              <div className="flex items-center space-x-3 mt-4">
-                <div className="flex items-center px-3 py-1.5 rounded-full border border-[#1e293b] bg-[#0f172a]/50">
-                  <div className="w-2 h-2 rounded-full bg-[#2dd4bf] mr-2 shadow-[0_0_5px_#2dd4bf]"></div>
-                  <span className="text-[11px] md:text-[12px] font-bold text-gray-300 tracking-wide">Active: <span className="text-white ml-1">{activeLayersCount}</span></span>
-                </div>
-                <div className="flex items-center px-3 py-1.5 rounded-full border border-[#1e293b] bg-[#0f172a]/50">
-                  <span className="text-[11px] md:text-[12px] font-bold text-gray-300 tracking-wide">Zoom: <span className="text-white ml-1">{currentZoom}</span></span>
-                </div>
-              </div>
+
+              <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed">แผงควบคุมชั้นข้อมูลหลักด้านขวา ส่วนข้อมูลอากาศและค่าฝุ่น PM2.5 / AQI แยกไว้ด้านซ้าย</p>
             </div>
 
             <div className="space-y-4">
