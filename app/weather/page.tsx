@@ -6,11 +6,11 @@ import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import Swal from 'sweetalert2';
 import { 
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 
 // ==========================================
-// 🗺️ 1. โหลด Leaflet แบบ Dynamic (ป้องกัน Error ฝั่ง Server)
+// 🗺️ 1. โหลด Leaflet แบบ Dynamic
 // ==========================================
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
@@ -81,7 +81,6 @@ export default function WeatherDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [position, setPosition] = useState({ lat: INITIAL_LAT, lng: INITIAL_LNG });
   const [locationName, setLocationName] = useState('ตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่');
-  const [isUpdating, setIsUpdating] = useState(false);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
 
@@ -104,10 +103,10 @@ export default function WeatherDashboard() {
     });
   }, [L]);
 
-  // ฟังก์ชันหาชื่อสถานที่จากพิกัด (Reverse Geocoding)
+  // ฟังก์ชันหาชื่อสถานที่จากพิกัด (บังคับภาษาไทย &accept-language=th)
   const fetchLocationName = async (lat: number, lng: number) => {
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`);
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&accept-language=th`);
       const data = await res.json();
       if (data && data.display_name) {
         // ตัดข้อความให้สั้นลง เอาแค่ ตำบล อำเภอ จังหวัด
@@ -129,16 +128,15 @@ export default function WeatherDashboard() {
     }
   };
 
-  // 🔍 Event: ค้นหาจากช่อง Search
+  // 🔍 Event: ค้นหาจากช่อง Search (บังคับภาษาไทย &accept-language=th)
   const handleSearchSubmit = async (e: any) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
     
-    setIsUpdating(true);
     Swal.fire({ title: 'กำลังค้นหา...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
     
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&accept-language=th`);
       const data = await res.json();
       
       if (data && data.length > 0) {
@@ -159,18 +157,23 @@ export default function WeatherDashboard() {
       }
     } catch (error) {
       Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', background: '#0f172a', color: '#fff' });
-    } finally {
-      setIsUpdating(false);
     }
   };
 
-  // 📍 Event: หาตำแหน่งปัจจุบัน
+  // 📍 Event: หาตำแหน่งปัจจุบัน (GPS)
   const handleCurrentLocation = () => {
     if (!navigator.geolocation) {
       Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'เบราว์เซอร์ไม่รองรับ GPS', background: '#0f172a', color: '#fff' }); 
       return;
     }
-    Swal.fire({ title: 'กำลังดึงพิกัด GPS...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
+    Swal.fire({ 
+      title: 'กำลังดึงพิกัด...', 
+      text: 'หากใช้คอมพิวเตอร์ พิกัดอาจอิงตามอินเทอร์เน็ตของท่าน (ตัวเมืองเชียงใหม่)',
+      allowOutsideClick: false, 
+      background: '#0f172a', 
+      color: '#fff', 
+      didOpen: () => Swal.showLoading() 
+    });
     
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -189,14 +192,13 @@ export default function WeatherDashboard() {
     );
   };
 
-  // 🔄 Event: กดปุ่มอัปเดต
-  const handleManualUpdate = () => {
-    setIsUpdating(true);
-    Swal.fire({ title: 'กำลังดึงข้อมูลพิกัดใหม่...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
-    setTimeout(() => {
-      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'อัปเดตข้อมูลสำเร็จ', showConfirmButton: false, timer: 2000, background: '#10b981', color: '#fff' });
-      setIsUpdating(false);
-    }, 1200);
+  // 🏠 Event: กลับหน้าศูนย์บัญชาการ (บ่อหลวง)
+  const handleResetToCenter = () => {
+    setPosition({ lat: INITIAL_LAT, lng: INITIAL_LNG });
+    setLocationName('ตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่');
+    if (mapRef.current) {
+      mapRef.current.flyTo([INITIAL_LAT, INITIAL_LNG], 14, { duration: 1.5 });
+    }
   };
 
   return (
@@ -231,7 +233,7 @@ export default function WeatherDashboard() {
           </div>
         </div>
 
-        {/* 🔍 แถบค้นหาพื้นที่ */}
+        {/* 🔍 แถบค้นหาพื้นที่ & ปุ่มควบคุม */}
         <div className="bg-[#e2e8f0] rounded-2xl p-3 md:p-4 shadow-inner flex flex-col md:flex-row md:items-end space-y-3 md:space-y-0 md:space-x-4">
           <div className="flex-1">
             <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">ค้นหาพื้นที่ (ชื่อจังหวัด / อำเภอ / ตำบล / หมู่บ้าน)</label>
@@ -240,34 +242,30 @@ export default function WeatherDashboard() {
                 type="text" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="เช่น เชียงใหม่,ฮอด,บ่อหลวง,บ่อพะแวน" 
+                placeholder="เช่น แม่แจ่ม, ฮอด, เชียงใหม่" 
                 className="w-full bg-white border border-gray-300 text-gray-800 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:border-transparent shadow-sm"
               />
             </form>
           </div>
           <div className="flex space-x-2 md:space-x-3 w-full md:w-auto">
+            {/* 🚀 เพิ่มปุ่ม กลับบ่อหลวง สำหรับแอดมิน */}
+            <button 
+              onClick={handleResetToCenter}
+              className="flex-1 md:flex-none bg-[#f1f5f9] hover:bg-[#e2e8f0] text-gray-800 px-5 py-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 transition-colors shadow-sm"
+            >
+              <span>🏠</span> <span className="whitespace-nowrap">กลับบ่อหลวง</span>
+            </button>
             <button 
               onClick={handleCurrentLocation}
               className="flex-1 md:flex-none bg-[#bae6fd] hover:bg-[#7dd3fc] text-[#0369a1] px-5 py-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 transition-colors shadow-sm"
             >
-              <span>📍</span> <span>ตำแหน่งปัจจุบัน</span>
-            </button>
-            <button 
-              onClick={handleManualUpdate}
-              disabled={isUpdating}
-              className="flex-1 md:flex-none bg-[#0284c7] hover:bg-[#0369a1] text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 transition-colors shadow-sm"
-            >
-              <svg className={`w-4 h-4 ${isUpdating ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>{isUpdating ? 'กำลังโหลด...' : 'อัปเดต'}</span>
+              <span>📍</span> <span className="whitespace-nowrap">พิกัดปัจจุบัน</span>
             </button>
           </div>
         </div>
 
         {/* 🗺️ แผนที่ดาวเทียมเลือกพิกัด */}
         <div className="bg-[#0f172a] rounded-3xl border border-[#334155] shadow-lg overflow-hidden flex flex-col">
-          {/* Header แผนที่ */}
           <div className="bg-[#1e293b] px-4 md:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between border-b border-[#334155]">
             <div className="flex items-center space-x-2 text-white font-bold text-sm">
               <span>🛰️</span> <span>แผนที่ดาวเทียม (คลิก / ลากหมุด เพื่อเลือกพิกัด)</span>
@@ -289,7 +287,6 @@ export default function WeatherDashboard() {
             </div>
           </div>
           
-          {/* ตัวแผนที่ Leaflet */}
           <div className="h-[300px] md:h-[400px] w-full relative z-0">
             <MapContainer 
               center={[position.lat, position.lng]} 
@@ -301,8 +298,6 @@ export default function WeatherDashboard() {
               ref={mapRef}
             >
               <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={20} />
-              
-              {/* หมวดที่ลากได้ */}
               <Marker 
                 draggable={true}
                 position={[position.lat, position.lng]}
@@ -313,7 +308,6 @@ export default function WeatherDashboard() {
             </MapContainer>
           </div>
 
-          {/* Footer แผนที่ */}
           <div className="bg-[#e2e8f0] px-4 py-2 text-[11px] md:text-xs text-gray-600 font-bold flex items-center">
             <span>💡 คลิกที่แผนที่หรือลากหมุด 📍 เพื่อปักตำแหน่งใหม่ ระบบจะดึงข้อมูลสภาพอากาศของจุดนั้นให้อัตโนมัติ</span>
           </div>
