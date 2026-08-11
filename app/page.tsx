@@ -1355,9 +1355,8 @@ export default function BoLuangDashboard() {
         </div>
 
         <div onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer">
-          {/* 🚀 เปลี่ยนเป็นไอคอน Stacked Layers */}
-          <svg className="w-4 h-4 text-[#2dd4bf] mr-1.5 md:mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+          <svg className="w-4 h-4 text-[#2dd4bf] mr-1.5 md:mr-2 transform rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
           </svg>
           <span className="text-[11px] md:text-[13px] font-mono font-medium text-gray-300 tracking-wide">
             GIS Layers <span className="hidden md:inline text-gray-500 mx-1">· Thailand</span>
