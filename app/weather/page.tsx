@@ -80,12 +80,21 @@ export default function WeatherDashboard() {
   const [windyLayer, setWindyLayer] = useState('radar');
   const [searchQuery, setSearchQuery] = useState('');
   const [position, setPosition] = useState({ lat: INITIAL_LAT, lng: INITIAL_LNG });
-  const [locationName, setLocationName] = useState('ตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่');
+  const [locationName, setLocationName] = useState('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
+  const [currentTime, setCurrentTime] = useState<Date | null>(null); // State สำหรับนาฬิกา Real-time
+
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
 
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
   const aqiStatus = getAqiStatus(staticAqi.us_aqi);
+
+  // ⏱️ Effect: นาฬิกาเดินแบบ Real-time ทุก 1 วินาที
+  useEffect(() => {
+    setCurrentTime(new Date());
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // สร้างไอคอนหมุดสีแดงสไตล์ Google Maps
   const createPinIcon = useMemo(() => {
@@ -103,14 +112,14 @@ export default function WeatherDashboard() {
     });
   }, [L]);
 
-  // ฟังก์ชันหาชื่อสถานที่จากพิกัด (บังคับภาษาไทย &accept-language=th)
+  // ฟังก์ชันหาชื่อสถานที่จากพิกัด (บังคับภาษาไทย และจัดฟอร์แมตใช้ • คั่น)
   const fetchLocationName = async (lat: number, lng: number) => {
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&accept-language=th`);
       const data = await res.json();
       if (data && data.display_name) {
-        // ตัดข้อความให้สั้นลง เอาแค่ ตำบล อำเภอ จังหวัด
-        const parts = data.display_name.split(',').slice(0, 3).reverse().join(' ');
+        // ใช้ join(' • ') แทนลูกน้ำ เพื่อความสวยงามเหมือนในรูปตัวอย่าง
+        const parts = data.display_name.split(',').slice(0, 3).reverse().map((s: string) => s.trim()).join(' • ');
         setLocationName(parts || data.display_name);
       }
     } catch (error) {
@@ -128,7 +137,7 @@ export default function WeatherDashboard() {
     }
   };
 
-  // 🔍 Event: ค้นหาจากช่อง Search (บังคับภาษาไทย &accept-language=th)
+  // 🔍 Event: ค้นหาจากช่อง Search
   const handleSearchSubmit = async (e: any) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
@@ -145,7 +154,8 @@ export default function WeatherDashboard() {
         const newLng = parseFloat(lon);
         setPosition({ lat: newLat, lng: newLng });
         
-        const parts = display_name.split(',').slice(0, 3).reverse().join(' ');
+        // จัดฟอร์แมตชื่อโดยใช้ • คั่น
+        const parts = display_name.split(',').slice(0, 3).reverse().map((s: string) => s.trim()).join(' • ');
         setLocationName(parts || display_name);
 
         if (mapRef.current) {
@@ -168,7 +178,7 @@ export default function WeatherDashboard() {
     }
     Swal.fire({ 
       title: 'กำลังดึงพิกัด...', 
-      text: 'หากใช้คอมพิวเตอร์ พิกัดอาจอิงตามอินเทอร์เน็ตของท่าน (ตัวเมืองเชียงใหม่)',
+      text: 'หากใช้คอมพิวเตอร์ พิกัดอาจอิงตามอินเทอร์เน็ตของท่าน',
       allowOutsideClick: false, 
       background: '#0f172a', 
       color: '#fff', 
@@ -195,7 +205,7 @@ export default function WeatherDashboard() {
   // 🏠 Event: กลับหน้าศูนย์บัญชาการ (บ่อหลวง)
   const handleResetToCenter = () => {
     setPosition({ lat: INITIAL_LAT, lng: INITIAL_LNG });
-    setLocationName('ตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่');
+    setLocationName('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
     if (mapRef.current) {
       mapRef.current.flyTo([INITIAL_LAT, INITIAL_LNG], 14, { duration: 1.5 });
     }
@@ -248,7 +258,6 @@ export default function WeatherDashboard() {
             </form>
           </div>
           <div className="flex space-x-2 md:space-x-3 w-full md:w-auto">
-            {/* 🚀 เพิ่มปุ่ม กลับบ่อหลวง สำหรับแอดมิน */}
             <button 
               onClick={handleResetToCenter}
               className="flex-1 md:flex-none bg-[#f1f5f9] hover:bg-[#e2e8f0] text-gray-800 px-5 py-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 transition-colors shadow-sm"
@@ -270,19 +279,13 @@ export default function WeatherDashboard() {
             <div className="flex items-center space-x-2 text-white font-bold text-sm">
               <span>🛰️</span> <span>แผนที่ดาวเทียม (คลิก / ลากหมุด เพื่อเลือกพิกัด)</span>
             </div>
-            <div className="flex items-center space-x-3 mt-2 md:mt-0 text-xs font-mono">
-              <span className="text-gray-300 bg-[#0b132b] px-3 py-1.5 rounded-lg flex items-center shadow-inner">
-                <span className="text-red-400 mr-1.5">📍</span> {locationName}
-              </span>
-              <span className="text-[#38bdf8] bg-[#0b132b] px-3 py-1.5 rounded-lg shadow-inner">
-                {position.lat.toFixed(4)}, {position.lng.toFixed(4)}
-              </span>
+            <div className="flex items-center mt-2 md:mt-0 text-xs font-mono">
               <a 
                 href={`https://www.google.com/maps/search/?api=1&query=${position.lat},${position.lng}`} 
                 target="_blank" rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300 font-bold whitespace-nowrap hidden sm:block"
+                className="bg-[#0ea5e9] hover:bg-[#0284c7] text-white px-3 py-1.5 rounded-lg font-bold transition-colors shadow-sm flex items-center space-x-1"
               >
-                เปิดใน Google Maps ↗
+                <span>เปิดใน Google Maps ↗</span>
               </a>
             </div>
           </div>
@@ -307,14 +310,27 @@ export default function WeatherDashboard() {
               />
             </MapContainer>
           </div>
-
           <div className="bg-[#e2e8f0] px-4 py-2 text-[11px] md:text-xs text-gray-600 font-bold flex items-center">
             <span>💡 คลิกที่แผนที่หรือลากหมุด 📍 เพื่อปักตำแหน่งใหม่ ระบบจะดึงข้อมูลสภาพอากาศของจุดนั้นให้อัตโนมัติ</span>
           </div>
         </div>
         
+        {/* 📍 แถบสถานะพื้นที่แบบ Real-time (เพิ่มใหม่ตาม Request) */}
+        <div className="bg-[#1e293b] rounded-2xl p-4 shadow-lg border border-[#334155] flex flex-col md:flex-row items-center justify-between text-sm transition-all mt-4 mb-2">
+          <div className="flex items-center space-x-2 text-gray-300 text-center md:text-left">
+            <span className="text-red-400 text-lg animate-pulse">📍</span>
+            <span className="font-bold whitespace-nowrap hidden sm:inline">พื้นที่ตรวจสอบสภาพอากาศ:</span>
+            <span className="text-white font-medium">{locationName}</span>
+          </div>
+          <div className="flex items-center space-x-3 mt-3 md:mt-0 text-gray-400 font-mono text-[12px] md:text-sm">
+            <span>พิกัด: <span className="text-[#38bdf8]">{position.lat.toFixed(4)}, {position.lng.toFixed(4)}</span></span>
+            <span className="hidden md:inline">|</span>
+            <span>อัปเดตล่าสุด: <span className="text-emerald-400 font-bold">{currentTime ? currentTime.toLocaleTimeString('th-TH') : '--:--:--'}</span></span>
+          </div>
+        </div>
+
         {/* 🍱 Bento Box Grid Layout (ข้อมูลอากาศจำลองแบบ Static) */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 pt-2">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
 
           {/* 📦 กล่อง 1: สภาพอากาศปัจจุบัน */}
           <div className="col-span-1 md:col-span-1 bg-gradient-to-br from-[#0f172a] to-[#1e293b] p-6 rounded-3xl border border-[#334155] shadow-lg relative overflow-hidden flex flex-col justify-center items-center text-center group hover:border-[#38bdf8]/50 transition-colors">
@@ -322,7 +338,6 @@ export default function WeatherDashboard() {
             <span className="text-6xl drop-shadow-lg mb-2 transform group-hover:scale-110 transition-transform">{getWeatherEmoji(staticWeather.weather_code)}</span>
             <div className="text-5xl font-extrabold text-white mb-1">{staticWeather.temperature_2m.toFixed(1)}°<span className="text-2xl text-gray-400">C</span></div>
             <p className="text-[#38bdf8] font-bold text-lg">{getWmoWeatherDesc(staticWeather.weather_code)}</p>
-            <p className="text-xs text-gray-400 mt-2 font-mono">อัปเดตล่าสุด: {new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</p>
           </div>
 
           {/* 📦 กล่อง 2: คุณภาพอากาศ (AQI) */}
@@ -463,7 +478,6 @@ export default function WeatherDashboard() {
                 </div>
               </div>
             </div>
-            {/* โหลดแผนที่ Windy อิงจากตำแหน่งที่ผู้ใช้งานเลือกในแผนที่ดาวเทียม */}
             <iframe 
               width="100%" height="100%" frameBorder="0" className="rounded-2xl mt-14 md:mt-16"
               src={`https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=%C2%B0C&metricWind=km/h&zoom=10&overlay=${windyLayer}&product=ecmwf&level=surface&lat=${position.lat}&lon=${position.lng}&detailLat=${position.lat}&detailLon=${position.lng}&marker=true`}
