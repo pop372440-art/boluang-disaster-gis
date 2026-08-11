@@ -282,7 +282,7 @@ export default function AdminPanel() {
                         </span>
                       </td>
                       
-                      {/* 📸 อัปเกรด: แสดงภาพขนาดย่อ และข้อความ */}
+                      {/* 📸 แสดงภาพขนาดย่อ และข้อความ */}
                       <td className="p-4">
                         <div className="flex items-start space-x-3">
                           {report.image_url && (
@@ -307,13 +307,50 @@ export default function AdminPanel() {
                         </div>
                       </td>
 
-                      <td className="p-4 text-right">
-                        <button 
-                          onClick={() => handleCloseJob(report.id, report.risk_type)}
-                          className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/50 hover:border-emerald-500 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-[0_0_10px_rgba(16,185,129,0.1)] hover:shadow-[0_0_15px_rgba(16,185,129,0.4)] whitespace-nowrap"
-                        >
-                          ✅ ปิดจ๊อบ
-                        </button>
+                      {/* 🚀 ชุดปุ่มจัดการ (เปิดแผนที่ / นำทาง / ปิดจ๊อบ) */}
+                      <td className="p-4 align-middle text-right">
+                        <div className="flex items-center justify-end space-x-2">
+                          
+                          {/* 📍 ปุ่มเปิดพิกัด (Google Maps) */}
+                          <a 
+                            href={`https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            title="เปิดพิกัดใน Google Maps"
+                            className="w-8 h-8 bg-[#0f172a] hover:bg-[#1e293b] border border-[#38bdf8] text-[#38bdf8] rounded-lg flex items-center justify-center transition-all shadow-sm hover:shadow-[#38bdf8]/30 group"
+                          >
+                            <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                          </a>
+
+                          {/* 🚗 ปุ่มนำทาง (Directions) */}
+                          <a 
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${report.latitude},${report.longitude}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            title="นำทางไปยังจุดเกิดเหตุ"
+                            className="w-8 h-8 bg-[#0f172a] hover:bg-[#1e293b] border border-[#2dd4bf] text-[#2dd4bf] rounded-lg flex items-center justify-center transition-all shadow-sm hover:shadow-[#2dd4bf]/30 group"
+                          >
+                            <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                            </svg>
+                          </a>
+
+                          {/* ✅ ปุ่มปิดจ๊อบ */}
+                          <button 
+                            onClick={() => handleCloseJob(report.id, report.risk_type)}
+                            title="บันทึกและปิดงาน"
+                            className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/50 hover:border-emerald-500 px-3 py-1.5 rounded-lg text-[13px] font-bold transition-all shadow-[0_0_10px_rgba(16,185,129,0.1)] hover:shadow-[0_0_15px_rgba(16,185,129,0.4)] whitespace-nowrap flex items-center space-x-1"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span>ปิดจ๊อบ</span>
+                          </button>
+
+                        </div>
                       </td>
                     </tr>
                   ))
