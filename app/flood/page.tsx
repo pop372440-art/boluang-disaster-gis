@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
@@ -20,16 +20,13 @@ const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ss
 // ==========================================
 // 🌟 ข้อมูลจำลองบริบท: พื้นที่ภูเขา ต.บ่อหลวง
 // ==========================================
-const INITIAL_LAT = 18.1633;
-const INITIAL_LNG = 98.3744;
-
 const floodStatus = {
-  level: 'warning', // normal, warning, danger
+  level: 'warning', 
   title: 'เฝ้าระวังน้ำป่าไหลหลาก (ระดับสีเหลือง)',
   desc: 'ดินชุ่มน้ำสะสมสูง โปรดเฝ้าระวังพื้นที่ลาดเชิงเขาและที่นาติดลำน้ำ',
-  water_level: 2.1, // เมตร (วิกฤตที่ 3.0)
-  rain_acc_3days: 125.4, // มม.
-  soil_moisture: 78 // % (ดินอุ้มน้ำเกิน 80% เสี่ยงดินถล่ม)
+  water_level: 2.1, 
+  rain_acc_3days: 125.4, 
+  soil_moisture: 78 
 };
 
 const waterLevelData = [
@@ -144,11 +141,11 @@ export default function FloodDashboard() {
               <div className="absolute text-3xl font-extrabold text-white">{floodStatus.soil_moisture}<span className="text-sm">%</span></div>
             </div>
             <p className="text-xs text-gray-500 font-mono border-t border-[#1e293b] pt-3 mt-4 w-full">
-              จุดวิกฤตดินถล่ม: <span className="text-red-400 font-bold">> 80%</span>
+              จุดวิกฤตดินถล่ม: <span className="text-red-400 font-bold">&gt; 80%</span>
             </p>
           </div>
 
-          {/* 📦 กล่อง 4: กราฟระดับน้ำเทียบจุดวิกฤต (Area Chart) - กินพื้นที่ 2 คอลัมน์ */}
+          {/* 📦 กล่อง 4: กราฟระดับน้ำเทียบจุดวิกฤต (Area Chart) */}
           <div className="col-span-1 md:col-span-2 bg-[#0f172a] p-5 md:p-6 rounded-3xl border border-[#334155] shadow-lg h-[350px] flex flex-col">
             <div className="flex items-center mb-4">
               <span className="text-lg mr-2">📈</span>
@@ -195,7 +192,7 @@ export default function FloodDashboard() {
             </div>
           </div>
 
-          {/* 📦 กล่อง 6: แผนที่จุดเฝ้าระวังพื้นที่เสี่ยง (Leaflet Map) - เต็มความกว้าง */}
+          {/* 📦 กล่อง 6: แผนที่จุดเฝ้าระวังพื้นที่เสี่ยง (Leaflet Map) */}
           <div className="col-span-1 md:col-span-3 bg-[#0f172a] rounded-3xl border border-[#334155] shadow-lg flex flex-col overflow-hidden h-[450px]">
             <div className="bg-[#1e293b] px-4 md:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between border-b border-[#334155]">
               <div className="flex items-center space-x-2 text-white font-bold text-sm">
