@@ -265,7 +265,6 @@ export default function BoLuangDashboard() {
           mapRef.flyTo([latitude, longitude], 15, { duration: 1.5 });
         }
 
-        // 1. หาจุดปลอดภัยที่ใกล้ที่สุด
         let nearestSZ: any = null;
         let minDistance = Infinity;
         safeZonesData.forEach(sz => {
@@ -276,7 +275,6 @@ export default function BoLuangDashboard() {
            }
         });
 
-        // 2. เช็คความเสี่ยงดินถล่ม
         let inRisk = false;
         if (geoLandslide && geoLandslide.features) {
            geoLandslide.features.forEach((f: any) => {
@@ -291,7 +289,6 @@ export default function BoLuangDashboard() {
 
         Swal.close();
 
-        // 3. แสดงผลวิเคราะห์
         if (inRisk) {
            Swal.fire({
               icon: 'warning',
@@ -607,14 +604,14 @@ export default function BoLuangDashboard() {
   // 🎨 การตกแต่งและสร้าง Style (GeoJSON)
   // ==========================================
   
-  // 🚀 สัญลักษณ์สี 13 หมู่บ้าน (ตาม Reference Image)
+  // 🚀 สัญลักษณ์สี 13 หมู่บ้าน 
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
   
   const getVillageColor = (feature: any) => {
     const props = feature?.properties || {};
     if (props.fill) return props.fill;
     
-    // ค้นหาตัวเลขในชื่อ (เพื่อจับคู่หมู่ 1-13 ให้ตรงกับสีใน Legend ด้านล่าง)
+    // ค้นหาตัวเลขในชื่อ เพื่อจับคู่หมู่ 1-13 ให้ตรงกับสีใน Legend ด้านล่าง
     const nameStr = String(props.own_villag || props.name_th || props.name || props.zone_name || props.id || "");
     const match = nameStr.match(/\d+/);
     if (match) {
@@ -623,8 +620,6 @@ export default function BoLuangDashboard() {
         return BLOCK_COLORS[num - 1]; // หมู่ 1 ได้ index 0
       }
     }
-    
-    // ถ้าไม่มีตัวเลข ให้สุ่มสี
     const colorIndex = nameStr.length % BLOCK_COLORS.length;
     return BLOCK_COLORS[colorIndex];
   };
@@ -827,7 +822,7 @@ export default function BoLuangDashboard() {
         .popup-safezone .leaflet-popup-tip { background-color: #0f172a !important; border-top: 1px solid #10b981 !important; border-left: 1px solid #10b981 !important; }
         .popup-safezone .leaflet-popup-content { margin: 0 !important; }
 
-        .popup-pm25-custom .leaflet-popup-content-wrapper { background-color: #0b132b !important; color: #e2e8f0 !important; border-radius: 8px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important; padding: 0 !important; overflow: hidden; border: 1px solid #1e293b !important; }
+        .popup-pm25-custom .leaflet-popup-content-wrapper { background-color: #0b132b !important; color: #e2e8f0 !important; border: 1px solid #1e293b !important; border-radius: 8px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important; padding: 0 !important; overflow: hidden; border: 1px solid #1e293b !important; }
         .popup-pm25-custom .leaflet-popup-tip { background-color: #0b132b !important; border-bottom: 1px solid #1e293b !important; border-right: 1px solid #1e293b !important; }
         .popup-pm25-custom .leaflet-popup-content { margin: 0 !important; width: 290px !important; }
         .popup-pm25-custom .leaflet-popup-close-button { color: rgba(0,0,0,0.4) !important; font-size: 20px !important; padding-top: 6px !important; padding-right: 12px !important; z-index: 50; }
@@ -1360,8 +1355,9 @@ export default function BoLuangDashboard() {
         </div>
 
         <div onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer">
+          {/* 🚀 เปลี่ยนเป็นไอคอน Stacked Layers */}
           <svg className="w-4 h-4 text-[#2dd4bf] mr-1.5 md:mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
           </svg>
           <span className="text-[11px] md:text-[13px] font-mono font-medium text-gray-300 tracking-wide">
             GIS Layers <span className="hidden md:inline text-gray-500 mx-1">· Thailand</span>
@@ -1529,8 +1525,11 @@ export default function BoLuangDashboard() {
               </button>
               
               <div className="flex items-center space-x-3 mb-2">
+                {/* 🚀 เปลี่ยนเป็นไอคอน Stacked Layers สำหรับเมนูย่อย */}
                 <div className="bg-gradient-to-br from-[#2dd4bf] to-[#3b82f6] p-2 rounded-xl shadow-[0_4px_10px_rgba(45,212,191,0.3)]">
-                  <svg className="w-5 h-5 md:w-6 md:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h7" /></svg>
+                  <svg className="w-5 h-5 md:w-6 md:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                  </svg>
                 </div>
                 <h2 className="text-[18px] md:text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">Layers</h2>
               </div>
