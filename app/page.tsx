@@ -1462,25 +1462,22 @@ export default function BoLuangDashboard() {
 
         {/* 🌊 การ์ดเข้าสู่ระบบ Flood Watch */}
         <div className="relative mb-4">
-          <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl p-4 md:p-5 shadow-lg group relative overflow-hidden">
-            <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#3b82f6] rounded-full blur-[50px] opacity-10 group-hover:opacity-25 transition-opacity duration-500"></div>
+          <div 
+            onClick={() => window.open('/flood', '_blank')}
+            className="bg-[#0f172a] border border-[#1e293b] hover:border-[#3b82f6]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden"
+          >
+            {/* เอฟเฟกต์แสง Background (Glow) โทนสีน้ำเงิน */}
+            <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#3b82f6] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
             <div className="flex items-start space-x-4 relative z-10">
               <div className="w-12 h-12 bg-gradient-to-b from-[#60a5fa] to-[#2563eb] rounded-[14px] flex items-center justify-center shadow-md flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
-                <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
               </div>
-              <div className="flex flex-col mt-0.5 w-full">
+              <div className="flex flex-col mt-0.5">
                 <h3 className="text-[15px] font-extrabold text-white group-hover:text-[#60a5fa] transition-colors leading-tight">ระบบเฝ้าระวังน้ำท่วมและน้ำป่า</h3>
                 <p className="text-[12px] font-bold text-[#e2e8f0] mt-1 mb-1">Bo Luang Flood Watch</p>
-                <p className="text-[11px] text-gray-400 leading-relaxed mb-3">ติดตามระดับน้ำลำห้วย แจ้งเตือนน้ำป่าไหลหลาก และดินถล่มในพื้นที่เกษตรกรรม</p>
-                <button 
-                  onClick={() => window.open('/flood', '_blank')} 
-                  className="w-full py-2.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center space-x-1.5 shadow-md cursor-pointer"
-                >
-                  <span>เข้าใช้งานระบบ</span>
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                </button>
+                <p className="text-[11px] text-gray-400 leading-relaxed">ติดตามระดับน้ำลำห้วย แจ้งเตือนน้ำป่าไหลหลาก และดินถล่มในพื้นที่เกษตรกรรม</p>
               </div>
             </div>
           </div>
