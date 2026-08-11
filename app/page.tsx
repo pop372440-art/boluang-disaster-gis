@@ -40,7 +40,6 @@ const safeZonesData = [
   { id: 10, name: 'คริสจักรเจริญธรรมห้วยบง (จุดอพยพรวมพล)', lat: 18.01215, lng: 98.43016, type: 'church' },
 ];
 
-
 // ==========================================
 // 🛠️ 2. ฟังก์ชันเสริม (Utils)
 // ==========================================
@@ -259,7 +258,7 @@ export default function BoLuangDashboard() {
       Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'เบราว์เซอร์ไม่รองรับ GPS', background: '#0f172a', color: '#fff' }); 
       return;
     }
-    Swal.fire({ title: 'กำลังวิเคราะห์พิกัดของคุณ...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
+    Swal.fire({ title: 'กำลังวิเคราะห์พิกัด...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
     
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -270,7 +269,6 @@ export default function BoLuangDashboard() {
           mapRef.flyTo([latitude, longitude], 15, { duration: 1.5 });
         }
 
-        // 1. หาจุดปลอดภัยที่ใกล้ที่สุด
         let nearestSZ: any = null;
         let minDistance = Infinity;
         safeZonesData.forEach(sz => {
@@ -281,7 +279,6 @@ export default function BoLuangDashboard() {
            }
         });
 
-        // 2. เช็คความเสี่ยงดินถล่ม
         let inRisk = false;
         if (geoLandslide && geoLandslide.features) {
            geoLandslide.features.forEach((f: any) => {
@@ -296,7 +293,6 @@ export default function BoLuangDashboard() {
 
         Swal.close();
 
-        // 3. แสดงผลวิเคราะห์
         if (inRisk) {
            Swal.fire({
               icon: 'warning',
@@ -612,20 +608,18 @@ export default function BoLuangDashboard() {
   // 🎨 การตกแต่งและสร้าง Style (GeoJSON)
   // ==========================================
   
-  // 🚀 สัญลักษณ์สี 13 หมู่บ้าน
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
   
   const getVillageColor = (feature: any) => {
     const props = feature?.properties || {};
     if (props.fill) return props.fill;
     
-    // ค้นหาตัวเลขในชื่อ เพื่อจับคู่หมู่ 1-13 ให้ตรงกับสีใน Legend ด้านล่าง
     const nameStr = String(props.own_villag || props.name_th || props.name || props.zone_name || props.id || "");
     const match = nameStr.match(/\d+/);
     if (match) {
       const num = parseInt(match[0], 10);
       if (num >= 1 && num <= BLOCK_COLORS.length) {
-        return BLOCK_COLORS[num - 1]; // หมู่ 1 ได้ index 0
+        return BLOCK_COLORS[num - 1]; 
       }
     }
     const colorIndex = nameStr.length % BLOCK_COLORS.length;
@@ -676,7 +670,6 @@ export default function BoLuangDashboard() {
     return { radius, color, fillColor, fillOpacity: 0.5, weight: 2.5 };
   };
 
-  // 🚀 ทำให้ขอบเขตบ่อหลวง Interactive ได้
   const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0, interactive: true }; 
   const onEachBoluangFeature = (feature: any, layer: any) => {
     layer.bindTooltip('เขตเทศบาลตำบลบ่อหลวง', { sticky: true, direction: 'auto', className: 'village-hover-tooltip' });
@@ -815,7 +808,6 @@ export default function BoLuangDashboard() {
         .leaflet-tooltip { pointer-events: none !important; }
         .leaflet-interactive:focus { outline: none !important; }
         
-        /* 🌟 Tooltip สวยงามตามแบบ */
         .leaflet-tooltip.village-hover-tooltip { 
           background-color: #ffffff !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; 
           font-family: inherit !important; font-size: 14px !important; font-weight: 600 !important; 
@@ -920,17 +912,6 @@ export default function BoLuangDashboard() {
           </div>
         )}
 
-        {/* 🗺️ ระบบแผนที่หลัก */}
-      <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">
-        {windyLayer && (
-          <div 
-            className="absolute pointer-events-none transition-opacity duration-700 opacity-100 saturate-150"
-            style={{ top: '-100vh', left: '-100vw', width: '300vw', height: '300vh', transform: `translate(${transform.x}px, ${transform.y}px)`, willChange: 'transform', zIndex: 0 }}
-          >
-            <iframe width="100%" height="100%" frameBorder="0" src={windyMapUrl} />
-          </div>
-        )}
-
         <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>
           
           {/* 🚀 ชุดปุ่มควบคุมแผนที่ (ย้ายออกมานอก MapContainer พร้อมตั้งค่า z-[1000] ไม่ให้หายอีกต่อไป) */}
@@ -942,7 +923,7 @@ export default function BoLuangDashboard() {
               className="w-[36px] h-[36px] bg-[#111827]/95 backdrop-blur-md border border-[#334155] rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.5)] flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1f2937] transition-all duration-200 group"
               title="ตำแหน่งของฉัน"
             >
-              <svg className="w-5 h-5 group-hover:scale-110 transition-transform text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 group-hover:scale-110 transition-transform text-[#38bdf8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v2m0 12v2m8-8h-2M6 12H4m14 0a6 6 0 11-12 0 6 6 0 0112 0z" />
                 <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
               </svg>
@@ -969,6 +950,26 @@ export default function BoLuangDashboard() {
               </button>
             </div>
           </div>
+
+          <MapContainer center={[18.1633, 98.3744]} zoom={isMobile ? 10 : 11} maxZoom={20} zoomControl={false} attributionControl={false} className="w-full h-full z-0" ref={setMapRef}>
+            
+            {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
+            {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} />}
+            
+            {/* 🚀 หมุดตำแหน่งผู้ใช้งานปัจจุบัน */}
+            {userLocation && (
+              <Marker position={[userLocation.lat, userLocation.lng]} icon={createUserLocationIcon()}>
+                <Popup className="popup-location">
+                  <div className="p-3 bg-[#0f172a] text-center min-w-[180px]">
+                    <div className="text-[#38bdf8] font-bold text-[15px] mb-2 border-b border-[#1e293b] pb-2 flex items-center justify-center space-x-1.5">
+                      <span>📍</span> <span>ตำแหน่งของคุณ</span>
+                    </div>
+                    <div className="text-gray-300 text-[13px] font-mono mb-1">Lat: <span className="text-white">{userLocation.lat.toFixed(6)}</span></div>
+                    <div className="text-gray-300 text-[13px] font-mono">Lng: <span className="text-white">{userLocation.lng.toFixed(6)}</span></div>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
 
             {/* 🚀 หมุดศูนย์พักพิง/ปลอดภัย */}
             {showSafeZone && safeZonesData.map((sz, i) => (
@@ -1368,7 +1369,8 @@ export default function BoLuangDashboard() {
       {/* ========================================== */}
       {/* 🚀 6. แถบเครื่องมือและ Legend */}
       {/* ========================================== */}
-     <header className="absolute top-0 left-0 right-0 h-[72px] bg-[#0b132b]/95 border-b border-[#1e293b] backdrop-blur-xl z-[80] flex items-center justify-between px-4 md:px-6 pointer-events-auto shadow-md">
+
+      <header className="absolute top-0 left-0 right-0 h-[72px] bg-[#0b132b]/95 border-b border-[#1e293b] backdrop-blur-xl z-[80] flex items-center justify-between px-4 md:px-6 pointer-events-auto shadow-md">
         <div className="flex items-center space-x-4 md:space-x-6">
           <button onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)} className="md:hidden p-2 bg-[#1e293b] rounded-lg text-gray-300 hover:text-white">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
@@ -1384,10 +1386,8 @@ export default function BoLuangDashboard() {
             </div>
           </div>
 
-          {/* 🚀 ชุดแสดงสถานะระบบ และ สถิติผู้เข้าชม (รวมไว้ด้วยกันอย่างลงตัว) */}
           <div className="hidden lg:flex items-center space-x-6 border-l border-[#1e293b] pl-6">
             
-            {/* สถานะระบบ */}
             <div className="flex flex-col justify-center">
               <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถานะระบบ</span>
               <div className="flex items-center text-[12px] font-mono text-gray-400">
@@ -1401,7 +1401,6 @@ export default function BoLuangDashboard() {
               </div>
             </div>
 
-            {/* สถิติผู้เข้าชม */}
             <div className="flex flex-col justify-center border-l border-[#1e293b] pl-6">
               <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถิติผู้เข้าชม</span>
               <div className="flex items-center text-[12px] font-mono text-gray-400">
