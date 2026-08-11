@@ -40,6 +40,7 @@ const safeZonesData = [
   { id: 10, name: 'คริสจักรเจริญธรรมห้วยบง (จุดอพยพรวมพล)', lat: 18.01215, lng: 98.43016, type: 'church' },
 ];
 
+
 // ==========================================
 // 🛠️ 2. ฟังก์ชันเสริม (Utils)
 // ==========================================
@@ -65,7 +66,12 @@ const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 5000) =
     if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
     const data = await res.json();
     
-    sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
+    } catch (storageErr) {
+      console.warn('Storage full, skipping cache save.');
+    }
+    
     return { data, status: 'LIVE' };
   } catch (error) {
     console.warn(`[API Resilience] ${cacheKey} failed. Using cache. Error:`, error);
@@ -83,7 +89,6 @@ const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 5000) =
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
-const ZoomControl = dynamic(() => import('react-leaflet').then(mod => mod.ZoomControl), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
 const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.CircleMarker), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
@@ -265,6 +270,7 @@ export default function BoLuangDashboard() {
           mapRef.flyTo([latitude, longitude], 15, { duration: 1.5 });
         }
 
+        // 1. หาจุดปลอดภัยที่ใกล้ที่สุด
         let nearestSZ: any = null;
         let minDistance = Infinity;
         safeZonesData.forEach(sz => {
@@ -275,6 +281,7 @@ export default function BoLuangDashboard() {
            }
         });
 
+        // 2. เช็คความเสี่ยงดินถล่ม
         let inRisk = false;
         if (geoLandslide && geoLandslide.features) {
            geoLandslide.features.forEach((f: any) => {
@@ -289,6 +296,7 @@ export default function BoLuangDashboard() {
 
         Swal.close();
 
+        // 3. แสดงผลวิเคราะห์
         if (inRisk) {
            Swal.fire({
               icon: 'warning',
@@ -604,7 +612,7 @@ export default function BoLuangDashboard() {
   // 🎨 การตกแต่งและสร้าง Style (GeoJSON)
   // ==========================================
   
-  // 🚀 สัญลักษณ์สี 13 หมู่บ้าน 
+  // 🚀 สัญลักษณ์สี 13 หมู่บ้าน
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
   
   const getVillageColor = (feature: any) => {
@@ -822,7 +830,7 @@ export default function BoLuangDashboard() {
         .popup-safezone .leaflet-popup-tip { background-color: #0f172a !important; border-top: 1px solid #10b981 !important; border-left: 1px solid #10b981 !important; }
         .popup-safezone .leaflet-popup-content { margin: 0 !important; }
 
-        .popup-pm25-custom .leaflet-popup-content-wrapper { background-color: #0b132b !important; color: #e2e8f0 !important; border: 1px solid #1e293b !important; border-radius: 8px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important; padding: 0 !important; overflow: hidden; border: 1px solid #1e293b !important; }
+        .popup-pm25-custom .leaflet-popup-content-wrapper { background-color: #0b132b !important; color: #e2e8f0 !important; border-radius: 8px !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8) !important; padding: 0 !important; overflow: hidden; border: 1px solid #1e293b !important; }
         .popup-pm25-custom .leaflet-popup-tip { background-color: #0b132b !important; border-bottom: 1px solid #1e293b !important; border-right: 1px solid #1e293b !important; }
         .popup-pm25-custom .leaflet-popup-content { margin: 0 !important; width: 290px !important; }
         .popup-pm25-custom .leaflet-popup-close-button { color: rgba(0,0,0,0.4) !important; font-size: 20px !important; padding-top: 6px !important; padding-right: 12px !important; z-index: 50; }
@@ -913,22 +921,46 @@ export default function BoLuangDashboard() {
         )}
 
         <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>
-          <MapContainer center={[18.1633, 98.3744]} zoom={isMobile ? 10 : 11} maxZoom={20} zoomControl={false} attributionControl={false} className="w-full h-full" ref={setMapRef}>
-            <ZoomControl position="topleft" />
+          
+          {/* 🚀 ชุดปุ่มควบคุมแผนที่ (สไตล์ Google Maps) */}
+          <div className="absolute top-[100px] left-[10px] md:left-[370px] z-[400] flex flex-col space-y-2 transition-all duration-300 pointer-events-auto">
             
-            {/* 🚀 ปุ่ม Locate Me */}
-            <div className="absolute top-[160px] left-[10px] md:left-[370px] z-[400] transition-all duration-300">
+            {/* 📍 ปุ่ม Locate Me */}
+            <button 
+              onClick={(e) => { e.stopPropagation(); handleLocateMe(); }}
+              className="w-[38px] h-[38px] bg-[#0f172a]/95 backdrop-blur-md border border-[#1e293b] rounded-xl shadow-lg flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1e293b] transition-all duration-200 group"
+              title="ตำแหน่งของฉัน"
+            >
+              <svg className="w-5 h-5 group-hover:scale-110 transition-transform text-[#38bdf8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v2m0 12v2m8-8h-2M6 12H4m14 0a6 6 0 11-12 0 6 6 0 0112 0z" />
+                <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
+              </svg>
+            </button>
+
+            {/* 🔍 กลุ่มปุ่ม Zoom In / Out */}
+            <div className="flex flex-col bg-[#0f172a]/95 backdrop-blur-md border border-[#1e293b] rounded-xl shadow-lg overflow-hidden">
               <button 
-                onClick={handleLocateMe}
-                className="w-[34px] h-[34px] bg-[#0f172a]/90 backdrop-blur-sm border border-[#1e293b] rounded-lg shadow-lg flex items-center justify-center text-[#38bdf8] hover:text-white hover:bg-[#1e293b] transition-all duration-200 group"
-                title="ค้นหาตำแหน่งของฉัน"
+                onClick={(e) => { e.stopPropagation(); mapRef?.zoomIn(); }}
+                className="w-[38px] h-[38px] flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1e293b] transition-colors"
+                title="ซูมเข้า"
               >
-                <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 7h1M6 12H5m7 6v1m4-7a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v12m-6-6h12" /></svg>
+              </button>
+              
+              <div className="h-[1px] w-[24px] mx-auto bg-[#1e293b]"></div>
+              
+              <button 
+                onClick={(e) => { e.stopPropagation(); mapRef?.zoomOut(); }}
+                className="w-[38px] h-[38px] flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1e293b] transition-colors"
+                title="ซูมออก"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
               </button>
             </div>
+          </div>
 
+          <MapContainer center={[18.1633, 98.3744]} zoom={isMobile ? 10 : 11} maxZoom={20} zoomControl={false} attributionControl={false} className="w-full h-full" ref={setMapRef}>
+            
             {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
             {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} />}
             
@@ -1234,7 +1266,7 @@ export default function BoLuangDashboard() {
                         </div>
                       )}
 
-                      {/* 🚀 ชุดปุ่ม นำทาง / Google Maps (ระดับ Pro) */}
+                      {/* 🚀 ชุดปุ่ม นำทาง / Google Maps */}
                       <div className="mt-4 pt-3 border-t border-[#1e293b] flex items-center justify-between">
                         <div className="flex space-x-2 w-full">
                           <a 
@@ -1243,7 +1275,7 @@ export default function BoLuangDashboard() {
                             rel="noopener noreferrer"
                             className="flex-1 bg-[#003ea1] hover:bg-[#002f7a] text-white text-[12px] font-bold py-2 rounded-lg flex items-center justify-center transition-colors shadow-md"
                           >
-                            📍 เปิดใน Google Maps
+                            📍 เปิดใน Maps
                           </a>
                           <a 
                             href={`https://www.google.com/maps/dir/?api=1&destination=${report.latitude},${report.longitude}`} 
@@ -1546,7 +1578,6 @@ export default function BoLuangDashboard() {
               </button>
               
               <div className="flex items-center space-x-3 mb-2">
-                {/* 🚀 เปลี่ยนเป็นไอคอน Stacked Layers สำหรับเมนูย่อย */}
                 <div className="bg-gradient-to-br from-[#2dd4bf] to-[#3b82f6] p-2 rounded-xl shadow-[0_4px_10px_rgba(45,212,191,0.3)]">
                   <svg className="w-5 h-5 md:w-6 md:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
@@ -1590,7 +1621,7 @@ export default function BoLuangDashboard() {
               {/* แจ้งเหตุประชาชน */}
               <div>
                 <div className="flex items-center mb-2">
-                  <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">CITIZEN REPORTS (จุดแจ้งเหตุ)</span>
+                  <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">CITIZEN REPORTS (รับแจ้งเหตุ)</span>
                   <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
                 </div>
                 <div className="space-y-2">
