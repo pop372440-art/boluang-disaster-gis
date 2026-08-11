@@ -1,23 +1,32 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+import 'leaflet/dist/leaflet.css';
+import Swal from 'sweetalert2';
 import { 
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 
 // ==========================================
-// 🌟 1. ข้อมูลจำลอง (Static Mock Data) 
-// บริบท: ตำบลบ่อหลวง จ.เชียงใหม่ (พื้นที่ภูเขา)
+// 🗺️ 1. โหลด Leaflet แบบ Dynamic (ป้องกัน Error ฝั่ง Server)
 // ==========================================
-const LAT = 18.1633;
-const LNG = 98.3744;
+const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
+const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
+
+// ==========================================
+// 🌟 2. ข้อมูลจำลอง & ฟังก์ชันเสริม
+// ==========================================
+const INITIAL_LAT = 18.1633;
+const INITIAL_LNG = 98.3744;
 
 const staticWeather = {
   temperature_2m: 26.5,
-  wind_speed_10m: 12.5, // km/h (จะถูกแปลงเป็น 3.4 ม./วินาที ใน UI)
+  wind_speed_10m: 12.5,
   relative_humidity_2m: 65,
-  weather_code: 2, // มีเมฆบางส่วน
+  weather_code: 2, 
   rain_today: 0,
   uv_max: 7
 };
@@ -37,7 +46,6 @@ const staticForecast = [
   { day: 'จ.', maxTemp: 29, minTemp: 18, rain: 0 }
 ];
 
-// เมนูสำหรับแผนที่ Windy (คัดเฉพาะบริบทพื้นที่ภูเขา)
 const WINDY_LAYERS = [
   { id: 'rain', icon: '🌧️', label: 'ฝน' },
   { id: 'radar', icon: '📡', label: 'เรดาร์ฝน' },
@@ -49,9 +57,6 @@ const WINDY_LAYERS = [
   { id: 'pm2p5', icon: '😷', label: 'PM2.5 / มลพิษ' }
 ];
 
-// ==========================================
-// 🛠️ 2. ฟังก์ชันเสริม
-// ==========================================
 const getWmoWeatherDesc = (code: number) => {
   const codes: Record<number, string> = { 0: 'แจ่มใส', 1: 'มีเมฆบางส่วน', 2: 'มีเมฆครึ้ม', 3: 'เมฆเป็นส่วนมาก', 45: 'มีหมอก', 48: 'หมอกหนา', 51: 'ฝนปรอยๆ', 61: 'ฝนเล็กน้อย', 63: 'ฝนปานกลาง', 65: 'ฝนตกหนัก', 80: 'ฝนเป็นหย่อมๆ', 95: 'พายุฝนฟ้าคะนอง' };
   return codes[code] || 'ปกติ';
@@ -72,10 +77,127 @@ const getAqiStatus = (aqi: number) => {
 // 🚀 3. MAIN COMPONENT
 // ==========================================
 export default function WeatherDashboard() {
-  // ใช้ข้อมูลจำลอง ไม่ต้องรอโหลด API
   const [windyLayer, setWindyLayer] = useState('radar');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [position, setPosition] = useState({ lat: INITIAL_LAT, lng: INITIAL_LNG });
+  const [locationName, setLocationName] = useState('ตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const mapRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
 
+  const L = typeof window !== 'undefined' ? require('leaflet') : null;
   const aqiStatus = getAqiStatus(staticAqi.us_aqi);
+
+  // สร้างไอคอนหมุดสีแดงสไตล์ Google Maps
+  const createPinIcon = useMemo(() => {
+    if (!L) return () => null;
+    return () => L.divIcon({ 
+      className: 'bg-transparent border-none', 
+      html: `<div class="relative flex items-center justify-center w-8 h-8 group">
+               <div class="absolute inset-0 bg-red-500 rounded-full blur-[6px] opacity-50 group-hover:opacity-80 transition-opacity"></div>
+               <svg class="relative z-10 w-8 h-8 text-red-500 drop-shadow-lg" viewBox="0 0 24 24" fill="currentColor">
+                 <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+               </svg>
+             </div>`, 
+      iconSize: [32, 32], 
+      iconAnchor: [16, 32] 
+    });
+  }, [L]);
+
+  // ฟังก์ชันหาชื่อสถานที่จากพิกัด (Reverse Geocoding)
+  const fetchLocationName = async (lat: number, lng: number) => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`);
+      const data = await res.json();
+      if (data && data.display_name) {
+        // ตัดข้อความให้สั้นลง เอาแค่ ตำบล อำเภอ จังหวัด
+        const parts = data.display_name.split(',').slice(0, 3).reverse().join(' ');
+        setLocationName(parts || data.display_name);
+      }
+    } catch (error) {
+      console.error('Reverse geocoding failed', error);
+    }
+  };
+
+  // 🖱️ Event: เมื่อลากหมุดเสร็จ
+  const handleMarkerDragEnd = () => {
+    const marker = markerRef.current;
+    if (marker != null) {
+      const latlng = marker.getLatLng();
+      setPosition({ lat: latlng.lat, lng: latlng.lng });
+      fetchLocationName(latlng.lat, latlng.lng);
+    }
+  };
+
+  // 🔍 Event: ค้นหาจากช่อง Search
+  const handleSearchSubmit = async (e: any) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    
+    setIsUpdating(true);
+    Swal.fire({ title: 'กำลังค้นหา...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
+    
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`);
+      const data = await res.json();
+      
+      if (data && data.length > 0) {
+        const { lat, lon, display_name } = data[0];
+        const newLat = parseFloat(lat);
+        const newLng = parseFloat(lon);
+        setPosition({ lat: newLat, lng: newLng });
+        
+        const parts = display_name.split(',').slice(0, 3).reverse().join(' ');
+        setLocationName(parts || display_name);
+
+        if (mapRef.current) {
+          mapRef.current.flyTo([newLat, newLng], 14, { duration: 1.5 });
+        }
+        Swal.close();
+      } else {
+        Swal.fire({ icon: 'warning', title: 'ไม่พบสถานที่', text: 'กรุณาลองเปลี่ยนคำค้นหา', background: '#0f172a', color: '#fff' });
+      }
+    } catch (error) {
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', background: '#0f172a', color: '#fff' });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // 📍 Event: หาตำแหน่งปัจจุบัน
+  const handleCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'เบราว์เซอร์ไม่รองรับ GPS', background: '#0f172a', color: '#fff' }); 
+      return;
+    }
+    Swal.fire({ title: 'กำลังดึงพิกัด GPS...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
+    
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const newLat = pos.coords.latitude;
+        const newLng = pos.coords.longitude;
+        setPosition({ lat: newLat, lng: newLng });
+        fetchLocationName(newLat, newLng);
+        
+        if (mapRef.current) {
+          mapRef.current.flyTo([newLat, newLng], 14, { duration: 1.5 });
+        }
+        Swal.close();
+      },
+      () => Swal.fire({ icon: 'error', title: 'ไม่สามารถระบุตำแหน่งได้', background: '#0f172a', color: '#fff' }),
+      { enableHighAccuracy: true }
+    );
+  };
+
+  // 🔄 Event: กดปุ่มอัปเดต
+  const handleManualUpdate = () => {
+    setIsUpdating(true);
+    Swal.fire({ title: 'กำลังดึงข้อมูลพิกัดใหม่...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
+    setTimeout(() => {
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'อัปเดตข้อมูลสำเร็จ', showConfirmButton: false, timer: 2000, background: '#10b981', color: '#fff' });
+      setIsUpdating(false);
+    }, 1200);
+  };
 
   return (
     <div className="min-h-screen bg-[#0b132b] text-white font-sans selection:bg-[#0ea5e9] selection:text-white pb-10">
@@ -98,21 +220,113 @@ export default function WeatherDashboard() {
         </Link>
       </header>
 
-      <main className="p-4 md:p-6 max-w-[1400px] mx-auto mt-2">
+      <main className="p-4 md:p-6 max-w-[1400px] mx-auto mt-2 space-y-6">
+
+        {/* 🚨 ป้ายแจ้งเตือนสภาพอากาศรุนแรง */}
+        <div className="bg-[#e11d48] rounded-2xl p-4 md:p-5 shadow-lg border border-red-400 flex items-start space-x-4 animate-pulse-slow">
+          <div className="mt-1 w-6 h-6 rounded-full border-2 border-white flex-shrink-0 animate-ping"></div>
+          <div>
+            <h3 className="text-white font-extrabold text-lg tracking-wide">แจ้งเตือนสภาพอากาศรุนแรง</h3>
+            <p className="text-white/90 text-sm md:text-base font-medium mt-1">ขณะนี้มีโอกาสเกิดพายุฝนฟ้าคะนอง โปรดระมัดระวังในการเดินทาง</p>
+          </div>
+        </div>
+
+        {/* 🔍 แถบค้นหาพื้นที่ */}
+        <div className="bg-[#e2e8f0] rounded-2xl p-3 md:p-4 shadow-inner flex flex-col md:flex-row md:items-end space-y-3 md:space-y-0 md:space-x-4">
+          <div className="flex-1">
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">ค้นหาพื้นที่ (ชื่อจังหวัด / อำเภอ / ตำบล / หมู่บ้าน)</label>
+            <form onSubmit={handleSearchSubmit} className="relative">
+              <input 
+                type="text" 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="เช่น ร้องกวาง, แพร่, เชียงใหม่" 
+                className="w-full bg-white border border-gray-300 text-gray-800 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:border-transparent shadow-sm"
+              />
+            </form>
+          </div>
+          <div className="flex space-x-2 md:space-x-3 w-full md:w-auto">
+            <button 
+              onClick={handleCurrentLocation}
+              className="flex-1 md:flex-none bg-[#bae6fd] hover:bg-[#7dd3fc] text-[#0369a1] px-5 py-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 transition-colors shadow-sm"
+            >
+              <span>📍</span> <span>ตำแหน่งปัจจุบัน</span>
+            </button>
+            <button 
+              onClick={handleManualUpdate}
+              disabled={isUpdating}
+              className="flex-1 md:flex-none bg-[#0284c7] hover:bg-[#0369a1] text-white px-6 py-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 transition-colors shadow-sm"
+            >
+              <svg className={`w-4 h-4 ${isUpdating ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>{isUpdating ? 'กำลังโหลด...' : 'อัปเดต'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 🗺️ แผนที่ดาวเทียมเลือกพิกัด */}
+        <div className="bg-[#0f172a] rounded-3xl border border-[#334155] shadow-lg overflow-hidden flex flex-col">
+          {/* Header แผนที่ */}
+          <div className="bg-[#1e293b] px-4 md:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between border-b border-[#334155]">
+            <div className="flex items-center space-x-2 text-white font-bold text-sm">
+              <span>🛰️</span> <span>แผนที่ดาวเทียม (คลิก / ลากหมุด เพื่อเลือกพิกัด)</span>
+            </div>
+            <div className="flex items-center space-x-3 mt-2 md:mt-0 text-xs font-mono">
+              <span className="text-gray-300 bg-[#0b132b] px-3 py-1.5 rounded-lg flex items-center shadow-inner">
+                <span className="text-red-400 mr-1.5">📍</span> {locationName}
+              </span>
+              <span className="text-[#38bdf8] bg-[#0b132b] px-3 py-1.5 rounded-lg shadow-inner">
+                {position.lat.toFixed(4)}, {position.lng.toFixed(4)}
+              </span>
+              <a 
+                href={`https://www.google.com/maps/search/?api=1&query=${position.lat},${position.lng}`} 
+                target="_blank" rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 font-bold whitespace-nowrap hidden sm:block"
+              >
+                เปิดใน Google Maps ↗
+              </a>
+            </div>
+          </div>
+          
+          {/* ตัวแผนที่ Leaflet */}
+          <div className="h-[300px] md:h-[400px] w-full relative z-0">
+            <MapContainer 
+              center={[position.lat, position.lng]} 
+              zoom={14} 
+              maxZoom={20} 
+              zoomControl={true} 
+              attributionControl={false} 
+              className="w-full h-full bg-[#0b132b]" 
+              ref={mapRef}
+            >
+              <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={20} />
+              
+              {/* หมวดที่ลากได้ */}
+              <Marker 
+                draggable={true}
+                position={[position.lat, position.lng]}
+                icon={createPinIcon()}
+                ref={markerRef}
+                eventHandlers={{ dragend: handleMarkerDragEnd }}
+              />
+            </MapContainer>
+          </div>
+
+          {/* Footer แผนที่ */}
+          <div className="bg-[#e2e8f0] px-4 py-2 text-[11px] md:text-xs text-gray-600 font-bold flex items-center">
+            <span>💡 คลิกที่แผนที่หรือลากหมุด 📍 เพื่อปักตำแหน่งใหม่ ระบบจะดึงข้อมูลสภาพอากาศของจุดนั้นให้อัตโนมัติ</span>
+          </div>
+        </div>
         
-        {/* 🍱 Bento Box Grid Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
+        {/* 🍱 Bento Box Grid Layout (ข้อมูลอากาศจำลองแบบ Static) */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 pt-2">
 
           {/* 📦 กล่อง 1: สภาพอากาศปัจจุบัน */}
           <div className="col-span-1 md:col-span-1 bg-gradient-to-br from-[#0f172a] to-[#1e293b] p-6 rounded-3xl border border-[#334155] shadow-lg relative overflow-hidden flex flex-col justify-center items-center text-center group hover:border-[#38bdf8]/50 transition-colors">
             <div className="absolute -right-6 -top-6 w-32 h-32 bg-[#38bdf8] rounded-full blur-[60px] opacity-20 group-hover:opacity-40 transition-opacity"></div>
-            
-            <span className="text-6xl drop-shadow-lg mb-2 transform group-hover:scale-110 transition-transform">
-              {getWeatherEmoji(staticWeather.weather_code)}
-            </span>
-            <div className="text-5xl font-extrabold text-white mb-1">
-              {staticWeather.temperature_2m.toFixed(1)}°<span className="text-2xl text-gray-400">C</span>
-            </div>
+            <span className="text-6xl drop-shadow-lg mb-2 transform group-hover:scale-110 transition-transform">{getWeatherEmoji(staticWeather.weather_code)}</span>
+            <div className="text-5xl font-extrabold text-white mb-1">{staticWeather.temperature_2m.toFixed(1)}°<span className="text-2xl text-gray-400">C</span></div>
             <p className="text-[#38bdf8] font-bold text-lg">{getWmoWeatherDesc(staticWeather.weather_code)}</p>
             <p className="text-xs text-gray-400 mt-2 font-mono">อัปเดตล่าสุด: {new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</p>
           </div>
@@ -123,9 +337,7 @@ export default function WeatherDashboard() {
               <div className="flex items-center space-x-2 text-gray-400 font-bold text-sm tracking-widest">
                 <span>🌫️</span> <span>AIR QUALITY (AQI)</span>
               </div>
-              <div className={`px-2 py-1 rounded-md text-[10px] font-bold ${aqiStatus.bg}`} style={{ color: aqiStatus.color }}>
-                {aqiStatus.text}
-              </div>
+              <div className={`px-2 py-1 rounded-md text-[10px] font-bold ${aqiStatus.bg}`} style={{ color: aqiStatus.color }}>{aqiStatus.text}</div>
             </div>
             <div className="flex items-end justify-between">
               <div>
@@ -205,10 +417,7 @@ export default function WeatherDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                   <XAxis dataKey="day" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} domain={['dataMin - 2', 'dataMax + 2']} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '12px', color: '#fff' }}
-                    itemStyle={{ fontWeight: 'bold' }}
-                  />
+                  <RechartsTooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '12px', color: '#fff' }} itemStyle={{ fontWeight: 'bold' }} />
                   <Area type="monotone" name="อุณหภูมิสูงสุด" dataKey="maxTemp" stroke="#f87171" strokeWidth={3} fillOpacity={1} fill="url(#colorMax)" />
                   <Area type="monotone" name="อุณหภูมิต่ำสุด" dataKey="minTemp" stroke="#38bdf8" strokeWidth={3} fillOpacity={1} fill="url(#colorMin)" />
                 </AreaChart>
@@ -228,58 +437,42 @@ export default function WeatherDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                   <XAxis dataKey="day" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip 
-                    cursor={{ fill: '#1e293b', opacity: 0.5 }}
-                    contentStyle={{ backgroundColor: '#1e293b', borderColor: '#0ea5e9', borderRadius: '12px', color: '#fff' }}
-                  />
+                  <RechartsTooltip cursor={{ fill: '#1e293b', opacity: 0.5 }} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#0ea5e9', borderRadius: '12px', color: '#fff' }} />
                   <Bar name="ปริมาณฝนสะสม" dataKey="rain" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* 📦 กล่อง 7: แผนที่ Windy Interactive (แถบเมนูใหม่ด้านบน) */}
-          <div className="col-span-1 md:col-span-4 bg-[#0f172a] p-2 md:p-4 rounded-3xl border border-[#334155] shadow-lg flex flex-col overflow-hidden h-[550px] relative">
-            
-            {/* 🚀 แถบเครื่องมือ Windy สไตล์ใหม่ (สว่าง/กระจก) เลื่อนซ้ายขวาได้ */}
+          {/* 📦 กล่อง 7: แผนที่ Windy Interactive */}
+          <div className="col-span-1 md:col-span-4 bg-[#0f172a] p-2 md:p-4 rounded-3xl border border-[#334155] shadow-lg flex flex-col overflow-hidden h-[550px] relative mt-2">
             <div className="absolute top-6 left-6 right-6 z-10">
               <div className="bg-[#e2e8f0]/95 backdrop-blur-md border border-white/50 p-1.5 md:p-2 rounded-2xl flex items-center shadow-[0_8px_30px_rgba(0,0,0,0.2)]">
-                
-                {/* ไอคอนและหัวข้อ */}
                 <div className="hidden md:flex items-center px-4 border-r border-gray-300 flex-shrink-0">
                   <span className="text-lg mr-2">🛰️</span>
                   <div className="flex flex-col">
                     <span className="text-black font-extrabold text-sm leading-tight">แผนที่อากาศเคลื่อนไหว (Windy)</span>
-                    <span className="text-gray-500 text-[10px]">เรดาร์ฝน ลม เมฆ • ต.บ่อหลวง จ.เชียงใหม่</span>
+                    <span className="text-gray-500 text-[10px]">เรดาร์ฝน ลม เมฆ • {locationName}</span>
                   </div>
                 </div>
-
-                {/* แถบปุ่มกด เลื่อนแนวนอนได้ */}
                 <div className="flex space-x-1.5 md:space-x-2 overflow-x-auto custom-scrollbar px-2 w-full pb-1 pt-1">
                   {WINDY_LAYERS.map((layer) => (
                     <button 
                       key={layer.id}
                       onClick={() => setWindyLayer(layer.id)}
                       className={`flex items-center space-x-1.5 px-3 md:px-4 py-1.5 md:py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-200 flex-shrink-0
-                        ${windyLayer === layer.id 
-                          ? 'bg-[#0f4a8a] text-white shadow-md transform scale-105' 
-                          : 'bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-800'
-                        }`}
+                        ${windyLayer === layer.id ? 'bg-[#0f4a8a] text-white shadow-md transform scale-105' : 'bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-800'}`}
                     >
-                      <span className="text-sm">{layer.icon}</span>
-                      <span>{layer.label}</span>
+                      <span className="text-sm">{layer.icon}</span><span>{layer.label}</span>
                     </button>
                   ))}
                 </div>
               </div>
             </div>
-
+            {/* โหลดแผนที่ Windy อิงจากตำแหน่งที่ผู้ใช้งานเลือกในแผนที่ดาวเทียม */}
             <iframe 
-              width="100%" 
-              height="100%" 
-              frameBorder="0" 
-              className="rounded-2xl mt-14 md:mt-16"
-              src={`https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=%C2%B0C&metricWind=km/h&zoom=10&overlay=${windyLayer}&product=ecmwf&level=surface&lat=${LAT}&lon=${LNG}&detailLat=${LAT}&detailLon=${LNG}&marker=true`}
+              width="100%" height="100%" frameBorder="0" className="rounded-2xl mt-14 md:mt-16"
+              src={`https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=%C2%B0C&metricWind=km/h&zoom=10&overlay=${windyLayer}&product=ecmwf&level=surface&lat=${position.lat}&lon=${position.lng}&detailLat=${position.lat}&detailLon=${position.lng}&marker=true`}
             ></iframe>
           </div>
 
@@ -291,6 +484,7 @@ export default function WeatherDashboard() {
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
       `}} />
     </div>
   );
