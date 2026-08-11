@@ -1160,8 +1160,8 @@ export default function BoLuangDashboard() {
               <div className="w-8 h-8 md:w-9 md:h-9 bg-[#38bdf8]/20 rounded-full border border-[#38bdf8]/50 flex items-center justify-center text-[11px] md:text-[12px] font-bold text-[#38bdf8] shadow-[0_0_10px_rgba(56,189,248,0.3)]">BL</div>
             </div>
             <div className="flex flex-col border-l-2 border-[#1e293b] pl-3 md:pl-4">
-              <h1 className="text-[12px] md:text-[15px] font-bold tracking-wide text-white leading-tight">ระบบสารสนเทศภูมิศาสตร์</h1>
-              <h2 className="text-[11px] md:text-[15px] font-bold tracking-wide text-[#38bdf8] leading-tight mt-0.5">ต.บ่อหลวง</h2>
+              <h1 className="text-[12px] md:text-[15px] font-bold tracking-wide text-white leading-tight">ระบบสารสนเทศทางภูมิศาสตร์เพื่อบริหารจัดการด้านสาธารณภัย</h1>
+              <h2 className="text-[11px] md:text-[15px] font-bold tracking-wide text-[#38bdf8] leading-tight mt-0.5">เทศบาลตำบลบ่อหลวง</h2>
             </div>
           </div>
 
