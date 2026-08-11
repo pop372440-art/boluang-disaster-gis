@@ -115,7 +115,7 @@ const CustomToggleBox = ({ label, active, onClick, dotColor = '#38bdf8', isRadio
           <div className={`absolute top-[2px] left-[2px] bg-white rounded-full h-3 w-3 transition-transform duration-300 shadow-sm ${localActive ? 'translate-x-4' : 'translate-x-0'}`}></div>
         </div>
       )}
-      <div className="flex items-center space-x-2 flex-1 w-full">
+      <div className="flex items-center space-x-2 flex-1 w-full overflow-hidden">
         {!isRadio && <div className="w-2.5 h-2.5 rounded-[3px] shadow-sm flex-shrink-0" style={{ backgroundColor: dotColor }}></div>}
         <span className={`text-[13px] font-medium transition-colors truncate ${localActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>{label}</span>
         {renderStatusBadge()}
@@ -614,13 +614,13 @@ export default function BoLuangDashboard() {
     const props = feature?.properties || {};
     if (props.fill) return props.fill;
     
-    // 🚀 ค้นหาตัวเลขในชื่อ (เพื่อจับคู่หมู่ 1-13 ให้ตรงกับสีใน Legend ด้านล่าง)
+    // ค้นหาตัวเลขในชื่อ (เพื่อจับคู่หมู่ 1-13 ให้ตรงกับสีใน Legend ด้านล่าง)
     const nameStr = String(props.own_villag || props.name_th || props.name || props.zone_name || props.id || "");
     const match = nameStr.match(/\d+/);
     if (match) {
       const num = parseInt(match[0], 10);
       if (num >= 1 && num <= BLOCK_COLORS.length) {
-        return BLOCK_COLORS[num - 1]; // หมู่ 1 ได้ index 0 (สีแดง)
+        return BLOCK_COLORS[num - 1]; // หมู่ 1 ได้ index 0
       }
     }
     
@@ -640,6 +640,7 @@ export default function BoLuangDashboard() {
   };
 
   const getBlockStyle = (feature: any) => ({ fillColor: getVillageColor(feature), weight: 1.5, color: 'rgba(255, 255, 255, 0.3)', fillOpacity: 0.12, dashArray: '3, 3' });
+  
   const onEachBlockFeature = (feature: any, layer: any) => {
     const props = feature?.properties || {};
     const rawName = props.own_villag || props.name_th || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || ''}`;
@@ -679,7 +680,6 @@ export default function BoLuangDashboard() {
     layer.on({
       mouseover: (e: any) => {
         e.target.setStyle({ weight: 5, color: '#38bdf8' });
-        // L.Browser.ie check is generally for old browsers, bringToFront is safe
         if (e.target.bringToFront) e.target.bringToFront();
       },
       mouseout: (e: any) => {
@@ -811,7 +811,13 @@ export default function BoLuangDashboard() {
         .leaflet-div-icon { background: transparent !important; border: none !important; }
         .leaflet-tooltip { pointer-events: none !important; }
         .leaflet-interactive:focus { outline: none !important; }
-        .leaflet-tooltip.village-hover-tooltip { background-color: #ffffff !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; font-family: inherit !important; font-size: 14px !important; font-weight: 600 !important; padding: 6px 14px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; }
+        
+        /* 🌟 Tooltip สวยงามตามแบบ */
+        .leaflet-tooltip.village-hover-tooltip { 
+          background-color: #ffffff !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; 
+          font-family: inherit !important; font-size: 14px !important; font-weight: 600 !important; 
+          padding: 6px 14px !important; border-radius: 6px !important; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important; 
+        }
         
         .popup-location .leaflet-popup-content-wrapper { background-color: #0f172a !important; color: #e2e8f0 !important; border: 1px solid #0ea5e9 !important; border-radius: 8px !important; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important; padding: 0 !important; overflow: hidden; }
         .popup-location .leaflet-popup-tip { background-color: #0f172a !important; border-top: 1px solid #0ea5e9 !important; border-left: 1px solid #0ea5e9 !important; }
@@ -1334,8 +1340,8 @@ export default function BoLuangDashboard() {
               <div className="w-8 h-8 md:w-9 md:h-9 bg-[#38bdf8]/20 rounded-full border border-[#38bdf8]/50 flex items-center justify-center text-[11px] md:text-[12px] font-bold text-[#38bdf8] shadow-[0_0_10px_rgba(56,189,248,0.3)]">BL</div>
             </div>
             <div className="flex flex-col border-l-2 border-[#1e293b] pl-3 md:pl-4">
-              <h1 className="text-[12px] md:text-[15px] font-bold tracking-wide text-white leading-tight">ศูนย์บัญชาการภัยพิบัติ</h1>
-              <h2 className="text-[11px] md:text-[15px] font-bold tracking-wide text-[#38bdf8] leading-tight mt-0.5">ต.บ่อหลวง จ.เชียงใหม่</h2>
+              <h1 className="text-[12px] md:text-[14px] font-bold tracking-wide text-white leading-tight">ระบบสารสนเทศทางภูมิศาสตร์เพื่อบริหารจัดการสาธารณภัย</h1>
+              <h2 className="text-[11px] md:text-[13px] font-bold tracking-wide text-[#38bdf8] leading-tight mt-0.5">เทศบาลตำบลบ่อหลวง</h2>
             </div>
           </div>
 
@@ -1358,7 +1364,7 @@ export default function BoLuangDashboard() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
           </svg>
           <span className="text-[11px] md:text-[13px] font-mono font-medium text-gray-300 tracking-wide">
-            แผงควบคุม <span className="hidden md:inline text-gray-500 mx-1">· Layers</span>
+            GIS Layers <span className="hidden md:inline text-gray-500 mx-1">· Thailand</span>
           </span>
         </div>
       </header>
@@ -1397,6 +1403,7 @@ export default function BoLuangDashboard() {
 
         <div className="space-y-4">
           
+          {/* หมวดพยากรณ์อากาศ */}
           <div>
             <div className="flex items-center mb-2">
               <span className="text-[13px] mr-2">🌦️</span>
@@ -1409,6 +1416,7 @@ export default function BoLuangDashboard() {
             </div>
           </div>
 
+          {/* หมวดคุณภาพอากาศ */}
           <div>
             <div className="flex items-center mb-2">
               <span className="text-[13px] mr-2">🌫️</span>
@@ -1420,6 +1428,7 @@ export default function BoLuangDashboard() {
             </div>
           </div>
 
+          {/* หมวดน้ำและน้ำท่วม */}
           <div className="mt-4 pt-4 border-t border-[#1e293b]">
             <div className="flex items-center space-x-3 mb-4">
               <div className="bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] p-2 rounded-xl shadow-[0_4px_10px_rgba(37,99,235,0.4)]">
@@ -1449,6 +1458,7 @@ export default function BoLuangDashboard() {
             </div>
           </div>
           
+          {/* หมวดแผนที่ลม */}
           <div>
             <div className="flex items-center mb-2 mt-4 pt-4 border-t border-[#1e293b]">
               <span className="text-[13px] mr-2">🗺️</span>
@@ -1497,6 +1507,7 @@ export default function BoLuangDashboard() {
           
           <div className="w-[300px] md:w-[360px] ml-auto bg-[#0b132b]/95 border border-[#1e293b] rounded-l-2xl md:rounded-xl shadow-2xl p-4 md:p-5 backdrop-blur-xl max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar">
             
+            {/* 🔍 ระบบค้นหาพิกัด (Smart Search) */}
             <div className="mb-4 bg-[#0f172a] p-1.5 rounded-xl border border-[#1e293b] flex shadow-inner">
               <form onSubmit={handleSearchSubmit} className="flex w-full">
                 <input 
@@ -1512,36 +1523,62 @@ export default function BoLuangDashboard() {
               </form>
             </div>
 
-            <div className="mb-4 flex flex-col items-start border-b border-[#1e293b] pb-3 relative">
+            <div className="mb-4 flex flex-col items-start border-b border-[#1e293b] pb-4 relative">
               <button onClick={() => setIsRightPanelOpen(false)} className="md:hidden absolute top-0 right-0 text-gray-500 hover:text-white">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
               
               <div className="flex items-center space-x-3 mb-2">
-                <div className="bg-gradient-to-br from-[#ef4444] to-[#f97316] p-2 rounded-xl shadow-[0_4px_10px_rgba(239,68,68,0.3)]">
-                  <span className="text-white text-[18px]">🚨</span>
+                <div className="bg-gradient-to-br from-[#2dd4bf] to-[#3b82f6] p-2 rounded-xl shadow-[0_4px_10px_rgba(45,212,191,0.3)]">
+                  <svg className="w-5 h-5 md:w-6 md:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h7" /></svg>
                 </div>
-                <h2 className="text-[18px] md:text-[20px] font-serif font-bold tracking-wide text-[#fca5a5]">แจ้งเหตุ & ภัยธรรมชาติ</h2>
+                <h2 className="text-[18px] md:text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">Layers</h2>
               </div>
-              <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed pr-6">ระบบรับแจ้งเหตุและเฝ้าระวังภัยพิบัติ</p>
+              <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed pr-6">แผงควบคุมชั้นข้อมูลหลักด้านขวา ส่วนข้อมูลอากาศและค่าฝุ่น PM2.5 / AQI แยกไว้ด้านซ้าย</p>
+              
+              <div className="flex items-center space-x-3 mt-4">
+                <div className="flex items-center px-3 py-1.5 rounded-full border border-[#1e293b] bg-[#0f172a]/50">
+                  <div className="w-2 h-2 rounded-full bg-[#2dd4bf] mr-2 shadow-[0_0_5px_#2dd4bf]"></div>
+                  <span className="text-[11px] md:text-[12px] font-bold text-gray-300 tracking-wide">Active: <span className="text-white ml-1">{activeLayersCount}</span></span>
+                </div>
+                <div className="flex items-center px-3 py-1.5 rounded-full border border-[#1e293b] bg-[#0f172a]/50">
+                  <span className="text-[11px] md:text-[12px] font-bold text-gray-300 tracking-wide">Zoom: <span className="text-white ml-1">{currentZoom}</span></span>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-4">
               
+              {/* Report Tool */}
+              <div>
+                <div className="flex items-center mb-3">
+                  <svg className="w-3.5 h-3.5 text-[#38bdf8] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                  <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold uppercase">Report Tool</span>
+                  <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
+                </div>
+                <div className="bg-[#0b132b]/50 border border-[#1e293b] p-4 rounded-xl mb-4">
+                  <button onClick={() => setShowScanModal(true)} className="w-full py-3 bg-gradient-to-r from-[#f43f5e] to-[#f59e0b] hover:brightness-110 rounded-xl text-[14px] font-bold text-white shadow-[0_4px_15px_rgba(244,63,94,0.4)] flex items-center justify-center space-x-2 transition-all cursor-pointer">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm10 3h6m-3-3v6" />
+                    </svg>
+                    <span>สแกนเพื่อแจ้งปัญหา</span>
+                  </button>
+                  <p className="text-[11px] text-gray-400 mt-3 leading-relaxed text-center">สแกนคิวอาร์โค้ดเพื่อเปิดแบบฟอร์มแจ้งปัญหา พร้อมใช้สำหรับการเก็บข้อมูลจากประชาชน</p>
+                </div>
+              </div>
+
+              {/* แจ้งเหตุประชาชน */}
               <div>
                 <div className="flex items-center mb-2">
-                  <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">CITIZEN REPORTS (รับแจ้งเหตุ)</span>
+                  <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">CITIZEN REPORTS (จุดแจ้งเหตุ)</span>
                   <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
                 </div>
                 <div className="space-y-2">
                   <CustomToggleBox label="จุดแจ้งเหตุจากประชาชน" active={citizenReport} onClick={() => setCitizenReport(!citizenReport)} dotColor="#ef4444" />
-                  <button onClick={() => setShowScanModal(true)} className="w-full py-2.5 bg-gradient-to-r from-[#f97316] to-[#ec4899] hover:brightness-110 rounded-xl text-[13px] md:text-[14px] font-bold text-white shadow-[0_4px_15px_rgba(249,115,22,0.3)] flex items-center justify-center space-x-2 transition-all cursor-pointer">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-                    <span>เปิดฟอร์มแจ้งจุดเสี่ยงภัย</span>
-                  </button>
                 </div>
               </div>
 
+              {/* ภัยพิบัติทางธรรมชาติ */}
               <div>
                 <div className="flex items-center mb-2">
                   <span className="text-[10px] md:text-[11px] text-[#fca5a5] tracking-widest font-bold">NATURAL HAZARDS (เตือนภัย)</span>
@@ -1555,6 +1592,7 @@ export default function BoLuangDashboard() {
                 </div>
               </div>
 
+              {/* แผนที่และขอบเขตพื้นที่ */}
               <div className="mt-4 pt-4 border-t border-[#1e293b]">
                 <div className="flex items-center mb-2">
                   <span className="text-[10px] md:text-[11px] text-[#10b981] tracking-widest font-bold">BASEMAP & BOUNDARIES</span>
@@ -1565,6 +1603,7 @@ export default function BoLuangDashboard() {
                   <CustomToggleBox label="ขอบเขตตำบลบ่อหลวง" active={showBoluang} onClick={() => setShowBoluang(!showBoluang)} dotColor="#38bdf8" />
                   <CustomToggleBox label="โซน 13 หมู่บ้าน" active={showBlock} onClick={() => setShowBlock(!showBlock)} dotColor="#fcd34d" />
                   
+                  {/* โหมดเจ้าหน้าที่ (Admin Only) */}
                   <div className="relative mt-2 pt-2 border-t border-[#1e293b]/50">
                     <CustomToggleBox label="แปลงที่ดินรายบุคคล" active={showParcel} onClick={() => setShowParcel(!showParcel)} dotColor="#4ade80" />
                     <span className="absolute right-3 top-4 text-[8px] md:text-[9px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20 pointer-events-none flex items-center">
