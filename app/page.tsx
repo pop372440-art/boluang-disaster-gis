@@ -920,44 +920,43 @@ export default function BoLuangDashboard() {
           </div>
         )}
 
-        <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>
-          
-          {/* 🚀 ชุดปุ่มควบคุมแผนที่ (สไตล์ Google Maps) */}
-          <div className="absolute top-[100px] left-[10px] md:left-[370px] z-[400] flex flex-col space-y-2 transition-all duration-300 pointer-events-auto">
-            
-            {/* 📍 ปุ่ม Locate Me */}
-            <button 
-              onClick={(e) => { e.stopPropagation(); handleLocateMe(); }}
-              className="w-[38px] h-[38px] bg-[#0f172a]/95 backdrop-blur-md border border-[#1e293b] rounded-xl shadow-lg flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1e293b] transition-all duration-200 group"
-              title="ตำแหน่งของฉัน"
-            >
-              <svg className="w-5 h-5 group-hover:scale-110 transition-transform text-[#38bdf8]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v2m0 12v2m8-8h-2M6 12H4m14 0a6 6 0 11-12 0 6 6 0 0112 0z" />
-                <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
-              </svg>
-            </button>
+        <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>    
+       {/* 🚀 ชุดปุ่มควบคุมแผนที่ (สไตล์ Google Maps Dark Mode) */}
+            <div className="absolute top-[100px] left-[15px] md:left-[375px] z-[400] flex flex-col space-y-2 transition-all duration-300 pointer-events-auto">
+              
+              {/* 📍 ปุ่ม Locate Me */}
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleLocateMe(); }}
+                className="w-[36px] h-[36px] bg-[#111827]/95 backdrop-blur-md border border-[#334155] rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.5)] flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1f2937] transition-all duration-200 group"
+                title="ตำแหน่งของฉัน"
+              >
+                <svg className="w-5 h-5 group-hover:scale-110 transition-transform text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v2m0 12v2m8-8h-2M6 12H4m14 0a6 6 0 11-12 0 6 6 0 0112 0z" />
+                  <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
+                </svg>
+              </button>
 
-            {/* 🔍 กลุ่มปุ่ม Zoom In / Out */}
-            <div className="flex flex-col bg-[#0f172a]/95 backdrop-blur-md border border-[#1e293b] rounded-xl shadow-lg overflow-hidden">
-              <button 
-                onClick={(e) => { e.stopPropagation(); mapRef?.zoomIn(); }}
-                className="w-[38px] h-[38px] flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1e293b] transition-colors"
-                title="ซูมเข้า"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v12m-6-6h12" /></svg>
-              </button>
-              
-              <div className="h-[1px] w-[24px] mx-auto bg-[#1e293b]"></div>
-              
-              <button 
-                onClick={(e) => { e.stopPropagation(); mapRef?.zoomOut(); }}
-                className="w-[38px] h-[38px] flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1e293b] transition-colors"
-                title="ซูมออก"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
-              </button>
+              {/* 🔍 กลุ่มปุ่ม Zoom In / Out */}
+              <div className="flex flex-col bg-[#111827]/95 backdrop-blur-md border border-[#334155] rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.5)] overflow-hidden">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); mapRef?.zoomIn(); }}
+                  className="w-[36px] h-[36px] flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1f2937] transition-colors"
+                  title="ซูมเข้า"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v12m-6-6h12" /></svg>
+                </button>
+                
+                <div className="h-[1px] w-[20px] mx-auto bg-[#334155]"></div>
+                
+                <button 
+                  onClick={(e) => { e.stopPropagation(); mapRef?.zoomOut(); }}
+                  className="w-[36px] h-[36px] flex items-center justify-center text-gray-300 hover:text-white hover:bg-[#1f2937] transition-colors"
+                  title="ซูมออก"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
+                </button>
+              </div>
             </div>
-          </div>
 
           <MapContainer center={[18.1633, 98.3744]} zoom={isMobile ? 10 : 11} maxZoom={20} zoomControl={false} attributionControl={false} className="w-full h-full" ref={setMapRef}>
             
