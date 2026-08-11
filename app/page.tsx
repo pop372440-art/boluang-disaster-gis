@@ -1446,20 +1446,42 @@ export default function BoLuangDashboard() {
 
       {/* Sidebar ซ้าย (ข้อมูลอากาศ/น้ำ) */}
       <aside className={`absolute top-[80px] md:top-24 z-[70] w-[300px] md:w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-r-2xl md:rounded-2xl shadow-2xl p-4 md:p-5 backdrop-blur-xl pointer-events-auto max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar transition-transform duration-500 ease-in-out ${isLeftPanelOpen ? 'translate-x-0 left-0 md:left-4' : '-translate-x-full left-0 md:left-4'}`}>
-        <div className="mb-4 flex flex-col items-start border-b border-[#1e293b] pb-3 relative">
-          <button onClick={() => setIsLeftPanelOpen(false)} className="md:hidden absolute top-0 right-0 text-gray-500 hover:text-white">
+        
+        {/* 🌤️ การ์ดเข้าสู่ระบบ Weather Dashboard (สไตล์ Rongkwang) */}
+        <div className="relative mb-6">
+          {/* ปุ่มปิด Sidebar สำหรับมือถือ */}
+          <button onClick={() => setIsLeftPanelOpen(false)} className="md:hidden absolute -top-1 right-0 text-gray-500 hover:text-white z-20">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
-          <div className="flex items-center space-x-3 mb-2">
-            <div className="bg-gradient-to-br from-[#38bdf8] to-[#2563eb] p-2 rounded-xl shadow-[0_4px_10px_rgba(37,99,235,0.4)]">
-              <span className="text-white text-[18px]">⛅</span>
+
+          <div 
+            onClick={() => window.open('/weather', '_blank')}
+            className="bg-[#0f172a] border border-[#1e293b] hover:border-[#0ea5e9]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden"
+          >
+            {/* เอฟเฟกต์แสง Background (Glow) */}
+            <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#0ea5e9] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
+            
+            <div className="flex items-start space-x-4 relative z-10">
+              {/* ไอคอนสีฟ้าแบบแอป Lovable */}
+              <div className="w-12 h-12 bg-gradient-to-b from-[#38bdf8] to-[#0284c7] rounded-[14px] flex items-center justify-center shadow-md flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
+                </svg>
+              </div>
+              
+              {/* ข้อความ */}
+              <div className="flex flex-col mt-0.5">
+                <h3 className="text-[15px] font-extrabold text-white group-hover:text-[#38bdf8] transition-colors leading-tight">ระบบตรวจสอบสภาพอากาศ</h3>
+                <p className="text-[12px] font-bold text-[#e2e8f0] mt-1 mb-1">Bo Luang Weather</p>
+                <p className="text-[11px] text-gray-400 leading-relaxed">ตรวจสอบอุณหภูมิ ปริมาณฝน และการพยากรณ์อากาศในพื้นที่</p>
+              </div>
             </div>
-            <h2 className="text-[18px] md:text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">ฝนและสภาพอากาศ</h2>
           </div>
-          <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed pr-6">ข้อมูลอุตุนิยมวิทยาและคุณภาพอากาศ</p>
         </div>
 
         <div className="space-y-4">
+          {/* ... โค้ด CustomToggleBox และเนื้อหาเดิมจะอยู่ต่อจากตรงนี้ครับ ... */}
           
           {/* หมวดพยากรณ์อากาศ */}
           <div>
