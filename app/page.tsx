@@ -902,18 +902,8 @@ export default function BoLuangDashboard() {
       )}
 
       {/* 🗺️ ระบบแผนที่หลัก */}
-      <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">
-        {windyLayer && (
-          <div 
-            className="absolute pointer-events-none transition-opacity duration-700 opacity-100 saturate-150"
-            style={{ top: '-100vh', left: '-100vw', width: '300vw', height: '300vh', transform: `translate(${transform.x}px, ${transform.y}px)`, willChange: 'transform', zIndex: 0 }}
-          >
-            <iframe width="100%" height="100%" frameBorder="0" src={windyMapUrl} />
-          </div>
-        )}
-
-        <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>
-          
+      <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">       
+        <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>         
           {/* 🚀 ชุดปุ่มควบคุมแผนที่ (ย้ายออกมานอก MapContainer พร้อมตั้งค่า z-[1000] ไม่ให้หายอีกต่อไป) */}
           <div className="absolute top-[100px] left-[15px] md:left-[375px] z-[1000] flex flex-col space-y-2 transition-all duration-300 pointer-events-auto">
             
@@ -1536,29 +1526,7 @@ export default function BoLuangDashboard() {
                 </div>
               </div>
             </div>
-          </div>
-          
-          {/* หมวดแผนที่ลม */}
-          <div>
-            <div className="flex items-center mb-2 mt-4 pt-4 border-t border-[#1e293b]">
-              <span className="text-[13px] mr-2">🗺️</span>
-              <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">WINDY MAP</span>
-              <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
-            </div>
-            <div className="mb-3">
-              <CustomToggleBox label="เปิด/ปิดข้อมูลพายุ Windy" active={windyLayer} onClick={() => setWindyLayer(!windyLayer)} dotColor="#facc15" />
-            </div>
-            {windyLayer && (
-              <div className="bg-[#0f172a] rounded-xl border border-[#1e293b] p-3 md:p-4 shadow-inner">
-                <div className="flex items-center space-x-2 mb-3"><span className="text-[13px] font-bold text-gray-200">🌧️ ข้อมูลแสดงผล</span></div>
-                <div className="space-y-1">
-                  <CustomToggleBox label="ลมพายุ (Wind)" active={windyType === 'wind'} onClick={() => setWindyType('wind')} isRadio={true} />
-                  <CustomToggleBox label="อุณหภูมิ (Temperature)" active={windyType === 'temp'} onClick={() => setWindyType('temp')} isRadio={true} />
-                  <CustomToggleBox label="กลุ่มฝน (Rain)" active={windyType === 'rain'} onClick={() => setWindyType('rain')} isRadio={true} />
-                </div>
-              </div>
-            )}
-          </div>
+          </div>       
         </div>
       </aside>
 
