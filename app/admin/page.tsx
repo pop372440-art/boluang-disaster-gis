@@ -36,15 +36,26 @@ export default function AdminPanel() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 📥 ดึงข้อมูลเมื่อ Login สำเร็จ
+  // 📥 ดึงข้อมูลเมื่อ Login สำเร็จ (พร้อมระบบ Auto-Refresh)
   useEffect(() => {
     if (session) {
-      fetchActiveReports();
+      // 1. ดึงข้อมูลครั้งแรกเมื่อเปิดหน้าเว็บ (โชว์ Loading)
+      fetchActiveReports(false); 
+
+      // 2. 🚀 ตั้งเวลา Auto-Refresh แบบ "Silent" (ไม่โชว์ Loading) ทุกๆ 15 วินาที
+      const intervalId = setInterval(() => {
+        fetchActiveReports(true); // true = isSilent (ทำแบบเงียบๆ ไม่กระพริบ)
+      }, 15000); // 15000 ms = 15 วินาที
+
+      // 3. ทำความสะอาดการตั้งเวลาเมื่อปิดหน้าเว็บ
+      return () => clearInterval(intervalId);
     }
   }, [session]);
 
-  const fetchActiveReports = async () => {
-    setLoadingData(true);
+  // 🔄 ฟังก์ชันดึงข้อมูล (เพิ่มพารามิเตอร์ isSilent)
+  const fetchActiveReports = async (isSilent = false) => {
+    if (!isSilent) setLoadingData(true); // โชว์ Loading เฉพาะตอนกดปุ่มรีเฟรชมือ หรือโหลดครั้งแรก
+    
     try {
       const { data, error } = await supabase
         .from('boluang_disaster_reports')
@@ -57,7 +68,7 @@ export default function AdminPanel() {
     } catch (error) {
       console.error('Error fetching:', error);
     } finally {
-      setLoadingData(false);
+      if (!isSilent) setLoadingData(false);
     }
   };
 
@@ -90,7 +101,7 @@ export default function AdminPanel() {
       showCloseButton: true,
       width: 'auto',
       padding: '1em',
-      background: '#1e293b', // สีพื้นหลังให้เข้ากับธีม Admin
+      background: '#1e293b', 
       backdrop: 'rgba(0,0,0,0.85)',
       customClass: {
         popup: 'border border-gray-700 rounded-2xl shadow-2xl',
@@ -172,7 +183,7 @@ export default function AdminPanel() {
 
         Swal.fire({ icon: 'success', title: 'ปิดงานสำเร็จ!', text: 'ข้อมูลถูกบันทึกและลบออกจากแผนที่ประชาชนแล้ว', confirmButtonColor: '#10b981' });
         
-        fetchActiveReports();
+        fetchActiveReports(false); // อัปเดตตารางใหม่ทันที (แบบโชว์ Loading นิดนึงเพื่อความมั่นใจ)
         
       } catch (error) {
         console.error(error);
@@ -239,10 +250,19 @@ export default function AdminPanel() {
       <main className="p-6 max-w-7xl mx-auto">
         <div className="flex justify-between items-end mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white">รายการแจ้งเหตุที่ต้องดำเนินการ</h2>
-            <p className="text-gray-400 mt-1 text-sm">เรียงลำดับจากรายการใหม่ล่าสุด</p>
+            <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
+              <span>รายการแจ้งเหตุที่ต้องดำเนินการ</span>
+              {/* 🟢 ไฟสถานะกระพริบ แสดงว่าระบบทำงานและ Auto-refresh อยู่ */}
+              <span className="relative flex h-2.5 w-2.5 ml-2 mt-1">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+            </h2>
+            <p className="text-gray-400 mt-1 text-sm">เรียงลำดับจากรายการใหม่ล่าสุด (อัปเดตอัตโนมัติทุก 15 วินาที)</p>
           </div>
-          <button onClick={fetchActiveReports} className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 border border-gray-700 transition-colors">
+          
+          {/* ปุ่มรีเฟรชมือ (เผื่อแอดมินใจร้อน) */}
+          <button onClick={() => fetchActiveReports(false)} className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 border border-gray-700 transition-colors">
             <span>🔄</span> <span>รีเฟรชข้อมูล</span>
           </button>
         </div>
