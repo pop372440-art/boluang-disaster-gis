@@ -1393,20 +1393,49 @@ export default function BoLuangDashboard() {
             </div>
           </div>
 
-          <div className="hidden lg:flex flex-col border-l border-[#1e293b] pl-6 justify-center">
-            <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถานะระบบ</span>
-            <div className="flex items-center text-[12px] font-mono text-gray-400">
-              <div className="flex items-center space-x-1.5">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#10b981]"></span>
-                </span>
-                <span className="text-[#10b981]">ระบบออนไลน์</span>
+          {/* 🚀 ชุดแสดงสถานะระบบ และ สถิติผู้เข้าชม (รวมไว้ด้วยกันอย่างลงตัว) */}
+          <div className="hidden lg:flex items-center space-x-6 border-l border-[#1e293b] pl-6">
+            
+            {/* สถานะระบบ */}
+            <div className="flex flex-col justify-center">
+              <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถานะระบบ</span>
+              <div className="flex items-center text-[12px] font-mono text-gray-400">
+                <div className="flex items-center space-x-1.5">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#10b981]"></span>
+                  </span>
+                  <span className="text-[#10b981]">ONLINE</span>
+                </div>
               </div>
             </div>
+
+            {/* สถิติผู้เข้าชม */}
+            <div className="flex flex-col justify-center border-l border-[#1e293b] pl-6">
+              <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถิติผู้เข้าชม</span>
+              <div className="flex items-center text-[12px] font-mono text-gray-400">
+                <div className="flex items-center space-x-1.5">
+                  <span>วันนี้: <span className="text-[#10b981]">{visitStats.today.toLocaleString()}</span></span>
+                </div>
+                <span className="mx-2 text-gray-600">|</span>
+                <div className="flex items-center space-x-1.5">
+                  <span>รวม: <span className="text-[#38bdf8]">{visitStats.total.toLocaleString()}</span></span>
+                </div>
+              </div>
+            </div>
+            
           </div>
         </div>
 
+        <div onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer">
+          <svg className="w-4 h-4 text-[#2dd4bf] mr-1.5 md:mr-2 transform rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+          </svg>
+          <span className="text-[11px] md:text-[13px] font-mono font-medium text-gray-300 tracking-wide">
+            GIS Layers <span className="hidden md:inline text-gray-500 mx-1">· Thailand</span>
+          </span>
+        </div>
+      </header>
         <div onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer">
           <svg className="w-4 h-4 text-[#2dd4bf] mr-1.5 md:mr-2 transform rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
