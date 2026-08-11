@@ -139,7 +139,7 @@ export default function ExecutiveDashboard() {
             <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-600 to-emerald-400"></div>
           </div>
 
-          {/* 📦 กล่องที่ 4: กราฟโดนัท (สัดส่วนประเภทภัยพิบัติ) - กินพื้นที่ 2 คอลัมน์ แนวนอน */}
+          {/* 📦 กล่องที่ 4: กราฟโดนัท (สัดส่วนประเภทภัยพิบัติ) */}
           <div className="col-span-1 md:col-span-2 bg-[#1e293b]/50 p-6 rounded-3xl border border-[#334155] shadow-lg flex flex-col h-[380px]">
             <h3 className="text-white text-lg font-bold mb-1 flex items-center">
               <span className="mr-2">📊</span> สัดส่วนประเภทภัยพิบัติ
@@ -172,7 +172,7 @@ export default function ExecutiveDashboard() {
             </div>
           </div>
 
-          {/* 📦 กล่องที่ 5: กราฟแท่ง (Top 5 พื้นที่เกิดเหตุซ้ำซาก) - กินพื้นที่ 2 คอลัมน์ */}
+          {/* 📦 กล่องที่ 5: กราฟแท่ง (Top 5 พื้นที่เกิดเหตุซ้ำซาก) */}
           <div className="col-span-1 md:col-span-2 bg-[#1e293b]/50 p-6 rounded-3xl border border-[#334155] shadow-lg flex flex-col h-[380px]">
             <h3 className="text-white text-lg font-bold mb-1 flex items-center">
               <span className="mr-2">📍</span> Top 5 พื้นที่เสี่ยงภัย (Hotspots)
@@ -198,7 +198,7 @@ export default function ExecutiveDashboard() {
             </div>
           </div>
 
-          {/* 📦 กล่องที่ 6: Critical Alert Banner (กินพื้นที่เต็มความกว้าง) */}
+          {/* 📦 กล่องที่ 6: Critical Alert Banner */}
           <div className="col-span-1 md:col-span-4 mt-2">
             <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-5 flex flex-col md:flex-row items-center justify-between">
               <div className="flex items-center space-x-4 mb-4 md:mb-0">
