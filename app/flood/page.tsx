@@ -18,16 +18,31 @@ const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { 
 const INITIAL_LAT = 18.1633;
 const INITIAL_LNG = 98.3744;
 
-// 🧮 ฟังก์ชันคำนวณระยะทาง (Haversine Formula)
+// 🧮 ฟังก์ชันคำนวณระยะทาง
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371; // รัศมีโลก (กม.)
+  const R = 6371; 
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
+};
+
+// 🛡️ ฟังก์ชันทะลวงบล็อก CORS (CORS Proxy Fetcher)
+const fetchWithProxy = async (url: string) => {
+  try {
+    // ลองดึงตรงๆ ก่อน เผื่อรันบน Backend
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Direct fetch failed');
+    return await res.json();
+  } catch (e) {
+    // ถ้าโดนบล็อก CORS ให้ใช้ Proxy กลาง (allorigins) เป็นตัวช่วยดึง
+    console.log("CORS blocked, using proxy for:", url);
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    const proxyRes = await fetch(proxyUrl);
+    if (!proxyRes.ok) throw new Error('Proxy fetch failed');
+    return await proxyRes.json();
+  }
 };
 
 export default function FloodDashboard() {
@@ -49,14 +64,13 @@ export default function FloodDashboard() {
   const mapRef = useRef<any>(null);
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
 
-  // ⏱️ นาฬิกา Real-time
   useEffect(() => {
     setCurrentTime(new Date());
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // 📡 ดึงข้อมูล API สทนช. (ONWR) ของจริง 100% (ไม่มี Mock Data)
+  // 📡 ดึงข้อมูล API สทนช. (ผ่าน CORS Proxy)
   useEffect(() => {
     const fetchONWR = async () => {
       try {
@@ -76,54 +90,36 @@ export default function FloodDashboard() {
           }
         };
 
-        // 1. ดึงระดับน้ำ (กรองคร่าวๆ โซนภาคเหนือ เพื่อลดภาระเครื่อง)
+        // 1. ดึงระดับน้ำ
         try {
-          const wRes = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load');
-          if (wRes.ok) {
-            const wData = await wRes.json();
-            const wStations = wData.waterlevel_data?.data || wData.data || [];
-            const filteredWater = wStations.filter((s:any) => s.station?.lat > 16.0 && s.station?.lat < 20.5 && s.station?.long > 97.0 && s.station?.long < 101.0);
-            
-            filteredWater.forEach((s: any) => {
-              merged.push({
-                id: s.station?.id, 
-                name: s.station?.tele_station_name?.th || 'สถานีวัดน้ำ', 
-                prov: s.station?.geocode?.province_name?.th || '',
-                amp: s.station?.geocode?.amphoe_name?.th || '',
-                tum: s.station?.geocode?.tumbon_name?.th || '',
-                lat: s.station?.lat, lng: s.station?.long, 
-                type: 'water', val: s.water_level || 0, 
-                risk: getRisk(s.water_level || 0, 'water'), 
-                time: s.waterlevel_datetime
-              });
+          const wData = await fetchWithProxy('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load');
+          const wStations = wData.waterlevel_data?.data || wData.data || [];
+          const filteredWater = wStations.filter((s:any) => s.station?.lat > 16.0 && s.station?.lat < 20.5 && s.station?.long > 97.0 && s.station?.long < 101.0);
+          
+          filteredWater.forEach((s: any) => {
+            merged.push({
+              id: s.station?.id, name: s.station?.tele_station_name?.th || 'สถานีวัดน้ำ', 
+              prov: s.station?.geocode?.province_name?.th || '', amp: s.station?.geocode?.amphoe_name?.th || '', tum: s.station?.geocode?.tumbon_name?.th || '',
+              lat: s.station?.lat, lng: s.station?.long, type: 'water', val: s.water_level || 0, risk: getRisk(s.water_level || 0, 'water'), time: s.waterlevel_datetime
             });
-            setApiStatus(prev => ({ ...prev, water: 'เชื่อมต่อสำเร็จ 🟢' }));
-          }
+          });
+          setApiStatus(prev => ({ ...prev, water: 'เชื่อมต่อสำเร็จ 🟢' }));
         } catch (e) { setApiStatus(prev => ({ ...prev, water: 'การเชื่อมต่อขัดข้อง 🔴' })); }
 
         // 2. ดึงฝน 24 ชม.
         try {
-          const rRes = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h');
-          if (rRes.ok) {
-            const rData = await rRes.json();
-            const rStations = rData.rain_data?.data || rData.data || [];
-            const filteredRain = rStations.filter((s:any) => s.station?.lat > 16.0 && s.station?.lat < 20.5 && s.station?.long > 97.0 && s.station?.long < 101.0);
-            
-            filteredRain.forEach((s: any) => {
-              merged.push({
-                id: s.station?.id, 
-                name: s.station?.tele_station_name?.th || 'สถานีวัดฝน', 
-                prov: s.station?.geocode?.province_name?.th || '',
-                amp: s.station?.geocode?.amphoe_name?.th || '',
-                tum: s.station?.geocode?.tumbon_name?.th || '',
-                lat: s.station?.lat, lng: s.station?.long, 
-                type: 'rain', val: s.rain_24h || 0, 
-                risk: getRisk(s.rain_24h || 0, 'rain'), 
-                time: s.rain_datetime
-              });
+          const rData = await fetchWithProxy('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h');
+          const rStations = rData.rain_data?.data || rData.data || [];
+          const filteredRain = rStations.filter((s:any) => s.station?.lat > 16.0 && s.station?.lat < 20.5 && s.station?.long > 97.0 && s.station?.long < 101.0);
+          
+          filteredRain.forEach((s: any) => {
+            merged.push({
+              id: s.station?.id, name: s.station?.tele_station_name?.th || 'สถานีวัดฝน', 
+              prov: s.station?.geocode?.province_name?.th || '', amp: s.station?.geocode?.amphoe_name?.th || '', tum: s.station?.geocode?.tumbon_name?.th || '',
+              lat: s.station?.lat, lng: s.station?.long, type: 'rain', val: s.rain_24h || 0, risk: getRisk(s.rain_24h || 0, 'rain'), time: s.rain_datetime
             });
-            setApiStatus(prev => ({ ...prev, rain: 'เชื่อมต่อสำเร็จ 🟢' }));
-          }
+          });
+          setApiStatus(prev => ({ ...prev, rain: 'เชื่อมต่อสำเร็จ 🟢' }));
         } catch (e) { setApiStatus(prev => ({ ...prev, rain: 'การเชื่อมต่อขัดข้อง 🔴' })); }
 
         setStations(merged);
@@ -133,64 +129,38 @@ export default function FloodDashboard() {
     fetchONWR();
   }, []);
 
-  // 🎛️ ระบบกรองข้อมูล (Filter Engine)
+  // 🎛️ ระบบกรองข้อมูล (Filter)
   useEffect(() => {
     let result = stations;
-
-    // กรองคำค้นหา
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(s => 
-        (s.name && s.name.toLowerCase().includes(q)) || 
-        (s.tum && s.tum.toLowerCase().includes(q)) ||
-        (s.amp && s.amp.toLowerCase().includes(q)) ||
-        (s.prov && s.prov.toLowerCase().includes(q))
-      );
+      result = result.filter(s => (s.name && s.name.toLowerCase().includes(q)) || (s.tum && s.tum.toLowerCase().includes(q)) || (s.amp && s.amp.toLowerCase().includes(q)) || (s.prov && s.prov.toLowerCase().includes(q)));
     }
+    if (filterProv !== 'ทุกจังหวัด') result = result.filter(s => s.prov === filterProv);
+    if (filterAmp !== 'ทุกอำเภอ') result = result.filter(s => s.amp === filterAmp);
+    if (filterRisk !== 'ทุกระดับความเสี่ยง') result = result.filter(s => s.risk.label === filterRisk);
 
-    // กรองจังหวัด
-    if (filterProv !== 'ทุกจังหวัด') {
-      result = result.filter(s => s.prov === filterProv);
-    }
-
-    // กรองอำเภอ
-    if (filterAmp !== 'ทุกอำเภอ') {
-      result = result.filter(s => s.amp === filterAmp);
-    }
-
-    // กรองความเสี่ยง
-    if (filterRisk !== 'ทุกระดับความเสี่ยง') {
-      result = result.filter(s => s.risk.label === filterRisk);
-    }
-
-    // กรองรัศมี
     if (useRadius && radiusKm > 0) {
       result = result.filter(s => {
         const dist = calculateDistance(position.lat, position.lng, s.lat, s.lng);
-        s.distance = dist; // เก็บค่าระยะทางไว้แสดงใน Popup
+        s.distance = dist;
         return dist <= radiusKm;
       });
     } else {
-      // คำนวณระยะทางเก็บไว้เฉยๆ แม้ไม่ได้เปิดโหมดรัศมี
       result = result.map(s => ({...s, distance: calculateDistance(position.lat, position.lng, s.lat, s.lng)}));
     }
-
     setFilteredStations(result);
   }, [searchQuery, filterProv, filterAmp, filterRisk, useRadius, radiusKm, position, stations]);
 
-  // 📍 สร้างไอคอนตำแหน่งของฉัน (หมุดแดงสไตล์ Google)
   const createMyPinIcon = useMemo(() => {
     if (!L) return () => null;
     return () => L.divIcon({ 
       className: 'bg-transparent border-none', 
-      html: `<div class="relative flex items-center justify-center w-8 h-8">
-               <svg class="relative z-10 w-8 h-8 text-red-600 drop-shadow-md" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-             </div>`, 
+      html: `<div class="relative flex items-center justify-center w-8 h-8"><svg class="relative z-10 w-8 h-8 text-red-600 drop-shadow-md" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></div>`, 
       iconSize: [32, 32], iconAnchor: [16, 32] 
     });
   }, [L]);
 
-  // 🛠️ Action Handlers
   const handleSetChiangMai = () => { setFilterProv('เชียงใหม่'); setFilterAmp('ทุกอำเภอ'); setUseRadius(false); };
   const handleSetHod = () => { setFilterProv('เชียงใหม่'); setFilterAmp('ฮอด'); setUseRadius(false); };
   const handleSetRadius = () => { setUseRadius(true); setRadiusKm(50); };
@@ -203,14 +173,13 @@ export default function FloodDashboard() {
     setTimeout(() => { setPosition({ lat: INITIAL_LAT, lng: INITIAL_LNG }); if (mapRef.current) mapRef.current.flyTo([INITIAL_LAT, INITIAL_LNG], 12); Swal.close(); }, 800);
   };
 
-  // ดึงรายชื่อจังหวัด/อำเภอแบบ Unique สำหรับทำ Dropdown
   const uniqueProvs = Array.from(new Set(stations.map(s => s.prov).filter(Boolean))).sort();
   const uniqueAmps = Array.from(new Set(stations.filter(s => filterProv === 'ทุกจังหวัด' || s.prov === filterProv).map(s => s.amp).filter(Boolean))).sort();
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] font-sans selection:bg-[#0ea5e9] selection:text-white pb-10">
       
-      {/* 🚀 Header (ตามรูป image_229cd9.png) */}
+      {/* 🚀 Header */}
       <header className="bg-[#0f172a] px-4 md:px-6 py-3 flex justify-between items-center sticky top-0 z-50 shadow-md">
         <div className="flex items-center space-x-3">
           <Link href="/" className="w-10 h-10 bg-[#3b82f6] hover:bg-[#2563eb] rounded-xl flex items-center justify-center shadow-lg transition-colors cursor-pointer flex-shrink-0">
@@ -227,10 +196,8 @@ export default function FloodDashboard() {
 
       <main className="p-4 md:p-6 max-w-[1500px] mx-auto space-y-6">
 
-        {/* 🗺️ การ์ด 1: แผนที่สถานการณ์น้ำ (ดีไซน์สว่าง ตามรูป image_215980.jpg) */}
+        {/* 🗺️ แผนที่สถานการณ์น้ำ */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden text-gray-800 font-sans">
-          
-          {/* หัวการ์ด */}
           <div className="px-5 py-3 border-b border-gray-200 flex justify-between items-center bg-white">
              <div>
                <h3 className="text-[#0f4a8a] text-lg font-extrabold flex items-center"><span className="mr-2">🌊</span> แผนที่สถานการณ์น้ำ</h3>
@@ -241,14 +208,12 @@ export default function FloodDashboard() {
              </button>
           </div>
 
-          {/* แผงค้นหา (Filter UI เป๊ะตามรูป 2) */}
+          {/* Filter UI */}
           <div className="p-5 border-b border-gray-200 bg-gray-50/50 text-[13px]">
-             
-             {/* Row 1: Dropdowns */}
              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
                 <div className="md:col-span-1 relative">
                   <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
-                  <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="ค้นหาสถานี / รหัสสถานี / จังหวัด / อำเภอ / ตำบล / หน่วยงาน" className="border border-gray-300 rounded-md pl-9 pr-3 py-2 w-full focus:outline-none focus:border-[#0f4a8a] focus:ring-1 focus:ring-[#0f4a8a]" />
+                  <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="ค้นหาสถานี / หน่วยงาน / พื้นที่" className="border border-gray-300 rounded-md pl-9 pr-3 py-2 w-full focus:outline-none focus:border-[#0f4a8a] focus:ring-1 focus:ring-[#0f4a8a]" />
                 </div>
                 <select value={filterProv} onChange={(e) => {setFilterProv(e.target.value); setFilterAmp('ทุกอำเภอ');}} className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none text-gray-700 font-medium">
                   <option value="ทุกจังหวัด">ทุกจังหวัด</option>
@@ -267,13 +232,11 @@ export default function FloodDashboard() {
                 </select>
              </div>
              
-             {/* Row 2: Radius Checkbox */}
              <div className="flex items-center space-x-2 mb-4">
                 <input type="checkbox" id="radius" checked={useRadius} onChange={(e) => setUseRadius(e.target.checked)} className="rounded border-gray-300 w-4 h-4 text-[#0f4a8a] focus:ring-[#0f4a8a] cursor-pointer" /> 
                 <label htmlFor="radius" className="text-gray-700 font-bold cursor-pointer select-none">ค้นหาในรัศมีจากตำแหน่งของฉัน</label>
              </div>
 
-             {/* Row 3: Radius Input & Quick Buttons */}
              <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-t border-gray-200 pt-4">
                 <div className="flex items-center space-x-2 w-full md:w-auto text-gray-700 font-medium mb-4 md:mb-0">
                    <input type="number" value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))} disabled={!useRadius} className="border border-gray-300 rounded-md px-2 py-1.5 w-16 focus:outline-none text-center disabled:bg-gray-100" /> 
@@ -289,13 +252,11 @@ export default function FloodDashboard() {
                 </div>
              </div>
 
-             {/* Found Count */}
              <div className="mt-4 text-[13px] text-gray-600">
                พบข้อมูล <span className="font-extrabold text-[#0f4a8a]">{filteredStations.length.toLocaleString()}</span> รายการ
              </div>
           </div>
 
-          {/* แผนที่ (Map Area) */}
           <div className="h-[500px] md:h-[650px] w-full relative z-0 bg-[#e5e7eb]">
             <MapContainer center={[18.1633, 98.3744]} zoom={11} maxZoom={20} zoomControl={true} attributionControl={false} className="w-full h-full" ref={mapRef}>
               <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={20} />
@@ -306,13 +267,10 @@ export default function FloodDashboard() {
                 <CircleMarker 
                   key={idx} center={[st.lat, st.lng]} radius={7} 
                   pathOptions={{ 
-                    color: st.risk.color, 
-                    fillColor: st.type === 'water' ? st.risk.color : '#ffffff',
-                    fillOpacity: st.type === 'water' ? 0.9 : 0.4, 
-                    weight: st.type === 'water' ? 1 : 3 
+                    color: st.risk.color, fillColor: st.type === 'water' ? st.risk.color : '#ffffff',
+                    fillOpacity: st.type === 'water' ? 0.9 : 0.4, weight: st.type === 'water' ? 1 : 3 
                   }}
                 >
-                  {/* Pro Popup (ดีไซน์สไตล์มืออาชีพ ตามรูป 3 image_2155e2.jpg เป๊ะ) */}
                   <Popup className="custom-pro-popup" closeButton={true}>
                     <div className="w-[190px] p-1 font-sans text-gray-800">
                       <div className="font-bold text-[13px] leading-tight mb-1 text-gray-900 border-b pb-1 border-gray-200">{st.name}</div>
@@ -324,11 +282,7 @@ export default function FloodDashboard() {
                         <div>{st.time ? new Date(st.time).toLocaleString('en-GB') : '--/--/---- --:--:--'}</div>
                         <div>พิกัด: {st.lat.toFixed(6)}, {st.lng.toFixed(6)}</div>
                       </div>
-                      <a 
-                        href={`https://www.google.com/maps/dir/?api=1&destination=${st.lat},${st.lng}`} 
-                        target="_blank" rel="noopener noreferrer" 
-                        className="mt-2.5 w-full bg-[#1d4ed8] hover:bg-[#1e3a8a] text-white flex items-center justify-center space-x-1.5 py-1.5 rounded-md text-[11px] font-bold shadow-md transition-colors"
-                      >
+                      <a href={`https://www.google.com/maps/dir/?api=1&destination=${st.lat},${st.lng}`} target="_blank" rel="noopener noreferrer" className="mt-2.5 w-full bg-[#1d4ed8] hover:bg-[#1e3a8a] text-white flex items-center justify-center space-x-1.5 py-1.5 rounded-md text-[11px] font-bold shadow-md transition-colors">
                         <span className="text-sm">🧭</span> <span>นำทางด้วย Google Maps</span>
                       </a>
                     </div>
@@ -338,7 +292,6 @@ export default function FloodDashboard() {
             </MapContainer>
           </div>
 
-          {/* สัญลักษณ์ (Legend) */}
           <div className="bg-white px-5 py-3 border-t border-gray-200 flex flex-wrap items-center gap-4 md:gap-5 text-[11px] md:text-xs font-bold text-gray-600">
             <span className="text-gray-800 font-extrabold">สัญลักษณ์:</span>
             <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-[#10b981] mr-1.5 shadow-sm"></span> ปกติ</span>
@@ -346,63 +299,45 @@ export default function FloodDashboard() {
             <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-[#f97316] mr-1.5 shadow-sm"></span> เสี่ยงสูง</span>
             <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-[#ef4444] mr-1.5 shadow-sm"></span> วิกฤต</span>
             <span className="text-gray-300 hidden md:inline">|</span>
-            <span className="flex items-center"><span className="w-3.5 h-3.5 rounded-full bg-gray-500 mr-1.5"></span> วงกลมทึบ = สถานีวัดระดับน้ำ</span>
-            <span className="flex items-center"><span className="w-3.5 h-3.5 rounded-full border-[2.5px] border-gray-500 mr-1.5 bg-transparent"></span> วงกลมขอบสี = สถานีวัดปริมาณฝน</span>
-            <span className="flex items-center text-red-600 text-sm ml-auto md:ml-0"><span className="mr-1">📍</span> <span className="text-gray-700 text-[11px]">ตำแหน่งของฉัน</span></span>
+            <span className="flex items-center"><span className="w-3.5 h-3.5 rounded-full bg-gray-500 mr-1.5"></span> วงกลมทึบ = วัดระดับน้ำ</span>
+            <span className="flex items-center"><span className="w-3.5 h-3.5 rounded-full border-[2.5px] border-gray-500 mr-1.5 bg-transparent"></span> วงกลมขอบสี = วัดปริมาณฝน</span>
           </div>
         </div>
 
-        {/* 📋 การ์ด 2: แหล่งข้อมูล และ สถานะการเชื่อมต่อ (ตามรูป image_215d06.png) */}
+        {/* 📋 แหล่งข้อมูล */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden text-gray-800">
-          
           <div className="px-5 py-4 border-b border-gray-200 bg-white">
             <h3 className="text-[#0f4a8a] font-extrabold text-[15px] md:text-lg flex items-center">
               <span className="text-xl mr-2">📡</span> แหล่งข้อมูล
             </h3>
-            <p className="text-[11px] md:text-xs text-gray-500 mt-1">
-              ดึงข้อมูลล่าสุด {currentTime ? currentTime.toLocaleTimeString('th-TH') : '--:--:--'} - รีเฟรชอัตโนมัติทุก 5 นาที
-            </p>
+            <p className="text-[11px] md:text-xs text-gray-500 mt-1">ดึงข้อมูลล่าสุด {currentTime ? currentTime.toLocaleTimeString('th-TH') : '--:--:--'} - รีเฟรชอัตโนมัติทุก 5 นาที</p>
           </div>
-
-          <div className="p-0">
-            <div className="bg-[#f8fafc] px-5 py-3 border-b border-gray-200">
-              <h4 className="font-extrabold text-[#0f4a8a] text-[13px] md:text-[14px]">สถานะการเชื่อมต่อ</h4>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs md:text-sm text-left font-sans">
-                <thead className="text-[11px] md:text-[12px] text-gray-500 bg-[#f1f5f9] border-b border-gray-200">
-                  <tr>
-                    <th className="px-5 py-3 font-extrabold whitespace-nowrap w-1/3">ชุดข้อมูล</th>
-                    <th className="px-5 py-3 font-extrabold w-1/4">สถานะ</th>
-                    <th className="px-5 py-3 font-extrabold">ที่มา</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 bg-white">
-                  <tr className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3.5 font-semibold text-gray-800">National ThaiWater (ONWR) — ระดับน้ำ</td>
-                    <td className="px-5 py-3.5 font-bold text-[#10b981] flex items-center"><span className="w-2.5 h-2.5 rounded-full bg-[#10b981] mr-2"></span> {apiStatus.water}</td>
-                    <td className="px-5 py-3.5 text-gray-400 font-mono text-[10px] md:text-[11px] truncate max-w-[200px] md:max-w-none">https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load</td>
-                  </tr>
-                  <tr className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3.5 font-semibold text-gray-800">National ThaiWater (ONWR) — ปริมาณฝน 24 ชม.</td>
-                    <td className="px-5 py-3.5 font-bold text-[#10b981] flex items-center"><span className="w-2.5 h-2.5 rounded-full bg-[#10b981] mr-2"></span> {apiStatus.rain}</td>
-                    <td className="px-5 py-3.5 text-gray-400 font-mono text-[10px] md:text-[11px] truncate max-w-[200px] md:max-w-none">https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h</td>
-                  </tr>
-                  <tr className="hover:bg-gray-50 transition-colors bg-blue-50/30">
-                    <td className="px-5 py-3.5 font-semibold text-gray-800">FloodDash</td>
-                    <td className="px-5 py-3.5 font-bold text-[#10b981] flex items-center"><span className="w-2.5 h-2.5 rounded-full bg-[#10b981] mr-2"></span> เชื่อมต่อสำเร็จ</td>
-                    <td className="px-5 py-3.5 text-gray-400 font-mono text-[10px] md:text-[11px]">https://flood.nonarkara.org</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <div className="bg-[#f8fafc] px-5 py-3 border-b border-gray-200">
+            <h4 className="font-extrabold text-[#0f4a8a] text-[13px] md:text-[14px]">สถานะการเชื่อมต่อ</h4>
           </div>
-
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs md:text-sm text-left font-sans">
+              <thead className="text-[11px] md:text-[12px] text-gray-500 bg-[#f1f5f9] border-b border-gray-200">
+                <tr><th className="px-5 py-3 w-1/3">ชุดข้อมูล</th><th className="px-5 py-3 w-1/4">สถานะ</th><th className="px-5 py-3">ที่มา</th></tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                <tr className="hover:bg-gray-50 transition-colors">
+                  <td className="px-5 py-3.5 font-semibold text-gray-800">National ThaiWater (ONWR) — ระดับน้ำ</td>
+                  <td className="px-5 py-3.5 font-bold flex items-center"><span className={`w-2.5 h-2.5 rounded-full mr-2 ${apiStatus.water.includes('สำเร็จ') ? 'bg-[#10b981]' : 'bg-red-500'}`}></span> <span className={apiStatus.water.includes('สำเร็จ') ? 'text-[#10b981]' : 'text-red-500'}>{apiStatus.water}</span></td>
+                  <td className="px-5 py-3.5 text-gray-400 font-mono text-[10px] md:text-[11px] truncate max-w-[200px] md:max-w-none">https://api-v3.thaiwater.net/.../waterlevel_load</td>
+                </tr>
+                <tr className="hover:bg-gray-50 transition-colors">
+                  <td className="px-5 py-3.5 font-semibold text-gray-800">National ThaiWater (ONWR) — ปริมาณฝน 24 ชม.</td>
+                  <td className="px-5 py-3.5 font-bold flex items-center"><span className={`w-2.5 h-2.5 rounded-full mr-2 ${apiStatus.rain.includes('สำเร็จ') ? 'bg-[#10b981]' : 'bg-red-500'}`}></span> <span className={apiStatus.rain.includes('สำเร็จ') ? 'text-[#10b981]' : 'text-red-500'}>{apiStatus.rain}</span></td>
+                  <td className="px-5 py-3.5 text-gray-400 font-mono text-[10px] md:text-[11px] truncate max-w-[200px] md:max-w-none">https://api-v3.thaiwater.net/.../rain_24h</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
       </main>
       
-      {/* 💅 CSS Injection สำหรับปรับแต่ง Popup Leaflet ให้ไม่มีขอบขาวรกๆ แบบในรูป 3 */}
       <style dangerouslySetInnerHTML={{__html: `
         .leaflet-popup-content-wrapper { padding: 0 !important; border-radius: 8px !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important; }
         .leaflet-popup-content { margin: 12px !important; line-height: 1.4 !important; }
