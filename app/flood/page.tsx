@@ -34,8 +34,11 @@ export default function FloodDashboard() {
   const [windyZoom, setWindyZoom] = useState(7);
   const [position, setPosition] = useState({ lat: INITIAL_LAT, lng: INITIAL_LNG });
   const [currentTime, setCurrentTime] = useState<Date | null>(null); 
+  
+  // States สำหรับเก็บข้อมูล API จริง
   const [stations, setStations] = useState<any[]>([]);
   const [summary, setSummary] = useState({ waterCount: 0, maxRain: 0, warningCount: 0, criticalCount: 0 });
+  const [rainForecast, setRainForecast] = useState<any[]>([]);
 
   const mapRef = useRef<any>(null);
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
@@ -47,7 +50,7 @@ export default function FloodDashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  // 📡 ดึงข้อมูล API สทนช. (ONWR) ของจริง 100%
+  // 📡 1. ดึงข้อมูล API สทนช. (ONWR) ของจริง 100% (ขยายรัศมีครอบคลุม อ.ฮอด / แม่แจ่ม)
   useEffect(() => {
     const fetchONWR = async () => {
       try {
@@ -68,13 +71,13 @@ export default function FloodDashboard() {
           }
         };
 
-        // 1. ดึงระดับน้ำ
+        // ดึงระดับน้ำ (ขยาย Lat 17.0 - 19.5, Lng 97.0 - 99.5 เพื่อกวาดสถานีรอบๆ)
         try {
           const wRes = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load');
           if (wRes.ok) {
             const wData = await wRes.json();
             const wStations = wData.waterlevel_data?.data || wData.data || [];
-            const filteredWater = wStations.filter((s:any) => s.station?.lat > 17.5 && s.station?.lat < 19 && s.station?.long > 97.5 && s.station?.long < 99);
+            const filteredWater = wStations.filter((s:any) => s.station?.lat > 17.0 && s.station?.lat < 19.5 && s.station?.long > 97.0 && s.station?.long < 99.5);
             
             filteredWater.forEach((s: any) => {
               const val = s.water_level || 0;
@@ -91,15 +94,15 @@ export default function FloodDashboard() {
               });
             });
           }
-        } catch (e) { console.error('Water API Failed', e); }
+        } catch (e) { console.error('Water API Blocked by CORS or failed', e); }
 
-        // 2. ดึงฝน 24 ชม.
+        // ดึงฝน 24 ชม.
         try {
           const rRes = await fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h');
           if (rRes.ok) {
             const rData = await rRes.json();
             const rStations = rData.rain_data?.data || rData.data || [];
-            const filteredRain = rStations.filter((s:any) => s.station?.lat > 17.5 && s.station?.lat < 19 && s.station?.long > 97.5 && s.station?.long < 99);
+            const filteredRain = rStations.filter((s:any) => s.station?.lat > 17.0 && s.station?.lat < 19.5 && s.station?.long > 97.0 && s.station?.long < 99.5);
             
             filteredRain.forEach((s: any) => {
               const val = s.rain_24h || 0;
@@ -116,13 +119,42 @@ export default function FloodDashboard() {
               });
             });
           }
-        } catch (e) { console.error('Rain API Failed', e); }
+        } catch (e) { console.error('Rain API Blocked by CORS or failed', e); }
 
         setStations(merged);
         setSummary(tempSummary);
       } catch (error) { console.error(error); }
     };
     fetchONWR();
+  }, []);
+
+  // 📡 2. ดึงข้อมูล API พยากรณ์ฝนล่วงหน้า 7 วัน (Open-Meteo ของจริง ตรงพิกัดบ่อหลวง)
+  useEffect(() => {
+    const fetchForecast = async () => {
+      try {
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${INITIAL_LAT}&longitude=${INITIAL_LNG}&daily=precipitation_sum&timezone=Asia%2FBangkok`);
+        if (res.ok) {
+          const data = await res.json();
+          const dailyDates = data.daily.time;
+          const dailyRain = data.daily.precipitation_sum;
+          
+          const formattedForecast = dailyDates.map((date: string, index: number) => {
+            // แปลงวันที่ YYYY-MM-DD เป็น วัน/เดือน เพื่อแสดงบนกราฟ
+            const d = new Date(date);
+            const dateStr = `${d.getDate()}/${d.getMonth() + 1}`;
+            return {
+              day: dateStr,
+              rain: dailyRain[index] || 0
+            };
+          });
+          
+          setRainForecast(formattedForecast);
+        }
+      } catch (error) {
+        console.error("Open-Meteo API Failed", error);
+      }
+    };
+    fetchForecast();
   }, []);
 
   const createMyPinIcon = useMemo(() => {
@@ -167,14 +199,14 @@ export default function FloodDashboard() {
 
       <main className="p-4 md:p-6 max-w-[1400px] mx-auto mt-2 space-y-6">
 
-        {/* 🚨 ป้ายแจ้งเตือน (ซิงก์กับ API วิกฤต) */}
+        {/* 🚨 ป้ายแจ้งเตือน */}
         {summary.criticalCount > 0 && (
           <div className="bg-[#9f1239] rounded-2xl p-4 md:p-5 shadow-lg border border-red-500/30 flex items-start space-x-4 animate-pulse-slow">
             <div className="mt-1 w-6 h-6 rounded-full border-2 border-white flex-shrink-0 animate-ping"></div>
             <div>
               <h3 className="text-white font-extrabold text-lg tracking-wide">แจ้งเตือนสถานการณ์น้ำป่าและดินถล่ม</h3>
               <p className="text-white/90 text-sm md:text-base font-medium mt-1">
-                ตรวจพบจุดเสี่ยงระดับวิกฤตจำนวน {summary.criticalCount} จุด ในรัศมี โปรดระมัดระวังในการเดินทาง
+                ตรวจพบจุดเสี่ยงระดับวิกฤตจำนวน {summary.criticalCount} จุด ในพื้นที่ โปรดระมัดระวังในการเดินทาง
               </p>
             </div>
           </div>
@@ -199,12 +231,10 @@ export default function FloodDashboard() {
                 <select className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none"><option>ทุกจังหวัด</option></select>
                 <select className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none"><option>ทุกระดับความเสี่ยง</option></select>
              </div>
-             
              <div className="flex items-center space-x-2 mb-3">
                 <input type="checkbox" id="radius" className="rounded border-gray-300 text-[#0f4a8a] focus:ring-[#0f4a8a]" /> 
                 <label htmlFor="radius" className="text-gray-600 font-medium cursor-pointer">ค้นหาในรัศมีจากตำแหน่งของฉัน</label>
              </div>
-
              <div className="flex flex-col md:flex-row items-center justify-between">
                 <div className="flex items-center space-x-2 w-full md:w-auto text-gray-600">
                    <input type="number" defaultValue={50} className="border border-gray-300 rounded-md px-2 py-1.5 w-16 focus:outline-none text-center" /> <span>กม.</span>
@@ -220,11 +250,9 @@ export default function FloodDashboard() {
           </div>
 
           <div className="h-[400px] md:h-[500px] w-full relative z-0 bg-[#e5e7eb]">
-            <MapContainer center={[18.1633, 98.3744]} zoom={11} maxZoom={20} zoomControl={true} attributionControl={false} className="w-full h-full" ref={mapRef}>
+            <MapContainer center={[18.1633, 98.3744]} zoom={10} maxZoom={20} zoomControl={true} attributionControl={false} className="w-full h-full" ref={mapRef}>
               <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={20} />
-              
               <Marker position={[position.lat, position.lng]} icon={createMyPinIcon()} />
-
               {stations.map((st, idx) => (
                 <CircleMarker 
                   key={idx} center={[st.lat, st.lng]} radius={8} 
@@ -242,7 +270,7 @@ export default function FloodDashboard() {
                         <div>{st.area}</div>
                         <div>{st.type === 'water' ? `ระดับน้ำ: ${st.val.toFixed(2)} ม.` : `ฝน 24 ชม.: ${st.val.toFixed(1)} มม.`}</div>
                         <div>ความเสี่ยง: <span style={{color: st.risk.color}} className="font-bold">{st.risk.label}</span></div>
-                        <div>{new Date(st.time).toLocaleString('th-TH')}</div>
+                        <div className="text-gray-400 mt-1">พิกัด: {st.lat.toFixed(6)}, {st.lng.toFixed(6)}</div>
                       </div>
                     </div>
                   </Popup>
@@ -263,7 +291,7 @@ export default function FloodDashboard() {
           </div>
         </div>
 
-        {/* 🍱 Bento Box Grid Layout (ข้อมูลจาก API จริงทั้งหมด) */}
+        {/* 🍱 Bento Box Grid Layout */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 pt-2">
           {/* กล่อง 1: จำนวนสถานีวัดระดับน้ำ */}
           <div className="col-span-1 md:col-span-1 bg-gradient-to-br from-[#0f172a] to-[#1e293b] p-6 rounded-3xl border border-[#334155] shadow-lg relative overflow-hidden flex flex-col justify-center items-center text-center group hover:border-[#38bdf8]/50 transition-colors">
@@ -314,13 +342,36 @@ export default function FloodDashboard() {
             </div>
           </div>
 
-          {/* 📈 กราฟ (ยังไม่มี API พยากรณ์) */}
+          {/* 📈 กราฟ 1 (ยังไม่มี API พยากรณ์ระดับน้ำ) */}
           <div className="col-span-1 md:col-span-2 bg-[#0f172a] p-5 md:p-6 rounded-3xl border border-[#334155] shadow-lg h-[350px] flex flex-col items-center justify-center text-gray-500 text-sm">
-             <span>📈 รอเชื่อมต่อ API พยากรณ์แนวโน้มระดับน้ำ</span>
+             <span className="text-2xl mb-2">📈</span>
+             <span>รอเชื่อมต่อ API พยากรณ์แนวโน้มระดับน้ำ</span>
           </div>
 
-          <div className="col-span-1 md:col-span-2 bg-[#0f172a] p-5 md:p-6 rounded-3xl border border-[#334155] shadow-lg h-[350px] flex flex-col items-center justify-center text-gray-500 text-sm">
-             <span>🌧️ รอเชื่อมต่อ API พยากรณ์ปริมาณฝน</span>
+          {/* 🌧️ กราฟ 2: พยากรณ์ปริมาณฝน 7 วัน (ข้อมูลจริงจาก Open-Meteo) */}
+          <div className="col-span-1 md:col-span-2 bg-[#0f172a] p-5 md:p-6 rounded-3xl border border-[#334155] shadow-lg h-[350px] flex flex-col">
+            <div className="flex items-center mb-4">
+              <span className="text-lg mr-2">🌧️</span>
+              <h3 className="text-white text-sm md:text-base font-bold">พยากรณ์ปริมาณฝน 7 วัน (บ่อหลวง)</h3>
+            </div>
+            <div className="flex-1 w-full h-full">
+              {rainForecast.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={rainForecast} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                    <XAxis dataKey="day" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                    <RechartsTooltip cursor={{ fill: '#1e293b', opacity: 0.5 }} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#0ea5e9', borderRadius: '12px', color: '#fff' }} />
+                    <Bar name="ฝนสะสม (มม.)" dataKey="rain" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 text-sm">
+                  <div className="w-6 h-6 border-2 border-gray-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                  กำลังโหลดข้อมูลพยากรณ์...
+                </div>
+              )}
+            </div>
           </div>
 
           {/* 🗺️ แผนที่อากาศ Windy */}
@@ -362,15 +413,7 @@ export default function FloodDashboard() {
                 src={`https://embed.windy.com/embed2.html?lat=${position.lat}&lon=${position.lng}&detailLat=${position.lat}&detailLon=${position.lng}&zoom=${windyZoom}&level=surface&overlay=${windyLayer}&product=ecmwf&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1`}
               ></iframe>
             </div>
-
-            <div className="flex flex-col md:flex-row items-center justify-between px-4 py-2.5 bg-transparent space-y-2 md:space-y-0">
-               <div className="text-[10px] md:text-xs text-gray-500 font-bold flex items-center text-center md:text-left">
-                 <span className="mr-1.5 text-orange-500 text-sm">💡</span> เลื่อนแถบเวลาด้านล่างแผนที่เพื่อดูพยากรณ์ล่วงหน้า
-               </div>
-               <a href={`https://www.windy.com/?${position.lat},${position.lng},${windyZoom}`} target="_blank" rel="noopener noreferrer" className="text-[10px] md:text-xs text-[#0ea5e9] hover:text-[#0284c7] font-bold flex items-center bg-[#e0f2fe]/60 px-3 py-1.5 rounded-lg transition-colors border border-[#bae6fd]">
-                 เปิดหน้าจอเต็มใน Windy.com ↗
-               </a>
-            </div>
+            
           </div>
 
         </div>
