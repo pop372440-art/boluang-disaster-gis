@@ -995,7 +995,7 @@ export default function BoLuangDashboard() {
                       <span>🛡️</span> <span>จุดปลอดภัย/ศูนย์พักพิง</span>
                     </div>
                     <div className="text-white text-[13px] font-semibold">{sz.name}</div>
-                    <div className="text-gray-400 text-[10px] mt-2 border-t border-[#1e293b] pt-2">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</div>
+                    <div className="text-gray-400 text-[10px] mt-2 border-t border-[#1e293b] pt-2">เทศบาลตำบลบ่อหลวง</div>
                   </div>
                 </Popup>
               </Marker>
@@ -1404,7 +1404,7 @@ export default function BoLuangDashboard() {
 
             <div className="flex flex-col border-l-2 border-[#1e293b] pl-3 md:pl-4">
               <h1 className="text-[12px] md:text-[14px] font-bold tracking-wide text-white leading-tight">ระบบสารสนเทศทางภูมิศาสตร์เพื่อบริหารจัดการสาธารณภัย</h1>
-              <h2 className="text-[11px] md:text-[13px] font-bold tracking-wide text-[#38bdf8] leading-tight mt-0.5">เทศบาลตำบลบ่อหลวง</h2>
+              <h2 className="text-[11px] md:text-[13px] font-bold tracking-wide text-[#38bdf8] leading-tight mt-0.5">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</h2>
             </div>
           </div>
 
