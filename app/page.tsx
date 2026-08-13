@@ -37,7 +37,7 @@ const safeZonesData = [
   { id: 14, name: 'โรงเรียนบ้านแม่ลาย (จุดพักพิงชั่วคราว)', lat: 18.04770, lng: 98.36286, type: 'school' },
   { id: 15, name: 'โรงเรียนบ้านแม่ลายเหนือ (จุดพักพิงชั่วคราว)', lat: 18.06555, lng: 98.33780, type: 'school' },
   { id: 16, name: 'โรงเรียนบ้านเตียนอาง (จุดพักพิงชั่วคราว)', lat: 18.03097, lng: 98.40366, type: 'school' },
-  { id: 10, name: 'คริสจักรเจริญธรรมห้วยบง (จุดอพยพรวมพล)', lat: 18.01215, lng: 98.43016, type: 'church' },
+  { id: 17, name: 'คริสจักรเจริญธรรมห้วยบง (จุดอพยพรวมพล)', lat: 18.01215, lng: 98.43016, type: 'church' },
 ];
 
 // ==========================================
@@ -163,6 +163,30 @@ const localAirStations = [
   { name: 'ศูนย์ราชการฯ เชียงใหม่', lat: 18.7883, lng: 98.9853, type: 'province' }
 ];
 
+const staticWeather = {
+  temperature_2m: 26.5,
+  wind_speed_10m: 12.5,
+  relative_humidity_2m: 65,
+  weather_code: 2, 
+  rain_today: 0,
+  uv_max: 7
+};
+
+const staticAqi = {
+  us_aqi: 23,
+  pm2_5: 12.5
+};
+
+const staticForecast = [
+  { day: 'วันนี้', maxTemp: 28, minTemp: 18, rain: 0 },
+  { day: 'พ.', maxTemp: 29, minTemp: 19, rain: 0 },
+  { day: 'พฤ.', maxTemp: 30, minTemp: 19, rain: 5.2 },
+  { day: 'ศ.', maxTemp: 27, minTemp: 18, rain: 12.5 },
+  { day: 'ส.', maxTemp: 26, minTemp: 17, rain: 8.0 },
+  { day: 'อา.', maxTemp: 28, minTemp: 18, rain: 2.0 },
+  { day: 'จ.', maxTemp: 29, minTemp: 18, rain: 0 }
+];
+
 // ==========================================
 // 🚀 5. MAIN COMPONENT 
 // ==========================================
@@ -192,7 +216,7 @@ export default function BoLuangDashboard() {
   // State: Sidebar ด้านขวา
   // ----------------------------------------
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
-  const [showBoluang, setShowBoluang] = useState(false);   
+  const [showBoluang, setShowBoluang] = useState(true); // เปิดเขตตำบลไว้เป็นค่าเริ่มต้นให้เห็นชัด
   const [showBlock, setShowBlock] = useState(false);        
   const [showParcel, setShowParcel] = useState(false);      
   const [citizenReport, setCitizenReport] = useState(false); 
@@ -232,6 +256,9 @@ export default function BoLuangDashboard() {
 
   const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, showSafeZone].filter(Boolean).length;
 
+  const [locationName, setLocationName] = useState('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
+  const [currentTime, setCurrentTime] = useState<Date | null>(null); 
+
   // ==========================================
   // 🎯 Action Functions
   // ==========================================
@@ -251,6 +278,19 @@ export default function BoLuangDashboard() {
         image: 'rounded-lg max-h-[80vh] object-contain'
       }
     });
+  };
+
+  const fetchLocationName = async (lat: number, lng: number) => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&accept-language=th`);
+      const data = await res.json();
+      if (data && data.display_name) {
+        const parts = data.display_name.split(',').slice(0, 3).reverse().map((s: string) => s.trim()).join(' • ');
+        setLocationName(parts || data.display_name);
+      }
+    } catch (error) {
+      console.error('Reverse geocoding failed', error);
+    }
   };
 
   const handleLocateMe = () => {
@@ -350,18 +390,36 @@ export default function BoLuangDashboard() {
     }
   };
 
+  const handleResetToCenter = () => {
+    if (mapRef) {
+      mapRef.flyTo([INITIAL_LAT, INITIAL_LNG], 14, { duration: 1.5 });
+    }
+  };
+
+  const markerRef = useRef<any>(null);
+  const handleMarkerDragEnd = () => {
+    const marker = markerRef.current;
+    if (marker != null) {
+      const latlng = marker.getLatLng();
+      fetchLocationName(latlng.lat, latlng.lng);
+    }
+  };
+
   // ==========================================
-  // ⚙️ UseEffects สำหรับดึงข้อมูล
+  // ⚙️ UseEffects สำหรับดึงข้อมูล & Responsive
   // ==========================================
   
+  // 🚀 Logic ควบคุมการเปิดปิดเมนูสำหรับ "Wow Effect" บนหน้าจอมือถือ/แท็บเล็ต
   useEffect(() => {
     const handleResize = () => {
-      const mobile = window.innerWidth < 768; 
+      const mobile = window.innerWidth < 1024; // ใช้ lg breakpoint (1024px) 
       setIsMobile(mobile);
       if (mobile) { 
+        // 📱 มือถือหรือแท็บเล็ต: ปิดเมนูซ้าย เปิดเมนูขวา (Layers) ให้เห็นลูกเล่นทันที
         setIsLeftPanelOpen(false); 
-        setIsRightPanelOpen(false); 
+        setIsRightPanelOpen(true); 
       } else { 
+        // 💻 เดสก์ท็อป: เปิดทั้ง 2 ฝั่ง
         setIsLeftPanelOpen(true); 
         setIsRightPanelOpen(true); 
       }
@@ -369,6 +427,12 @@ export default function BoLuangDashboard() {
     handleResize(); 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    setCurrentTime(new Date());
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -428,7 +492,7 @@ export default function BoLuangDashboard() {
     handleVisitorCount();
   }, [mounted]);
 
-  // พยากรณ์อากาศ (TMD API Resilience)
+  // พยากรณ์อากาศ (TMD)
   useEffect(() => {
     if (!tmdWeather && !tmdRain) { 
       setLocalWeatherData([]); 
@@ -461,7 +525,7 @@ export default function BoLuangDashboard() {
     fetchLocalWeather();
   }, [tmdWeather, tmdRain]);
 
-  // ฝุ่น PM2.5 (Resilience)
+  // ฝุ่น PM2.5 
   useEffect(() => {
     if (!pm25) { 
       setLocalAirData([]); 
@@ -502,7 +566,7 @@ export default function BoLuangDashboard() {
     fetchLocalAir();
   }, [pm25]);
 
-  // 💧 ข้อมูลฝน ONWR (Resilience + Geofence)
+  // 💧 ข้อมูลฝน ONWR 
   useEffect(() => {
     if (!onwrRain) { 
       setOnwrRainData([]); 
@@ -532,7 +596,7 @@ export default function BoLuangDashboard() {
     fetchOnwrRain();
   }, [onwrRain]);
 
-  // 💧 ข้อมูลระดับน้ำ ONWR (Resilience + Geofence)
+  // 💧 ข้อมูลระดับน้ำ ONWR 
   useEffect(() => {
     if (!onwrWaterLevel) { 
       setOnwrWaterLevelData([]); 
@@ -670,9 +734,10 @@ export default function BoLuangDashboard() {
     return { radius, color, fillColor, fillOpacity: 0.5, weight: 2.5 };
   };
 
-  const styleBoluang = { color: '#0ea5e9', weight: 3, fillOpacity: 0, interactive: true }; 
+  // 🚀 ตั้งค่าให้ Hover เฉพาะเส้นขอบเขต (Border)
+  const styleBoluang = { color: '#0ea5e9', weight: 3, fill: false, interactive: true }; 
   const onEachBoluangFeature = (feature: any, layer: any) => {
-    layer.bindTooltip('เขตเทศบาลตำบลบ่อหลวง', { sticky: true, direction: 'auto', className: 'village-hover-tooltip' });
+    layer.bindTooltip('ขอบเขตเทศบาลตำบลบ่อหลวง', { sticky: true, direction: 'auto', className: 'village-hover-tooltip' });
     layer.on({
       mouseover: (e: any) => {
         e.target.setStyle({ weight: 5, color: '#38bdf8' });
@@ -745,8 +810,7 @@ export default function BoLuangDashboard() {
   // 🖼️ การสร้าง Custom Icons (Leaflet)
   // ==========================================
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
-  const windyMapUrl = `https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=%C2%B0C&metricWind=km/h&zoom=${iframeState.zoom}&overlay=${windyType}&product=ecmwf&level=surface&lat=${iframeState.lat}&lon=${iframeState.lng}&detailLat=${iframeState.lat}&detailLon=${iframeState.lng}&marker=false`;
-
+  
   const createTmdIcon = useMemo(() => {
     if (!L) return () => null;
     return (wCode: number) => {
@@ -902,9 +966,9 @@ export default function BoLuangDashboard() {
       )}
 
       {/* 🗺️ ระบบแผนที่หลัก */}
-      <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">       
+      <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">        
         <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>         
-          {/* 🚀 ชุดปุ่มควบคุมแผนที่ (ย้ายออกมานอก MapContainer พร้อมตั้งค่า z-[1000] ไม่ให้หายอีกต่อไป) */}
+          {/* 🚀 ชุดปุ่มควบคุมแผนที่ */}
           <div className="absolute top-[100px] left-[15px] md:left-[375px] z-[1000] flex flex-col space-y-2 transition-all duration-300 pointer-events-auto">
             
             {/* 📍 ปุ่ม Locate Me */}
@@ -976,7 +1040,7 @@ export default function BoLuangDashboard() {
               </Marker>
             ))}
 
-            {/* 🚀 ขอบเขตบ่อหลวง พร้อม Tooltip แบบ Interactive */}
+            {/* 🚀 ขอบเขตบ่อหลวง (Hover เฉพาะเส้นขอบ) */}
             {showBoluang && geoBoluang && <GeoJSON key="boluang-layer" data={geoBoluang} style={styleBoluang} onEachFeature={onEachBoluangFeature} />}
             
             {showBlock && geoBlock && <GeoJSON key="block-layer" data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
@@ -1484,7 +1548,6 @@ export default function BoLuangDashboard() {
         </div>
                   
         <div className="space-y-4">
-          {/* ... โค้ด CustomToggleBox จะอยู่ต่อจากตรงนี้ตามปกติครับ ... */}
                
           {/* หมวดพยากรณ์อากาศ */}
           <div>
@@ -1589,7 +1652,7 @@ export default function BoLuangDashboard() {
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
               
-              {/* 🚀 จัด Group ให้อยู่บรรทัดเดียวกัน (Flex Justify Between) */}
+              {/* 🚀 จัด Group ให้อยู่บรรทัดเดียวกัน */}
               <div className="flex items-center justify-between w-full mb-2 pr-6 md:pr-0">
                 <div className="flex items-center space-x-3">
                   <div className="bg-gradient-to-br from-[#2dd4bf] to-[#3b82f6] p-2 rounded-xl shadow-[0_4px_10px_rgba(45,212,191,0.3)] flex-shrink-0">
@@ -1600,7 +1663,7 @@ export default function BoLuangDashboard() {
                   <h2 className="text-[18px] md:text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">Layers</h2>
                 </div>
                 
-                {/* 🚀 ป้าย Active และ Zoom ขนาดกะทัดรัด ย้ายมาไว้ฝั่งขวา */}
+                {/* 🚀 ป้าย Active และ Zoom */}
                 <div className="flex items-center space-x-2">
                   <div className="flex items-center px-2 py-1 rounded-full border border-[#1e293b] bg-[#0f172a]/50 shadow-inner">
                     <div className="w-1.5 h-1.5 rounded-full bg-[#2dd4bf] mr-1.5 shadow-[0_0_5px_#2dd4bf]"></div>
@@ -1635,7 +1698,7 @@ export default function BoLuangDashboard() {
                 </div>
               </div> 
               
-              {/* 📊 OPEN DATA DASHBOARD (เพิ่มใหม่) */}
+              {/* 📊 OPEN DATA DASHBOARD */}
               <div>
                 <div className="flex items-center mb-3">
                   <svg className="w-3.5 h-3.5 text-[#38bdf8] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
