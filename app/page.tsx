@@ -1396,7 +1396,7 @@ export default function BoLuangDashboard() {
           {/* 🚀 โลโก้ GIS บ่อหลวง (Pro Circular Style) */}
             <div className="relative flex-shrink-0 w-12 h-12 md:w-14 md:h-14 bg-white rounded-full shadow-[0_0_15px_rgba(56,189,248,0.4)] overflow-hidden border-[2px] border-[#38bdf8] flex items-center justify-center">
               <img 
-                src="/Logogis.jpg" 
+                src="/Logogis.png" 
                 alt="โลโก้เทศบาลตำบลบ่อหลวง GIS" 
                 className="w-[115%] h-[115%] max-w-none object-contain mix-blend-multiply"
               />
