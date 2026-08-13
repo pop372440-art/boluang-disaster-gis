@@ -23,7 +23,7 @@ const INITIAL_LAT = 18.147234;
 const INITIAL_LNG = 98.348720;
 const MAX_DISTANCE_KM = 50;
 
-// 🎯 กำหนดจุดดึงข้อมูล TMD API เพิ่มเติม (เพื่อเสริมจุดที่ สทนช. ไม่มีสถานี)
+// 🎯 กำหนดจุดดึงข้อมูล TMD API เพิ่มเติม
 const LOCAL_TMD_STATIONS = [
   { name: 'ต.บ่อหลวง (ศูนย์กลาง)', lat: 18.1633, lng: 98.3744 },
   { name: 'อ.แม่แจ่ม (ดอยอินทนนท์)', lat: 18.4988, lng: 98.3601 },
@@ -93,7 +93,7 @@ export default function FloodWatchDashboard() {
   const [radiusKm, setRadiusKm] = useState(MAX_DISTANCE_KM);
   
   const [windyLayer, setWindyLayer] = useState('radar');
-  const [windyZoom, setWindyZoom] = useState(8);
+  const [windyZoom, setWindyZoom] = useState(5); // 🚀 ตั้งค่า Default Zoom เป็น 5 ตามคำสั่ง
   const [apiStatus, setApiStatus] = useState({ water: 'กำลังเชื่อมต่อ...', rain: 'กำลังเชื่อมต่อ...', tmd: 'กำลังเชื่อมต่อ...' });
 
   const mapRef = useRef<any>(null);
@@ -195,7 +195,7 @@ export default function FloodWatchDashboard() {
           rStations.forEach((s: any) => { const st = parseStation(s, 'rain'); if (st) merged.push(st); });
         }
 
-        // 3. 🚀 ดึงปริมาณฝน TMD (เสริมทัพให้กราฟ)
+        // 3. ดึงปริมาณฝน TMD (เสริมทัพให้กราฟ)
         const lats = LOCAL_TMD_STATIONS.map(p => p.lat.toFixed(4)).join(',');
         const lngs = LOCAL_TMD_STATIONS.map(p => p.lng.toFixed(4)).join(',');
         const tmdUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&daily=precipitation_sum&timezone=Asia%2FBangkok`;
@@ -303,7 +303,7 @@ export default function FloodWatchDashboard() {
     maxRainData = { val: maxS.val, amp: maxS.name || maxS.amp || 'ไม่ระบุ' };
   }
 
-  // 📊 เตรียมข้อมูลกราฟแท่ง (เรียงจากมากไปน้อย เลือกเฉพาะที่มีฝน > 0 มม.)
+  // 📊 เตรียมข้อมูลกราฟแท่ง
   const topRainStations = [...rainStations]
     .filter(s => s.val > 0)
     .sort((a, b) => b.val - a.val)
@@ -421,7 +421,7 @@ export default function FloodWatchDashboard() {
           </div>
         </div>
 
-        {/* 📋 Card 2: ตารางสถานการณ์น้ำรอบพื้นที่ */}
+        {/* 📋 Card 2: ตารางสถานการณ์น้ำรอบตำบลบ่อหลวง */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-4">
           <div className="px-5 py-4 border-b border-gray-100 bg-white">
             <h3 className="text-[#0f4a8a] text-[15px] font-extrabold flex items-center"><span className="mr-2 text-lg">🌊</span> สถานการณ์น้ำรอบพื้นที่</h3>
@@ -500,7 +500,7 @@ export default function FloodWatchDashboard() {
                   <Popup className="custom-pro-popup" closeButton={true}>
                     <div className="w-[190px] p-1 font-sans text-gray-800">
                       <div className="font-bold text-[13px] leading-tight mb-1 text-gray-900 border-b pb-1 border-gray-200">
-                        {st.name} {st.source === 'TMD' && <span className="text-[10px] bg-blue-100 text-blue-600 px-1 rounded ml-1">TMD</span>}
+                        {st.name} {st.source === 'TMD' && <span className="text-[10px] bg-blue-100 text-blue-600 px-1 rounded ml-1 font-normal">TMD</span>}
                       </div>
                       <div className="text-[11px] leading-[1.6] text-gray-600">
                         <div>{st.tum} {st.amp} {st.prov}</div>
@@ -533,10 +533,11 @@ export default function FloodWatchDashboard() {
           </div>
         </div>
 
-        {/* 📊 Card 4: กราฟแท่งฝนตกหนัก */}
+        {/* 📊 Card 4: กราฟแท่งฝนตกหนัก (อัปเดตดึงข้อมูล TMD + ONWR มาโชว์) */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-4">
-          <div className="px-5 py-4 bg-white border-b border-gray-100">
+          <div className="px-5 py-4 bg-white border-b border-gray-100 flex justify-between items-center">
             <h3 className="text-[#0f4a8a] text-[14px] md:text-[15px] font-extrabold flex items-center"><span className="mr-2 text-lg">🌧️</span> สถานีที่มีปริมาณฝนสูงสุด (24 ชม.)</h3>
+            <span className="text-[11px] text-gray-400 font-medium">ข้อมูลรวมจาก สทนช. + TMD</span>
           </div>
           <div className="w-full h-[350px] p-4">
             {topRainStations.length > 0 ? (
@@ -558,7 +559,7 @@ export default function FloodWatchDashboard() {
           </div>
         </div>
 
-        {/* 🛰️ Card 5: แผนที่ Windy */}
+        {/* 🛰️ Card 5: แผนที่ Windy (ตั้งค่า Default Zoom = 5 ตามสั่ง) */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-[500px] md:h-[650px] mt-4">
           <div className="px-5 py-3 border-b border-gray-200 flex justify-between items-center bg-white z-10">
             <div>
