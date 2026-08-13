@@ -191,9 +191,11 @@ export default function BoLuangDashboard() {
   // ----------------------------------------
   // State: Sidebar ด้านขวา
   // ----------------------------------------
-  const [satelliteLayer, setSatelliteLayer] = useState(false); 
-  const [showBoluang, setShowBoluang] = useState(true); 
-  const [showBlock, setShowBlock] = useState(false);        
+  // 🚀 ปรับเปลี่ยนค่า Default State ให้อลังการตามคำสั่ง
+  const [satelliteLayer, setSatelliteLayer] = useState(true); // เปิดแผนที่ดาวเทียม
+  const [showBoluang, setShowBoluang] = useState(true);     // เปิดขอบเขตตำบล
+  const [showBlock, setShowBlock] = useState(true);         // เปิดโซน 13 หมู่บ้าน
+  
   const [showParcel, setShowParcel] = useState(false);      
   const [citizenReport, setCitizenReport] = useState(false); 
   const [earthquakeLayer, setEarthquakeLayer] = useState(false);        
@@ -378,17 +380,15 @@ export default function BoLuangDashboard() {
   // ⚙️ UseEffects สำหรับดึงข้อมูล & Responsive
   // ==========================================
   
-  // 🚀 ควบคุมการเปิดปิดเมนูสำหรับ Mobile
+  // 🚀 Logic ควบคุมการเปิดปิดเมนูสำหรับ "Wow Effect" บนหน้าจอมือถือ/แท็บเล็ต
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth < 1024; 
       setIsMobile(mobile);
       if (mobile) { 
-        // มือถือ: ซ่อนซ้าย เปิดขวา
         setIsLeftPanelOpen(false); 
         setIsRightPanelOpen(true); 
       } else { 
-        // คอมพิวเตอร์: เปิด 2 ข้าง
         setIsLeftPanelOpen(true); 
         setIsRightPanelOpen(true); 
       }
@@ -697,7 +697,7 @@ export default function BoLuangDashboard() {
     return { radius, color, fillColor, fillOpacity: 0.5, weight: 2.5 };
   };
 
-  // 🚀 ตั้งค่าให้ Hover เฉพาะเส้นขอบเขต (Border)
+  // 🚀 ตั้งค่าให้ Hover เฉพาะเส้นขอบเขต (Border) ตรงตามที่ขอ
   const styleBoluang = { color: '#0ea5e9', weight: 3, fill: false, interactive: true }; 
   const onEachBoluangFeature = (feature: any, layer: any) => {
     layer.bindTooltip('เขตเทศบาลตำบลบ่อหลวง', { sticky: true, direction: 'auto', className: 'village-hover-tooltip' });
