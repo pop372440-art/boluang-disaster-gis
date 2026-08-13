@@ -10,7 +10,7 @@ import {
 } from 'recharts';
 
 // ==========================================
-// 🗺️ โหลด Leaflet แบบ Dynamic (ป้องกัน SSR & Build Error)
+// 🗺️ โหลด Leaflet แบบ Dynamic
 // ==========================================
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
@@ -21,60 +21,53 @@ const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { 
 
 const INITIAL_LAT = 18.147234;
 const INITIAL_LNG = 98.348720;
+const MAX_DISTANCE_KM = 50;
 
 // 🧮 ฟังก์ชันคำนวณระยะทาง
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371; 
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; 
 };
 
-// 🛡️ คลีนชื่อข้อความ
 const cleanName = (str: string) => {
   if (!str) return '';
-  return str.replace(/^(จังหวัด|จ\.|อำเภอ|อ\.|ตำบล|ต\.)/g, '').trim();
+  return String(str).replace(/^(จังหวัด|จ\.|อำเภอ|อ\.|ตำบล|ต\.)/g, '').trim();
 };
 
-// 🛡️ API Fetcher สำหรับข้อมูลไฟล์ใหญ่ (เพิ่ม Timeout 20 วิ + Fallback Proxy แบบยืดหยุ่น)
-const fetchONWRData = async (endpoint: string) => {
-  const fetchWithTimeout = async (url: string, timeoutMs = 20000) => {
+// 🛡️ API Resilience (มี Cache ป้องกันระบบล่ม ตามโค้ดต้นฉบับ page.tsx)
+const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 15000) => {
+  try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
+    // ลองดึงตรงๆ หรือผ่าน allorigins แบบฉับไว
+    let fetchUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const res = await fetch(fetchUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+    let data = await res.json();
+    if (data.contents) data = JSON.parse(data.contents); // แปลงข้อมูลจาก allorigins
+    
     try {
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (res.ok) return await res.json();
-    } catch (e) {
-      clearTimeout(timeoutId);
+      sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
+    } catch (storageErr) {
+      console.warn('Storage full, skipping cache save.');
     }
-    return null;
-  };
-
-  // 1. ดึงผ่าน Vercel Rewrites
-  let data = await fetchWithTimeout(`/api/onwr/${endpoint}`, 15000);
-  if (data) return data;
-
-  // 2. ดึงผ่าน Proxy 1 (corsproxy.io)
-  const targetUrl = `https://api-v3.thaiwater.net/api/v1/thaiwater30/public/${endpoint}`;
-  data = await fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(targetUrl)}`, 15000);
-  if (data) return data;
-
-  // 3. ดึงผ่าน Proxy 2 (allorigins raw)
-  data = await fetchWithTimeout(`https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`, 15000);
-  if (data) return data;
-
-  // 4. ดึงผ่าน Proxy 3 (allorigins contents parsed)
-  try {
-    const res = await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, 15000);
-    if (res && res.contents) {
-      return JSON.parse(res.contents);
+    
+    return { data, status: '🟢 เชื่อมต่อสำเร็จ' };
+  } catch (error) {
+    console.warn(`[API Resilience] ${cacheKey} failed. Using cache. Error:`, error);
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      return { data: JSON.parse(cached).data, status: '🟢 เชื่อมต่อสำเร็จ (Cached)' };
     }
-  } catch (e) {}
-
-  return null;
+    return { data: null, status: '🔴 การเชื่อมต่อขัดข้อง (Timeout)' };
+  }
 };
 
 const WINDY_LAYERS = [
@@ -82,24 +75,22 @@ const WINDY_LAYERS = [
   { id: 'rain', icon: '🌧️', label: 'ฝน' },
   { id: 'radar', icon: '📡', label: 'เรดาร์ฝน' },
   { id: 'temp', icon: '🌡️', label: 'อุณหภูมิ' },
-  { id: 'clouds', icon: '☁️', label: 'เมฆ' },
-  { id: 'pressure', icon: '⏲️', label: 'ความกดอากาศ' }
+  { id: 'clouds', icon: '☁️', label: 'เมฆ' }
 ];
 
-export default function FloodDashboard() {
+export default function FloodWatchDashboard() {
   const [position, setPosition] = useState({ lat: INITIAL_LAT, lng: INITIAL_LNG });
   const [stations, setStations] = useState<any[]>([]);
   const [filteredStations, setFilteredStations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   
-  // Filter States
   const [searchQuery, setSearchQuery] = useState('');
   const [filterProv, setFilterProv] = useState('เชียงใหม่');
   const [filterAmp, setFilterAmp] = useState('ฮอด');
   const [filterRisk, setFilterRisk] = useState('ทุกระดับความเสี่ยง');
-  const [useRadius, setUseRadius] = useState(false);
-  const [radiusKm, setRadiusKm] = useState(50);
+  const [useRadius, setUseRadius] = useState(true);
+  const [radiusKm, setRadiusKm] = useState(MAX_DISTANCE_KM);
   
   const [windyLayer, setWindyLayer] = useState('radar');
   const [windyZoom, setWindyZoom] = useState(8);
@@ -114,12 +105,10 @@ export default function FloodDashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  // 📡 ดึงข้อมูล API สทนช. ของจริง
+  // 📡 ดึงข้อมูล API สทนช. (ประยุกต์ใช้โค้ด Parse JSON ขั้นเทพจาก page.tsx)
   useEffect(() => {
     const fetchONWR = async () => {
       setIsLoading(true);
-      setApiStatus({ water: 'กำลังเชื่อมต่อ...', rain: 'กำลังเชื่อมต่อ...' });
-      
       try {
         let merged: any[] = [];
         
@@ -137,24 +126,48 @@ export default function FloodDashboard() {
           }
         };
 
+        // 🧠 ฟังก์ชันทะลวงหา Array อัจฉริยะ (จาก page.tsx)
+        const extractArrayData = (json: any): any[] => {
+          let arrData: any[] = [];
+          if (Array.isArray(json)) arrData = json;
+          else if (json?.data && Array.isArray(json.data)) arrData = json.data;
+          else if (json?.data?.waterlevel_data?.data && Array.isArray(json.data.waterlevel_data.data)) arrData = json.data.waterlevel_data.data;
+          else if (json?.waterlevel_data?.data && Array.isArray(json.waterlevel_data.data)) arrData = json.waterlevel_data.data;
+          else if (json?.rain_data?.data && Array.isArray(json.rain_data.data)) arrData = json.rain_data.data;
+          else {
+            const findArray = (obj: any): any[] | null => {
+              for (let key in obj) {
+                if (Array.isArray(obj[key])) return obj[key];
+                if (typeof obj[key] === 'object' && obj[key] !== null) {
+                  const found = findArray(obj[key]); 
+                  if (found) return found;
+                }
+              } 
+              return null;
+            };
+            arrData = findArray(json) || [];
+          }
+          return arrData;
+        };
+
         const parseStation = (s: any, type: 'water'|'rain') => {
-          const lat = parseFloat(s?.station?.lat || s?.lat || 0);
-          const lng = parseFloat(s?.station?.long || s?.station?.lng || s?.long || s?.lng || 0);
+          const latStr = s?.station?.tele_station_lat || s?.tele_station_lat || s?.lat || s?.latitude || s?.station?.lat;
+          const lngStr = s?.station?.tele_station_long || s?.tele_station_long || s?.lng || s?.longitude || s?.lon || s?.station?.long;
+          if (!latStr || !lngStr) return null;
           
-          if (lat === 0 || lng === 0) return null;
-          if (lat < 5 || lat > 21 || lng < 97 || lng > 106) return null;
+          const lat = parseFloat(latStr);
+          const lng = parseFloat(lngStr);
+          if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) return null;
 
-          const name = s?.station?.tele_station_name?.th || s?.tele_station_name?.th || s?.station?.name?.th || s?.name?.th || 'สถานีไม่ระบุชื่อ';
-          const prov = cleanName(s?.station?.geocode?.province_name?.th || s?.geocode?.province_name?.th || s?.province_name?.th || '');
-          const amp = cleanName(s?.station?.geocode?.amphoe_name?.th || s?.geocode?.amphoe_name?.th || s?.amphoe_name?.th || '');
-          const tum = cleanName(s?.station?.geocode?.tumbon_name?.th || s?.geocode?.tumbon_name?.th || s?.tumbon_name?.th || '');
+          const name = s?.station?.tele_station_name?.th || s?.tele_station_name?.th || s?.station?.name?.th || s?.name?.th || s?.station?.tele_station_name || 'ไม่ระบุชื่อ';
+          const prov = cleanName(s?.station?.geocode?.province_name?.th || s?.geocode?.province_name?.th || s?.province_name?.th || s?.station?.province_name || '');
+          const amp = cleanName(s?.station?.geocode?.amphoe_name?.th || s?.geocode?.amphoe_name?.th || s?.amphoe_name?.th || s?.station?.amphoe_name || '');
+          const tum = cleanName(s?.station?.geocode?.tumbon_name?.th || s?.geocode?.tumbon_name?.th || s?.tumbon_name?.th || s?.station?.tumbon_name || '');
 
-          let val = 0;
-          let trend = 'steady';
-          let time = '';
+          let val = 0; let trend = 'steady'; let time = '';
 
           if (type === 'water') {
-            val = parseFloat(s?.water_level || s?.waterlevel || 0);
+            val = parseFloat(s?.water_level || s?.waterlevel || s?.wl || 0);
             const tnd = s?.waterlevel_tendency || s?.tendency;
             if (tnd === 'UP' || tnd > 0) trend = 'up';
             else if (tnd === 'DOWN' || tnd < 0) trend = 'down';
@@ -164,45 +177,27 @@ export default function FloodDashboard() {
             time = s?.rain_datetime || s?.datetime || '';
           }
 
-          return {
-            id: s?.station?.id || s?.id || Math.random().toString(),
-            name, prov, amp, tum, lat, lng, type, val, trend, time,
-            risk: getRisk(val, type)
-          };
+          return { id: Math.random().toString(), name, prov, amp, tum, lat, lng, type, val, trend, time, risk: getRisk(val, type) };
         };
 
         // 1. ดึงระดับน้ำ
-        const wData = await fetchONWRData('waterlevel_load');
-        if (wData && (wData.waterlevel_data?.data || wData.data)) {
-          const wStations = wData.waterlevel_data?.data || wData.data;
-          wStations.forEach((s: any) => {
-            const st = parseStation(s, 'water');
-            if (st) merged.push(st);
-          });
-          setApiStatus(prev => ({ ...prev, water: 'เชื่อมต่อสำเร็จ' }));
-        } else { 
-          setApiStatus(prev => ({ ...prev, water: 'การเชื่อมต่อขัดข้อง (Timeout)' })); 
+        const { data: wJson, status: wStatus } = await fetchWithCache('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load', 'onwr_water_cache');
+        setApiStatus(prev => ({ ...prev, water: wStatus }));
+        if (wJson) {
+          const wStations = extractArrayData(wJson);
+          wStations.forEach((s: any) => { const st = parseStation(s, 'water'); if (st) merged.push(st); });
         }
 
-        // 2. ดึงฝน 24 ชม.
-        const rData = await fetchONWRData('rain_24h');
-        if (rData && (rData.rain_data?.data || rData.data)) {
-          const rStations = rData.rain_data?.data || rData.data;
-          rStations.forEach((s: any) => {
-            const st = parseStation(s, 'rain');
-            if (st) merged.push(st);
-          });
-          setApiStatus(prev => ({ ...prev, rain: 'เชื่อมต่อสำเร็จ' }));
-        } else { 
-          setApiStatus(prev => ({ ...prev, rain: 'การเชื่อมต่อขัดข้อง (Timeout)' })); 
+        // 2. ดึงปริมาณฝน
+        const { data: rJson, status: rStatus } = await fetchWithCache('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h', 'onwr_rain_cache');
+        setApiStatus(prev => ({ ...prev, rain: rStatus }));
+        if (rJson) {
+          const rStations = extractArrayData(rJson);
+          rStations.forEach((s: any) => { const st = parseStation(s, 'rain'); if (st) merged.push(st); });
         }
 
         setStations(merged);
-      } catch (error) { 
-        console.error("Fetch Error:", error); 
-      } finally {
-        setIsLoading(false);
-      }
+      } catch (error) { console.error(error); } finally { setIsLoading(false); }
     };
     fetchONWR();
   }, []);
@@ -221,19 +216,9 @@ export default function FloodDashboard() {
       );
     }
 
-    if (filterProv !== 'ทุกจังหวัด') {
-      const targetProv = cleanName(filterProv);
-      result = result.filter(s => cleanName(s.prov).includes(targetProv));
-    }
-
-    if (filterAmp !== 'ทุกอำเภอ') {
-      const targetAmp = cleanName(filterAmp);
-      result = result.filter(s => cleanName(s.amp).includes(targetAmp));
-    }
-
-    if (filterRisk !== 'ทุกระดับความเสี่ยง') {
-      result = result.filter(s => s.risk.label === filterRisk);
-    }
+    if (filterProv !== 'ทุกจังหวัด') result = result.filter(s => cleanName(s.prov).includes(cleanName(filterProv)));
+    if (filterAmp !== 'ทุกอำเภอ') result = result.filter(s => cleanName(s.amp).includes(cleanName(filterAmp)));
+    if (filterRisk !== 'ทุกระดับความเสี่ยง') result = result.filter(s => s.risk.label === filterRisk);
 
     if (useRadius && radiusKm > 0) {
       result = result.filter(s => {
@@ -271,9 +256,9 @@ export default function FloodDashboard() {
   };
 
   const uniqueProvs = Array.from(new Set(['เชียงใหม่', 'แม่ฮ่องสอน', 'ลำพูน', 'เชียงราย', ...stations.map(s => s.prov).filter(Boolean)])).sort();
-  const uniqueAmps = Array.from(new Set(['ฮอด', 'แม่แจ่ม', 'อมก๋อย', 'จอมทอง', 'ดอยเต่า', ...stations.filter(s => filterProv === 'ทุกจังหวัด' || cleanName(s.prov).includes(cleanName(filterProv))).map(s => s.amp).filter(Boolean)])).sort();
+  const uniqueAmps = Array.from(new Set(['ฮอด', 'แม่แจ่ม', 'อมก๋อย', 'จอมทอง', ...stations.filter(s => filterProv === 'ทุกจังหวัด' || cleanName(s.prov).includes(cleanName(filterProv))).map(s => s.amp).filter(Boolean)])).sort();
 
-  // 🧮 คำนวณ 13 การ์ด
+  // 🧮 คำนวณ 13 กล่อง
   const totalWater = filteredStations.filter(s => s.type === 'water').length;
   const totalRain = filteredStations.filter(s => s.type === 'rain').length;
   const waterUp = filteredStations.filter(s => s.type === 'water' && s.trend === 'up').length;
@@ -290,11 +275,10 @@ export default function FloodDashboard() {
     maxRainData = { val: maxS.val, amp: maxS.name || maxS.amp || 'ไม่ระบุ' };
   }
 
+  // เตรียมข้อมูลกราฟและตาราง
   const topRainStations = [...rainStations].sort((a, b) => b.val - a.val).slice(0, 10).map(s => ({
-    name: s.name.length > 15 ? s.name.substring(0, 15) + '...' : s.name,
-    val: s.val
+    name: s.name.length > 15 ? s.name.substring(0, 15) + '...' : s.name, val: s.val
   }));
-
   const waterStationsTable = [...filteredStations].filter(s => s.type === 'water').sort((a, b) => (a.distance || 0) - (b.distance || 0)).slice(0, 15);
 
   return (
@@ -379,7 +363,7 @@ export default function FloodDashboard() {
             </div>
 
             <div className="text-[12px] text-gray-500 mb-3 px-1">
-              {isLoading ? <span className="text-blue-500 font-bold animate-pulse">กำลังดึงข้อมูลและซิงค์สถานี...</span> : <>พบข้อมูล <span className="font-extrabold text-[#0f4a8a]">{filteredStations.length}</span> รายการ</>}
+              {isLoading ? <span className="text-blue-500 font-bold animate-pulse">กำลังโหลดข้อมูลและค้นหาสถานี...</span> : <>พบข้อมูล <span className="font-extrabold text-[#0f4a8a]">{filteredStations.length}</span> รายการ</>}
             </div>
 
             {/* 13 กล่อง Grid */}
@@ -403,7 +387,7 @@ export default function FloodDashboard() {
           </div>
         </div>
 
-        {/* 📋 Card 2: ตารางสถานการณ์น้ำรอบตำบลบ่อหลวง */}
+        {/* 📋 Card 2: ตารางสถานการณ์น้ำรอบพื้นที่ */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-4">
           <div className="px-5 py-4 border-b border-gray-100 bg-white">
             <h3 className="text-[#0f4a8a] text-[15px] font-extrabold flex items-center"><span className="mr-2 text-lg">🌊</span> สถานการณ์น้ำรอบพื้นที่</h3>
@@ -535,7 +519,39 @@ export default function FloodDashboard() {
           </div>
         </div>
 
-        {/* 📋 Card 5: แหล่งข้อมูลและสถานะการเชื่อมต่อ */}
+        {/* 🛰️ Card 5: แผนที่ Windy */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-[500px] md:h-[650px] mt-4">
+          <div className="px-5 py-3 border-b border-gray-200 flex justify-between items-center bg-white z-10">
+            <div>
+               <h3 className="text-[#0f4a8a] text-[14px] md:text-[15px] font-extrabold flex items-center"><span className="mr-2 text-lg">🛰️</span> แผนที่สภาพอากาศเรียลไทม์ (Windy)</h3>
+               <p className="text-[10px] text-gray-500 mt-0.5">จุดรายละเอียด: ตำแหน่งของฉัน ({position.lat.toFixed(3)}, {position.lng.toFixed(3)})</p>
+             </div>
+             <button onClick={handleCurrentLocation} className="bg-[#0f172a] text-white px-3 py-1.5 rounded-full text-[10px] font-bold shadow-sm flex items-center hover:bg-gray-800 transition">
+               <span className="mr-1 text-red-500 text-xs">📍</span> ตำแหน่งของฉัน
+             </button>
+          </div>
+
+          <div className="flex space-x-2 px-5 py-2.5 bg-white border-b border-gray-200 z-10 overflow-x-auto custom-scrollbar">
+            {WINDY_LAYERS.map((layer) => (
+              <button 
+                key={layer.id} onClick={() => setWindyLayer(layer.id)}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-[11px] md:text-[12px] font-bold whitespace-nowrap transition-all border
+                  ${windyLayer === layer.id ? 'bg-[#0f4a8a] text-white border-[#0f4a8a]' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+              >
+                <span>{layer.icon}</span><span>{layer.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="w-full flex-1 relative z-0">
+            <iframe 
+              width="100%" height="100%" frameBorder="0"
+              src={`https://embed.windy.com/embed2.html?lat=${position.lat}&lon=${position.lng}&detailLat=${position.lat}&detailLon=${position.lng}&zoom=${windyZoom}&level=surface&overlay=${windyLayer}&product=ecmwf&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1`}
+            ></iframe>
+          </div>
+        </div>
+
+        {/* 📋 Card 6: แหล่งข้อมูลและสถานะการเชื่อมต่อ */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden text-gray-800 mb-6 mt-4">
           <div className="px-5 py-4 border-b border-gray-200 bg-white">
             <h3 className="text-[#0f4a8a] font-extrabold text-[15px] md:text-lg flex items-center">
