@@ -94,9 +94,10 @@ export default function ExecutiveDashboard() {
             <p className="text-[12px] text-[#38bdf8] font-mono">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</p>
           </div>
         </div>
-        <Link href="/admin" className="flex items-center space-x-2 bg-[#1e293b] hover:bg-[#334155] border border-gray-700 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md">
-          <span>⬅️</span> <span>กลับหน้ารายการแจ้งเหตุ</span>
-        </Link>
+        <Link href="/" className="bg-[#1e293b] hover:bg-[#334155] border border-gray-700 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm flex items-center space-x-2 text-white">
+  <span>⬅</span>
+  <span>กลับหน้าแผนที่หลัก</span>
+</Link>
       </header>
 
       <main className="p-4 md:p-8 max-w-[1400px] mx-auto">
