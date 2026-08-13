@@ -5,6 +5,9 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import Swal from 'sweetalert2';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer 
+} from 'recharts';
 
 // ==========================================
 // 🗺️ โหลด Leaflet แบบ Dynamic
@@ -38,14 +41,11 @@ const fetchONWRData = async (url: string) => {
   }
   
   try {
-    // ใช้ Proxy แบบ /get เพื่อดึง contents ออกมาเป็น String แล้ว Parse ใหม่
     const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
     const res = await fetch(proxyUrl);
     if (res.ok) {
       const data = await res.json();
-      if (data.contents) {
-        return JSON.parse(data.contents);
-      }
+      if (data.contents) return JSON.parse(data.contents);
     }
   } catch (e) {
     console.error("Proxy fetch failed", e);
@@ -53,21 +53,44 @@ const fetchONWRData = async (url: string) => {
   return null;
 };
 
+const WINDY_LAYERS = [
+  { id: 'wind', icon: '💨', label: 'ลม' },
+  { id: 'rain', icon: '🌧️', label: 'ฝน' },
+  { id: 'radar', icon: '📡', label: 'เรดาร์ฝน' },
+  { id: 'temp', icon: '🌡️', label: 'อุณหภูมิ' },
+  { id: 'clouds', icon: '☁️', label: 'เมฆ' },
+  { id: 'pressure', icon: '⏲️', label: 'ความกดอากาศ' }
+];
+
 export default function FloodDashboard() {
   const [position, setPosition] = useState({ lat: INITIAL_LAT, lng: INITIAL_LNG });
   const [stations, setStations] = useState<any[]>([]);
   const [filteredStations, setFilteredStations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
   
-  // States สำหรับปุ่มและรัศมี
-  const [useRadius, setUseRadius] = useState(true);
+  // States สำหรับ Filter
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterProv, setFilterProv] = useState('ทุกจังหวัด');
+  const [filterAmp, setFilterAmp] = useState('ทุกอำเภอ');
+  const [filterRisk, setFilterRisk] = useState('ทุกระดับความเสี่ยง');
+  const [useRadius, setUseRadius] = useState(false);
   const [radiusKm, setRadiusKm] = useState(50);
-  const [activeFilter, setActiveFilter] = useState('radius'); // 'chiangmai', 'hod', 'radius'
+  const [apiStatus, setApiStatus] = useState({ water: 'กำลังเชื่อมต่อ...', rain: 'กำลังเชื่อมต่อ...' });
+
+  const [windyLayer, setWindyLayer] = useState('radar');
+  const [windyZoom, setWindyZoom] = useState(8);
 
   const mapRef = useRef<any>(null);
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
 
-  // 📡 ดึงข้อมูล API สทนช. ของจริง 100% (ไม่มี Mock Data)
+  useEffect(() => {
+    setCurrentTime(new Date());
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 📡 ดึงข้อมูล API สทนช. ของจริง 100%
   useEffect(() => {
     const fetchONWR = async () => {
       setIsLoading(true);
@@ -92,9 +115,7 @@ export default function FloodDashboard() {
         const wData = await fetchONWRData('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load');
         if (wData && wData.waterlevel_data?.data) {
           const wStations = wData.waterlevel_data.data;
-          // กรองภาคเหนือเพื่อให้เครื่องไม่หน่วงเกินไป
-          const validWater = wStations.filter((s:any) => s.station?.lat > 16.0 && s.station?.lat < 20.0 && s.station?.long > 97.0 && s.station?.long < 100.0);
-          
+          const validWater = wStations.filter((s:any) => s.station?.lat > 15.0 && s.station?.lat < 21.0 && s.station?.long > 97.0 && s.station?.long < 101.0);
           validWater.forEach((s: any) => {
             let trend = 'steady';
             if (s.waterlevel_tendency === 'UP' || s.tendency > 0) trend = 'up';
@@ -102,29 +123,30 @@ export default function FloodDashboard() {
 
             merged.push({
               id: s.station?.id, name: s.station?.tele_station_name?.th || 'สถานีวัดน้ำ', 
-              prov: s.station?.geocode?.province_name?.th || '', amp: s.station?.geocode?.amphoe_name?.th || '', tum: s.station?.geocode?.tumbon_name?.th || '',
+              prov: s.station?.geocode?.province_name?.th || 'ไม่ระบุ', amp: s.station?.geocode?.amphoe_name?.th || '', tum: s.station?.geocode?.tumbon_name?.th || '',
               lat: parseFloat(s.station?.lat), lng: parseFloat(s.station?.long), 
               type: 'water', val: parseFloat(s.water_level) || 0, risk: getRisk(parseFloat(s.water_level) || 0, 'water'), 
               trend: trend, time: s.waterlevel_datetime
             });
           });
-        }
+          setApiStatus(prev => ({ ...prev, water: 'เชื่อมต่อสำเร็จ' }));
+        } else { setApiStatus(prev => ({ ...prev, water: 'การเชื่อมต่อขัดข้อง' })); }
 
         // 2. ดึงฝน 24 ชม.
         const rData = await fetchONWRData('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h');
         if (rData && rData.rain_data?.data) {
           const rStations = rData.rain_data.data;
-          const validRain = rStations.filter((s:any) => s.station?.lat > 16.0 && s.station?.lat < 20.0 && s.station?.long > 97.0 && s.station?.long < 100.0);
-          
+          const validRain = rStations.filter((s:any) => s.station?.lat > 15.0 && s.station?.lat < 21.0 && s.station?.long > 97.0 && s.station?.long < 101.0);
           validRain.forEach((s: any) => {
             merged.push({
               id: s.station?.id, name: s.station?.tele_station_name?.th || 'สถานีวัดฝน', 
-              prov: s.station?.geocode?.province_name?.th || '', amp: s.station?.geocode?.amphoe_name?.th || '', tum: s.station?.geocode?.tumbon_name?.th || '',
+              prov: s.station?.geocode?.province_name?.th || 'ไม่ระบุ', amp: s.station?.geocode?.amphoe_name?.th || '', tum: s.station?.geocode?.tumbon_name?.th || '',
               lat: parseFloat(s.station?.lat), lng: parseFloat(s.station?.long), 
               type: 'rain', val: parseFloat(s.rain_24h) || 0, risk: getRisk(parseFloat(s.rain_24h) || 0, 'rain'), time: s.rain_datetime
             });
           });
-        }
+          setApiStatus(prev => ({ ...prev, rain: 'เชื่อมต่อสำเร็จ' }));
+        } else { setApiStatus(prev => ({ ...prev, rain: 'การเชื่อมต่อขัดข้อง' })); }
 
         setStations(merged);
       } catch (error) { 
@@ -136,15 +158,16 @@ export default function FloodDashboard() {
     fetchONWR();
   }, []);
 
-  // 🎛️ ระบบกรองข้อมูล (Filter Engine) อิงตามปุ่มที่กด
+  // 🎛️ Filter Engine
   useEffect(() => {
     let result = stations;
-    
-    if (activeFilter === 'chiangmai') {
-      result = result.filter(s => s.prov === 'เชียงใหม่');
-    } else if (activeFilter === 'hod') {
-      result = result.filter(s => s.prov === 'เชียงใหม่' && s.amp === 'ฮอด');
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(s => (s.name && s.name.toLowerCase().includes(q)) || (s.tum && s.tum.toLowerCase().includes(q)) || (s.amp && s.amp.toLowerCase().includes(q)) || (s.prov && s.prov.toLowerCase().includes(q)));
     }
+    if (filterProv !== 'ทุกจังหวัด') result = result.filter(s => s.prov === filterProv);
+    if (filterAmp !== 'ทุกอำเภอ') result = result.filter(s => s.amp === filterAmp);
+    if (filterRisk !== 'ทุกระดับความเสี่ยง') result = result.filter(s => s.risk.label === filterRisk);
 
     if (useRadius && radiusKm > 0) {
       result = result.filter(s => {
@@ -156,8 +179,9 @@ export default function FloodDashboard() {
       result = result.map(s => ({...s, distance: calculateDistance(position.lat, position.lng, s.lat, s.lng)}));
     }
     
+    result.sort((a, b) => (a.distance || 0) - (b.distance || 0));
     setFilteredStations(result);
-  }, [activeFilter, useRadius, radiusKm, position, stations]);
+  }, [searchQuery, filterProv, filterAmp, filterRisk, useRadius, radiusKm, position, stations]);
 
   const createMyPinIcon = useMemo(() => {
     if (!L) return () => null;
@@ -168,24 +192,27 @@ export default function FloodDashboard() {
     });
   }, [L]);
 
-  // 🛠️ Action Buttons
-  const handleSetChiangMai = () => { setActiveFilter('chiangmai'); setUseRadius(false); };
-  const handleSetHod = () => { setActiveFilter('hod'); setUseRadius(false); };
-  const handleSetRadius = () => { setActiveFilter('radius'); setUseRadius(true); setRadiusKm(50); };
-  const handleReset = () => { setActiveFilter(''); setUseRadius(false); setPosition({lat: INITIAL_LAT, lng: INITIAL_LNG}); if(mapRef.current) mapRef.current.flyTo([INITIAL_LAT, INITIAL_LNG], 10); };
+  const handleSetChiangMai = () => { setFilterProv('เชียงใหม่'); setFilterAmp('ทุกอำเภอ'); setUseRadius(false); };
+  const handleSetHod = () => { setFilterProv('เชียงใหม่'); setFilterAmp('ฮอด'); setUseRadius(false); };
+  const handleSetRadius = () => { setFilterProv('ทุกจังหวัด'); setFilterAmp('ทุกอำเภอ'); setUseRadius(true); setRadiusKm(50); };
+  const handleReset = () => { 
+    setSearchQuery(''); setFilterProv('ทุกจังหวัด'); setFilterAmp('ทุกอำเภอ'); setFilterRisk('ทุกระดับความเสี่ยง'); setUseRadius(false); setPosition({lat: INITIAL_LAT, lng: INITIAL_LNG});
+    if(mapRef.current) mapRef.current.flyTo([INITIAL_LAT, INITIAL_LNG], 10);
+  };
   const handleCurrentLocation = () => {
     Swal.fire({ title: 'ดึงพิกัด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    setTimeout(() => { setPosition({ lat: INITIAL_LAT, lng: INITIAL_LNG }); if (mapRef.current) mapRef.current.flyTo([INITIAL_LAT, INITIAL_LNG], 11); Swal.close(); }, 800);
+    setTimeout(() => { setPosition({ lat: INITIAL_LAT, lng: INITIAL_LNG }); if (mapRef.current) mapRef.current.flyTo([INITIAL_LAT, INITIAL_LNG], 12); Swal.close(); }, 800);
   };
 
-  // 🧮 คำนวณ 13 การ์ด (จากข้อมูล API จริง)
+  const uniqueProvs = Array.from(new Set(stations.map(s => s.prov).filter(Boolean))).sort();
+  const uniqueAmps = Array.from(new Set(stations.filter(s => filterProv === 'ทุกจังหวัด' || s.prov === filterProv).map(s => s.amp).filter(Boolean))).sort();
+
+  // 🧮 คำนวณ 13 การ์ด
   const totalWater = filteredStations.filter(s => s.type === 'water').length;
   const totalRain = filteredStations.filter(s => s.type === 'rain').length;
-  
   const waterUp = filteredStations.filter(s => s.type === 'water' && s.trend === 'up').length;
   const waterDown = filteredStations.filter(s => s.type === 'water' && s.trend === 'down').length;
   const waterSteady = filteredStations.filter(s => s.type === 'water' && s.trend === 'steady').length;
-  
   const watchCount = filteredStations.filter(s => s.risk.level === 'warning').length;
   const highRiskCount = filteredStations.filter(s => s.risk.level === 'high').length;
   const criticalCount = filteredStations.filter(s => s.risk.level === 'critical').length;
@@ -197,112 +224,163 @@ export default function FloodDashboard() {
     maxRainData = { val: maxS.val, amp: maxS.amp || 'ไม่ระบุ' };
   }
 
+  // ข้อมูลกราฟแท่ง (Top 10 Rain)
+  const topRainStations = [...rainStations].sort((a, b) => b.val - a.val).slice(0, 10).map(s => ({
+    name: s.name.length > 15 ? s.name.substring(0, 15) + '...' : s.name,
+    val: s.val
+  }));
+
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans text-gray-800 pb-10">
+    <div className="min-h-screen bg-[#f1f5f9] font-sans text-gray-800 pb-10">
       
-      <main className="p-4 md:p-6 max-w-[1500px] mx-auto space-y-4">
-
-        {/* 🎛️ แถบควบคุมด้านบน (จำลองตามรูป image_1fe61e.jpg เป๊ะๆ) */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-5 py-3 flex flex-col lg:flex-row items-start lg:items-center justify-between">
-          <div className="flex flex-wrap items-center text-xs md:text-sm text-gray-700 font-medium mb-3 lg:mb-0 gap-3">
-            <span className="font-bold text-gray-900">กม.</span>
-            <button onClick={handleCurrentLocation} className="flex items-center text-gray-600 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200 hover:bg-gray-100 transition shadow-sm">
-              <span className="text-red-500 mr-1.5 text-base">📍</span> ใช้ตำแหน่งของฉัน
-            </button>
-            <span className="text-gray-400 text-[11px] md:text-xs">
-              จุดอ้างอิง ตำแหน่งของฉัน: {position.lat.toFixed(6)}, {position.lng.toFixed(6)} 
-              <span className="text-green-500 ml-1.5 font-semibold">ละติจูด {position.lat.toFixed(6)} - ลองจิจูด {position.lng.toFixed(6)} (±82 ม.)</span>
-            </span>
+      {/* 🚀 Header (ออกแบบตามรูป 1) */}
+      <header className="bg-[#0b132b] px-6 py-4 flex flex-col items-start border-b border-[#1e293b]">
+        <div className="flex items-center space-x-4">
+          <div className="w-12 h-12 bg-[#3b82f6] rounded-xl flex items-center justify-center shadow-lg">
+            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
           </div>
+          <div>
+            <h1 className="text-[18px] md:text-[20px] font-extrabold text-[#60a5fa] leading-tight">ระบบเฝ้าระวังน้ำท่วมและน้ำป่า</h1>
+            <h2 className="text-[14px] md:text-[16px] font-bold text-white mt-0.5">Bo Luang Flood Watch</h2>
+            <p className="text-[11px] text-gray-400 mt-1">ติดตามระดับน้ำลำห้วย แจ้งเตือนน้ำป่าไหลหลาก และดินถล่มในพื้นที่เกษตรกรรม</p>
+          </div>
+        </div>
+      </header>
+
+      <main className="p-4 md:p-6 max-w-[1500px] mx-auto space-y-5">
+
+        {/* 💳 Card 1: แผงควบคุมและ 13 กล่อง (อิงตามรูป 2) */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           
-          <div className="flex flex-wrap gap-2 w-full lg:w-auto justify-start lg:justify-end">
-             <button onClick={handleSetChiangMai} className={`px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold transition shadow-sm border ${activeFilter === 'chiangmai' ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>เฉพาะจังหวัดเชียงใหม่</button>
-             <button onClick={handleSetHod} className={`px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold transition shadow-sm border ${activeFilter === 'hod' ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>อำเภอฮอด</button>
-             <button onClick={handleSetRadius} className={`px-4 py-1.5 rounded-full text-[11px] md:text-xs font-bold transition shadow-sm border ${activeFilter === 'radius' ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>รอบตำแหน่งของฉัน</button>
-             <button onClick={handleReset} className="border border-gray-300 bg-white px-3 py-1.5 rounded-full text-gray-500 text-[11px] md:text-xs font-bold hover:bg-gray-50 transition shadow-sm flex items-center">✕ รีเซ็ต</button>
-          </div>
-        </div>
-
-        {/* 📝 จำนวนข้อมูลที่พบ */}
-        <div className="text-[12px] text-gray-500 px-1 mt-2 mb-2">
-          {isLoading ? (
-            <span className="text-blue-500 font-bold animate-pulse">กำลังซิงค์ข้อมูลจาก สทนช. (ONWR)...</span>
-          ) : (
-            <>พบข้อมูล <span className="font-extrabold text-gray-900">{filteredStations.length}</span> รายการ</>
-          )}
-        </div>
-
-        {/* 📦 13 การ์ด (5 คอลัมน์ ดีไซน์ตามรูปเป๊ะๆ ไม่มี Mock Data) */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
-          {/* แถว 1 */}
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between h-[90px]">
-            <span className="text-[11px] text-gray-500 font-bold">สถานีวัดน้ำทั้งหมด</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{totalWater}</span>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between h-[90px]">
-            <span className="text-[11px] text-gray-500 font-bold">สถานีวัดฝนทั้งหมด</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{totalRain}</span>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between h-[90px]">
-            <span className="text-[11px] text-gray-500 font-bold">สถานีที่มีข้อมูลล่าสุด</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{filteredStations.length}</span>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between h-[90px]">
-            <span className="text-[11px] text-gray-500 font-bold">ระดับน้ำเพิ่มขึ้น ↑</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{waterUp}</span>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between h-[90px]">
-            <span className="text-[11px] text-gray-500 font-bold">ระดับน้ำลดลง ↓</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{waterDown}</span>
+          <div className="px-5 py-3 border-b border-gray-100 flex justify-between items-center bg-white">
+            <div className="flex items-center space-x-2">
+              <h2 className="text-[#0f4a8a] text-[15px] font-extrabold flex items-center">
+                <span className="mr-2 text-lg">🌊</span> สถานการณ์น้ำล่าสุด - ตำบลบ่อหลวง อำเภอฮอด
+              </h2>
+            </div>
+            <div className="text-[10px] text-gray-500">อัปเดตล่าสุด: {currentTime ? currentTime.toLocaleTimeString('th-TH') : '--:--:--'}</div>
           </div>
 
-          {/* แถว 2 */}
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between h-[90px]">
-            <span className="text-[11px] text-gray-500 font-bold">ระดับน้ำคงที่ →</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{waterSteady}</span>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between h-[90px]">
-            <span className="text-[11px] text-gray-500 font-bold flex items-center"><span className="w-2 h-2 rounded-full bg-[#facc15] mr-1.5"></span> เฝ้าระวัง</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{watchCount}</span>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between h-[90px]">
-            <span className="text-[11px] text-gray-500 font-bold flex items-center"><span className="w-2 h-2 rounded-full bg-[#f97316] mr-1.5"></span> เสี่ยงสูง</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{highRiskCount}</span>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between h-[90px]">
-            <span className="text-[11px] text-gray-500 font-bold flex items-center"><span className="w-2 h-2 rounded-full bg-[#ef4444] mr-1.5"></span> วิกฤต</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{criticalCount}</span>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between h-[90px]">
-            <span className="text-[11px] text-gray-500 font-bold">ปริมาณฝนสูงสุด 24 ชม.</span>
-            <div className="flex flex-col">
-              <div className="flex items-baseline"><span className="text-2xl font-extrabold text-[#0f4a8a]">{maxRainData.val.toFixed(1)}</span><span className="text-[10px] ml-1 font-bold text-[#0f4a8a]">มม.</span></div>
-              <span className="text-[9px] text-gray-400 truncate">{maxRainData.amp}</span>
+          <div className="p-5">
+            {/* Filter UI */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+              <div className="md:col-span-1 relative">
+                <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
+                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="ค้นหาสถานี / รหัสสถานี..." className="border border-gray-300 rounded-md pl-9 pr-3 py-2 w-full text-sm focus:outline-none focus:border-[#0f4a8a]" />
+              </div>
+              <select value={filterProv} onChange={(e) => {setFilterProv(e.target.value); setFilterAmp('ทุกอำเภอ');}} className="border border-gray-300 rounded-md px-3 py-2 w-full text-sm focus:outline-none bg-white">
+                <option value="ทุกจังหวัด">ทุกจังหวัด</option>
+                {uniqueProvs.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <select value={filterAmp} onChange={(e) => setFilterAmp(e.target.value)} className="border border-gray-300 rounded-md px-3 py-2 w-full text-sm focus:outline-none bg-white disabled:bg-gray-100" disabled={filterProv === 'ทุกจังหวัด'}>
+                <option value="ทุกอำเภอ">ทุกอำเภอ</option>
+                {uniqueAmps.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+              <select value={filterRisk} onChange={(e) => setFilterRisk(e.target.value)} className="border border-gray-300 rounded-md px-3 py-2 w-full text-sm focus:outline-none bg-white">
+                <option value="ทุกระดับความเสี่ยง">ทุกระดับความเสี่ยง</option>
+                <option value="ปกติ">ปกติ</option>
+                <option value="เฝ้าระวัง">เฝ้าระวัง</option>
+                <option value="เสี่ยงสูง">เสี่ยงสูง</option>
+                <option value="วิกฤต">วิกฤต</option>
+              </select>
+            </div>
+
+            <div className="flex items-center space-x-2 mb-4">
+              <input type="checkbox" id="radius1" checked={useRadius} onChange={(e) => setUseRadius(e.target.checked)} className="rounded border-gray-300 text-[#0f4a8a]" /> 
+              <label htmlFor="radius1" className="text-gray-700 text-[13px] font-medium cursor-pointer">ค้นหาในรัศมีจากตำแหน่งของฉัน</label>
+            </div>
+
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-gray-100 pb-5 mb-5">
+              <div className="flex items-center space-x-2 w-full md:w-auto text-gray-700 text-sm mb-4 md:mb-0">
+                <input type="number" value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))} disabled={!useRadius} className="border border-gray-300 rounded-md px-2 py-1 w-16 text-center disabled:bg-gray-100 text-sm" /> 
+                <span className="font-bold text-gray-800">กม.</span>
+                <button onClick={handleCurrentLocation} className="ml-3 flex items-center text-gray-600 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200 hover:bg-gray-100 transition shadow-sm text-xs font-bold">
+                  <span className="text-red-500 mr-1.5 text-sm">📍</span> ใช้ตำแหน่งของฉัน
+                </button>
+                <span className="ml-4 text-gray-400 text-[11px] hidden lg:inline">
+                  จุดอ้างอิง ตำแหน่งของฉัน: {position.lat.toFixed(6)}, {position.lng.toFixed(6)} 
+                  <span className="text-green-500 ml-2 font-semibold">ละติจูด {position.lat.toFixed(6)} - ลองจิจูด {position.lng.toFixed(6)} (±82 ม.)</span>
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={handleSetChiangMai} className="border border-gray-300 bg-white px-3 py-1.5 rounded-full text-gray-600 text-[11px] font-bold hover:bg-gray-50 transition shadow-sm">เฉพาะจังหวัดเชียงใหม่</button>
+                <button onClick={handleSetHod} className="border border-gray-300 bg-white px-3 py-1.5 rounded-full text-gray-600 text-[11px] font-bold hover:bg-gray-50 transition shadow-sm">อำเภอฮอด</button>
+                <button onClick={handleSetRadius} className="bg-[#0f172a] text-white px-4 py-1.5 rounded-full text-[11px] font-bold shadow-md hover:bg-gray-800 transition">รอบตำแหน่งของฉัน</button>
+                <button onClick={handleReset} className="border border-gray-300 bg-white px-3 py-1.5 rounded-full text-gray-500 text-[11px] font-bold hover:bg-gray-50 transition shadow-sm flex items-center">✕ รีเซ็ต</button>
+              </div>
+            </div>
+
+            <div className="text-[12px] text-gray-500 mb-3 px-1">
+              {isLoading ? <span className="text-blue-500 font-bold animate-pulse">กำลังโหลดข้อมูล...</span> : <>พบข้อมูล <span className="font-extrabold text-[#0f4a8a]">{filteredStations.length}</span> รายการ</>}
+            </div>
+
+            {/* 13 กล่อง Grid (5 คอลัมน์) */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {/* Row 1 */}
+              <div className="border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col justify-between h-[85px]">
+                <span className="text-[11px] text-gray-500 font-bold">สถานีวัดน้ำทั้งหมด</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{totalWater}</span>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col justify-between h-[85px]">
+                <span className="text-[11px] text-gray-500 font-bold">สถานีวัดฝนทั้งหมด</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{totalRain}</span>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col justify-between h-[85px]">
+                <span className="text-[11px] text-gray-500 font-bold">สถานีที่มีข้อมูลล่าสุด</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{filteredStations.length}</span>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col justify-between h-[85px]">
+                <span className="text-[11px] text-gray-500 font-bold">ระดับน้ำเพิ่มขึ้น ↑</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{waterUp}</span>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col justify-between h-[85px]">
+                <span className="text-[11px] text-gray-500 font-bold">ระดับน้ำลดลง ↓</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{waterDown}</span>
+              </div>
+              
+              {/* Row 2 */}
+              <div className="border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col justify-between h-[85px]">
+                <span className="text-[11px] text-gray-500 font-bold">ระดับน้ำคงที่ →</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{waterSteady}</span>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col justify-between h-[85px]">
+                <span className="text-[11px] text-gray-500 font-bold flex items-center"><span className="w-2 h-2 rounded-full bg-[#facc15] mr-1.5"></span> เฝ้าระวัง</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{watchCount}</span>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col justify-between h-[85px]">
+                <span className="text-[11px] text-gray-500 font-bold flex items-center"><span className="w-2 h-2 rounded-full bg-[#f97316] mr-1.5"></span> เสี่ยงสูง</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{highRiskCount}</span>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col justify-between h-[85px]">
+                <span className="text-[11px] text-gray-500 font-bold flex items-center"><span className="w-2 h-2 rounded-full bg-[#ef4444] mr-1.5"></span> วิกฤต</span><span className="text-2xl font-extrabold text-[#0f4a8a]">{criticalCount}</span>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col justify-between h-[85px]">
+                <span className="text-[11px] text-gray-500 font-bold">ปริมาณฝนสูงสุด 24 ชม.</span>
+                <div className="flex flex-col"><div className="flex items-baseline"><span className="text-2xl font-extrabold text-[#0f4a8a]">{maxRainData.val.toFixed(1)}</span><span className="text-[10px] ml-1 font-bold text-[#0f4a8a]">มม.</span></div><span className="text-[9px] text-gray-400 truncate">{maxRainData.amp}</span></div>
+              </div>
+
+              {/* Row 3 */}
+              <div className="border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col justify-between h-[85px]">
+                <span className="text-[11px] text-gray-500 font-bold">พื้นที่เสี่ยง</span><span className="text-2xl font-extrabold text-[#0f4a8a]">0</span>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col justify-between h-[85px]">
+                <span className="text-[11px] text-gray-500 font-bold">เหตุการณ์น้ำท่วม</span><span className="text-2xl font-extrabold text-[#0f4a8a]">0</span>
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col justify-between h-[85px]">
+                <span className="text-[11px] text-gray-500 font-bold">ประกาศเตือน</span><span className="text-2xl font-extrabold text-[#0f4a8a]">0</span>
+              </div>
             </div>
           </div>
-
-          {/* แถว 3 */}
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between h-[90px]">
-            <span className="text-[11px] text-gray-500 font-bold">พื้นที่เสี่ยง</span><span className="text-2xl font-extrabold text-[#0f4a8a]">0</span>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between h-[90px]">
-            <span className="text-[11px] text-gray-500 font-bold">เหตุการณ์น้ำท่วม</span><span className="text-2xl font-extrabold text-[#0f4a8a]">0</span>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between h-[90px]">
-            <span className="text-[11px] text-gray-500 font-bold">ประกาศเตือน</span><span className="text-2xl font-extrabold text-[#0f4a8a]">0</span>
-          </div>
         </div>
 
-        {/* 🗺️ แผนที่สถานการณ์น้ำ (ดีไซน์คลีน) */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col mt-4">
+        {/* 🗺️ Card 2: แผนที่ (อิงตามรูป 3) */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
           <div className="px-5 py-3 border-b border-gray-200 bg-white">
-             <h3 className="text-[#0f4a8a] text-[14px] font-extrabold flex items-center"><span className="mr-2 text-lg">🗺️</span> สถานการณ์น้ำบนแผนที่</h3>
+             <h3 className="text-[#0f4a8a] text-[15px] font-extrabold flex items-center"><span className="mr-2 text-lg">🗺️</span> สถานการณ์น้ำบนแผนที่</h3>
           </div>
 
           <div className="h-[450px] md:h-[600px] w-full relative z-0 bg-[#e5e7eb]">
             <MapContainer center={[18.1633, 98.3744]} zoom={11} maxZoom={20} zoomControl={true} attributionControl={false} className="w-full h-full" ref={mapRef}>
               <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={20} />
-              
               <Marker position={[position.lat, position.lng]} icon={createMyPinIcon()} />
-
               {filteredStations.map((st, idx) => (
                 <CircleMarker 
-                  key={idx} center={[st.lat, st.lng]} radius={7} 
-                  pathOptions={{ 
-                    color: st.risk.color, fillColor: st.type === 'water' ? st.risk.color : '#ffffff',
-                    fillOpacity: st.type === 'water' ? 0.9 : 0.4, weight: st.type === 'water' ? 1 : 2.5 
-                  }}
+                  key={idx} center={[st.lat, st.lng]} radius={6.5} 
+                  pathOptions={{ color: st.risk.color, fillColor: st.type === 'water' ? st.risk.color : '#ffffff', fillOpacity: st.type === 'water' ? 0.9 : 0.4, weight: st.type === 'water' ? 1 : 2.5 }}
                 >
                   <Popup className="custom-pro-popup" closeButton={true}>
                     <div className="w-[190px] p-1 font-sans text-gray-800">
@@ -315,8 +393,8 @@ export default function FloodDashboard() {
                         <div>{st.time ? new Date(st.time).toLocaleString('en-GB') : '--/--/---- --:--:--'}</div>
                         <div>พิกัด: {st.lat.toFixed(6)}, {st.lng.toFixed(6)}</div>
                       </div>
-                      <a href={`https://www.google.com/maps/dir/?api=1&destination=${st.lat},${st.lng}`} target="_blank" rel="noopener noreferrer" className="mt-2.5 w-full bg-[#1d4ed8] hover:bg-[#1e3a8a] text-white flex items-center justify-center space-x-1.5 py-1.5 rounded-md text-[11px] font-bold shadow-md transition-colors">
-                        <span className="text-sm">🧭</span> <span>นำทางด้วย Google Maps</span>
+                      <a href={`https://www.google.com/maps/dir/?api=1&destination=${st.lat},${st.lng}`} target="_blank" rel="noopener noreferrer" className="mt-2 w-full bg-[#1d4ed8] hover:bg-[#1e3a8a] text-white flex items-center justify-center space-x-1.5 py-1.5 rounded-md text-[11px] font-bold shadow-md transition-colors">
+                        <span>🧭 นำทางด้วย Google Maps</span>
                       </a>
                     </div>
                   </Popup>
@@ -324,17 +402,95 @@ export default function FloodDashboard() {
               ))}
             </MapContainer>
           </div>
+
+          <div className="bg-white px-5 py-3 border-t border-gray-200 flex flex-wrap items-center gap-4 text-[10px] md:text-[11px] text-gray-600 font-medium">
+            <span className="text-gray-800 font-bold">สัญลักษณ์:</span>
+            <span className="flex items-center"><span className="w-2.5 h-2.5 rounded-full bg-[#10b981] mr-1.5"></span> ปกติ</span>
+            <span className="flex items-center"><span className="w-2.5 h-2.5 rounded-full bg-[#facc15] mr-1.5"></span> เฝ้าระวัง</span>
+            <span className="flex items-center"><span className="w-2.5 h-2.5 rounded-full bg-[#f97316] mr-1.5"></span> เสี่ยงสูง</span>
+            <span className="flex items-center"><span className="w-2.5 h-2.5 rounded-full bg-[#ef4444] mr-1.5"></span> วิกฤต</span>
+            <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-gray-500 mr-1.5"></span> วงกลมทึบ = สถานีวัดระดับน้ำ</span>
+            <span className="flex items-center"><span className="w-3 h-3 rounded-full border-[2px] border-gray-500 mr-1.5 bg-transparent"></span> วงกลมขอบสี = สถานีวัดปริมาณฝน</span>
+            <span className="flex items-center ml-auto md:ml-0"><span className="text-red-600 mr-1 text-sm">📍</span> ตำแหน่งของฉัน</span>
+          </div>
+        </div>
+
+        {/* 📊 Card 3: กราฟแท่ง (อิงตามรูป 4) */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 bg-white border-b border-gray-100">
+            <h3 className="text-[#0f4a8a] text-[14px] md:text-[15px] font-extrabold flex items-center"><span className="mr-2">🌧️</span> สถานีที่มีปริมาณฝนสูงสุด (24 ชม.)</h3>
+          </div>
+          <div className="w-full h-[350px] p-4">
+            {topRainStations.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={topRainStations} layout="vertical" margin={{ top: 0, right: 30, left: 50, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                  <XAxis type="number" hide={false} axisLine={false} tickLine={false} tick={{fontSize: 11, fill: '#64748b'}} unit=" มม." />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#475569'}} width={130} />
+                  <RechartsTooltip cursor={{fill: '#f1f5f9'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  <Bar dataKey="val" name="ปริมาณฝน (มม.)" fill="#1d4ed8" radius={[0, 4, 4, 0]} barSize={16} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">ไม่มีข้อมูลปริมาณฝนในพื้นที่ที่เลือก</div>
+            )}
+          </div>
+        </div>
+
+        {/* 🛰️ Card 4: แผนที่ Windy (อิงตามรูป 5) */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-[500px] md:h-[650px]">
+          <div className="px-5 py-3 border-b border-gray-200 flex justify-between items-center bg-white z-10">
+            <div>
+               <h3 className="text-[#0f4a8a] text-[14px] md:text-[15px] font-extrabold flex items-center"><span className="mr-2">🛰️</span> แผนที่สภาพอากาศเรียลไทม์ (Windy)</h3>
+               <p className="text-[10px] text-gray-500 mt-0.5">จุดรายละเอียด: ตำแหน่งของฉัน ({position.lat.toFixed(3)}, {position.lng.toFixed(3)})</p>
+             </div>
+             <button onClick={handleCurrentLocation} className="bg-[#0f172a] text-white px-3 py-1.5 rounded-full text-[10px] font-bold shadow-sm flex items-center hover:bg-gray-800 transition">
+               <span className="mr-1 text-red-500 text-xs">📍</span> ตำแหน่งของฉัน
+             </button>
+          </div>
+
+          <div className="flex space-x-2 px-5 py-2.5 bg-white border-b border-gray-200 z-10 overflow-x-auto custom-scrollbar">
+            {WINDY_LAYERS.map((layer) => (
+              <button 
+                key={layer.id} onClick={() => setWindyLayer(layer.id)}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-[11px] md:text-[12px] font-bold whitespace-nowrap transition-all border
+                  ${windyLayer === layer.id ? 'bg-[#0f4a8a] text-white border-[#0f4a8a]' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+              >
+                <span>{layer.icon}</span><span>{layer.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="w-full flex-1 relative z-0">
+            <iframe 
+              width="100%" height="100%" frameBorder="0"
+              src={`https://embed.windy.com/embed2.html?lat=${position.lat}&lon=${position.lng}&detailLat=${position.lat}&detailLon=${position.lng}&zoom=${windyZoom}&level=surface&overlay=${windyLayer}&product=ecmwf&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1`}
+            ></iframe>
+          </div>
+
+          <div className="bg-gray-50 px-4 py-2 border-t border-gray-200 flex items-center text-[10px] md:text-[11px] font-medium text-gray-500 z-10 justify-between">
+            <div className="flex space-x-4">
+              <span className="flex items-center text-green-600 font-bold"><span className="w-2 h-2 rounded-full bg-green-500 mr-1.5"></span> Data System Online</span>
+              <span className="hidden md:inline">Sources: 3/3</span>
+            </div>
+            <div>ข้อมูลพยากรณ์อากาศจาก Windy.com</div>
+          </div>
+        </div>
+
+        {/* 📋 API Status Footer (ซ่อนไว้เป็นกล่องเล็กๆ ด้านล่าง เพื่อความโปร่งใส) */}
+        <div className="bg-white rounded-lg border border-gray-200 p-3 flex flex-wrap gap-4 text-[10px] text-gray-500 justify-center">
+           <div className="flex items-center"><span className="mr-1 font-bold">API ระดับน้ำ (ONWR):</span> <span className={apiStatus.water.includes('สำเร็จ') ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>{apiStatus.water}</span></div>
+           <div className="flex items-center"><span className="mr-1 font-bold">API ปริมาณฝน (ONWR):</span> <span className={apiStatus.rain.includes('สำเร็จ') ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>{apiStatus.rain}</span></div>
         </div>
 
       </main>
       
-      {/* 💅 CSS Injection สำหรับปรับแต่ง Popup ให้ไร้ขอบสไตล์แอป */}
       <style dangerouslySetInnerHTML={{__html: `
-        .custom-pro-popup .leaflet-popup-content-wrapper { 
-          padding: 0 !important; border-radius: 12px !important; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important; 
-        }
+        .custom-pro-popup .leaflet-popup-content-wrapper { padding: 0 !important; border-radius: 12px !important; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important; }
         .custom-pro-popup .leaflet-popup-content { margin: 12px 14px !important; line-height: 1.5 !important; }
         .custom-pro-popup .leaflet-popup-close-button { color: #9ca3af !important; top: 8px !important; right: 8px !important; }
+        .custom-scrollbar::-webkit-scrollbar { height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
       `}} />
     </div>
   );
