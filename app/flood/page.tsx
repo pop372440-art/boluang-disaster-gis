@@ -23,7 +23,16 @@ const INITIAL_LAT = 18.147234;
 const INITIAL_LNG = 98.348720;
 const MAX_DISTANCE_KM = 50;
 
-// 🧮 ฟังก์ชันคำนวณระยะทาง
+// 🎯 กำหนดจุดดึงข้อมูล TMD API เพิ่มเติม (เพื่อเสริมจุดที่ สทนช. ไม่มีสถานี)
+const LOCAL_TMD_STATIONS = [
+  { name: 'ต.บ่อหลวง (ศูนย์กลาง)', lat: 18.1633, lng: 98.3744 },
+  { name: 'อ.แม่แจ่ม (ดอยอินทนนท์)', lat: 18.4988, lng: 98.3601 },
+  { name: 'อ.ฮอด (ตัวอำเภอ)', lat: 18.1908, lng: 98.6133 },
+  { name: 'อ.จอมทอง', lat: 18.4172, lng: 98.6738 },
+  { name: 'อ.อมก๋อย', lat: 17.7969, lng: 98.3585 }
+];
+
+// 🧮 คำนวณระยะทาง
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371; 
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -38,34 +47,25 @@ const cleanName = (str: string) => {
   return String(str).replace(/^(จังหวัด|จ\.|อำเภอ|อ\.|ตำบล|ต\.)/g, '').trim();
 };
 
-// 🛡️ API Resilience (มี Cache ป้องกันระบบล่ม ตามโค้ดต้นฉบับ page.tsx)
+// 🛡️ API Resilience ทะลวงข้อมูล
 const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 15000) => {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
-    // ลองดึงตรงๆ หรือผ่าน allorigins แบบฉับไว
-    let fetchUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    let fetchUrl = url.includes('open-meteo') ? url : `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
     const res = await fetch(fetchUrl, { signal: controller.signal });
     clearTimeout(timeoutId);
     
     if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
     let data = await res.json();
-    if (data.contents) data = JSON.parse(data.contents); // แปลงข้อมูลจาก allorigins
+    if (data.contents) data = JSON.parse(data.contents); 
     
-    try {
-      sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
-    } catch (storageErr) {
-      console.warn('Storage full, skipping cache save.');
-    }
-    
+    try { sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data })); } catch (e) {}
     return { data, status: '🟢 เชื่อมต่อสำเร็จ' };
   } catch (error) {
-    console.warn(`[API Resilience] ${cacheKey} failed. Using cache. Error:`, error);
     const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      return { data: JSON.parse(cached).data, status: '🟢 เชื่อมต่อสำเร็จ (Cached)' };
-    }
+    if (cached) return { data: JSON.parse(cached).data, status: '🟢 เชื่อมต่อสำเร็จ (Cached)' };
     return { data: null, status: '🔴 การเชื่อมต่อขัดข้อง (Timeout)' };
   }
 };
@@ -94,7 +94,7 @@ export default function FloodWatchDashboard() {
   
   const [windyLayer, setWindyLayer] = useState('radar');
   const [windyZoom, setWindyZoom] = useState(8);
-  const [apiStatus, setApiStatus] = useState({ water: 'กำลังเชื่อมต่อ...', rain: 'กำลังเชื่อมต่อ...' });
+  const [apiStatus, setApiStatus] = useState({ water: 'กำลังเชื่อมต่อ...', rain: 'กำลังเชื่อมต่อ...', tmd: 'กำลังเชื่อมต่อ...' });
 
   const mapRef = useRef<any>(null);
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
@@ -105,9 +105,9 @@ export default function FloodWatchDashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  // 📡 ดึงข้อมูล API สทนช. (ประยุกต์ใช้โค้ด Parse JSON ขั้นเทพจาก page.tsx)
+  // 📡 ดึงข้อมูล API สทนช. + TMD
   useEffect(() => {
-    const fetchONWR = async () => {
+    const fetchData = async () => {
       setIsLoading(true);
       try {
         let merged: any[] = [];
@@ -126,7 +126,6 @@ export default function FloodWatchDashboard() {
           }
         };
 
-        // 🧠 ฟังก์ชันทะลวงหา Array อัจฉริยะ (จาก page.tsx)
         const extractArrayData = (json: any): any[] => {
           let arrData: any[] = [];
           if (Array.isArray(json)) arrData = json;
@@ -173,14 +172,14 @@ export default function FloodWatchDashboard() {
             else if (tnd === 'DOWN' || tnd < 0) trend = 'down';
             time = s?.waterlevel_datetime || s?.datetime || '';
           } else {
-            val = parseFloat(s?.rain_24h || s?.rain || 0);
+            val = parseFloat(s?.rain_24h || s?.rain24h || s?.rain || 0);
             time = s?.rain_datetime || s?.datetime || '';
           }
 
-          return { id: Math.random().toString(), name, prov, amp, tum, lat, lng, type, val, trend, time, risk: getRisk(val, type) };
+          return { id: Math.random().toString(), name, prov, amp, tum, lat, lng, type, val, trend, time, risk: getRisk(val, type), source: 'ONWR' };
         };
 
-        // 1. ดึงระดับน้ำ
+        // 1. ดึงระดับน้ำ สทนช.
         const { data: wJson, status: wStatus } = await fetchWithCache('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load', 'onwr_water_cache');
         setApiStatus(prev => ({ ...prev, water: wStatus }));
         if (wJson) {
@@ -188,7 +187,7 @@ export default function FloodWatchDashboard() {
           wStations.forEach((s: any) => { const st = parseStation(s, 'water'); if (st) merged.push(st); });
         }
 
-        // 2. ดึงปริมาณฝน
+        // 2. ดึงปริมาณฝน สทนช.
         const { data: rJson, status: rStatus } = await fetchWithCache('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h', 'onwr_rain_cache');
         setApiStatus(prev => ({ ...prev, rain: rStatus }));
         if (rJson) {
@@ -196,10 +195,39 @@ export default function FloodWatchDashboard() {
           rStations.forEach((s: any) => { const st = parseStation(s, 'rain'); if (st) merged.push(st); });
         }
 
+        // 3. 🚀 ดึงปริมาณฝน TMD (เสริมทัพให้กราฟ)
+        const lats = LOCAL_TMD_STATIONS.map(p => p.lat.toFixed(4)).join(',');
+        const lngs = LOCAL_TMD_STATIONS.map(p => p.lng.toFixed(4)).join(',');
+        const tmdUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&daily=precipitation_sum&timezone=Asia%2FBangkok`;
+        const { data: tmdData, status: tmdStatus } = await fetchWithCache(tmdUrl, 'tmd_rain_cache_flood');
+        setApiStatus(prev => ({ ...prev, tmd: tmdStatus }));
+        
+        if (tmdData && Array.isArray(tmdData)) {
+          tmdData.forEach((d, i) => {
+            const rainVal = d?.daily?.precipitation_sum?.[0] || 0;
+            const stationInfo = LOCAL_TMD_STATIONS[i];
+            merged.push({
+              id: `tmd-${i}`,
+              name: `☁️ ${stationInfo.name}`,
+              prov: 'เชียงใหม่',
+              amp: stationInfo.name.includes('ฮอด') ? 'ฮอด' : (stationInfo.name.includes('แม่แจ่ม') ? 'แม่แจ่ม' : 'จอมทอง'),
+              tum: '',
+              lat: stationInfo.lat,
+              lng: stationInfo.lng,
+              type: 'rain',
+              val: rainVal,
+              risk: getRisk(rainVal, 'rain'),
+              trend: 'steady',
+              time: new Date().toISOString(),
+              source: 'TMD'
+            });
+          });
+        }
+
         setStations(merged);
       } catch (error) { console.error(error); } finally { setIsLoading(false); }
     };
-    fetchONWR();
+    fetchData();
   }, []);
 
   // 🎛️ Filter Engine
@@ -275,10 +303,16 @@ export default function FloodWatchDashboard() {
     maxRainData = { val: maxS.val, amp: maxS.name || maxS.amp || 'ไม่ระบุ' };
   }
 
-  // เตรียมข้อมูลกราฟและตาราง
-  const topRainStations = [...rainStations].sort((a, b) => b.val - a.val).slice(0, 10).map(s => ({
-    name: s.name.length > 15 ? s.name.substring(0, 15) + '...' : s.name, val: s.val
-  }));
+  // 📊 เตรียมข้อมูลกราฟแท่ง (เรียงจากมากไปน้อย เลือกเฉพาะที่มีฝน > 0 มม.)
+  const topRainStations = [...rainStations]
+    .filter(s => s.val > 0)
+    .sort((a, b) => b.val - a.val)
+    .slice(0, 10)
+    .map(s => ({
+      name: s.name.length > 20 ? s.name.substring(0, 20) + '...' : s.name, 
+      val: s.val
+    }));
+
   const waterStationsTable = [...filteredStations].filter(s => s.type === 'water').sort((a, b) => (a.distance || 0) - (b.distance || 0)).slice(0, 15);
 
   return (
@@ -465,7 +499,9 @@ export default function FloodWatchDashboard() {
                 >
                   <Popup className="custom-pro-popup" closeButton={true}>
                     <div className="w-[190px] p-1 font-sans text-gray-800">
-                      <div className="font-bold text-[13px] leading-tight mb-1 text-gray-900 border-b pb-1 border-gray-200">{st.name}</div>
+                      <div className="font-bold text-[13px] leading-tight mb-1 text-gray-900 border-b pb-1 border-gray-200">
+                        {st.name} {st.source === 'TMD' && <span className="text-[10px] bg-blue-100 text-blue-600 px-1 rounded ml-1">TMD</span>}
+                      </div>
                       <div className="text-[11px] leading-[1.6] text-gray-600">
                         <div>{st.tum} {st.amp} {st.prov}</div>
                         <div>{st.type === 'water' ? `ระดับน้ำ: ${st.val.toFixed(2)} ม.` : `ฝน 24 ชม.: ${st.val.toFixed(1)} มม.`}</div>
@@ -514,7 +550,10 @@ export default function FloodWatchDashboard() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">ไม่มีข้อมูลปริมาณฝนในพื้นที่ที่เลือก</div>
+              <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 text-sm">
+                <span className="text-2xl mb-2">☀️</span>
+                ขณะนี้ไม่มีตรวจพบปริมาณฝนสะสมในพื้นที่ที่เลือก (0 มม.)
+              </div>
             )}
           </div>
         </div>
@@ -591,6 +630,14 @@ export default function FloodWatchDashboard() {
                       <span className={apiStatus.rain.includes('สำเร็จ') ? 'text-[#10b981]' : 'text-red-500'}>{apiStatus.rain}</span>
                     </td>
                     <td className="px-5 py-3.5 text-gray-400 font-mono text-[10px] md:text-[11px] truncate max-w-[200px] md:max-w-none">https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h</td>
+                  </tr>
+                  <tr className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-3.5 font-semibold text-gray-800">TMD Weather (Open-Meteo) — ฝนสะสมระดับพื้นที่</td>
+                    <td className="px-5 py-3.5 font-bold flex items-center">
+                      <span className={`w-2.5 h-2.5 rounded-full mr-2 ${apiStatus.tmd.includes('สำเร็จ') ? 'bg-[#10b981]' : 'bg-red-500'}`}></span> 
+                      <span className={apiStatus.tmd.includes('สำเร็จ') ? 'text-[#10b981]' : 'text-red-500'}>{apiStatus.tmd}</span>
+                    </td>
+                    <td className="px-5 py-3.5 text-gray-400 font-mono text-[10px] md:text-[11px] truncate max-w-[200px] md:max-w-none">https://api.open-meteo.com/v1/forecast</td>
                   </tr>
                   <tr className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3.5 font-semibold text-gray-800">FloodDash</td>
