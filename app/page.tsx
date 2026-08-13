@@ -44,7 +44,6 @@ const safeZonesData = [
 // 🛠️ 2. ฟังก์ชันเสริม (Utils)
 // ==========================================
 
-// 🧮 คำนวณระยะทาง
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371; 
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -54,7 +53,6 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c; 
 };
 
-// 🛡️ API Resilience (มี Cache ป้องกันระบบล่ม)
 const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 5000) => {
   try {
     const controller = new AbortController();
@@ -199,7 +197,7 @@ export default function BoLuangDashboard() {
   const [earthquakeLayer, setEarthquakeLayer] = useState(false);        
   const [hotspot, setHotspot] = useState(false);
   const [showLandslide, setShowLandslide] = useState(false);
-  const [showSafeZone, setShowSafeZone] = useState(false); // 🚀 ปิดไว้เป็นค่าเริ่มต้น ตามคำสั่งล่าสุด
+  const [showSafeZone, setShowSafeZone] = useState(false); 
   
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
@@ -1392,9 +1390,31 @@ export default function BoLuangDashboard() {
           </button>
 
           <div className="flex items-center space-x-3 md:space-x-4">
-            <div className="flex space-x-2">
-              <div className="w-8 h-8 md:w-9 md:h-9 bg-[#38bdf8]/20 rounded-full border border-[#38bdf8]/50 flex items-center justify-center text-[11px] md:text-[12px] font-bold text-[#38bdf8] shadow-[0_0_10px_rgba(56,189,248,0.3)]">BL</div>
+            
+            {/* 🚀 แทนที่โลโก้เดิมด้วย Smart City SVG Logo */}
+            <div className="relative flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-[#0b132b] rounded-xl border border-[#38bdf8]/40 shadow-[0_0_15px_rgba(56,189,248,0.3)] overflow-hidden group">
+              {/* Radar scanning effect */}
+              <div className="absolute inset-0 opacity-20 animate-spin" style={{ animationDuration: '4s', background: 'conic-gradient(from 90deg at 50% 50%, transparent 50%, #38bdf8 100%)' }}></div>
+              <div className="absolute inset-0 bg-[#0b132b] m-[1.5px] rounded-xl z-0"></div>
+              
+              {/* SVG Icon */}
+              <svg className="w-7 h-7 md:w-8 md:h-8 relative z-10 drop-shadow-[0_0_8px_rgba(56,189,248,0.8)]" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* Outer Hexagon / Shield */}
+                <path d="M20 3 L35 11.5 V28.5 L20 37 L5 28.5 V11.5 Z" stroke="#38bdf8" strokeWidth="1.5" strokeLinejoin="round" className="opacity-70" />
+                
+                {/* Central Dotted Radar ring */}
+                <circle cx="20" cy="20" r="12" stroke="#0ea5e9" strokeWidth="1" strokeDasharray="2 3" className="animate-spin" style={{ animationDuration: '10s' }} />
+                
+                {/* Futuristic BL Letters */}
+                <g transform="translate(10.5, 13)">
+                  {/* Letter B */}
+                  <path d="M 0 0 V 14 H 5 C 7.5 14 9 12 9 10.5 C 9 9 7.5 7 5 7 H 0 M 5 7 C 7 7 8 5.5 8 3.5 C 8 1.5 6 0 4 0 H 0" stroke="#ffffff" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  {/* Letter L */}
+                  <path d="M 13 0 V 14 H 19" stroke="#38bdf8" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                </g>
+              </svg>
             </div>
+
             <div className="flex flex-col border-l-2 border-[#1e293b] pl-3 md:pl-4">
               <h1 className="text-[12px] md:text-[14px] font-bold tracking-wide text-white leading-tight">ระบบสารสนเทศทางภูมิศาสตร์เพื่อบริหารจัดการสาธารณภัย</h1>
               <h2 className="text-[11px] md:text-[13px] font-bold tracking-wide text-[#38bdf8] leading-tight mt-0.5">เทศบาลตำบลบ่อหลวง</h2>
@@ -1437,7 +1457,7 @@ export default function BoLuangDashboard() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
           </svg>
           <span className="text-[11px] md:text-[13px] font-mono font-medium text-gray-300 tracking-wide">
-            GIS Layers <span className="hidden md:inline text-gray-500 mx-1">· boluang</span>
+            GIS Layers <span className="hidden md:inline text-gray-500 mx-1">· Thailand</span>
           </span>
         </div>
       </header>
@@ -1636,7 +1656,7 @@ export default function BoLuangDashboard() {
                 </div>
               </div>
 
-              <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed">แผงควบคุมชั้นข้อมูลหลักด้านขวา</p>
+              <p className="text-[11px] md:text-[12px] text-gray-400 mt-1 leading-relaxed">แผงควบคุมชั้นข้อมูลหลักด้านขวา ส่วนข้อมูลอากาศและค่าฝุ่น PM2.5 / AQI แยกไว้ด้านซ้าย</p>
             </div>
 
             <div className="space-y-4">
