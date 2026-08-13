@@ -163,30 +163,6 @@ const localAirStations = [
   { name: 'ศูนย์ราชการฯ เชียงใหม่', lat: 18.7883, lng: 98.9853, type: 'province' }
 ];
 
-const staticWeather = {
-  temperature_2m: 26.5,
-  wind_speed_10m: 12.5,
-  relative_humidity_2m: 65,
-  weather_code: 2, 
-  rain_today: 0,
-  uv_max: 7
-};
-
-const staticAqi = {
-  us_aqi: 23,
-  pm2_5: 12.5
-};
-
-const staticForecast = [
-  { day: 'วันนี้', maxTemp: 28, minTemp: 18, rain: 0 },
-  { day: 'พ.', maxTemp: 29, minTemp: 19, rain: 0 },
-  { day: 'พฤ.', maxTemp: 30, minTemp: 19, rain: 5.2 },
-  { day: 'ศ.', maxTemp: 27, minTemp: 18, rain: 12.5 },
-  { day: 'ส.', maxTemp: 26, minTemp: 17, rain: 8.0 },
-  { day: 'อา.', maxTemp: 28, minTemp: 18, rain: 2.0 },
-  { day: 'จ.', maxTemp: 29, minTemp: 18, rain: 0 }
-];
-
 // ==========================================
 // 🚀 5. MAIN COMPONENT 
 // ==========================================
@@ -216,7 +192,7 @@ export default function BoLuangDashboard() {
   // State: Sidebar ด้านขวา
   // ----------------------------------------
   const [satelliteLayer, setSatelliteLayer] = useState(false); 
-  const [showBoluang, setShowBoluang] = useState(true); // เปิดเขตตำบลไว้เป็นค่าเริ่มต้นให้เห็นชัด
+  const [showBoluang, setShowBoluang] = useState(true); 
   const [showBlock, setShowBlock] = useState(false);        
   const [showParcel, setShowParcel] = useState(false);      
   const [citizenReport, setCitizenReport] = useState(false); 
@@ -257,7 +233,6 @@ export default function BoLuangDashboard() {
   const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, showSafeZone].filter(Boolean).length;
 
   const [locationName, setLocationName] = useState('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
-  const [currentTime, setCurrentTime] = useState<Date | null>(null); 
 
   // ==========================================
   // 🎯 Action Functions
@@ -390,12 +365,6 @@ export default function BoLuangDashboard() {
     }
   };
 
-  const handleResetToCenter = () => {
-    if (mapRef) {
-      mapRef.flyTo([INITIAL_LAT, INITIAL_LNG], 14, { duration: 1.5 });
-    }
-  };
-
   const markerRef = useRef<any>(null);
   const handleMarkerDragEnd = () => {
     const marker = markerRef.current;
@@ -409,17 +378,17 @@ export default function BoLuangDashboard() {
   // ⚙️ UseEffects สำหรับดึงข้อมูล & Responsive
   // ==========================================
   
-  // 🚀 Logic ควบคุมการเปิดปิดเมนูสำหรับ "Wow Effect" บนหน้าจอมือถือ/แท็บเล็ต
+  // 🚀 ควบคุมการเปิดปิดเมนูสำหรับ Mobile
   useEffect(() => {
     const handleResize = () => {
-      const mobile = window.innerWidth < 1024; // ใช้ lg breakpoint (1024px) 
+      const mobile = window.innerWidth < 1024; 
       setIsMobile(mobile);
       if (mobile) { 
-        // 📱 มือถือหรือแท็บเล็ต: ปิดเมนูซ้าย เปิดเมนูขวา (Layers) ให้เห็นลูกเล่นทันที
+        // มือถือ: ซ่อนซ้าย เปิดขวา
         setIsLeftPanelOpen(false); 
         setIsRightPanelOpen(true); 
       } else { 
-        // 💻 เดสก์ท็อป: เปิดทั้ง 2 ฝั่ง
+        // คอมพิวเตอร์: เปิด 2 ข้าง
         setIsLeftPanelOpen(true); 
         setIsRightPanelOpen(true); 
       }
@@ -427,12 +396,6 @@ export default function BoLuangDashboard() {
     handleResize(); 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    setCurrentTime(new Date());
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -737,7 +700,7 @@ export default function BoLuangDashboard() {
   // 🚀 ตั้งค่าให้ Hover เฉพาะเส้นขอบเขต (Border)
   const styleBoluang = { color: '#0ea5e9', weight: 3, fill: false, interactive: true }; 
   const onEachBoluangFeature = (feature: any, layer: any) => {
-    layer.bindTooltip('ขอบเขตเทศบาลตำบลบ่อหลวง', { sticky: true, direction: 'auto', className: 'village-hover-tooltip' });
+    layer.bindTooltip('เขตเทศบาลตำบลบ่อหลวง', { sticky: true, direction: 'auto', className: 'village-hover-tooltip' });
     layer.on({
       mouseover: (e: any) => {
         e.target.setStyle({ weight: 5, color: '#38bdf8' });
