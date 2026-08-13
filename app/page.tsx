@@ -44,6 +44,7 @@ const safeZonesData = [
 // 🛠️ 2. ฟังก์ชันเสริม (Utils)
 // ==========================================
 
+// 🧮 คำนวณระยะทาง
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371; 
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -53,6 +54,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c; 
 };
 
+// 🛡️ API Resilience (มี Cache ป้องกันระบบล่ม)
 const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 5000) => {
   try {
     const controller = new AbortController();
@@ -1391,28 +1393,13 @@ export default function BoLuangDashboard() {
 
           <div className="flex items-center space-x-3 md:space-x-4">
             
-            {/* 🚀 แทนที่โลโก้เดิมด้วย Smart City SVG Logo */}
-            <div className="relative flex items-center justify-center w-10 h-10 md:w-12 md:h-12 bg-[#0b132b] rounded-xl border border-[#38bdf8]/40 shadow-[0_0_15px_rgba(56,189,248,0.3)] overflow-hidden group">
-              {/* Radar scanning effect */}
-              <div className="absolute inset-0 opacity-20 animate-spin" style={{ animationDuration: '4s', background: 'conic-gradient(from 90deg at 50% 50%, transparent 50%, #38bdf8 100%)' }}></div>
-              <div className="absolute inset-0 bg-[#0b132b] m-[1.5px] rounded-xl z-0"></div>
-              
-              {/* SVG Icon */}
-              <svg className="w-7 h-7 md:w-8 md:h-8 relative z-10 drop-shadow-[0_0_8px_rgba(56,189,248,0.8)]" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                {/* Outer Hexagon / Shield */}
-                <path d="M20 3 L35 11.5 V28.5 L20 37 L5 28.5 V11.5 Z" stroke="#38bdf8" strokeWidth="1.5" strokeLinejoin="round" className="opacity-70" />
-                
-                {/* Central Dotted Radar ring */}
-                <circle cx="20" cy="20" r="12" stroke="#0ea5e9" strokeWidth="1" strokeDasharray="2 3" className="animate-spin" style={{ animationDuration: '10s' }} />
-                
-                {/* Futuristic BL Letters */}
-                <g transform="translate(10.5, 13)">
-                  {/* Letter B */}
-                  <path d="M 0 0 V 14 H 5 C 7.5 14 9 12 9 10.5 C 9 9 7.5 7 5 7 H 0 M 5 7 C 7 7 8 5.5 8 3.5 C 8 1.5 6 0 4 0 H 0" stroke="#ffffff" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                  {/* Letter L */}
-                  <path d="M 13 0 V 14 H 19" stroke="#38bdf8" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                </g>
-              </svg>
+            {/* 🚀 โลโก้เทศบาลตำบลบ่อหลวง (Official Logo) */}
+            <div className="relative flex-shrink-0 w-11 h-11 md:w-14 md:h-14 bg-white rounded-lg md:rounded-xl p-0.5 shadow-[0_0_15px_rgba(255,255,255,0.1)] overflow-hidden border border-gray-200">
+              <img 
+                src="/images.jpg" 
+                alt="โลโก้เทศบาลตำบลบ่อหลวง" 
+                className="w-full h-full object-contain rounded-md"
+              />
             </div>
 
             <div className="flex flex-col border-l-2 border-[#1e293b] pl-3 md:pl-4">
