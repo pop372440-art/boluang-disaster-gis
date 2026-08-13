@@ -1393,12 +1393,12 @@ export default function BoLuangDashboard() {
 
           <div className="flex items-center space-x-3 md:space-x-4">
             
-          {/* 🚀 โลโก้ GIS บ่อหลวง (Pro Circular Style) */}
-            <div className="relative flex-shrink-0 w-12 h-12 md:w-14 md:h-14 bg-white rounded-full shadow-[0_0_15px_rgba(56,189,248,0.4)] overflow-hidden flex items-center justify-center">
+          {/* 🚀 โลโก้ GIS บ่อหลวง (ใช้ CSS ตัดขอบพื้นหลังให้เอง ไม่ต้องพึ่ง Photoshop!) */}
+            <div className="relative flex-shrink-0 w-12 h-12 md:w-14 md:h-14 bg-white rounded-full shadow-[0_0_15px_rgba(255,255,255,0.15)] overflow-hidden flex items-center justify-center">
               <img 
                 src="/Logogis.jpg" 
                 alt="โลโก้เทศบาลตำบลบ่อหลวง GIS" 
-                className="w-[115%] h-[115%] max-w-none object-contain mix-blend-multiply"
+                className="w-full h-full object-cover scale-[1.20]"
               />
             </div>
             
