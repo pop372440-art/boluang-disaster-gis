@@ -1393,14 +1393,14 @@ export default function BoLuangDashboard() {
 
           <div className="flex items-center space-x-3 md:space-x-4">
             
-            {/* 🚀 โลโก้เทศบาลตำบลบ่อหลวง (Official Logo) */}
-          <div className="relative flex-shrink-0 w-11 h-11 md:w-14 md:h-14 bg-white rounded-lg md:rounded-xl shadow-[0_0_15px_rgba(255,255,255,0.1)] overflow-hidden border border-gray-200">
-          <img 
-          src="/Logogis.jpg" 
-          alt="โลโก้เทศบาลตำบลบ่อหลวง" 
-          className="w-full h-full object-cover object-center scale-125"
-          />
-          </div>
+          {/* 🚀 โลโก้เทศบาลตำบลบ่อหลวง (Official Logo) */}
+<div className="relative flex-shrink-0 w-11 h-11 md:w-14 md:h-14 bg-white rounded-lg md:rounded-xl p-1 shadow-[0_0_15px_rgba(255,255,255,0.1)] overflow-hidden border border-gray-200 flex items-center justify-center">
+  <img 
+    src="/Logogis.jpg" 
+    alt="โลโก้เทศบาลตำบลบ่อหลวง" 
+    className="w-full h-full object-contain"
+  />
+</div>
 
             <div className="flex flex-col border-l-2 border-[#1e293b] pl-3 md:pl-4">
               <h1 className="text-[12px] md:text-[14px] font-bold tracking-wide text-white leading-tight">ระบบสารสนเทศทางภูมิศาสตร์เพื่อบริหารจัดการสาธารณภัย</h1>
