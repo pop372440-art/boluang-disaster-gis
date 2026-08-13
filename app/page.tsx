@@ -191,17 +191,15 @@ export default function BoLuangDashboard() {
   // ----------------------------------------
   // State: Sidebar ด้านขวา
   // ----------------------------------------
-  // 🚀 ปรับเปลี่ยนค่า Default State ให้อลังการตามคำสั่ง
-  const [satelliteLayer, setSatelliteLayer] = useState(true); // เปิดแผนที่ดาวเทียม
-  const [showBoluang, setShowBoluang] = useState(true);     // เปิดขอบเขตตำบล
-  const [showBlock, setShowBlock] = useState(true);         // เปิดโซน 13 หมู่บ้าน
-  
+  const [satelliteLayer, setSatelliteLayer] = useState(true); 
+  const [showBoluang, setShowBoluang] = useState(true); 
+  const [showBlock, setShowBlock] = useState(true);         
   const [showParcel, setShowParcel] = useState(false);      
   const [citizenReport, setCitizenReport] = useState(false); 
   const [earthquakeLayer, setEarthquakeLayer] = useState(false);        
   const [hotspot, setHotspot] = useState(false);
   const [showLandslide, setShowLandslide] = useState(false);
-  const [showSafeZone, setShowSafeZone] = useState(true); 
+  const [showSafeZone, setShowSafeZone] = useState(false); // 🚀 ปิดไว้เป็นค่าเริ่มต้น ตามคำสั่งล่าสุด
   
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
@@ -697,7 +695,7 @@ export default function BoLuangDashboard() {
     return { radius, color, fillColor, fillOpacity: 0.5, weight: 2.5 };
   };
 
-  // 🚀 ตั้งค่าให้ Hover เฉพาะเส้นขอบเขต (Border) ตรงตามที่ขอ
+  // 🚀 ตั้งค่าให้ Hover เฉพาะเส้นขอบเขต (Border)
   const styleBoluang = { color: '#0ea5e9', weight: 3, fill: false, interactive: true }; 
   const onEachBoluangFeature = (feature: any, layer: any) => {
     layer.bindTooltip('เขตเทศบาลตำบลบ่อหลวง', { sticky: true, direction: 'auto', className: 'village-hover-tooltip' });
