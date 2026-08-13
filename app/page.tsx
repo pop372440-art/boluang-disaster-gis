@@ -995,7 +995,7 @@ export default function BoLuangDashboard() {
                       <span>🛡️</span> <span>จุดปลอดภัย/ศูนย์พักพิง</span>
                     </div>
                     <div className="text-white text-[13px] font-semibold">{sz.name}</div>
-                    <div className="text-gray-400 text-[10px] mt-2 border-t border-[#1e293b] pt-2">เทศบาลตำบลบ่อหลวง</div>
+                    <div className="text-gray-400 text-[10px] mt-2 border-t border-[#1e293b] pt-2">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</div>
                   </div>
                 </Popup>
               </Marker>
@@ -1444,7 +1444,7 @@ export default function BoLuangDashboard() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
           </svg>
           <span className="text-[11px] md:text-[13px] font-mono font-medium text-gray-300 tracking-wide">
-            GIS Layers <span className="hidden md:inline text-gray-500 mx-1">· Thailand</span>
+            GIS Layers <span className="hidden md:inline text-gray-500 mx-1">· boluang</span>
           </span>
         </div>
       </header>
