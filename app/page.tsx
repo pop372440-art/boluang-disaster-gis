@@ -1396,7 +1396,7 @@ export default function BoLuangDashboard() {
             {/* 🚀 โลโก้เทศบาลตำบลบ่อหลวง (Official Logo) */}
             <div className="relative flex-shrink-0 w-11 h-11 md:w-14 md:h-14 bg-white rounded-lg md:rounded-xl p-0.5 shadow-[0_0_15px_rgba(255,255,255,0.1)] overflow-hidden border border-gray-200">
               <img 
-                src="/images.jpg" 
+                src="/Logogis.jpg" 
                 alt="โลโก้เทศบาลตำบลบ่อหลวง" 
                 className="w-full h-full object-contain rounded-md"
               />
