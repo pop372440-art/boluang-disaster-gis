@@ -38,26 +38,39 @@ const cleanName = (str: string) => {
   return str.replace(/^(จังหวัด|จ\.|อำเภอ|อ\.|ตำบล|ต\.)/g, '').trim();
 };
 
-// 🛡️ API Fetcher ขั้นสุดยอด (ใช้ Next.js Rewrites เป็นหลัก + Proxy สำรอง)
+// 🛡️ API Fetcher สำหรับข้อมูลไฟล์ใหญ่ (เพิ่ม Timeout 20 วิ + Fallback Proxy แบบยืดหยุ่น)
 const fetchONWRData = async (endpoint: string) => {
-  // 1. ดึงผ่านท่อตรงของ Vercel (Next.js Rewrites ที่เราตั้งค่าไว้) - เสถียรสุด 100%
-  try {
-    const res = await fetch(`/api/onwr/${endpoint}`);
-    if (res.ok) return await res.json();
-  } catch (e) { console.warn("Rewrite fetch failed, falling back to proxy..."); }
+  const fetchWithTimeout = async (url: string, timeoutMs = 20000) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (res.ok) return await res.json();
+    } catch (e) {
+      clearTimeout(timeoutId);
+    }
+    return null;
+  };
 
-  // 2. ถ้าผู้ใช้ลืมตั้งค่า next.config.mjs ให้ใช้ Proxy สำรอง
+  // 1. ดึงผ่าน Vercel Rewrites
+  let data = await fetchWithTimeout(`/api/onwr/${endpoint}`, 15000);
+  if (data) return data;
+
+  // 2. ดึงผ่าน Proxy 1 (corsproxy.io)
   const targetUrl = `https://api-v3.thaiwater.net/api/v1/thaiwater30/public/${endpoint}`;
-  try {
-    const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(targetUrl)}`);
-    if (res.ok) return await res.json();
-  } catch (e) {}
+  data = await fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(targetUrl)}`, 15000);
+  if (data) return data;
 
+  // 3. ดึงผ่าน Proxy 2 (allorigins raw)
+  data = await fetchWithTimeout(`https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`, 15000);
+  if (data) return data;
+
+  // 4. ดึงผ่าน Proxy 3 (allorigins contents parsed)
   try {
-    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.contents) return JSON.parse(data.contents);
+    const res = await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, 15000);
+    if (res && res.contents) {
+      return JSON.parse(res.contents);
     }
   } catch (e) {}
 
@@ -124,43 +137,65 @@ export default function FloodDashboard() {
           }
         };
 
+        const parseStation = (s: any, type: 'water'|'rain') => {
+          const lat = parseFloat(s?.station?.lat || s?.lat || 0);
+          const lng = parseFloat(s?.station?.long || s?.station?.lng || s?.long || s?.lng || 0);
+          
+          if (lat === 0 || lng === 0) return null;
+          if (lat < 5 || lat > 21 || lng < 97 || lng > 106) return null;
+
+          const name = s?.station?.tele_station_name?.th || s?.tele_station_name?.th || s?.station?.name?.th || s?.name?.th || 'สถานีไม่ระบุชื่อ';
+          const prov = cleanName(s?.station?.geocode?.province_name?.th || s?.geocode?.province_name?.th || s?.province_name?.th || '');
+          const amp = cleanName(s?.station?.geocode?.amphoe_name?.th || s?.geocode?.amphoe_name?.th || s?.amphoe_name?.th || '');
+          const tum = cleanName(s?.station?.geocode?.tumbon_name?.th || s?.geocode?.tumbon_name?.th || s?.tumbon_name?.th || '');
+
+          let val = 0;
+          let trend = 'steady';
+          let time = '';
+
+          if (type === 'water') {
+            val = parseFloat(s?.water_level || s?.waterlevel || 0);
+            const tnd = s?.waterlevel_tendency || s?.tendency;
+            if (tnd === 'UP' || tnd > 0) trend = 'up';
+            else if (tnd === 'DOWN' || tnd < 0) trend = 'down';
+            time = s?.waterlevel_datetime || s?.datetime || '';
+          } else {
+            val = parseFloat(s?.rain_24h || s?.rain || 0);
+            time = s?.rain_datetime || s?.datetime || '';
+          }
+
+          return {
+            id: s?.station?.id || s?.id || Math.random().toString(),
+            name, prov, amp, tum, lat, lng, type, val, trend, time,
+            risk: getRisk(val, type)
+          };
+        };
+
         // 1. ดึงระดับน้ำ
         const wData = await fetchONWRData('waterlevel_load');
-        if (wData && wData.waterlevel_data?.data) {
-          const wStations = wData.waterlevel_data.data;
-          const validWater = wStations.filter((s:any) => s.station?.lat > 15.0 && s.station?.lat < 21.0 && s.station?.long > 97.0 && s.station?.long < 101.0);
-          
-          validWater.forEach((s: any) => {
-            let trend = 'steady';
-            if (s.waterlevel_tendency === 'UP' || s.tendency > 0) trend = 'up';
-            else if (s.waterlevel_tendency === 'DOWN' || s.tendency < 0) trend = 'down';
-
-            merged.push({
-              id: s.station?.id, name: s.station?.tele_station_name?.th || 'สถานีวัดน้ำ', 
-              prov: cleanName(s.station?.geocode?.province_name?.th || ''), amp: cleanName(s.station?.geocode?.amphoe_name?.th || ''), tum: cleanName(s.station?.geocode?.tumbon_name?.th || ''),
-              lat: parseFloat(s.station?.lat), lng: parseFloat(s.station?.long), 
-              type: 'water', val: parseFloat(s.water_level) || 0, risk: getRisk(parseFloat(s.water_level) || 0, 'water'), trend: trend, time: s.waterlevel_datetime
-            });
+        if (wData && (wData.waterlevel_data?.data || wData.data)) {
+          const wStations = wData.waterlevel_data?.data || wData.data;
+          wStations.forEach((s: any) => {
+            const st = parseStation(s, 'water');
+            if (st) merged.push(st);
           });
           setApiStatus(prev => ({ ...prev, water: 'เชื่อมต่อสำเร็จ' }));
-        } else { setApiStatus(prev => ({ ...prev, water: 'การเชื่อมต่อขัดข้อง (Timeout)' })); }
+        } else { 
+          setApiStatus(prev => ({ ...prev, water: 'การเชื่อมต่อขัดข้อง (Timeout)' })); 
+        }
 
         // 2. ดึงฝน 24 ชม.
         const rData = await fetchONWRData('rain_24h');
-        if (rData && rData.rain_data?.data) {
-          const rStations = rData.rain_data.data;
-          const validRain = rStations.filter((s:any) => s.station?.lat > 15.0 && s.station?.lat < 21.0 && s.station?.long > 97.0 && s.station?.long < 101.0);
-          
-          validRain.forEach((s: any) => {
-            merged.push({
-              id: s.station?.id, name: s.station?.tele_station_name?.th || 'สถานีวัดฝน', 
-              prov: cleanName(s.station?.geocode?.province_name?.th || ''), amp: cleanName(s.station?.geocode?.amphoe_name?.th || ''), tum: cleanName(s.station?.geocode?.tumbon_name?.th || ''),
-              lat: parseFloat(s.station?.lat), lng: parseFloat(s.station?.long), 
-              type: 'rain', val: parseFloat(s.rain_24h) || 0, risk: getRisk(parseFloat(s.rain_24h) || 0, 'rain'), time: s.rain_datetime
-            });
+        if (rData && (rData.rain_data?.data || rData.data)) {
+          const rStations = rData.rain_data?.data || rData.data;
+          rStations.forEach((s: any) => {
+            const st = parseStation(s, 'rain');
+            if (st) merged.push(st);
           });
           setApiStatus(prev => ({ ...prev, rain: 'เชื่อมต่อสำเร็จ' }));
-        } else { setApiStatus(prev => ({ ...prev, rain: 'การเชื่อมต่อขัดข้อง (Timeout)' })); }
+        } else { 
+          setApiStatus(prev => ({ ...prev, rain: 'การเชื่อมต่อขัดข้อง (Timeout)' })); 
+        }
 
         setStations(merged);
       } catch (error) { 
@@ -344,7 +379,7 @@ export default function FloodDashboard() {
             </div>
 
             <div className="text-[12px] text-gray-500 mb-3 px-1">
-              {isLoading ? <span className="text-blue-500 font-bold animate-pulse">กำลังโหลดข้อมูลและค้นหาสถานี...</span> : <>พบข้อมูล <span className="font-extrabold text-[#0f4a8a]">{filteredStations.length}</span> รายการ</>}
+              {isLoading ? <span className="text-blue-500 font-bold animate-pulse">กำลังดึงข้อมูลและซิงค์สถานี...</span> : <>พบข้อมูล <span className="font-extrabold text-[#0f4a8a]">{filteredStations.length}</span> รายการ</>}
             </div>
 
             {/* 13 กล่อง Grid */}
@@ -371,8 +406,8 @@ export default function FloodDashboard() {
         {/* 📋 Card 2: ตารางสถานการณ์น้ำรอบตำบลบ่อหลวง */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-4">
           <div className="px-5 py-4 border-b border-gray-100 bg-white">
-            <h3 className="text-[#0f4a8a] text-[15px] font-extrabold flex items-center"><span className="mr-2 text-lg">🌊</span> สถานการณ์น้ำรอบเทศบาลตำบลบ่อหลวง</h3>
-            <p className="text-[11px] text-gray-500 mt-1">เรียงตามระยะทางจากเทศบาลตำบลบ่อหลวง ({position.lat.toFixed(6)}, {position.lng.toFixed(6)})</p>
+            <h3 className="text-[#0f4a8a] text-[15px] font-extrabold flex items-center"><span className="mr-2 text-lg">🌊</span> สถานการณ์น้ำรอบพื้นที่</h3>
+            <p className="text-[11px] text-gray-500 mt-1">เรียงตามระยะทางจากจุดอ้างอิง ({position.lat.toFixed(6)}, {position.lng.toFixed(6)})</p>
           </div>
           <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
             <table className="w-full text-xs md:text-sm text-left font-sans">
@@ -453,7 +488,7 @@ export default function FloodDashboard() {
                         <div className="flex items-center">ความเสี่ยง: <span style={{color: st.risk.color}} className="font-bold ml-1">{st.risk.label}</span></div>
                         <div>ระยะ: {st.distance?.toFixed(1) || '0.0'} กม.</div>
                         <div>{st.time ? new Date(st.time).toLocaleString('en-GB') : '--/--/---- --:--:--'}</div>
-                        <div>พิกัด: {st.lat.toFixed(6)}, {st.lng.toFixed(6)}</div>
+                        <div className="text-gray-400 mt-1">พิกัด: {st.lat.toFixed(6)}, {st.lng.toFixed(6)}</div>
                       </div>
                       <a href={`https://www.google.com/maps/dir/?api=1&destination=${st.lat},${st.lng}`} target="_blank" rel="noopener noreferrer" className="mt-2.5 w-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white flex items-center justify-center space-x-1.5 py-1.5 rounded-md text-[11px] font-bold shadow-md transition-colors">
                         <span className="text-sm">🧭</span> <span>นำทางด้วย Google Maps</span>
