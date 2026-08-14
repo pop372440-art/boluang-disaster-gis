@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
     // 🚀 เอาคำว่า -latest ออก กลับมาใช้ชื่อมาตรฐานที่ SDK ตัวใหม่รู้จักแล้วครับ
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
+      model: 'gemini-1.5-pro',
       safetySettings: [
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
