@@ -21,12 +21,9 @@ export async function POST(req: NextRequest) {
     const mimeType = image.split(';')[0].split(':')[1];
     const base64Data = image.split(',')[1];
 
-    // 3. 🚀 บังคับ AI ให้คืนค่าเป็น JSON เท่านั้น (responseMimeType) และปลดเซ็นเซอร์
+    // 3. เอา generationConfig ออกเพื่อแก้ปัญหา Vercel Deploy ไม่ผ่าน (Type Error)
     const model = genAI.getGenerativeModel({ 
       model: 'gemini-1.5-flash',
-      generationConfig: {
-        responseMimeType: "application/json", // สำคัญมาก! บังคับ AI ตอบเป็น JSON
-      },
       safetySettings: [
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -36,11 +33,12 @@ export async function POST(req: NextRequest) {
     });
 
     const prompt = `
-      วิเคราะห์รูปภาพนี้อย่างแม่นยำ และคืนค่าเป็น JSON ตามรูปแบบนี้เท่านั้น:
+      วิเคราะห์รูปภาพนี้อย่างแม่นยำ และต้องตอบกลับมาเป็น JSON เท่านั้น ห้ามพิมพ์ข้อความอธิบายใดๆ ทั้งสิ้น
+      รูปแบบ:
       {
         "type": "เลือก 1 อย่าง: ไฟป่า / หมอกควัน, ดินโคลนถล่ม / ดินสไลด์, น้ำป่าไหลหลาก / น้ำท่วม, ต้นไม้ล้มขวางทาง, แผ่นดินไหว, อื่นๆ",
-        "severity": ระดับความรุนแรง 1 ถึง 5 (ตัวเลข),
-        "description": "อธิบายสั้นๆ"
+        "severity": ระดับความรุนแรง 1 ถึง 5 (ให้ตอบเป็นตัวเลขเท่านั้น),
+        "description": "อธิบายสิ่งที่เห็นในรูปภาพสั้นๆ ไม่เกิน 2 บรรทัด"
       }
     `;
 
@@ -54,8 +52,14 @@ export async function POST(req: NextRequest) {
     const result = await model.generateContent([prompt, imagePart]);
     const responseText = result.response.text();
     
-    // 4. โยนกลับไปให้หน้าบ้าน (ไม่ต้องคลีนข้อความแล้ว เพราะ AI คืนค่าเป็น JSON ชัวร์ๆ)
-    const aiData = JSON.parse(responseText);
+    // 4. 🚀 ท่าไม้ตาย: ใช้ Regex ดูดเอาเฉพาะก้อน JSON (จาก { ถึง }) ป้องกัน AI แถมข้อความขยะ
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    
+    if (!jsonMatch) {
+      throw new Error("AI ตอบกลับมาไม่เป็นรูปแบบ JSON");
+    }
+
+    const aiData = JSON.parse(jsonMatch[0]);
 
     return NextResponse.json({ success: true, result: aiData });
 
