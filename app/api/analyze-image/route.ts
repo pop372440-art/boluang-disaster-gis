@@ -15,27 +15,25 @@ export async function POST(req: NextRequest) {
     const mimeType = image.split(';')[0].split(':')[1];
     const base64Data = image.split(',')[1];
 
-    // 🚀 เปลี่ยนมาใช้โมเดลตัวเก๋า 'gemini-1.0-pro' ที่ชัวร์ที่สุด 100% ไม่ติด 404 แน่นอน
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.0-pro:generateContent?key=${apiKey}`;
+    // 🚀 เปลี่ยน URL จาก v1beta เป็น v1 (ช่องทางหลักที่ชัวร์ที่สุด)
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     const payload = {
       contents: [
         {
           parts: [
             {
-              text: `วิเคราะห์รูปภาพนี้อย่างแม่นยำ และตอบเป็น JSON เท่านั้น:
-              {
-                "type": "ไฟป่า / หมอกควัน",
-                "severity": 3,
-                "description": "วิเคราะห์ภัยพิบัติจากภาพ"
-              }`
+              text: `วิเคราะห์รูปภาพนี้อย่างแม่นยำ และตอบเป็น JSON เท่านั้น:\n{\n  "type": "ไฟป่า / หมอกควัน",\n  "severity": 3,\n  "description": "อธิบายสั้นๆ"\n}`
             },
             {
               inlineData: { mimeType: mimeType, data: base64Data }
             }
           ]
         }
-      ]
+      ],
+      generationConfig: {
+        responseMimeType: "application/json"
+      }
     };
 
     const response = await fetch(url, {
@@ -47,16 +45,17 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(JSON.stringify(data.error));
+      console.error("API Response Error:", data);
+      throw new Error(data.error?.message || "Unknown API Error");
     }
 
     const responseText = data.candidates[0].content.parts[0].text;
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    const aiData = jsonMatch ? JSON.parse(jsonMatch[0]) : { type: "อื่นๆ", severity: 1, description: "AI วิเคราะห์ไม่ได้" };
+    const aiData = JSON.parse(responseText);
 
     return NextResponse.json({ success: true, result: aiData });
 
   } catch (error: any) {
+    console.error('🔥 Final AI Error:', error.message);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
