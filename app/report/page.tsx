@@ -319,8 +319,11 @@ export default function ReportPage() {
       {/* 🗺️ แผนที่ */}
       <div className="order-1 md:order-2 w-full h-[40vh] md:h-full md:flex-1 relative bg-gray-900 z-0 flex-shrink-0">
         <MapContainer center={[18.1633, 98.3744]} zoom={13} maxZoom={20} className="w-full h-full cursor-crosshair" ref={setMapRef}>
-          <TileLayer url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}" maxZoom={20} attribution="&copy; Google Maps" />
-          {geoBlock && <GeoJSON data={geoBlock} style={{ color: '#ef4444', weight: 2, fillOpacity: 0, dashArray: '4, 4' }} interactive={false} />}
+          {/* 🗺️ แผนที่ Google Satellite (ดาวเทียม) ตามที่ชาวบ้านต้องการ */}
+          <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} attribution="Google Maps Satellite" />
+          {/* 📍 ขอบเขตหมู่บ้าน (ปรับเป็นเส้นประสีเหลืองสว่าง ให้ตัดกับสีของป่า) */}
+          {geoBlock && <GeoJSON data={geoBlock} style={{ color: '#fde047', weight: 2.5, fillOpacity: 0, dashArray: '5, 5' }} interactive={false} />}
+          
           <LocationMarker />
         </MapContainer>
         {!position && (
