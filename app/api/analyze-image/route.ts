@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,16 +18,8 @@ export async function POST(req: NextRequest) {
     const mimeType = image.split(';')[0].split(':')[1];
     const base64Data = image.split(',')[1];
 
-    // 🚀 เอาคำว่า -latest ออก กลับมาใช้ชื่อมาตรฐานที่ SDK ตัวใหม่รู้จักแล้วครับ
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-pro',
-      safetySettings: [
-        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-      ]
-    });
+    // 🚀 ใช้โมเดลอมตะ gemini-pro-vision ที่รองรับ 100% ทุก SDK และทุก API Key
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
 
     const prompt = `
       วิเคราะห์รูปภาพนี้อย่างแม่นยำ และต้องตอบกลับมาเป็น JSON เท่านั้น ห้ามพิมพ์ข้อความอธิบายใดๆ ทั้งสิ้น
