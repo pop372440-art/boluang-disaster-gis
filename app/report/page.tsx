@@ -8,7 +8,7 @@ import Swal from 'sweetalert2';
 import { useMapEvents } from 'react-leaflet';
 
 // 🌟 ตั้งค่า Supabase 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '[https://uvtjjhvvtaswzhwhowlj.supabase.co](https://uvtjjhvvtaswzhwhowlj.supabase.co)';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dGpqaHZ2dGFzd3pod2hvd2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDA3NjcsImV4cCI6MjA5MjExNjc2N30.Jjqi1LWgxEgpT2nBdjuNyoLxEP_VQcKf3GEbIYKPI8Y';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -22,6 +22,10 @@ export default function ReportPage() {
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingGPS, setIsFetchingGPS] = useState(false);
+  
+  // 🤖 State สำหรับ AI
+  const [isAnalyzingAI, setIsAnalyzingAI] = useState(false);
+  const [aiResult, setAiResult] = useState<{ type: string, severity: number, description: string } | null>(null);
   
   const [mapRef, setMapRef] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
@@ -155,9 +159,49 @@ export default function ReportPage() {
     setFormData(prev => ({ ...prev, severity_level: level }));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 🤖 🚀 ฟังก์ชันส่งรูปไปให้ AI วิเคราะห์
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
       setSelectedFiles(e.target.files);
+      
+      // ดำเนินการวิเคราะห์ AI
+      setIsAnalyzingAI(true);
+      setAiResult(null);
+
+      try {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onloadend = async () => {
+          const base64data = reader.result;
+          const res = await fetch('/api/analyze-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64data })
+          });
+          
+          const data = await res.json();
+          if (data.success && data.result) {
+            setAiResult(data.result);
+            // เติมข้อมูลลงฟอร์มอัตโนมัติด้วยผลลัพธ์จาก AI
+            setFormData(prev => ({
+              ...prev,
+              risk_type: data.result.type || prev.risk_type,
+              severity_level: data.result.severity || prev.severity_level,
+              description: `[AI วิเคราะห์] ${data.result.description}\n\nรายละเอียดเพิ่มเติม: `
+            }));
+            
+            Swal.fire({
+              toast: true, position: 'top-end', icon: 'success', 
+              title: 'AI ประเมินภาพเรียบร้อยแล้ว', showConfirmButton: false, timer: 3000
+            });
+          }
+        };
+      } catch (error) {
+        console.error("AI Analysis failed:", error);
+      } finally {
+        setIsAnalyzingAI(false);
+      }
     }
   };
 
@@ -220,11 +264,10 @@ export default function ReportPage() {
       if (insertError) throw insertError;
 
       const statusUrl = `${window.location.origin}/status?code=${trackingCode}`;
-      const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(statusUrl)}`;
+      const qrCodeImageUrl = `[https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=$](https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=$){encodeURIComponent(statusUrl)}`;
 
       localStorage.setItem('bl_latest_tracking_code', trackingCode);
 
-      // 🚀 อัปเกรด Popup: เพิ่มปุ่มกลับหน้าหลัก
       Swal.fire({
         title: 'ส่งข้อมูลสำเร็จ!',
         html: `
@@ -243,19 +286,18 @@ export default function ReportPage() {
         showDenyButton: true,
         confirmButtonText: 'กลับหน้าหลัก',
         denyButtonText: 'แจ้งเหตุเพิ่ม',
-        confirmButtonColor: '#3b82f6', // สีน้ำเงินสำหรับกลับหน้าหลัก
-        denyButtonColor: '#10b981',    // สีเขียวสำหรับแจ้งเหตุเพิ่ม
-        reverseButtons: true           // สลับตำแหน่งปุ่มให้ดูคุ้นเคย
+        confirmButtonColor: '#3b82f6',
+        denyButtonColor: '#10b981',    
+        reverseButtons: true           
       }).then((result) => {
         if (result.isConfirmed) {
-          // ถ้ากด "กลับหน้าหลัก" ระบบจะพากลับไปหน้าแรก (Landing Page)
           window.location.href = '/';
         } else {
-          // ถ้ากด "แจ้งเหตุเพิ่ม" (หรือกดปิดหน้าต่างปกติ) จะเคลียร์ฟอร์มให้กรอกใหม่
           setFormData({ ...formData, description: '', reporter_name: '' });
           setPosition(null);
           setSelectedFiles(null);
           setPdpaConsent(false);
+          setAiResult(null); // เคลียร์ AI Result
         }
       });
 
@@ -277,7 +319,7 @@ export default function ReportPage() {
       {/* 🗺️ แผนที่ */}
       <div className="order-1 md:order-2 w-full h-[40vh] md:h-full md:flex-1 relative bg-gray-900 z-0 flex-shrink-0">
         <MapContainer center={[18.1633, 98.3744]} zoom={13} maxZoom={20} className="w-full h-full cursor-crosshair" ref={setMapRef}>
-          <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} attribution="Google Maps Satellite" />
+          <TileLayer url="[https://mt1.google.com/vt/lyrs=y&x=](https://mt1.google.com/vt/lyrs=y&x=){x}&y={y}&z={z}" maxZoom={20} attribution="Google Maps Satellite" />
           {geoBlock && <GeoJSON data={geoBlock} style={{ color: 'rgba(255,255,255,0.4)', weight: 1.5, fillOpacity: 0, dashArray: '4, 4' }} interactive={false} />}
           <LocationMarker />
         </MapContainer>
@@ -299,7 +341,6 @@ export default function ReportPage() {
             <div className="w-12 h-1.5 bg-white/40 rounded-full"></div>
           </div>
           
-          {/* 🚀 อัปเกรด: เพิ่มปุ่มกลับหน้าแรกตรงหัวมุม */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <span className="text-2xl animate-pulse">🚨</span>
@@ -340,21 +381,55 @@ export default function ReportPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">1. พื้นที่หมู่บ้านที่พบเหตุ</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">📎 1. แนบรูปภาพประกอบ (รองรับ AI วิเคราะห์) <span className="text-red-500">*</span></label>
+              <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer bg-white">
+                <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                <div className="flex flex-col items-center justify-center space-y-2 pointer-events-none">
+                  {selectedFiles && selectedFiles.length > 0 ? (
+                    <><span className="text-3xl">✅</span><span className="text-[13px] font-bold text-green-600">แนบรูปภาพแล้ว</span><span className="text-[11px] text-gray-500 truncate max-w-[200px]">{selectedFiles[0].name}</span></>
+                  ) : (
+                    <><span className="text-3xl text-gray-400">📷</span><span className="text-[13px] font-bold text-gray-600 bg-gray-200 px-3 py-1 rounded-md">เลือกไฟล์ / ถ่ายรูป</span><span className="text-[11px] text-gray-400">AI จะช่วยคุณประเมินข้อมูลทันที</span></>
+                  )}
+                </div>
+              </div>
+              
+              {/* 🤖 AI Loading & Result Badges */}
+              {isAnalyzingAI && (
+                <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center space-x-3">
+                   <span className="text-lg animate-spin">🪄</span>
+                   <span className="text-xs font-bold text-purple-700">AI กำลังวิเคราะห์รูปภาพ กรุณารอสักครู่...</span>
+                </div>
+              )}
+              {aiResult && !isAnalyzingAI && (
+                <div className="mt-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 border border-purple-200 rounded-lg shadow-sm">
+                   <div className="flex items-center mb-1">
+                      <span className="text-purple-600 mr-1.5">🤖</span>
+                      <span className="text-xs font-bold text-purple-800">วิเคราะห์โดย Gemini AI</span>
+                   </div>
+                   <div className="text-[11px] text-gray-600 flex items-center space-x-2 mt-1.5">
+                      <span className="bg-white px-2 py-0.5 rounded border border-purple-100">พยากรณ์: <b>{aiResult.type}</b></span>
+                      <span className="bg-white px-2 py-0.5 rounded border border-purple-100">รุนแรง: <b>ระดับ {aiResult.severity}</b></span>
+                   </div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">2. พื้นที่หมู่บ้านที่พบเหตุ</label>
               <select name="village_name" value={formData.village_name} onChange={handleVillageChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white outline-none">
                 {villageList.length > 0 ? villageList.map((v: any) => <option key={v.name} value={v.name}>{v.name}</option>) : <option value="">กำลังโหลด...</option>}
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">2. ประเภทของสาธารณภัย <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">3. ประเภทของสาธารณภัย <span className="text-red-500">*</span></label>
               <select name="risk_type" value={formData.risk_type} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white outline-none">
                 {riskTypes.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">3. ระดับความรุนแรง <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">4. ระดับความรุนแรง <span className="text-red-500">*</span></label>
               <div className="flex justify-between space-x-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200">
                 {[1, 2, 3, 4, 5].map(level => (
                   <button type="button" key={level} onClick={() => setSeverity(level)} 
@@ -365,22 +440,8 @@ export default function ReportPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">4. รายละเอียดและข้อเสนอแนะ <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">5. รายละเอียดและข้อเสนอแนะ <span className="text-red-500">*</span></label>
               <textarea name="description" value={formData.description} onChange={handleInputChange} rows={3} placeholder="เช่น ไฟป่ากำลังลุกลามเข้าใกล้สวนชาวบ้าน..." className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white resize-none outline-none"></textarea>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">📎 5. แนบรูปภาพประกอบ (ถ้ามี)</label>
-              <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer bg-white">
-                <input type="file" accept="image/*,video/*" multiple onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                <div className="flex flex-col items-center justify-center space-y-2 pointer-events-none">
-                  {selectedFiles && selectedFiles.length > 0 ? (
-                    <><span className="text-3xl">✅</span><span className="text-[13px] font-bold text-green-600">เลือกไฟล์แล้ว {selectedFiles.length} รูป</span><span className="text-[11px] text-gray-500 truncate max-w-[200px]">{selectedFiles[0].name}</span></>
-                  ) : (
-                    <><span className="text-3xl text-gray-400">📷</span><span className="text-[13px] font-bold text-gray-600 bg-gray-200 px-3 py-1 rounded-md">เลือกไฟล์ / ถ่ายรูป</span><span className="text-[11px] text-gray-400">รองรับไฟล์รูปภาพ, วิดีโอ (สูงสุด 20MB)</span></>
-                  )}
-                </div>
-              </div>
             </div>
 
             <div className="flex items-center mt-6 mb-2">
