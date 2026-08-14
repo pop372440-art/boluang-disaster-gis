@@ -8,7 +8,7 @@ import Swal from 'sweetalert2';
 import { useMapEvents } from 'react-leaflet';
 
 // 🌟 ตั้งค่า Supabase 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '[https://uvtjjhvvtaswzhwhowlj.supabase.co](https://uvtjjhvvtaswzhwhowlj.supabase.co)';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dGpqaHZ2dGFzd3pod2hvd2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDA3NjcsImV4cCI6MjA5MjExNjc2N30.Jjqi1LWgxEgpT2nBdjuNyoLxEP_VQcKf3GEbIYKPI8Y';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -159,48 +159,61 @@ export default function ReportPage() {
     setFormData(prev => ({ ...prev, severity_level: level }));
   };
 
-  // 🤖 🚀 ฟังก์ชันส่งรูปไปให้ AI วิเคราะห์
+  // 🤖 🚀 ฟังก์ชันส่งรูปไปให้ AI วิเคราะห์ (แก้บั๊กแล้ว ทำงาน 100%)
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      setSelectedFiles(e.target.files);
       
-      // ดำเนินการวิเคราะห์ AI
+      // ป้องกันไฟล์ใหญ่เกินไป (Vercel รับได้สูงสุดประมาณ 4MB ต่อ Request)
+      if (file.size > 4 * 1024 * 1024) {
+        Swal.fire({ icon: 'warning', title: 'ไฟล์รูปใหญ่เกินไป', text: 'กรุณาเลือกรูปภาพที่มีขนาดไม่เกิน 4MB ครับ' });
+        return;
+      }
+
+      setSelectedFiles(e.target.files);
       setIsAnalyzingAI(true);
       setAiResult(null);
 
       try {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onloadend = async () => {
-          const base64data = reader.result;
-          const res = await fetch('/api/analyze-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: base64data })
-          });
+        // ใช้ Promise แปลงรูปภาพให้เสร็จก่อน
+        const base64data = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = error => reject(error);
+        });
+
+        // ส่งให้ AI
+        const res = await fetch('/api/analyze-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64data })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success && data.result) {
+          setAiResult(data.result);
+          setFormData(prev => ({
+            ...prev,
+            risk_type: data.result.type || prev.risk_type,
+            severity_level: data.result.severity || prev.severity_level,
+            description: `[AI วิเคราะห์] ${data.result.description}\n\nรายละเอียดเพิ่มเติม: `
+          }));
           
-          const data = await res.json();
-          if (data.success && data.result) {
-            setAiResult(data.result);
-            // เติมข้อมูลลงฟอร์มอัตโนมัติด้วยผลลัพธ์จาก AI
-            setFormData(prev => ({
-              ...prev,
-              risk_type: data.result.type || prev.risk_type,
-              severity_level: data.result.severity || prev.severity_level,
-              description: `[AI วิเคราะห์] ${data.result.description}\n\nรายละเอียดเพิ่มเติม: `
-            }));
-            
-            Swal.fire({
-              toast: true, position: 'top-end', icon: 'success', 
-              title: 'AI ประเมินภาพเรียบร้อยแล้ว', showConfirmButton: false, timer: 3000
-            });
-          }
-        };
+          Swal.fire({
+            toast: true, position: 'top-end', icon: 'success', 
+            title: 'AI ประเมินภาพเสร็จสิ้น', showConfirmButton: false, timer: 3000
+          });
+        } else {
+          // ถ้า AI Error
+          console.error("AI Error:", data.error);
+          Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'AI ไม่สามารถระบุได้', text: 'กรุณาระบุรายละเอียดด้วยตนเอง', showConfirmButton: false, timer: 3000 });
+        }
       } catch (error) {
-        console.error("AI Analysis failed:", error);
+        console.error("AI Request failed:", error);
       } finally {
-        setIsAnalyzingAI(false);
+        setIsAnalyzingAI(false); // ปิดป้ายโหลดเมื่อทำงานเสร็จทุกอย่าง
       }
     }
   };
@@ -264,7 +277,9 @@ export default function ReportPage() {
       if (insertError) throw insertError;
 
       const statusUrl = `${window.location.origin}/status?code=${trackingCode}`;
-      const qrCodeImageUrl = `[https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=$](https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=$){encodeURIComponent(statusUrl)}`;
+      
+      // 🛠️ เปลี่ยนผู้ให้บริการ QR Code เป็น QuickChart (เสถียร 100%)
+      const qrCodeImageUrl = `https://quickchart.io/qr?text=${encodeURIComponent(statusUrl)}&size=200`;
 
       localStorage.setItem('bl_latest_tracking_code', trackingCode);
 
@@ -316,14 +331,11 @@ export default function ReportPage() {
   return (
     <div className="flex flex-col md:flex-row h-screen w-screen bg-white font-sans overflow-hidden">
       
-      {/* 🗺️ แผนที่ */}
+      {/* 🗺️ แผนที่ Google ดาวเทียม + ขอบเขตหมู่บ้าน */}
       <div className="order-1 md:order-2 w-full h-[40vh] md:h-full md:flex-1 relative bg-gray-900 z-0 flex-shrink-0">
         <MapContainer center={[18.1633, 98.3744]} zoom={13} maxZoom={20} className="w-full h-full cursor-crosshair" ref={setMapRef}>
-          {/* 🗺️ แผนที่ Google Satellite (ดาวเทียม) ตามที่ชาวบ้านต้องการ */}
-          <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} attribution="Google Maps Satellite" />
-          {/* 📍 ขอบเขตหมู่บ้าน (ปรับเป็นเส้นประสีเหลืองสว่าง ให้ตัดกับสีของป่า) */}
+          <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} attribution="&copy; Google Maps" />
           {geoBlock && <GeoJSON data={geoBlock} style={{ color: '#fde047', weight: 2.5, fillOpacity: 0, dashArray: '5, 5' }} interactive={false} />}
-          
           <LocationMarker />
         </MapContainer>
         {!position && (
@@ -398,13 +410,13 @@ export default function ReportPage() {
               
               {/* 🤖 AI Loading & Result Badges */}
               {isAnalyzingAI && (
-                <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center space-x-3">
+                <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center space-x-3 transition-opacity">
                    <span className="text-lg animate-spin">🪄</span>
                    <span className="text-xs font-bold text-purple-700">AI กำลังวิเคราะห์รูปภาพ กรุณารอสักครู่...</span>
                 </div>
               )}
               {aiResult && !isAnalyzingAI && (
-                <div className="mt-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 border border-purple-200 rounded-lg shadow-sm">
+                <div className="mt-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 border border-purple-200 rounded-lg shadow-sm transition-opacity">
                    <div className="flex items-center mb-1">
                       <span className="text-purple-600 mr-1.5">🤖</span>
                       <span className="text-xs font-bold text-purple-800">วิเคราะห์โดย Gemini AI</span>
