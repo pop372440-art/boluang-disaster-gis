@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     // 3. เอา generationConfig ออกเพื่อแก้ปัญหา Vercel Deploy ไม่ผ่าน (Type Error)
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash-latest',
+      model: 'gemini-1.5-flash',
       safetySettings: [
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
