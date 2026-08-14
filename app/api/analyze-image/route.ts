@@ -3,10 +3,8 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. เช็คว่ามี API Key ใน Vercel ไหม
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.error("Vercel Error: GEMINI_API_KEY is missing");
       return NextResponse.json({ success: false, error: 'API Key is missing' }, { status: 500 });
     }
 
@@ -17,11 +15,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'No image provided' }, { status: 400 });
     }
 
-    // 2. แยกรหัส Base64
     const mimeType = image.split(';')[0].split(':')[1];
     const base64Data = image.split(',')[1];
 
-    // 3. เอา generationConfig ออกเพื่อแก้ปัญหา Vercel Deploy ไม่ผ่าน (Type Error)
+    // 🚀 เอาคำว่า -latest ออก กลับมาใช้ชื่อมาตรฐานที่ SDK ตัวใหม่รู้จักแล้วครับ
     const model = genAI.getGenerativeModel({ 
       model: 'gemini-1.5-flash',
       safetySettings: [
@@ -52,9 +49,8 @@ export async function POST(req: NextRequest) {
     const result = await model.generateContent([prompt, imagePart]);
     const responseText = result.response.text();
     
-    // 4. 🚀 ท่าไม้ตาย: ใช้ Regex ดูดเอาเฉพาะก้อน JSON (จาก { ถึง }) ป้องกัน AI แถมข้อความขยะ
+    // ดูดเอาเฉพาะ JSON
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    
     if (!jsonMatch) {
       throw new Error("AI ตอบกลับมาไม่เป็นรูปแบบ JSON");
     }
