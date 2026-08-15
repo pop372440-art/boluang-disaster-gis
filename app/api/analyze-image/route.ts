@@ -41,8 +41,8 @@ export async function POST(req: NextRequest) {
     const mimeType = base64Match[1];
     const base64Data = base64Match[2];
 
-    // 🚀 ใช้โมเดล gemini-1.5-flash (ตามที่แสดงในรายการของคุณ)
-const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // 🚀 ปรับเป็น v1 (ช่องทางหลัก) เพื่อป้องกันปัญหา 401 Unauthorized หรือ 404 Not Found
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     const payload = {
       contents: [
@@ -96,7 +96,9 @@ const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-
       );
     }
 
-    const responseText = candidate.content.parts[0].text;
+    // 🚀 เพิ่มระบบ "เครื่องกรองขยะ" ป้องกัน AI ส่ง Markdown ติดมาด้วย
+    let responseText = candidate.content.parts[0].text;
+    responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
 
     let aiData;
     try {
@@ -121,4 +123,4 @@ const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-
       { status: 500, headers: corsHeaders }
     );
   }
-} 
+}
