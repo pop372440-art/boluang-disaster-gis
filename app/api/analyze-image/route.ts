@@ -1,21 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// 1. กำหนด CORS Headers ไว้ใช้งานร่วมกัน
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*', // แนะนำให้ใส่ Domain จริงของคุณแทน * เพื่อความปลอดภัยสูงสุด
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+// 2. จัดการ Preflight Request สำหรับ CORS
+export async function OPTIONS() {
+  return new NextResponse(null, { headers: corsHeaders });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ success: false, error: 'API Key is missing' }, { status: 500 });
+      return NextResponse.json(
+        { success: false, error: 'Server configuration error: Missing API Key' },
+        { status: 500, headers: corsHeaders }
+      );
     }
 
-    const { image } = await req.json();
-    if (!image) {
-      return NextResponse.json({ success: false, error: 'No image provided' }, { status: 400 });
+    const body = await req.json();
+    const image = body.image;
+
+    if (!image || !image.startsWith('data:')) {
+      return NextResponse.json(
+        { success: false, error: 'No valid image data provided' },
+        { status: 400, headers: corsHeaders }
+      );
     }
 
-    const mimeType = image.split(';')[0].split(':')[1];
-    const base64Data = image.split(',')[1];
+    // 3. แยก MIME type และ Base64 อย่างปลอดภัยด้วย Regex
+    const base64Match = image.match(/^data:(image\/\w+);base64,(.*)$/);
+    if (!base64Match) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid image format' },
+        { status: 400, headers: corsHeaders }
+      );
+    }
 
-    // 🚀 เปลี่ยน URL จาก v1beta เป็น v1 (ช่องทางหลักที่ชัวร์ที่สุด)
+    const mimeType = base64Match[1];
+    const base64Data = base64Match[2];
+
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     const payload = {
@@ -44,18 +72,60 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json();
 
+    // 4. ตรวจสอบว่า Gemini ตอบกลับมาด้วย Error หรือไม่
     if (!response.ok) {
-      console.error("API Response Error:", data);
-      throw new Error(data.error?.message || "Unknown API Error");
+      console.error("Gemini API Error:", data);
+      const errMsg = data.error?.message || "Failed to fetch from AI API";
+      return NextResponse.json(
+        { success: false, error: errMsg },
+        { status: 502, headers: corsHeaders } // 502 Bad Gateway แสดงว่าปัญหาอยู่ฝั่ง API ภายนอก
+      );
     }
 
-    const responseText = data.candidates[0].content.parts[0].text;
-    const aiData = JSON.parse(responseText);
+    // 5. ป้องกันการอ่านค่า undefined (Safe Navigation)
+    if (!data.candidates || data.candidates.length === 0) {
+      console.error("AI returned no candidates. Full response:", data);
+      const blockReason = data.promptFeedback?.blockReason || "Unknown reason";
+      return NextResponse.json(
+        { success: false, error: `AI could not process the image. Reason: ${blockReason}` },
+        { status: 422, headers: corsHeaders }
+      );
+    }
 
-    return NextResponse.json({ success: true, result: aiData });
+    const candidate = data.candidates[0];
+    if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'AI returned an empty response.' },
+        { status: 422, headers: corsHeaders }
+      );
+    }
+
+    const responseText = candidate.content.parts[0].text;
+
+    // 6. แปลง String เป็น JSON อย่างปลอดภัย
+    let aiData;
+    try {
+      aiData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("Failed to parse AI JSON response:", responseText);
+      return NextResponse.json(
+        { success: false, error: 'AI did not return valid JSON format.' },
+        { status: 500, headers: corsHeaders }
+      );
+    }
+
+    // 7. ส่งคำตอบกลับพร้อม CORS Headers
+    return NextResponse.json(
+      { success: true, result: aiData },
+      { headers: corsHeaders }
+    );
 
   } catch (error: any) {
     console.error('🔥 Final AI Error:', error.message);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    // ส่งข้อความ Error แบบ generic เพื่อไม่ให้รั่วไหลข้อมูลโครงสร้างระบบ
+    return NextResponse.json(
+      { success: false, error: 'Internal Server Error occurred while processing the image.' },
+      { status: 500, headers: corsHeaders }
+    );
   }
 }
