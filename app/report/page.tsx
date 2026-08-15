@@ -39,7 +39,8 @@ export default function ReportPage() {
     reporter_role: 'ประชาชนทั่วไป'
   });
 
-  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  // 📌 เปลี่ยนจาก FileList เป็น File เพื่อรองรับไฟล์ที่บีบอัดแล้ว
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [pdpaConsent, setPdpaConsent] = useState(false);
 
   useEffect(() => {
@@ -159,31 +160,74 @@ export default function ReportPage() {
     setFormData(prev => ({ ...prev, severity_level: level }));
   };
 
-  // 🤖 🚀 ฟังก์ชันส่งรูปไปให้ AI วิเคราะห์ (แก้บั๊กแล้ว ทำงาน 100%)
+  // 🪄 ฟังก์ชันบีบอัดรูปภาพ (เพิ่มใหม่)
+  const compressImage = (file: File, maxWidth = 1024, quality = 0.8): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // ปรับขนาดถ้ากว้างเกิน maxWidth
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return reject(new Error('Cannot get canvas context'));
+          
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // แปลงเป็น Blob แล้วสร้างเป็น File ใหม่ (เป็น JPEG เพื่อลดขนาด)
+          canvas.toBlob((blob) => {
+            if (!blob) return reject(new Error('Canvas is empty'));
+            // เปลี่ยนนามสกุลไฟล์เป็น .jpg เพราะเราบีบอัดเป็น JPEG
+            const newFileName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+            const compressedFile = new File([blob], newFileName, {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            });
+            resolve(compressedFile);
+          }, 'image/jpeg', quality);
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  // 🤖 🚀 ฟังก์ชันส่งรูปไปให้ AI วิเคราะห์ (แก้ไขให้บีบอัดก่อนส่ง)
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
+      const originalFile = e.target.files[0];
       
-      // ป้องกันไฟล์ใหญ่เกินไป (Vercel รับได้สูงสุดประมาณ 4MB ต่อ Request)
-      if (file.size > 4 * 1024 * 1024) {
-        Swal.fire({ icon: 'warning', title: 'ไฟล์รูปใหญ่เกินไป', text: 'กรุณาเลือกรูปภาพที่มีขนาดไม่เกิน 4MB ครับ' });
-        return;
-      }
-
-      setSelectedFiles(e.target.files);
       setIsAnalyzingAI(true);
       setAiResult(null);
 
       try {
-        // ใช้ Promise แปลงรูปภาพให้เสร็จก่อน
-        const base64data = await new Promise((resolve, reject) => {
+        // 1. บีบอัดรูปภาพก่อน (ลดขนาดเหลือไม่เกิน 1024px และ Quality 80%)
+        const compressedFile = await compressImage(originalFile, 1024, 0.8);
+        
+        // เก็บไฟล์ที่บีบอัดแล้วไว้ใน State เพื่อเอาไป Upload Supabase ภายหลัง
+        setSelectedFile(compressedFile);
+
+        // 2. แปลงไฟล์ที่บีบอัดแล้วเป็น Base64 ส่งให้ AI
+        const base64data = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = () => resolve(reader.result);
+          reader.readAsDataURL(compressedFile);
+          reader.onload = () => resolve(reader.result as string);
           reader.onerror = error => reject(error);
         });
 
-        // ส่งให้ AI
+        // 3. ส่งให้ AI
         const res = await fetch('/api/analyze-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -206,12 +250,12 @@ export default function ReportPage() {
             title: 'AI ประเมินภาพเสร็จสิ้น', showConfirmButton: false, timer: 3000
           });
         } else {
-          // ถ้า AI Error
           console.error("AI Error:", data.error);
           Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'AI ไม่สามารถระบุได้', text: 'กรุณาระบุรายละเอียดด้วยตนเอง', showConfirmButton: false, timer: 3000 });
         }
       } catch (error) {
-        console.error("AI Request failed:", error);
+        console.error("File compression or AI Request failed:", error);
+        Swal.fire({ icon: 'error', title: 'ประมวลผลรูปไม่สำเร็จ', text: 'กรุณาลองเลือกรูปใหม่อีกครั้ง' });
       } finally {
         setIsAnalyzingAI(false); // ปิดป้ายโหลดเมื่อทำงานเสร็จทุกอย่าง
       }
@@ -235,15 +279,15 @@ export default function ReportPage() {
     try {
       let imageUrl = null;
 
-      if (selectedFiles && selectedFiles.length > 0) {
-        const file = selectedFiles[0];
-        const fileExt = file.name.split('.').pop();
+      // ใช้ selectedFile (ที่บีบอัดแล้ว) ในการอัปโหลด Supabase
+      if (selectedFile) {
+        const fileExt = selectedFile.name.split('.').pop();
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
         const filePath = `reports/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from('disaster_images')
-          .upload(filePath, file);
+          .upload(filePath, selectedFile);
 
         if (uploadError) throw uploadError;
 
@@ -277,8 +321,6 @@ export default function ReportPage() {
       if (insertError) throw insertError;
 
       const statusUrl = `${window.location.origin}/status?code=${trackingCode}`;
-      
-      // 🛠️ เปลี่ยนผู้ให้บริการ QR Code เป็น QuickChart (เสถียร 100%)
       const qrCodeImageUrl = `https://quickchart.io/qr?text=${encodeURIComponent(statusUrl)}&size=200`;
 
       localStorage.setItem('bl_latest_tracking_code', trackingCode);
@@ -310,7 +352,7 @@ export default function ReportPage() {
         } else {
           setFormData({ ...formData, description: '', reporter_name: '' });
           setPosition(null);
-          setSelectedFiles(null);
+          setSelectedFile(null); // เคลียร์ไฟล์
           setPdpaConsent(false);
           setAiResult(null); // เคลียร์ AI Result
         }
@@ -400,8 +442,8 @@ export default function ReportPage() {
               <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer bg-white">
                 <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                 <div className="flex flex-col items-center justify-center space-y-2 pointer-events-none">
-                  {selectedFiles && selectedFiles.length > 0 ? (
-                    <><span className="text-3xl">✅</span><span className="text-[13px] font-bold text-green-600">แนบรูปภาพแล้ว</span><span className="text-[11px] text-gray-500 truncate max-w-[200px]">{selectedFiles[0].name}</span></>
+                  {selectedFile ? (
+                    <><span className="text-3xl">✅</span><span className="text-[13px] font-bold text-green-600">แนบรูปภาพแล้ว</span><span className="text-[11px] text-gray-500 truncate max-w-[200px]">{selectedFile.name}</span></>
                   ) : (
                     <><span className="text-3xl text-gray-400">📷</span><span className="text-[13px] font-bold text-gray-600 bg-gray-200 px-3 py-1 rounded-md">เลือกไฟล์ / ถ่ายรูป</span><span className="text-[11px] text-gray-400">AI จะช่วยคุณประเมินข้อมูลทันที</span></>
                   )}
