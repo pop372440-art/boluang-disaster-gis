@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
     const mimeType = base64Match[1];
     const base64Data = base64Match[2];
 
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // ลองเปลี่ยนกลับเป็น v1beta ก่อน เพราะบาง API Key รองรับ v1beta เท่านั้น
+const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     const payload = {
       contents: [
