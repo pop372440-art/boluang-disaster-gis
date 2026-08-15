@@ -1,30 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { headers: corsHeaders });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ success: false, error: 'API Key is missing' }, { status: 500 });
+      return NextResponse.json(
+        { success: false, error: 'Server error: API Key missing' },
+        { status: 500, headers: corsHeaders }
+      );
     }
 
     const body = await req.json();
     const image = body.image;
-    if (!image) return NextResponse.json({ success: false, error: 'No image' }, { status: 400 });
 
-    const base64Data = image.split(',')[1];
-    const mimeType = image.split(';')[0].split(':')[1];
+    if (!image || !image.startsWith('data:')) {
+      return NextResponse.json(
+        { success: false, error: 'No valid image data provided' },
+        { status: 400, headers: corsHeaders }
+      );
+    }
 
-    // วิ่งตรงเข้าเส้นทางหลักของ Google (v1) ไม่ผ่านไลบรารี
+    const base64Match = image.match(/^data:(image\/\w+);base64,(.*)$/);
+    if (!base64Match) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid image format' },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    const mimeType = base64Match[1];
+    const base64Data = base64Match[2];
+
+    // 🚀 ใช้โมเดล gemini-1.5-flash และวิ่งเข้า v1 (ช่องทางหลักที่เสถียรที่สุด)
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     const payload = {
-      contents: [{
-        parts: [
-          { text: `วิเคราะห์รูปภาพนี้อย่างแม่นยำ และตอบเป็น JSON เท่านั้น:\n{\n  "type": "ไฟป่า / หมอกควัน",\n  "severity": 3,\n  "description": "อธิบาย"\n}` },
-          { inlineData: { mimeType: mimeType, data: base64Data } }
-        ]
-      }],
-      generationConfig: { responseMimeType: "application/json" }
+      contents: [
+        {
+          parts: [
+            {
+              text: `วิเคราะห์รูปภาพนี้อย่างแม่นยำ และตอบเป็น JSON เท่านั้น:\n{\n  "type": "ไฟป่า / หมอกควัน",\n  "severity": 3,\n  "description": "อธิบายสั้นๆ"\n}`
+            },
+            {
+              inlineData: { mimeType: mimeType, data: base64Data }
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        responseMimeType: "application/json"
+      }
     };
 
     const response = await fetch(url, {
@@ -36,17 +71,56 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
 
     if (!response.ok) {
-       throw new Error(data.error?.message || "Google API Error");
+      console.error("Gemini API Error:", data);
+      const errMsg = data.error?.message || "Failed to fetch from AI API";
+      return NextResponse.json(
+        { success: false, error: errMsg },
+        { status: 502, headers: corsHeaders }
+      );
     }
 
-    const responseText = data.candidates[0].content.parts[0].text;
-    const cleanText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
-    const aiData = JSON.parse(cleanText);
+    if (!data.candidates || data.candidates.length === 0) {
+      console.error("AI returned no candidates. Full response:", data);
+      const blockReason = data.promptFeedback?.blockReason || "Unknown reason";
+      return NextResponse.json(
+        { success: false, error: `AI could not process the image. Reason: ${blockReason}` },
+        { status: 422, headers: corsHeaders }
+      );
+    }
 
-    return NextResponse.json({ success: true, result: aiData });
+    const candidate = data.candidates[0];
+    if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'AI returned an empty response.' },
+        { status: 422, headers: corsHeaders }
+      );
+    }
+
+    // 🚀 กรองกรอบ Markdown ขยะที่ AI อาจจะแถมมาให้
+    let responseText = candidate.content.parts[0].text;
+    responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+    let aiData;
+    try {
+      aiData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("Failed to parse AI JSON response:", responseText);
+      return NextResponse.json(
+        { success: false, error: 'AI did not return valid JSON format.' },
+        { status: 500, headers: corsHeaders }
+      );
+    }
+
+    return NextResponse.json(
+      { success: true, result: aiData },
+      { headers: corsHeaders }
+    );
+
   } catch (error: any) {
-    // ดัก Error ให้ชื่อเปลี่ยนไป เพื่อเช็คว่าอัปเดตโค้ดสำเร็จจริงไหม
-    console.error('🔥 Direct Fetch Error:', error.message);
-    return NextResponse.json({ success: false, error: `Direct Fetch Error: ${error.message}` }, { status: 500 });
+    console.error('🔥 Final AI Error:', error.message);
+    return NextResponse.json(
+      { success: false, error: 'Internal Server Error occurred while processing the image.' },
+      { status: 500, headers: corsHeaders }
+    );
   }
 }
