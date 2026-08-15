@@ -41,7 +41,6 @@ export async function POST(req: NextRequest) {
     const mimeType = base64Match[1];
     const base64Data = base64Match[2];
 
-    // 🚀 THE REAL FIX: ใช้โมเดลล่าสุด "gemini-3.5-flash" ที่ Google เปิดให้ใช้ฟรี!
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
     const payload = {
@@ -49,7 +48,8 @@ export async function POST(req: NextRequest) {
         {
           parts: [
             {
-              text: `วิเคราะห์รูปภาพนี้อย่างแม่นยำ และตอบเป็น JSON เท่านั้น:\n{\n  "type": "ไฟป่า / หมอกควัน",\n  "severity": 3,\n  "description": "อธิบายสั้นๆ"\n}`
+              // บังคับแบบเด็ดขาด ห้ามมีข้อความอื่นแถม
+              text: `วิเคราะห์รูปภาพนี้อย่างแม่นยำ และตอบกลับเป็น JSON เท่านั้น (ห้ามมีคำพูดอธิบายอื่นปนมาเด็ดขาด):\n{\n  "type": "ไฟป่า / หมอกควัน",\n  "severity": 3,\n  "description": "อธิบายสั้นๆ"\n}`
             },
             {
               inlineData: { mimeType: mimeType, data: base64Data }
@@ -86,12 +86,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let responseText = candidate.content.parts[0].text;
-    responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const responseText = candidate.content.parts[0].text;
+    
+    // 🚀 THE ULTIMATE FIX: ใช้ Regex ดูดเฉพาะก้อน JSON ออกมาจากข้อความทั้งหมด
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    
+    if (!jsonMatch) {
+        console.error("No JSON bracket found in AI response:", responseText);
+        return NextResponse.json(
+          { success: false, error: 'AI did not return any JSON structure.' },
+          { status: 500, headers: corsHeaders }
+        );
+    }
 
     let aiData;
     try {
-      aiData = JSON.parse(responseText);
+      // แปลงเฉพาะส่วนที่เป็น JSON จริงๆ
+      aiData = JSON.parse(jsonMatch[0]);
     } catch (parseError) {
       console.error("Failed to parse AI JSON response:", responseText);
       return NextResponse.json(
