@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       base64Length: base64Data.length,
     });
 
-   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash:generateContent?key=${apiKey}`;
 
     const payload = {
       contents: [
