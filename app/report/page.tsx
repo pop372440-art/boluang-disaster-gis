@@ -1,185 +1,621 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
+import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js';
-import Link from 'next/link';
+import Swal from 'sweetalert2'; 
+import { useMapEvents } from 'react-leaflet';
 
-// 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables ปลอดภัย 100%)
+// 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables เท่านั้น ปลอดภัย 100%)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('⚠️ ขาดการตั้งค่า Supabase Environment Variables');
+  console.error("Supabase Error: Missing environment variables.");
 }
-
 const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
+const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
+const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
+const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
+
+// 🚀 ฟังก์ชันช่วย: เช็คว่าพิกัดตกอยู่ในขอบเขต Polygon หรือไม่ (Point in Polygon)
+const isPointInPolygon = (point: number[], polygon: number[][]) => {
+  let x = point[0], y = point[1];
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    let xi = polygon[i][0], yi = polygon[i][1];
+    let xj = polygon[j][0], yj = polygon[j][1];
+    let intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
+const checkPointInFeature = (lng: number, lat: number, feature: any) => {
+  if (!feature.geometry || !feature.geometry.coordinates) return false;
+  const type = feature.geometry.type;
+  const coords = feature.geometry.coordinates;
+  if (type === 'Polygon') {
+    return isPointInPolygon([lng, lat], coords[0]);
+  } else if (type === 'MultiPolygon') {
+    for (let i = 0; i < coords.length; i++) {
+      if (isPointInPolygon([lng, lat], coords[i][0])) return true;
+    }
+  }
+  return false;
+};
+
 export default function ReportPage() {
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFetchingGPS, setIsFetchingGPS] = useState(false);
   
-  // 🕒 State สำหรับจัดการ Cooldown Timer
+  // 🕒 State สำหรับจัดการ Cooldown Timer (ป้องกันสแปม)
   const [cooldownTime, setCooldownTime] = useState(0);
+  
+  // 🤖 State สำหรับ AI
+  const [isAnalyzingAI, setIsAnalyzingAI] = useState(false);
+  const [aiResult, setAiResult] = useState<{ type: string, severity: number, description: string } | null>(null);
+  
+  const [mapRef, setMapRef] = useState<any>(null);
+  const [geoBlock, setGeoBlock] = useState<any>(null);
 
   const [formData, setFormData] = useState({
     village_name: '',
-    risk_type: '',
-    description: '',
+    risk_type: 'ไฟป่า / หมอกควัน',
     severity_level: 3,
+    description: '',
+    reporter_name: '',
+    reporter_role: 'ประชาชนทั่วไป'
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [pdpaConsent, setPdpaConsent] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const fetchBlockData = async () => {
+      try {
+        const ts = Date.now();
+        const res = await fetch(`/geojson/block.json?v=${ts}`);
+        if (res.ok) {
+          let data = await res.json();
+          if (Array.isArray(data)) data = { type: "FeatureCollection", features: data };
+          setGeoBlock(data);
+        }
+      } catch (e) { console.error("Error loading block.json", e); }
+    };
+    fetchBlockData();
+  }, []);
+
+  const formatVillageName = (rawName: any) => {
+    if (!rawName) return 'พื้นที่หมู่บ้าน';
+    const safeName = String(rawName); 
+    let cName = safeName.replace(/^(บ้าน|บ\.|หมู่ที่\s*\d+|หมู่\s*\d+)/, '').replace(/\s+/g, '');
+    if (cName.includes('บ่อหลวง')) cName = 'บ้านบ่อหลวง';
+    else if (cName === 'ขุน' || cName.includes('บ้านขุน')) cName = 'บ้านขุน';
+    else cName = `บ้าน${cName}`;
+    return cName;
+  };
+
+  const villageList = useMemo(() => {
+    const vMap: Record<string, { sumLat: number, sumLng: number, count: number }> = {};
+    if (geoBlock && geoBlock.features) {
+      geoBlock.features.forEach((f: any) => {
+        const props = f.properties || {};
+        let rawName = props.own_villag || props.name_th || props.vil_name || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || 'ไม่ระบุ'}`;
+        let cName = formatVillageName(rawName);
+        let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+        const extractCoords = (coords: any[]) => {
+          if (!coords) return;
+          if (typeof coords[0] === 'number') {
+            if (coords[1] < minLat) minLat = coords[1];
+            if (coords[1] > maxLat) maxLat = coords[1];
+            if (coords[0] < minLng) minLng = coords[0];
+            if (coords[0] > maxLng) maxLng = coords[0];
+          } else if (Array.isArray(coords)) { coords.forEach(extractCoords); }
+        };
+        extractCoords(f.geometry?.coordinates);
+        if (minLat !== Infinity) {
+          if (!vMap[cName]) vMap[cName] = { sumLat: 0, sumLng: 0, count: 0 };
+          vMap[cName].sumLat += (minLat + maxLat) / 2;
+          vMap[cName].sumLng += (minLng + maxLng) / 2;
+          vMap[cName].count += 1;
+        }
+      });
+    }
+    const result = Object.keys(vMap).map(name => ({ name, lat: vMap[name].sumLat / vMap[name].count, lng: vMap[name].sumLng / vMap[name].count }));
+    if (result.length > 0 && !formData.village_name) {
+      setFormData(prev => ({ ...prev, village_name: result[0].name }));
+    }
+    return result;
+  }, [geoBlock]);
+
+  // 🚀 THE MAGIC: ระบบตรวจจับหมู่บ้านอัตโนมัติจาก GPS/คลิกแผนที่
+  useEffect(() => {
+    if (position && geoBlock && geoBlock.features) {
+      let foundVillage = null;
+      for (const feature of geoBlock.features) {
+        if (checkPointInFeature(position.lng, position.lat, feature)) {
+          const props = feature.properties || {};
+          const rawName = props.own_villag || props.name_th || props.vil_name || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || 'ไม่ระบุ'}`;
+          foundVillage = formatVillageName(rawName);
+          break; // เจอหมู่บ้านแล้วหยุดหา
+        }
+      }
+
+      // ถ้าเจอว่าอยู่ในเขตหมู่บ้านไหน และไม่ซ้ำกับของเดิมที่เลือกไว้
+      if (foundVillage && foundVillage !== formData.village_name) {
+        setFormData(prev => ({ ...prev, village_name: foundVillage }));
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'info',
+          title: `📍 อัปเดตพื้นที่: ${foundVillage}`,
+          showConfirmButton: false,
+          timer: 2500
+        });
+      }
+    }
+  }, [position, geoBlock]);
+
+  const L = typeof window !== 'undefined' ? require('leaflet') : null;
+  const customIcon = L ? L.divIcon({
+    className: 'bg-transparent border-none',
+    html: `
+      <div class="relative flex flex-col items-center">
+        <div class="w-8 h-8 bg-red-600 rounded-full border-2 border-white shadow-lg flex items-center justify-center z-10 animate-bounce">
+          <span class="text-white text-sm">🚨</span>
+        </div>
+        <div class="w-3 h-3 bg-black/40 rounded-full blur-[2px] -mt-1 z-0"></div>
+      </div>
+    `,
+    iconSize: [32, 40], iconAnchor: [16, 36],
+  }) : null;
+
+  const LocationMarker = () => {
+    useMapEvents({ click(e: any) { setPosition(e.latlng); } });
+    return position === null ? null : <Marker position={position} icon={customIcon}></Marker>;
+  };
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      Swal.fire({ icon: 'error', title: 'ไม่รองรับ GPS', text: 'เบราว์เซอร์ของคุณไม่รองรับการดึงตำแหน่งครับ' });
+      return;
+    }
+    setIsFetchingGPS(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setPosition({ lat: latitude, lng: longitude });
+        if (mapRef) mapRef.flyTo([latitude, longitude], 16, { duration: 1.5 });
+        setIsFetchingGPS(false);
+      },
+      (err) => {
+        setIsFetchingGPS(false);
+        Swal.fire({ icon: 'warning', title: 'ดึงตำแหน่งไม่ได้', text: 'กรุณาอนุญาตให้ระบบเข้าถึง Location บนมือถือของคุณ' });
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  const handleVillageChange = (e: any) => {
+    const selectedName = e.target.value;
+    setFormData(prev => ({ ...prev, village_name: selectedName }));
+    if (mapRef && villageList.length > 0) {
+      const targetVillage = villageList.find(v => v.name === selectedName);
+      if (targetVillage) mapRef.flyTo([targetVillage.lat, targetVillage.lng], 15, { duration: 1.5, easeLinearity: 0.25 });
+    }
+  };
+
+  const handleInputChange = (e: any) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const setSeverity = (level: number) => {
+    setFormData(prev => ({ ...prev, severity_level: level }));
+  };
+
+  const compressImage = (file: File, maxWidth = 1024, quality = 0.8): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return reject(new Error('Cannot get canvas context'));
+          
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          canvas.toBlob((blob) => {
+            if (!blob) return reject(new Error('Canvas is empty'));
+            const newFileName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+            const compressedFile = new File([blob], newFileName, {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            });
+            resolve(compressedFile);
+          }, 'image/jpeg', quality);
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const originalFile = e.target.files[0];
+      
+      setIsAnalyzingAI(true);
+      setAiResult(null);
+
+      try {
+        const compressedFile = await compressImage(originalFile, 1024, 0.8);
+        setSelectedFile(compressedFile);
+
+        const base64data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(compressedFile);
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = error => reject(error);
+        });
+
+        const res = await fetch('/api/analyze-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64data })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success && data.result) {
+          setAiResult(data.result);
+          setFormData(prev => ({
+            ...prev,
+            risk_type: data.result.type || prev.risk_type,
+            severity_level: data.result.severity || prev.severity_level,
+            description: `[AI วิเคราะห์] ${data.result.description}\n\nรายละเอียดเพิ่มเติม: `
+          }));
+          
+          Swal.fire({
+            toast: true, position: 'top-end', icon: 'success', 
+            title: 'AI ประเมินภาพเสร็จสิ้น', showConfirmButton: false, timer: 3000
+          });
+        } else {
+          console.error("AI Error:", data.error);
+          Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'AI ไม่สามารถระบุได้', text: 'กรุณาระบุรายละเอียดด้วยตนเอง', showConfirmButton: false, timer: 3000 });
+        }
+      } catch (error) {
+        console.error("File compression or AI Request failed:", error);
+        Swal.fire({ icon: 'error', title: 'ประมวลผลรูปไม่สำเร็จ', text: 'กรุณาลองเลือกรูปใหม่อีกครั้ง' });
+      } finally {
+        setIsAnalyzingAI(false);
+      }
+    }
+  };
+
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
-    setLoading(true);
+
+    if (!position) {
+      Swal.fire({ icon: 'warning', title: 'ลืมปักหมุด!', text: 'กรุณากดปุ่มดึงตำแหน่ง หรือคลิกบนแผนที่ครับ' });
+      return;
+    }
+    if (!formData.description) {
+      Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบ', text: 'กรุณาระบุรายละเอียดของสถานการณ์' });
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
-      // 1. ส่งข้อมูลเข้า Supabase
-      const { error } = await supabase
+      let imageUrl = null;
+      if (selectedFile) {
+        const fileExt = selectedFile.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `reports/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('disaster_images')
+          .upload(filePath, selectedFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from('disaster_images')
+          .getPublicUrl(filePath);
+
+        imageUrl = publicUrlData.publicUrl;
+      }
+
+      const trackingCode = `BL-${Math.floor(100000 + Math.random() * 900000)}`;
+
+      const { error: insertError } = await supabase
         .from('boluang_disaster_reports')
         .insert([
           {
             village_name: formData.village_name,
             risk_type: formData.risk_type,
-            description: formData.description,
             severity_level: formData.severity_level,
-            status: 'รับเรื่องแล้ว',
+            description: formData.description,
+            reporter_name: formData.reporter_name || 'ไม่ระบุชื่อ',
+            reporter_role: formData.reporter_role,
+            latitude: position.lat,
+            longitude: position.lng,
+            image_url: imageUrl,
+            tracking_code: trackingCode,
+            status: 'รับเรื่องแล้ว'
           }
         ]);
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
-      // 2. แสดงสถานะสำเร็จและล้างฟอร์ม
-      setSuccess(true);
-      setFormData({ village_name: '', risk_type: '', description: '', severity_level: 3 });
+      const statusUrl = `${window.location.origin}/status?code=${trackingCode}`;
+      const qrCodeImageUrl = `https://quickchart.io/qr?text=${encodeURIComponent(statusUrl)}&size=200`;
+
+      localStorage.setItem('bl_latest_tracking_code', trackingCode);
       
-      // 3. 🛡️ เริ่มระบบ Cooldown ล็อคปุ่ม 60 วินาที ป้องกันคนกดสแปม
+      // 🛡️ 1. เริ่มระบบ Cooldown ล็อคปุ่ม 60 วินาที ป้องกันคนกดสแปม
       setCooldownTime(60);
-      
       const timer = setInterval(() => {
         setCooldownTime((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
-            return 0; // ปลดล็อคปุ่มเมื่อครบเวลา
+            return 0;
           }
           return prev - 1;
         });
       }, 1000);
 
-      // ซ่อนข้อความสำเร็จหลังผ่านไป 5 วินาที
-      setTimeout(() => setSuccess(false), 5000);
+      // 2. แสดง Popup แจ้งเตือนความสำเร็จ
+      Swal.fire({
+        title: 'ส่งข้อมูลสำเร็จ!',
+        html: `
+          <div class="mt-1 text-sm text-gray-600">หมายเลขติดตามคำร้องของคุณคือ:</div>
+          <div class="mt-3 p-2 bg-green-50 border border-green-200 rounded-lg text-2xl font-bold text-green-700 tracking-widest select-all cursor-text">
+            ${trackingCode}
+          </div>
+          <div class="mt-4 flex flex-col items-center justify-center">
+            <span class="text-xs font-bold text-gray-800 mb-2 bg-gray-100 px-3 py-1 rounded-full">📷 แคปหน้าจอนี้เก็บไว้</span>
+            <img src="${qrCodeImageUrl}" alt="QR Code" class="w-40 h-40 object-contain rounded-lg border-2 border-dashed border-gray-300 p-2 shadow-sm" />
+            <span class="text-[11px] text-gray-500 mt-2 leading-tight">
+              นำ QR Code นี้ให้ผู้นำชุมชน หรือ อสม.<br/>สแกนเพื่อตรวจสอบสถานะแทนคุณได้ทันที
+            </span>
+          </div>
+        `,
+        showDenyButton: true,
+        confirmButtonText: 'กลับหน้าหลัก',
+        denyButtonText: 'แจ้งเหตุเพิ่ม',
+        confirmButtonColor: '#3b82f6',
+        denyButtonColor: '#10b981',    
+        reverseButtons: true            
+      }).then((result) => {
+        if (result.isConfirmed) {
+          window.location.href = '/';
+        } else {
+          setFormData({ ...formData, description: '', reporter_name: '' });
+          setPosition(null);
+          setSelectedFile(null); 
+          setPdpaConsent(false);
+          setAiResult(null); 
+        }
+      });
 
-    } catch (error) {
-      console.error('Error submitting report:', error);
-      alert('เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาลองใหม่อีกครั้ง');
+    } catch (error: any) {
+      console.error('Error:', error.message);
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถส่งข้อมูลได้ กรุณาลองใหม่อีกครั้ง' });
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
+  if (!mounted) return <div className="h-screen w-screen bg-gray-100 flex items-center justify-center">Loading...</div>;
+
+  const riskTypes = ['ไฟป่า / หมอกควัน', 'ดินโคลนถล่ม / ดินสไลด์', 'น้ำป่าไหลหลาก / น้ำท่วม', 'ต้นไม้ล้มขวางทาง', 'แผ่นดินไหว', 'อื่นๆ'];
+
   return (
-    <div className="min-h-screen bg-[#0b132b] flex flex-col items-center py-10 px-4 font-sans">
-      <div className="max-w-xl w-full bg-[#172033] p-8 rounded-3xl shadow-[0_0_40px_rgba(56,189,248,0.1)] border border-[#2d3748]">
-        
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600/20 text-blue-400 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 border border-blue-500/30">
-            🚨
+    <div className="flex flex-col md:flex-row h-screen w-screen bg-white font-sans overflow-hidden">
+      
+      {/* 🗺️ แผนที่ Google ดาวเทียม + ขอบเขตหมู่บ้าน */}
+      <div className="order-1 md:order-2 w-full h-[40vh] md:h-full md:flex-1 relative bg-gray-900 z-0 flex-shrink-0">
+        <MapContainer center={[18.1633, 98.3744]} zoom={13} maxZoom={20} className="w-full h-full cursor-crosshair" ref={setMapRef}>
+          <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} attribution="&copy; Google Maps" />
+          {geoBlock && <GeoJSON data={geoBlock} style={{ color: '#fde047', weight: 2.5, fillOpacity: 0, dashArray: '5, 5' }} interactive={false} />}
+          <LocationMarker />
+        </MapContainer>
+        {!position && (
+          <div className="absolute top-4 md:top-6 left-1/2 transform -translate-x-1/2 z-[400] pointer-events-none w-[90%] md:w-auto flex justify-center">
+            <div className="bg-black/70 backdrop-blur-md text-white px-4 md:px-6 py-2 md:py-2.5 rounded-full shadow-2xl border border-gray-600 flex items-center space-x-2 animate-bounce">
+              <span className="text-base md:text-lg">👇</span>
+              <span className="text-[12px] md:text-sm font-medium tracking-wide">เลื่อนและคลิกเพื่อปักหมุดจุดเกิดเหตุ</span>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold text-white mb-2">แจ้งเหตุสาธารณภัย</h1>
-          <p className="text-sm text-gray-400">ศูนย์ข้อมูลสาธารณะ เทศบาลตำบลบ่อหลวง</p>
+        )}
+      </div>
+
+      {/* 🔴 ฟอร์มแจ้งเหตุ */}
+      <div className="order-2 md:order-1 w-full md:w-[420px] h-[60vh] md:h-full bg-white shadow-[0_-10px_20px_rgba(0,0,0,0.15)] md:shadow-2xl z-10 flex flex-col relative flex-shrink-0">
+        
+        <div className="bg-red-600 text-white p-4 md:p-5 shadow-md flex-shrink-0">
+          <div className="w-full flex justify-center pb-3 md:hidden">
+            <div className="w-12 h-1.5 bg-white/40 rounded-full"></div>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <span className="text-2xl animate-pulse">🚨</span>
+              <div>
+                <h1 className="text-lg font-bold">รายงานจุดเสี่ยงภัย</h1>
+                <p className="text-[11px] text-red-200">ระบบแจ้งเหตุ ต.บ่อหลวง</p>
+              </div>
+            </div>
+            <div className="flex space-x-2">
+              <a href="/" className="bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg text-[11px] md:text-xs font-bold transition-colors shadow-sm flex items-center">
+                🏠 หน้าแรก
+              </a>
+              <a href="/status" className="bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg text-[11px] md:text-xs font-bold transition-colors shadow-sm flex items-center">
+                🔍 สถานะ
+              </a>
+            </div>
+          </div>
         </div>
 
-        {/* ฟอร์มแจ้งเหตุ */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="p-4 md:p-5 overflow-y-auto flex-1 custom-scrollbar">
           
-          <div>
-            <label className="block text-sm font-bold text-gray-300 mb-2">หมู่บ้านที่เกิดเหตุ</label>
-            <select 
-              required
-              value={formData.village_name}
-              onChange={(e) => setFormData({...formData, village_name: e.target.value})}
-              className="w-full bg-[#0f172a] text-white border border-[#334155] rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-            >
-              <option value="">-- เลือกหมู่บ้าน --</option>
-              <option value="บ้านแม่สะนาม">บ้านแม่สะนาม</option>
-              <option value="บ้านพุย">บ้านพุย</option>
-              <option value="บ้านขุน">บ้านขุน</option>
-              <option value="บ้านแม่หืด">บ้านแม่หืด</option>
-              <option value="บ้านเตียนอาง">บ้านเตียนอาง</option>
-              <option value="บ้านบ่อหลวง">บ้านบ่อหลวง</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-300 mb-2">ประเภทภัยพิบัติ</label>
-            <select 
-              required
-              value={formData.risk_type}
-              onChange={(e) => setFormData({...formData, risk_type: e.target.value})}
-              className="w-full bg-[#0f172a] text-white border border-[#334155] rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-            >
-              <option value="">-- เลือกประเภทภัย --</option>
-              <option value="ไฟป่า / หมอกควัน">ไฟป่า / หมอกควัน</option>
-              <option value="น้ำป่าไหลหลาก / น้ำท่วม">น้ำป่าไหลหลาก / น้ำท่วม</option>
-              <option value="ดินโคลนถล่ม / ดินสไลด์">ดินโคลนถล่ม / ดินสไลด์</option>
-              <option value="ต้นไม้ล้มขวางทาง">ต้นไม้ล้มขวางทาง</option>
-              <option value="อื่นๆ">อื่นๆ</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-300 mb-2">รายละเอียดเบื้องต้น</label>
-            <textarea 
-              required
-              rows={3}
-              value={formData.description}
-              onChange={(e) => setFormData({...formData, description: e.target.value})}
-              placeholder="อธิบายเหตุการณ์ที่พบเห็น..."
-              className="w-full bg-[#0f172a] text-white border border-[#334155] rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
-            ></textarea>
-          </div>
-
-          {success && (
-            <div className="bg-emerald-900/40 border border-emerald-500/50 text-emerald-400 px-4 py-3 rounded-xl text-sm text-center animate-pulse">
-              ✅ ส่งข้อมูลแจ้งเหตุเรียบร้อยแล้ว เจ้าหน้าที่จะเร่งตรวจสอบโดยเร็วที่สุด
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-6 shadow-sm">
+            <div className="flex items-start mb-3">
+              <span className="text-blue-600 text-lg mr-2">📍</span>
+              <div>
+                <h3 className="text-[13px] font-bold text-blue-800">ระบุตำแหน่งของคุณ</h3>
+                <p className="text-[11px] text-blue-600/80 leading-relaxed mt-1">เพื่อความแม่นยำ กรุณาอนุญาตการเข้าถึง GPS หรือคลิกปักหมุดบนแผนที่ด้วยตนเอง</p>
+              </div>
             </div>
-          )}
+            <button type="button" onClick={handleGetLocation} disabled={isFetchingGPS} className="w-full bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-bold py-2.5 rounded-lg transition-colors flex items-center justify-center space-x-2">
+              {isFetchingGPS ? <><span className="animate-spin">⏳</span><span>กำลังค้นหาตำแหน่ง...</span></> : <><span className="text-lg">🎯</span><span>ใช้ตำแหน่งปัจจุบันของฉัน</span></>}
+            </button>
+          </div>
 
-          {/* 🛡️ ปุ่ม Submit ที่มีระบบ Cooldown ป้องกันสแปม */}
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <div className="flex items-center">
+              <div className="flex-1 border-t border-gray-200"></div><span className="px-3 text-xs font-bold text-gray-400">ข้อมูลการแจ้งเหตุ</span><div className="flex-1 border-t border-gray-200"></div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">📎 1. แนบรูปภาพประกอบ (รองรับ AI วิเคราะห์) <span className="text-red-500">*</span></label>
+              <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer bg-white">
+                <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                <div className="flex flex-col items-center justify-center space-y-2 pointer-events-none">
+                  {selectedFile ? (
+                    <><span className="text-3xl">✅</span><span className="text-[13px] font-bold text-green-600">แนบรูปภาพแล้ว</span><span className="text-[11px] text-gray-500 truncate max-w-[200px]">{selectedFile.name}</span></>
+                  ) : (
+                    <><span className="text-3xl text-gray-400">📷</span><span className="text-[13px] font-bold text-gray-600 bg-gray-200 px-3 py-1 rounded-md">เลือกไฟล์ / ถ่ายรูป</span><span className="text-[11px] text-gray-400">AI จะช่วยคุณประเมินข้อมูลทันที</span></>
+                  )}
+                </div>
+              </div>
+              
+              {/* 🤖 AI Loading & Result Badges */}
+              {isAnalyzingAI && (
+                <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center space-x-3 transition-opacity">
+                   <span className="text-lg animate-spin">🪄</span>
+                   <span className="text-xs font-bold text-purple-700">AI กำลังวิเคราะห์รูปภาพ กรุณารอสักครู่...</span>
+                </div>
+              )}
+              {aiResult && !isAnalyzingAI && (
+                <div className="mt-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 border border-purple-200 rounded-lg shadow-sm transition-opacity">
+                   <div className="flex items-center mb-1">
+                      <span className="text-purple-600 mr-1.5">🤖</span>
+                      <span className="text-xs font-bold text-purple-800">วิเคราะห์โดย Gemini AI</span>
+                   </div>
+                   <div className="text-[11px] text-gray-600 flex items-center space-x-2 mt-1.5">
+                      <span className="bg-white px-2 py-0.5 rounded border border-purple-100">พยากรณ์: <b>{aiResult.type}</b></span>
+                      <span className="bg-white px-2 py-0.5 rounded border border-purple-100">รุนแรง: <b>ระดับ {aiResult.severity}</b></span>
+                   </div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">2. พื้นที่หมู่บ้านที่พบเหตุ</label>
+              <select name="village_name" value={formData.village_name} onChange={handleVillageChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white outline-none">
+                {villageList.length > 0 ? villageList.map((v: any) => <option key={v.name} value={v.name}>{v.name}</option>) : <option value="">กำลังโหลด...</option>}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">3. ประเภทของสาธารณภัย <span className="text-red-500">*</span></label>
+              <select name="risk_type" value={formData.risk_type} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white outline-none">
+                {riskTypes.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">4. ระดับความรุนแรง <span className="text-red-500">*</span></label>
+              <div className="flex justify-between space-x-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200">
+                {[1, 2, 3, 4, 5].map(level => (
+                  <button type="button" key={level} onClick={() => setSeverity(level)} 
+                    className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${formData.severity_level === level ? (level >= 4 ? 'bg-red-600 text-white shadow-md' : level === 3 ? 'bg-orange-500 text-white shadow-md' : 'bg-yellow-400 text-white shadow-md') : 'bg-transparent text-gray-500 hover:bg-gray-200'}`}
+                  >{level}</button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">5. รายละเอียดและข้อเสนอแนะ <span className="text-red-500">*</span></label>
+              <textarea name="description" value={formData.description} onChange={handleInputChange} rows={3} placeholder="เช่น ไฟป่ากำลังลุกลามเข้าใกล้สวนชาวบ้าน..." className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white resize-none outline-none"></textarea>
+            </div>
+
+            <div className="flex items-center mt-6 mb-2">
+              <div className="flex-1 border-t border-gray-200"></div><span className="px-3 text-xs font-bold text-gray-400">ข้อมูลผู้แจ้ง</span><div className="flex-1 border-t border-gray-200"></div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pb-4">
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">ชื่อผู้แจ้ง (ไม่บังคับ)</label>
+                <input type="text" name="reporter_name" value={formData.reporter_name} onChange={handleInputChange} placeholder="ระบุชื่อ..." className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] text-gray-700 bg-white outline-none focus:border-red-500" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">สถานะผู้แจ้ง</label>
+                <select name="reporter_role" value={formData.reporter_role} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] text-gray-700 bg-white outline-none focus:border-red-500">
+                  <option value="ประชาชนทั่วไป">ประชาชนทั่วไป</option>
+                  <option value="ผู้นำชุมชน/กำนัน/ผู้ใหญ่บ้าน">ผู้นำชุมชน</option>
+                  <option value="เจ้าหน้าที่รัฐ/อปท.">เจ้าหน้าที่รัฐ</option>
+                </select>
+              </div>
+            </div>
+
+            <div className={`mt-6 p-4 rounded-xl border transition-all ${pdpaConsent ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-300'}`}>
+              <label className="flex items-start space-x-3 cursor-pointer">
+                <div className="flex items-center h-5 mt-0.5"><input type="checkbox" checked={pdpaConsent} onChange={(e) => setPdpaConsent(e.target.checked)} className="w-5 h-5 text-green-600 bg-white border-gray-300 rounded focus:ring-green-500 cursor-pointer" /></div>
+                <div className="flex flex-col">
+                  <span className={`text-[13px] font-bold ${pdpaConsent ? 'text-green-800' : 'text-gray-700'}`}>ความยินยอมในการให้ข้อมูลส่วนบุคคล (PDPA) <span className="text-red-500">*</span></span>
+                  <span className={`text-[11px] mt-1 leading-relaxed ${pdpaConsent ? 'text-green-700/80' : 'text-gray-500'}`}>ข้าพเจ้ายินยอมให้ทางหน่วยงานเก็บรวบรวมและใช้ข้อมูลที่ระบุไว้ เพื่อตรวจสอบและประสานงาน ตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล</span>
+                </div>
+              </label>
+            </div>
+
+          </form>
+        </div>
+
+        <div className="p-4 md:p-5 border-t border-gray-200 bg-white flex-shrink-0 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-[11px] font-bold text-gray-500">พิกัดเกิดเหตุ (GPS):</span>
+            {position ? <span className="text-[11px] font-mono font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded border border-blue-200">{position.lat.toFixed(5)}, {position.lng.toFixed(5)}</span> : <span className="text-[11px] font-bold text-red-500 bg-red-50 px-2.5 py-1 rounded border border-red-100">ยังไม่ระบุพิกัด</span>}
+          </div>
+          
+          {/* 🛡️ ปุ่ม Submit ที่อัปเกรดระบบ Cooldown Timer เข้าไป */}
           <button 
-            type="submit" 
-            disabled={loading || cooldownTime > 0}
-            className={`w-full font-bold py-4 rounded-xl transition-all shadow-lg flex justify-center items-center space-x-2
-              ${(loading || cooldownTime > 0) 
-                ? 'bg-[#334155] text-gray-400 cursor-not-allowed border border-[#475569]' 
-                : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white border border-blue-400/30 hover:shadow-[0_0_20px_rgba(59,130,246,0.4)]'
-              }`}
+            onClick={handleSubmit} 
+            disabled={isSubmitting || !pdpaConsent || cooldownTime > 0} 
+            className={`w-full py-3.5 rounded-xl font-bold text-[15px] shadow-lg flex justify-center items-center space-x-2 transition-all 
+              ${(isSubmitting || cooldownTime > 0) ? 'bg-gray-400 text-gray-100 cursor-not-allowed' 
+              : !pdpaConsent ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+              : 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 hover:shadow-xl active:scale-[0.98]'}`}
           >
-            {loading ? (
-              <>
-                <span className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></span>
-                <span>กำลังประมวลผล...</span>
-              </>
+            {isSubmitting ? (
+              <span>กำลังส่งข้อมูล...</span>
             ) : cooldownTime > 0 ? (
-              <>
-                <span>⏳</span>
-                <span>กรุณารอ {cooldownTime} วินาที เพื่อแจ้งเหตุครั้งถัดไป</span>
-              </>
+              <span>⏳ กรุณารอ {cooldownTime} วินาที</span>
             ) : (
-              <>
-                <span>📤</span>
-                <span>ส่งข้อมูลแจ้งเหตุ</span>
-              </>
+              <><span className="text-lg">✅</span> <span>ส่งข้อมูลแจ้งเหตุ</span></>
             )}
           </button>
-        </form>
-        
-        <div className="mt-6 text-center">
-          <Link href="/admin/dashboard" className="text-[12px] text-gray-500 hover:text-blue-400 underline underline-offset-4 transition-colors">
-            กลับไปหน้า Dashboard ผู้บริหาร
-          </Link>
         </div>
-
       </div>
     </div>
   );
