@@ -162,7 +162,7 @@ export default function ExecutiveDashboard() {
                   <Pie data={pieData} cx="50%" cy="45%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value" stroke="none">
                     {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#fff', fontSize: '12px' }} />
+                  <Tooltip '#0f172a', '#334155', '#fff', '#ffffff', '12px' '8px', 'bold' backgroundColor: borderColor: borderRadius: color: contentStyle="{{" fontSize: fontWeight: itemStyle="{{" }}/>
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', color: '#cbd5e1' }}/>
                 </PieChart>
               </ResponsiveContainer>
@@ -177,7 +177,7 @@ export default function ExecutiveDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                   <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                  <Tooltip cursor={{ fill: '#334155', opacity: 0.4 }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#38bdf8', borderRadius: '8px', color: '#fff', fontSize: '12px' }} />
+                  <Tooltip '#0f172a', '#334155', '#38bdf8', '#fff', '#ffffff', '12px' '8px', 'bold' 0.4 backgroundColor: borderColor: borderRadius: color: contentStyle="{{" cursor="{{" fill: fontSize: fontWeight: itemStyle="{{" opacity: }}/>
                   <Bar dataKey="แจ้งเหตุ" fill="#38bdf8" radius={[4, 4, 0, 0]}>
                     {barData.map((entry, index) => <Cell key={`cell-${index}`} fill={index === 0 ? '#ef4444' : '#38bdf8'} />)}
                   </Bar>
