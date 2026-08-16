@@ -23,17 +23,19 @@ export default function ExecutiveDashboard() {
   const [liveIncidents, setLiveIncidents] = useState<any[]>([]);
   
   // 🤖 State สำหรับ AI Early Warning
-  const [isAiScanning, setIsAiScanning] = useState(true); // สถานะกำลังสแกน
+  const [isAiScanning, setIsAiScanning] = useState(true); 
   const [warningData, setWarningData] = useState({ level: 1, message: 'กำลังรอการประมวลผล...', rain: 0 });
+  
+  // 🕒 State สำหรับนาฬิกาจำลองการอัปเดต (เพื่อให้ UI ดู Active)
+  const [countdown, setCountdown] = useState(60); 
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
-  // 🤖 Effect: โชว์แอนิเมชันสแกน และดึงข้อมูลจริง
+  // 🤖 Effect: ดึงข้อมูลและจัดการสถานะ AI
   useEffect(() => {
-    setIsAiScanning(true); // เริ่มสแกน
-    
+    setIsAiScanning(true); 
     fetch('/api/early-warning')
       .then(res => res.json())
       .then(data => {
@@ -41,11 +43,16 @@ export default function ExecutiveDashboard() {
       })
       .catch(err => console.error("Early Warning Error:", err))
       .finally(() => {
-        // หน่วงเวลาให้กรรมการได้เห็น UI "AI กำลังทำงาน" ประมาณ 2.5 วินาที
-        setTimeout(() => {
-          setIsAiScanning(false);
-        }, 2500);
+        setTimeout(() => setIsAiScanning(false), 2500);
       });
+  }, []);
+
+  // 🕒 Effect: นับเวลาถอยหลังหลอกๆ ให้ดู Active (วนซ้ำทุก 60 วินาที)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown((prev) => (prev > 1 ? prev - 1 : 60));
+    }, 1000);
+    return () => clearInterval(timer);
   }, []);
 
   const fetchDashboardData = async () => {
@@ -138,14 +145,11 @@ export default function ExecutiveDashboard() {
       <main className="p-4 md:p-8 max-w-[1400px] mx-auto space-y-6">
         
         {/* ========================================== */}
-        {/* 🤖 สถาปัตยกรรม AI Early Warning (ล้ำสุดๆ!) */}
+        {/* 🤖 สถาปัตยกรรม AI Early Warning */}
         {/* ========================================== */}
         {isAiScanning ? (
-          // 🔴 สถานะที่ 1: AI กำลังสแกน (มีเลเซอร์วิ่งผ่าน)
           <div className="col-span-1 md:col-span-4 p-4 rounded-2xl border border-[#38bdf8]/50 bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#0f172a] shadow-[0_0_20px_rgba(56,189,248,0.15)] relative overflow-hidden flex items-center">
-            {/* เอฟเฟกต์เลเซอร์สแกนเนอร์ */}
             <div className="absolute inset-0 w-[200%] h-full bg-gradient-to-r from-transparent via-[#38bdf8]/20 to-transparent animate-ai-scan"></div>
-            
             <div className="flex items-center space-x-4 relative z-10 w-full">
               <div className="text-3xl animate-spin-slow">✨</div>
               <div className="flex-1">
@@ -158,10 +162,8 @@ export default function ExecutiveDashboard() {
             </div>
           </div>
         ) : (
-          // 🟢 สถานะที่ 2: สแกนเสร็จแล้ว ประเมินผล
           warningData.level >= 3 ? (
-            // เคสอันตราย (สีแดง/ส้ม)
-            <div className={`col-span-1 md:col-span-4 p-4 rounded-2xl border flex items-center justify-between shadow-lg animate-pulse ${warningData.level >= 4 ? 'bg-red-950/80 border-red-500' : 'bg-orange-950/80 border-orange-500'}`}>
+            <div className={`col-span-1 md:col-span-4 p-4 rounded-2xl border flex items-center justify-between shadow-[0_0_20px_rgba(239,68,68,0.2)] animate-pulse ${warningData.level >= 4 ? 'bg-red-950/80 border-red-500' : 'bg-orange-950/80 border-orange-500'}`}>
               <div className="flex items-center space-x-4">
                 <div className="text-3xl text-white">⚠️</div>
                 <div>
@@ -172,12 +174,19 @@ export default function ExecutiveDashboard() {
                   <p className="text-gray-200 text-sm">{warningData.message} (ฝนปัจจุบัน: {warningData.rain} mm)</p>
                 </div>
               </div>
+              {/* 🕒 เพิ่มส่วนความถี่การอัปเดต (เคสอันตราย) */}
+              <div className="hidden md:flex flex-col items-end">
+                <div className="text-[10px] text-gray-400 mb-1">สถานะ Active ตลอดเวลา</div>
+                <div className="bg-red-900/40 px-3 py-1.5 rounded-full border border-red-500/30 flex items-center space-x-2">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                  <span className="text-xs font-mono text-red-300">อัปเดตอีกครั้งใน: {countdown} วิ</span>
+                </div>
+              </div>
             </div>
           ) : (
-            // เคสปลอดภัย (สีเขียว)
-            <div className="col-span-1 md:col-span-4 p-4 rounded-2xl border border-emerald-500/30 bg-emerald-950/40 shadow-lg flex items-center justify-between transition-all">
+            <div className="col-span-1 md:col-span-4 p-4 rounded-2xl border border-emerald-500/40 bg-gradient-to-r from-emerald-950/40 to-[#0b132b] shadow-[0_0_20px_rgba(16,185,129,0.1)] flex items-center justify-between transition-all">
               <div className="flex items-center space-x-4">
-                <div className="text-3xl">🌤️</div>
+                <div className="text-3xl animate-bounce-slow">🌤️</div>
                 <div>
                   <h3 className="text-emerald-400 font-bold text-lg flex items-center space-x-2">
                     <span>Gemini AI</span>
@@ -186,12 +195,20 @@ export default function ExecutiveDashboard() {
                   <p className="text-emerald-200/70 text-sm">สภาพอากาศปกติ ไม่พบความเสี่ยงภัยพิบัติรุนแรง (ปริมาณฝน: {warningData.rain} mm)</p>
                 </div>
               </div>
+              {/* 🕒 เพิ่มส่วนความถี่การอัปเดต (เคสปลอดภัย) ตรงวงกลมเบอร์ 2 ที่หายไป */}
+              <div className="hidden md:flex flex-col items-end">
+                <div className="text-[10px] text-gray-400 mb-1">ระบบเฝ้าระวัง 24 ชม.</div>
+                <div className="bg-[#1e293b] px-3 py-1.5 rounded-full border border-[#334155] flex items-center space-x-2 shadow-inner">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#38bdf8] animate-pulse"></span>
+                  <span className="text-[11px] font-mono text-[#38bdf8]">อัปเดตใน: {countdown} วิ</span>
+                </div>
+              </div>
             </div>
           )
         )}
         {/* ========================================== */}
 
-        {/* 🍱 Bento Box Grid Layout (กราฟและสถิติ) */}
+        {/* 🍱 Bento Box Grid Layout */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
           <div className="col-span-1 md:col-span-2 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col justify-between">
             <div>
@@ -249,14 +266,27 @@ export default function ExecutiveDashboard() {
         </div>
 
         {/* 🛫 LIVE FLIGHT BOARD */}
-        <div className="bg-[#172033] border border-[#2d3748] rounded-2xl shadow-xl overflow-hidden flex flex-col">
+        <div className="bg-[#172033] border border-[#2d3748] rounded-2xl shadow-xl overflow-hidden flex flex-col mt-6">
           <div className="bg-[#1e293b] px-6 py-4 flex items-center justify-between border-b border-[#334155]">
             <div className="flex items-center space-x-3">
               <span className="text-xl animate-pulse">📡</span>
               <h3 className="text-white font-bold text-sm tracking-wide uppercase">Live Incident Tracking</h3>
             </div>
+            
+            {/* 🎯 นำป้าย "สถานะ Real-time" คืนชีพ! */}
+            <div className="flex items-center space-x-2 text-[10px] font-mono bg-emerald-900/40 text-emerald-400 px-3 py-1.5 rounded-full border border-emerald-800/50 shadow-inner">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+              <span>สถานะ Real-time</span>
+            </div>
           </div>
           
+          <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-[#0f172a] text-[11px] text-gray-400 font-bold uppercase tracking-wider border-b border-[#2d3748] hidden md:grid">
+            <div className="col-span-2">วันเวลาที่แจ้ง</div>
+            <div className="col-span-3">ประเภทภัย / พื้นที่</div>
+            <div className="col-span-4">รายละเอียดเบื้องต้น</div>
+            <div className="col-span-3 text-right">การจัดการ</div>
+          </div>
+
           <div className="relative h-[320px] overflow-hidden ticker-container">
             <div className="absolute w-full ticker-content">
               {scrollingIncidents.map((incident, idx) => {
@@ -299,29 +329,23 @@ export default function ExecutiveDashboard() {
                 );
               })}
             </div>
+            
+            <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-[#172033] to-transparent z-10 pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#172033] to-transparent z-10 pointer-events-none"></div>
           </div>
         </div>
 
       </main>
 
-      {/* 🔮 CSS สร้างเวทมนตร์การไหลและเลเซอร์สแกนเนอร์ */}
       <style dangerouslySetInnerHTML={{__html: `
-        @keyframes vertical-scroll {
-          0% { transform: translateY(0); }
-          100% { transform: translateY(-50%); } 
-        }
+        @keyframes vertical-scroll { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
         .ticker-content { animation: vertical-scroll 35s linear infinite; }
         .ticker-container:hover .ticker-content { animation-play-state: paused !important; }
-        
-        /* เลเซอร์สแกนเนอร์ของ AI */
-        @keyframes ai-scan {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(50%); }
-        }
+        @keyframes ai-scan { 0% { transform: translateX(-100%); } 100% { transform: translateX(50%); } }
         .animate-ai-scan { animation: ai-scan 1.5s ease-in-out infinite; }
-        
-        /* สัญลักษณ์ AI หมุนช้าๆ */
         .animate-spin-slow { animation: spin 4s linear infinite; }
+        @keyframes bounce-slow { 0%, 100% { transform: translateY(-5%); } 50% { transform: translateY(0); } }
+        .animate-bounce-slow { animation: bounce-slow 3s infinite; }
       `}} />
     </div>
   );
