@@ -43,7 +43,7 @@ export default function ExecutiveDashboard() {
         
         setStats({ total, active, resolved });
 
-        // ดึงข้อมูลไปทำตารางไหล (ดึงมา 10 รายการล่าสุด หรือจะดึงมาทั้งหมดที่ยังไม่ปิดจ๊อบก็ได้)
+        // ดึง 10 รายการล่าสุด
         setLiveIncidents(data.slice(0, 10));
 
         // ประมวลผล กราฟโดนัท
@@ -60,7 +60,7 @@ export default function ExecutiveDashboard() {
           .slice(0, 5);
         setBarData(sortedVillages);
       } else {
-        // ข้อมูลจำลองกรณีไม่มีข้อมูล เพื่อให้ผู้บริหารเห็นโครงสร้างกราฟ
+        // ข้อมูลจำลอง
         setStats({ total: 24, active: 4, resolved: 20 });
         setLiveIncidents([
           { created_at: new Date().toISOString(), risk_type: 'ไฟป่า / หมอกควัน', village_name: 'บ้านเตียนอาง', description: 'เสาไฟโซล่าเซลล์หัก', severity_level: 2, status: 'ดำเนินการเสร็จแล้ว' },
@@ -94,7 +94,7 @@ export default function ExecutiveDashboard() {
     return `${d.getDate()}/${d.getMonth() + 1}/${(d.getFullYear() + 543).toString().slice(-2)}`;
   };
 
-  // แยกร่าง Array เป็น 2 ชุดต่อกัน เพื่อให้ CSS Animation ไหลวน Loop ได้เนียนๆ
+  // แยกร่าง Array เป็น 2 ชุด
   const scrollingIncidents = [...liveIncidents, ...liveIncidents];
 
   if (loading) {
@@ -127,10 +127,8 @@ export default function ExecutiveDashboard() {
 
       <main className="p-4 md:p-8 max-w-[1400px] mx-auto space-y-6">
         
-        {/* 🍱 Bento Box Grid Layout (กราฟแบบจัดเต็ม ตามคำขอ) */}
+        {/* 🍱 Bento Box Grid Layout */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
-          
-          {/* Box 1: Total Incidents */}
           <div className="col-span-1 md:col-span-2 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col justify-between">
             <div>
               <h2 className="text-gray-400 text-xs font-bold tracking-widest uppercase mb-1">TOTAL INCIDENTS</h2>
@@ -142,29 +140,19 @@ export default function ExecutiveDashboard() {
               ระบบวิเคราะห์ข้อมูลทำงานปกติ
             </div>
           </div>
-
-          {/* Box 2: Active */}
           <div className="col-span-1 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col relative overflow-hidden">
-            <div className="w-8 h-8 bg-orange-500/10 rounded-full flex items-center justify-center mb-3">
-              <span className="text-orange-400 text-sm">⚡</span>
-            </div>
+            <div className="w-8 h-8 bg-orange-500/10 rounded-full flex items-center justify-center mb-3"><span className="text-orange-400 text-sm">⚡</span></div>
             <h3 className="text-gray-400 text-xs font-bold tracking-widest uppercase mb-1">กำลังดำเนินการ</h3>
             <div className="text-4xl font-extrabold text-orange-400">{stats.active}</div>
             <div className="absolute bottom-0 left-0 w-full h-1 bg-orange-500"></div>
           </div>
-
-          {/* Box 3: Resolved */}
           <div className="col-span-1 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col relative overflow-hidden">
-            <div className="w-8 h-8 bg-emerald-500/10 rounded-full flex items-center justify-center mb-3">
-              <span className="text-emerald-400 text-sm">✅</span>
-            </div>
+            <div className="w-8 h-8 bg-emerald-500/10 rounded-full flex items-center justify-center mb-3"><span className="text-emerald-400 text-sm">✅</span></div>
             <h3 className="text-gray-400 text-xs font-bold tracking-widest uppercase mb-1">แก้ไขเสร็จสิ้น</h3>
             <div className="text-4xl font-extrabold text-emerald-400">{stats.resolved}</div>
             <div className="text-[10px] text-gray-500 mt-2">Success Rate: {stats.total > 0 ? Math.round((stats.resolved / stats.total) * 100) : 0}%</div>
             <div className="absolute bottom-0 left-0 w-full h-1 bg-emerald-500"></div>
           </div>
-
-          {/* Box 4: Pie Chart */}
           <div className="col-span-1 md:col-span-2 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col h-[320px]">
             <h3 className="text-white text-sm font-bold mb-1 flex items-center"><span className="mr-2">📊</span> สัดส่วนประเภทภัยพิบัติ</h3>
             <p className="text-[10px] text-gray-400 mb-4">วิเคราะห์ความถี่ของเหตุการณ์เพื่อวางแผนทรัพยากร</p>
@@ -180,8 +168,6 @@ export default function ExecutiveDashboard() {
               </ResponsiveContainer>
             </div>
           </div>
-
-          {/* Box 5: Bar Chart */}
           <div className="col-span-1 md:col-span-2 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col h-[320px]">
             <h3 className="text-white text-sm font-bold mb-1 flex items-center"><span className="mr-2">📍</span> Top 5 พื้นที่เสี่ยงภัย (Hotspots)</h3>
             <p className="text-[10px] text-gray-400 mb-4">หมู่บ้านที่ได้รับการแจ้งเหตุมากที่สุด</p>
@@ -201,7 +187,7 @@ export default function ExecutiveDashboard() {
           </div>
         </div>
 
-        {/* 🛫 LIVE FLIGHT BOARD: ข้อมูลไหลอัตโนมัติ */}
+        {/* 🛫 LIVE FLIGHT BOARD */}
         <div className="bg-[#172033] border border-[#2d3748] rounded-2xl shadow-xl overflow-hidden flex flex-col">
           <div className="bg-[#1e293b] px-6 py-4 flex items-center justify-between border-b border-[#334155]">
             <div className="flex items-center space-x-3">
@@ -221,14 +207,13 @@ export default function ExecutiveDashboard() {
             <div className="col-span-3 text-right">การจัดการ</div>
           </div>
 
-          {/* 🌟 คอนเทนเนอร์แสดงผลแบบไหลอัตโนมัติ */}
-          <div className="relative h-[320px] overflow-hidden group">
+          {/* 🌟 คอนเทนเนอร์แสดงผลแบบไหลอัตโนมัติ (ใส่คลาส ticker-container) */}
+          <div className="relative h-[320px] overflow-hidden ticker-container">
             
-            {/* โค้ดที่ทำให้ข้อมูลไหลขึ้น จะหยุดเมื่อเอาเมาส์ชี้ (hover:animation-play-state:paused) */}
-            <div className="absolute w-full animate-vertical-scroll group-hover:[animation-play-state:paused]">
+            <div className="absolute w-full ticker-content">
               {scrollingIncidents.map((incident, idx) => {
                 
-                // 🛠️ อัปเดตเงื่อนไขสถานะใหม่ตามที่ท่านผู้บัญชาการสั่งการ!
+                // 🛠️ อัปเดตเงื่อนไขสถานะใหม่ (แก้ข้อความและไอคอนให้ครบถ้วน)
                 let statusColor = "";
                 let statusText = incident.status || "รับเรื่องแล้ว";
                 let icon = "";
@@ -242,10 +227,10 @@ export default function ExecutiveDashboard() {
                   statusText = "อยู่ระหว่างดำเนินการ";
                   icon = "🚧";
                 } else {
-                  // 🚀 เปลี่ยนข้อความตรงนี้แล้วครับ!
+                  // 🚀 แก้ไขข้อความตามคำสั่งของท่าน!
                   statusColor = "bg-blue-950 text-blue-400 border-blue-800";
-                  statusText = "อยู่ระหว่างตรวจสอบเพื่อดำเนินการ"; 
-                  icon = "🔍"; 
+                  statusText = "รับเรื่องแจ้งเหตุแล้ว 🔍 อยู่ระหว่างตรวจสอบเพื่อดำเนินการ"; 
+                  icon = "📥"; 
                 }
 
                 return (
@@ -271,9 +256,10 @@ export default function ExecutiveDashboard() {
                     </div>
                     
                     <div className="col-span-1 md:col-span-3 flex justify-start md:justify-end">
-                      <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border ${statusColor}`}>
-                        <span className="text-xs">{icon}</span>
-                        <span className="text-[11px] font-bold tracking-wide">{statusText}</span>
+                      <div className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full border ${statusColor}`}>
+                        <span className="text-[10px]">{icon}</span>
+                        {/* ปรับขนาดฟอนต์ให้เล็กลงนิดนึง เพื่อให้ประโยคยาวๆ ใส่ในกล่องได้พอดี */}
+                        <span className="text-[10px] md:text-[9px] lg:text-[10px] font-bold tracking-wide truncate">{statusText}</span>
                       </div>
                     </div>
                   </div>
@@ -281,7 +267,7 @@ export default function ExecutiveDashboard() {
               })}
             </div>
             
-            {/* เงาด้านล่างและด้านบนเพื่อความเนียนเวลาเลื่อนเข้า-ออก */}
+            {/* เงา */}
             <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-[#172033] to-transparent z-10 pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#172033] to-transparent z-10 pointer-events-none"></div>
           </div>
@@ -289,14 +275,18 @@ export default function ExecutiveDashboard() {
 
       </main>
 
-      {/* 🔮 CSS สร้างเวทมนตร์การไหล (Marquee Animation) */}
+      {/* 🔮 CSS สร้างเวทมนตร์การไหล (และบังคับหยุดเมื่อเอาเมาส์ชี้แบบ 100%) */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes vertical-scroll {
           0% { transform: translateY(0); }
-          100% { transform: translateY(-50%); } /* เลื่อนไปครึ่งหนึ่ง (เพราะเราก็อปปี้ Array เป็น 2 เท่า) */
+          100% { transform: translateY(-50%); } 
         }
-        .animate-vertical-scroll {
-          animation: vertical-scroll 35s linear infinite; /* ความเร็ว 35 วินาทีต่อรอบ */
+        .ticker-content {
+          animation: vertical-scroll 35s linear infinite; 
+        }
+        /* นี่คือคีย์เวิร์ดสำคัญ: สั่งให้คอนเทนต์ในกล่องหยุดไหล เมื่อมีคนเอาเมาส์มาวางทับกล่อง (hover) */
+        .ticker-container:hover .ticker-content {
+          animation-play-state: paused !important;
         }
       `}} />
     </div>
