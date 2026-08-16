@@ -42,7 +42,7 @@ export default function SmartHelper() {
           {/* 📍 หัวแชท + โลโก้มาสคอต (แก้แท็กปิดให้ครบสมบูรณ์แล้ว) */}
           <div className="bg-blue-600 p-4 text-white font-bold flex justify-between items-center shadow-md">
             <div className="flex items-center space-x-3">
-              <img src="/mascot.jpg" alt="น้องบ่อหลวง" className="w-10 h-10 object-cover rounded-full border-2 border-white shadow-sm" />
+              <img src="/mascot.png" alt="น้องบ่อหลวง" className="w-10 h-10 object-cover rounded-full border-2 border-white shadow-sm" />
               <div className="flex flex-col">
                 <span className="leading-tight">ผู้ช่วยบ่อหลวง (AI)</span>
                 <span className="text-[10px] text-blue-200 font-normal">พร้อมให้บริการ 24 ชม.</span>
@@ -74,7 +74,7 @@ export default function SmartHelper() {
 
       {/* 📍 ปุ่มเปิดแชทรูปมาสคอต */}
       <button onClick={() => setIsOpen(!isOpen)} className="w-16 h-16 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform border-4 border-white overflow-hidden bg-white z-50">
-        <img src="/mascot.jpg" alt="เปิดแชท" className="w-full h-full object-cover" />
+        <img src="/mascot.png" alt="เปิดแชท" className="w-full h-full object-cover" />
       </button>
     </div>
   );
