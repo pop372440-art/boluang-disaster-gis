@@ -20,7 +20,7 @@ const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLaye
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
 const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
 
-// 🚀 ฟังก์ชันช่วย: เช็คว่าพิกัดตกอยู่ในขอบเขต Polygon หรือไม่ (Point in Polygon)
+// 🚀 ฟังก์ชันช่วย: เช็คว่าพิกัดตกอยู่ในขอบเขต Polygon หรือไม่
 const isPointInPolygon = (point: number[], polygon: number[][]) => {
   let x = point[0], y = point[1];
   let inside = false;
@@ -74,6 +74,16 @@ export default function ReportPage() {
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [pdpaConsent, setPdpaConsent] = useState(false);
+
+  // 🛡️ ระบบนับถอยหลัง (Timer) ที่ถูกต้องตามหลัก React (ทำงานอัตโนมัติเมื่อค่า cooldownTime เปลี่ยน)
+  useEffect(() => {
+    if (cooldownTime > 0) {
+      const timer = setTimeout(() => {
+        setCooldownTime((prev) => prev - 1);
+      }, 1000);
+      return () => clearTimeout(timer); // ล้างหน่วยความจำทุก 1 วินาทีเพื่อความเสถียร
+    }
+  }, [cooldownTime]);
 
   useEffect(() => {
     setMounted(true);
@@ -134,7 +144,6 @@ export default function ReportPage() {
     return result;
   }, [geoBlock]);
 
-  // 🚀 THE MAGIC: ระบบตรวจจับหมู่บ้านอัตโนมัติจาก GPS/คลิกแผนที่
   useEffect(() => {
     if (position && geoBlock && geoBlock.features) {
       let foundVillage = null;
@@ -143,11 +152,10 @@ export default function ReportPage() {
           const props = feature.properties || {};
           const rawName = props.own_villag || props.name_th || props.vil_name || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || 'ไม่ระบุ'}`;
           foundVillage = formatVillageName(rawName);
-          break; // เจอหมู่บ้านแล้วหยุดหา
+          break;
         }
       }
 
-      // ถ้าเจอว่าอยู่ในเขตหมู่บ้านไหน และไม่ซ้ำกับของเดิมที่เลือกไว้
       if (foundVillage && foundVillage !== formData.village_name) {
         setFormData(prev => ({ ...prev, village_name: foundVillage }));
         Swal.fire({
@@ -371,19 +379,10 @@ export default function ReportPage() {
 
       localStorage.setItem('bl_latest_tracking_code', trackingCode);
       
-      // 🛡️ 1. เริ่มระบบ Cooldown ล็อคปุ่ม 60 วินาที ป้องกันคนกดสแปม
+      // 🛡️ เริ่มระบบ Cooldown ทันทีที่ส่งข้อมูลผ่าน!
       setCooldownTime(60);
-      const timer = setInterval(() => {
-        setCooldownTime((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
 
-      // 2. แสดง Popup แจ้งเตือนความสำเร็จ
+      // แสดง Popup แจ้งเตือนความสำเร็จ
       Swal.fire({
         title: 'ส่งข้อมูลสำเร็จ!',
         html: `
@@ -409,6 +408,7 @@ export default function ReportPage() {
         if (result.isConfirmed) {
           window.location.href = '/';
         } else {
+          // หากคลิก "แจ้งเหตุเพิ่ม" จะล้างแค่ฟอร์ม แต่ปุ่มและเวลาจะยังคงนับถอยหลังต่อไป
           setFormData({ ...formData, description: '', reporter_name: '' });
           setPosition(null);
           setSelectedFile(null); 
@@ -509,7 +509,6 @@ export default function ReportPage() {
                 </div>
               </div>
               
-              {/* 🤖 AI Loading & Result Badges */}
               {isAnalyzingAI && (
                 <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center space-x-3 transition-opacity">
                    <span className="text-lg animate-spin">🪄</span>
@@ -598,14 +597,16 @@ export default function ReportPage() {
             {position ? <span className="text-[11px] font-mono font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded border border-blue-200">{position.lat.toFixed(5)}, {position.lng.toFixed(5)}</span> : <span className="text-[11px] font-bold text-red-500 bg-red-50 px-2.5 py-1 rounded border border-red-100">ยังไม่ระบุพิกัด</span>}
           </div>
           
-          {/* 🛡️ ปุ่ม Submit ที่อัปเกรดระบบ Cooldown Timer เข้าไป */}
+          {/* 🛡️ ปุ่ม Submit ที่ตรวจจับเวลา Cooldown แบบ 100% */}
           <button 
             onClick={handleSubmit} 
             disabled={isSubmitting || !pdpaConsent || cooldownTime > 0} 
             className={`w-full py-3.5 rounded-xl font-bold text-[15px] shadow-lg flex justify-center items-center space-x-2 transition-all 
-              ${(isSubmitting || cooldownTime > 0) ? 'bg-gray-400 text-gray-100 cursor-not-allowed' 
-              : !pdpaConsent ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-              : 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 hover:shadow-xl active:scale-[0.98]'}`}
+              ${(isSubmitting || cooldownTime > 0) 
+                ? 'bg-gray-400 text-gray-100 cursor-not-allowed border-none' 
+                : !pdpaConsent 
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed border-none' 
+                  : 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 hover:shadow-xl active:scale-[0.98]'}`}
           >
             {isSubmitting ? (
               <span>กำลังส่งข้อมูล...</span>
