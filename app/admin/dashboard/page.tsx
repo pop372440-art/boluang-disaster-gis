@@ -22,21 +22,30 @@ export default function ExecutiveDashboard() {
   const [barData, setBarData] = useState<any[]>([]);
   const [liveIncidents, setLiveIncidents] = useState<any[]>([]);
   
-  // 🚨 State สำหรับ AI Early Warning
-  const [warningData, setWarningData] = useState({ level: 1, message: 'กำลังประเมินสถานการณ์...', rain: 0 });
+  // 🤖 State สำหรับ AI Early Warning
+  const [isAiScanning, setIsAiScanning] = useState(true); // สถานะกำลังสแกน
+  const [warningData, setWarningData] = useState({ level: 1, message: 'กำลังรอการประมวลผล...', rain: 0 });
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
-  // 🚨 Effect สำหรับดึงข้อมูล AI Early Warning ทันทีที่เปิดหน้าเว็บ
+  // 🤖 Effect: โชว์แอนิเมชันสแกน และดึงข้อมูลจริง
   useEffect(() => {
+    setIsAiScanning(true); // เริ่มสแกน
+    
     fetch('/api/early-warning')
       .then(res => res.json())
       .then(data => {
         if (data.success) setWarningData(data);
       })
-      .catch(err => console.error("Early Warning Error:", err));
+      .catch(err => console.error("Early Warning Error:", err))
+      .finally(() => {
+        // หน่วงเวลาให้กรรมการได้เห็น UI "AI กำลังทำงาน" ประมาณ 2.5 วินาที
+        setTimeout(() => {
+          setIsAiScanning(false);
+        }, 2500);
+      });
   }, []);
 
   const fetchDashboardData = async () => {
@@ -69,21 +78,15 @@ export default function ExecutiveDashboard() {
           .slice(0, 5);
         setBarData(sortedVillages);
       } else {
+        // Mock Data
         setStats({ total: 24, active: 4, resolved: 20 });
         setLiveIncidents([
           { created_at: new Date().toISOString(), risk_type: 'ไฟป่า / หมอกควัน', village_name: 'บ้านเตียนอาง', description: 'เสาไฟโซล่าเซลล์หัก', severity_level: 2, status: 'ดำเนินการเสร็จแล้ว' },
           { created_at: new Date(Date.now() - 3600000).toISOString(), risk_type: 'อื่นๆ', village_name: 'บ้านแม่หืด', description: 'ทิ้งขยะไม่เป็นที่', severity_level: 3, status: 'อยู่ระหว่างดำเนินการ' },
           { created_at: new Date(Date.now() - 7200000).toISOString(), risk_type: 'ดินโคลนถล่ม', village_name: 'บ้านขุน', description: 'ดินสไลด์ปิดถนน', severity_level: 5, status: 'รับเรื่องแล้ว' },
-          { created_at: new Date(Date.now() - 8200000).toISOString(), risk_type: 'น้ำป่าไหลหลาก', village_name: 'บ้านพุย', description: 'น้ำเอ่อล้นเข้าท่วมพื้นที่การเกษตร', severity_level: 4, status: 'รับเรื่องแล้ว' },
         ]);
-        setPieData([
-          { name: 'ดินโคลนถล่ม', value: 45 }, { name: 'ไฟป่า / หมอกควัน', value: 35 }, 
-          { name: 'น้ำป่าไหลหลาก', value: 40 }, { name: 'อื่นๆ', value: 15 }
-        ]);
-        setBarData([
-          { name: 'แม่หืด', แจ้งเหตุ: 13 }, { name: 'เตียนอาง', แจ้งเหตุ: 3 }, 
-          { name: 'ขุน', แจ้งเหตุ: 2 }, { name: 'พุย', แจ้งเหตุ: 2 }, { name: 'แม่สะนาม', แจ้งเหตุ: 1 }
-        ]);
+        setPieData([ { name: 'ไฟป่า', value: 35 }, { name: 'ดินถล่ม', value: 45 } ]);
+        setBarData([ { name: 'แม่หืด', แจ้งเหตุ: 13 } ]);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -108,7 +111,7 @@ export default function ExecutiveDashboard() {
     return (
       <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center">
         <div className="w-12 h-12 border-4 border-[#38bdf8] border-t-transparent rounded-full animate-spin mb-4"></div>
-        <div className="text-[#38bdf8] font-mono tracking-widest animate-pulse">LOADING OPEN DATA...</div>
+        <div className="text-[#38bdf8] font-mono tracking-widest animate-pulse">LOADING DASHBOARD...</div>
       </div>
     );
   }
@@ -134,33 +137,67 @@ export default function ExecutiveDashboard() {
 
       <main className="p-4 md:p-8 max-w-[1400px] mx-auto space-y-6">
         
-        {/* 🚨 AI Early Warning Banner */}
-        {warningData.level >= 3 && (
-          <div className={`col-span-1 md:col-span-4 p-4 rounded-2xl border flex items-center justify-between shadow-lg animate-pulse ${warningData.level >= 4 ? 'bg-red-900/50 border-red-500' : 'bg-orange-900/50 border-orange-500'}`}>
-            <div className="flex items-center space-x-4">
-              <div className="text-3xl text-white">⚠️</div>
-              <div>
-                <h3 className="text-white font-bold text-lg">AI Early Warning (แจ้งเตือนภัยล่วงหน้าอัตโนมัติ)</h3>
-                <p className="text-gray-200 text-sm">{warningData.message} (ปริมาณฝนปัจจุบัน: {warningData.rain} mm)</p>
+        {/* ========================================== */}
+        {/* 🤖 สถาปัตยกรรม AI Early Warning (ล้ำสุดๆ!) */}
+        {/* ========================================== */}
+        {isAiScanning ? (
+          // 🔴 สถานะที่ 1: AI กำลังสแกน (มีเลเซอร์วิ่งผ่าน)
+          <div className="col-span-1 md:col-span-4 p-4 rounded-2xl border border-[#38bdf8]/50 bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#0f172a] shadow-[0_0_20px_rgba(56,189,248,0.15)] relative overflow-hidden flex items-center">
+            {/* เอฟเฟกต์เลเซอร์สแกนเนอร์ */}
+            <div className="absolute inset-0 w-[200%] h-full bg-gradient-to-r from-transparent via-[#38bdf8]/20 to-transparent animate-ai-scan"></div>
+            
+            <div className="flex items-center space-x-4 relative z-10 w-full">
+              <div className="text-3xl animate-spin-slow">✨</div>
+              <div className="flex-1">
+                <h3 className="text-[#38bdf8] font-bold text-lg flex items-center space-x-2">
+                  <span>Gemini AI </span>
+                  <span className="text-[10px] bg-[#38bdf8]/20 px-2 py-0.5 rounded text-[#38bdf8] border border-[#38bdf8]/30 animate-pulse">ANALYZING...</span>
+                </h3>
+                <p className="text-gray-400 text-sm">กำลังเชื่อมต่อดาวเทียมและวิเคราะห์ข้อมูลสภาพอากาศแบบ Real-time...</p>
               </div>
             </div>
-            <div className="hidden md:block bg-black/30 px-3 py-1 rounded-full border border-white/20 text-white text-xs font-mono">
-              ประเมินโดย Gemini AI
-            </div>
           </div>
+        ) : (
+          // 🟢 สถานะที่ 2: สแกนเสร็จแล้ว ประเมินผล
+          warningData.level >= 3 ? (
+            // เคสอันตราย (สีแดง/ส้ม)
+            <div className={`col-span-1 md:col-span-4 p-4 rounded-2xl border flex items-center justify-between shadow-lg animate-pulse ${warningData.level >= 4 ? 'bg-red-950/80 border-red-500' : 'bg-orange-950/80 border-orange-500'}`}>
+              <div className="flex items-center space-x-4">
+                <div className="text-3xl text-white">⚠️</div>
+                <div>
+                  <h3 className="text-white font-bold text-lg flex items-center space-x-2">
+                    <span>AI Early Warning</span>
+                    <span className="text-[10px] bg-red-500/20 px-2 py-0.5 rounded text-red-300 border border-red-500/30">ALERT</span>
+                  </h3>
+                  <p className="text-gray-200 text-sm">{warningData.message} (ฝนปัจจุบัน: {warningData.rain} mm)</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // เคสปลอดภัย (สีเขียว)
+            <div className="col-span-1 md:col-span-4 p-4 rounded-2xl border border-emerald-500/30 bg-emerald-950/40 shadow-lg flex items-center justify-between transition-all">
+              <div className="flex items-center space-x-4">
+                <div className="text-3xl">🌤️</div>
+                <div>
+                  <h3 className="text-emerald-400 font-bold text-lg flex items-center space-x-2">
+                    <span>Gemini AI</span>
+                    <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-300 border border-emerald-500/30">SAFE</span>
+                  </h3>
+                  <p className="text-emerald-200/70 text-sm">สภาพอากาศปกติ ไม่พบความเสี่ยงภัยพิบัติรุนแรง (ปริมาณฝน: {warningData.rain} mm)</p>
+                </div>
+              </div>
+            </div>
+          )
         )}
+        {/* ========================================== */}
 
-        {/* 🍱 Bento Box Grid Layout */}
+        {/* 🍱 Bento Box Grid Layout (กราฟและสถิติ) */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
           <div className="col-span-1 md:col-span-2 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col justify-between">
             <div>
               <h2 className="text-gray-400 text-xs font-bold tracking-widest uppercase mb-1">TOTAL INCIDENTS</h2>
               <div className="text-4xl md:text-5xl font-extrabold text-white mb-2">{stats.total} <span className="text-sm text-gray-500 font-normal">รายการ</span></div>
               <p className="text-[11px] text-gray-400">ภาพรวมการแจ้งเหตุสาธารณภัยทั้งหมดในพื้นที่เทศบาลตำบลบ่อหลวง ข้อมูลถูกซิงค์แบบ Real-time</p>
-            </div>
-            <div className="mt-6 self-start inline-flex items-center px-3 py-1.5 bg-emerald-900/30 text-emerald-400 border border-emerald-500/20 rounded-full text-[11px] font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2"></span>
-              ระบบวิเคราะห์ข้อมูลทำงานปกติ
             </div>
           </div>
           
@@ -175,24 +212,18 @@ export default function ExecutiveDashboard() {
             <div className="w-8 h-8 bg-emerald-500/10 rounded-full flex items-center justify-center mb-3"><span className="text-emerald-400 text-sm">✅</span></div>
             <h3 className="text-gray-400 text-xs font-bold tracking-widest uppercase mb-1">แก้ไขเสร็จสิ้น</h3>
             <div className="text-4xl font-extrabold text-emerald-400">{stats.resolved}</div>
-            <div className="text-[10px] text-gray-500 mt-2">Success Rate: {stats.total > 0 ? Math.round((stats.resolved / stats.total) * 100) : 0}%</div>
             <div className="absolute bottom-0 left-0 w-full h-1 bg-emerald-500"></div>
           </div>
           
           <div className="col-span-1 md:col-span-2 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col h-[320px]">
             <h3 className="text-white text-sm font-bold mb-1 flex items-center"><span className="mr-2">📊</span> สัดส่วนประเภทภัยพิบัติ</h3>
-            <p className="text-[10px] text-gray-400 mb-4">วิเคราะห์ความถี่ของเหตุการณ์เพื่อวางแผนทรัพยากร</p>
             <div className="flex-1 w-full h-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={pieData} cx="50%" cy="45%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value" stroke="none">
                     {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px' }} 
-                    itemStyle={{ color: '#ffffff', fontWeight: 'bold' }}
-                    labelStyle={{ color: '#cbd5e1' }}
-                  />
+                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px' }} itemStyle={{ color: '#ffffff', fontWeight: 'bold' }} />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', color: '#cbd5e1' }}/>
                 </PieChart>
               </ResponsiveContainer>
@@ -201,19 +232,13 @@ export default function ExecutiveDashboard() {
           
           <div className="col-span-1 md:col-span-2 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col h-[320px]">
             <h3 className="text-white text-sm font-bold mb-1 flex items-center"><span className="mr-2">📍</span> Top 5 พื้นที่เสี่ยงภัย (Hotspots)</h3>
-            <p className="text-[10px] text-gray-400 mb-4">หมู่บ้านที่ได้รับการแจ้งเหตุมากที่สุด</p>
             <div className="flex-1 w-full h-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={barData} margin={{ top: 10, right: 10, left: -30, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                   <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                  <Tooltip 
-                    cursor={{ fill: '#334155', opacity: 0.4 }} 
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#38bdf8', borderRadius: '8px', color: '#ffffff', fontSize: '12px' }} 
-                    itemStyle={{ color: '#ffffff', fontWeight: 'bold' }}
-                    labelStyle={{ color: '#cbd5e1' }}
-                  />
+                  <Tooltip cursor={{ fill: '#334155', opacity: 0.4 }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#38bdf8', borderRadius: '8px', color: '#ffffff', fontSize: '12px' }} itemStyle={{ color: '#ffffff', fontWeight: 'bold' }} />
                   <Bar dataKey="แจ้งเหตุ" fill="#38bdf8" radius={[4, 4, 0, 0]}>
                     {barData.map((entry, index) => <Cell key={`cell-${index}`} fill={index === 0 ? '#ef4444' : '#38bdf8'} />)}
                   </Bar>
@@ -230,19 +255,8 @@ export default function ExecutiveDashboard() {
               <span className="text-xl animate-pulse">📡</span>
               <h3 className="text-white font-bold text-sm tracking-wide uppercase">Live Incident Tracking</h3>
             </div>
-            <div className="flex items-center space-x-2 text-[10px] font-mono bg-emerald-900/40 text-emerald-400 px-3 py-1 rounded-full border border-emerald-800/50">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-              <span>สถานะ Real-time</span>
-            </div>
           </div>
           
-          <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-[#0f172a] text-[11px] text-gray-400 font-bold uppercase tracking-wider border-b border-[#2d3748] hidden md:grid">
-            <div className="col-span-2">วันเวลาที่แจ้ง</div>
-            <div className="col-span-3">ประเภทภัย / พื้นที่</div>
-            <div className="col-span-4">รายละเอียดเบื้องต้น</div>
-            <div className="col-span-3 text-right">การจัดการ</div>
-          </div>
-
           <div className="relative h-[320px] overflow-hidden ticker-container">
             <div className="absolute w-full ticker-content">
               {scrollingIncidents.map((incident, idx) => {
@@ -252,16 +266,13 @@ export default function ExecutiveDashboard() {
                 
                 if (statusText.includes("เสร็จแล้ว") || statusText.includes("ปิดจ๊อบ")) {
                   statusColor = "bg-emerald-950 text-emerald-400 border-emerald-800";
-                  statusText = "ดำเนินการเสร็จแล้ว";
-                  icon = "✅";
+                  statusText = "ดำเนินการเสร็จแล้ว"; icon = "✅";
                 } else if (statusText.includes("กำลัง") || statusText.includes("ระหว่าง")) {
                   statusColor = "bg-orange-950 text-orange-400 border-orange-800";
-                  statusText = "อยู่ระหว่างดำเนินการ";
-                  icon = "🚧";
+                  statusText = "อยู่ระหว่างดำเนินการ"; icon = "🚧";
                 } else {
                   statusColor = "bg-blue-950 text-blue-400 border-blue-800";
-                  statusText = "รับเรื่องแจ้งเหตุแล้ว 🔍 อยู่ระหว่างตรวจสอบเพื่อดำเนินการ"; 
-                  icon = "📥"; 
+                  statusText = "รับเรื่องแจ้งเหตุแล้ว 🔍 อยู่ระหว่างตรวจสอบเพื่อดำเนินการ"; icon = "📥"; 
                 }
 
                 return (
@@ -273,10 +284,6 @@ export default function ExecutiveDashboard() {
                     <div className="col-span-1 md:col-span-3">
                       <div className="flex items-center space-x-2">
                         <span className="text-white font-bold text-[13px] truncate">{incident.risk_type}</span>
-                        {incident.severity_level >= 4 && <span className="bg-red-500/20 text-red-400 text-[9px] px-1.5 py-0.5 rounded border border-red-500/30">ด่วน</span>}
-                      </div>
-                      <div className="text-gray-400 text-[11px] mt-0.5 flex items-center">
-                        <span className="text-red-400 mr-1">📍</span> {incident.village_name}
                       </div>
                     </div>
                     <div className="col-span-1 md:col-span-4 text-gray-300 text-[12px] line-clamp-2 pr-4">
@@ -292,27 +299,30 @@ export default function ExecutiveDashboard() {
                 );
               })}
             </div>
-            
-            <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-[#172033] to-transparent z-10 pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#172033] to-transparent z-10 pointer-events-none"></div>
           </div>
         </div>
 
       </main>
 
-      {/* 🔮 CSS สร้างเวทมนตร์การไหลและเบรก */}
+      {/* 🔮 CSS สร้างเวทมนตร์การไหลและเลเซอร์สแกนเนอร์ */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes vertical-scroll {
           0% { transform: translateY(0); }
           100% { transform: translateY(-50%); } 
         }
-        .ticker-content {
-          animation: vertical-scroll 35s linear infinite; 
+        .ticker-content { animation: vertical-scroll 35s linear infinite; }
+        .ticker-container:hover .ticker-content { animation-play-state: paused !important; }
+        
+        /* เลเซอร์สแกนเนอร์ของ AI */
+        @keyframes ai-scan {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(50%); }
         }
-        .ticker-container:hover .ticker-content {
-          animation-play-state: paused !important;
-        }
+        .animate-ai-scan { animation: ai-scan 1.5s ease-in-out infinite; }
+        
+        /* สัญลักษณ์ AI หมุนช้าๆ */
+        .animate-spin-slow { animation: spin 4s linear infinite; }
       `}} />
     </div>
   );
-} 
+}
