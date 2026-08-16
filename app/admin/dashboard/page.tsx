@@ -94,7 +94,7 @@ export default function ExecutiveDashboard() {
     return `${d.getDate()}/${d.getMonth() + 1}/${(d.getFullYear() + 543).toString().slice(-2)}`;
   };
 
-  // แยกร่าง Array เป็น 2 ชุด
+  // แยกร่าง Array เป็น 2 ชุดเพื่อให้ไหลแบบ Infinite
   const scrollingIncidents = [...liveIncidents, ...liveIncidents];
 
   if (loading) {
@@ -153,6 +153,8 @@ export default function ExecutiveDashboard() {
             <div className="text-[10px] text-gray-500 mt-2">Success Rate: {stats.total > 0 ? Math.round((stats.resolved / stats.total) * 100) : 0}%</div>
             <div className="absolute bottom-0 left-0 w-full h-1 bg-emerald-500"></div>
           </div>
+          
+          {/* Box 4: Pie Chart */}
           <div className="col-span-1 md:col-span-2 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col h-[320px]">
             <h3 className="text-white text-sm font-bold mb-1 flex items-center"><span className="mr-2">📊</span> สัดส่วนประเภทภัยพิบัติ</h3>
             <p className="text-[10px] text-gray-400 mb-4">วิเคราะห์ความถี่ของเหตุการณ์เพื่อวางแผนทรัพยากร</p>
@@ -162,12 +164,19 @@ export default function ExecutiveDashboard() {
                   <Pie data={pieData} cx="50%" cy="45%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value" stroke="none">
                     {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip '#0f172a', '#334155', '#fff', '#ffffff', '12px' '8px', 'bold' backgroundColor: borderColor: borderRadius: color: contentStyle="{{" fontSize: fontWeight: itemStyle="{{" }}/>
+                  {/* 🛠️ แก้ไขสี Tooltip ตรงนี้ (เพิ่ม itemStyle และ labelStyle ให้เป็นสีขาว) */}
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px' }} 
+                    itemStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                    labelStyle={{ color: '#cbd5e1' }}
+                  />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', color: '#cbd5e1' }}/>
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
+          
+          {/* Box 5: Bar Chart */}
           <div className="col-span-1 md:col-span-2 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col h-[320px]">
             <h3 className="text-white text-sm font-bold mb-1 flex items-center"><span className="mr-2">📍</span> Top 5 พื้นที่เสี่ยงภัย (Hotspots)</h3>
             <p className="text-[10px] text-gray-400 mb-4">หมู่บ้านที่ได้รับการแจ้งเหตุมากที่สุด</p>
@@ -177,7 +186,13 @@ export default function ExecutiveDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                   <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                  <Tooltip '#0f172a', '#334155', '#38bdf8', '#fff', '#ffffff', '12px' '8px', 'bold' 0.4 backgroundColor: borderColor: borderRadius: color: contentStyle="{{" cursor="{{" fill: fontSize: fontWeight: itemStyle="{{" opacity: }}/>
+                  {/* 🛠️ แก้ไขสี Tooltip ตรงนี้ (เพิ่ม itemStyle และ labelStyle ให้เป็นสีขาว) */}
+                  <Tooltip 
+                    cursor={{ fill: '#334155', opacity: 0.4 }} 
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#38bdf8', borderRadius: '8px', color: '#ffffff', fontSize: '12px' }} 
+                    itemStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                    labelStyle={{ color: '#cbd5e1' }}
+                  />
                   <Bar dataKey="แจ้งเหตุ" fill="#38bdf8" radius={[4, 4, 0, 0]}>
                     {barData.map((entry, index) => <Cell key={`cell-${index}`} fill={index === 0 ? '#ef4444' : '#38bdf8'} />)}
                   </Bar>
@@ -213,7 +228,6 @@ export default function ExecutiveDashboard() {
             <div className="absolute w-full ticker-content">
               {scrollingIncidents.map((incident, idx) => {
                 
-                // 🛠️ อัปเดตเงื่อนไขสถานะใหม่ (แก้ข้อความและไอคอนให้ครบถ้วน)
                 let statusColor = "";
                 let statusText = incident.status || "รับเรื่องแล้ว";
                 let icon = "";
@@ -227,7 +241,7 @@ export default function ExecutiveDashboard() {
                   statusText = "อยู่ระหว่างดำเนินการ";
                   icon = "🚧";
                 } else {
-                  // 🚀 แก้ไขข้อความตามคำสั่งของท่าน!
+                  // 🚀 ข้อความสถานะตามที่รีเควส
                   statusColor = "bg-blue-950 text-blue-400 border-blue-800";
                   statusText = "รับเรื่องแจ้งเหตุแล้ว 🔍 อยู่ระหว่างตรวจสอบเพื่อดำเนินการ"; 
                   icon = "📥"; 
@@ -258,7 +272,6 @@ export default function ExecutiveDashboard() {
                     <div className="col-span-1 md:col-span-3 flex justify-start md:justify-end">
                       <div className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full border ${statusColor}`}>
                         <span className="text-[10px]">{icon}</span>
-                        {/* ปรับขนาดฟอนต์ให้เล็กลงนิดนึง เพื่อให้ประโยคยาวๆ ใส่ในกล่องได้พอดี */}
                         <span className="text-[10px] md:text-[9px] lg:text-[10px] font-bold tracking-wide truncate">{statusText}</span>
                       </div>
                     </div>
@@ -267,7 +280,6 @@ export default function ExecutiveDashboard() {
               })}
             </div>
             
-            {/* เงา */}
             <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-[#172033] to-transparent z-10 pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#172033] to-transparent z-10 pointer-events-none"></div>
           </div>
@@ -275,7 +287,7 @@ export default function ExecutiveDashboard() {
 
       </main>
 
-      {/* 🔮 CSS สร้างเวทมนตร์การไหล (และบังคับหยุดเมื่อเอาเมาส์ชี้แบบ 100%) */}
+      {/* 🔮 CSS สร้างเวทมนตร์การไหลและเบรก */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes vertical-scroll {
           0% { transform: translateY(0); }
@@ -284,7 +296,6 @@ export default function ExecutiveDashboard() {
         .ticker-content {
           animation: vertical-scroll 35s linear infinite; 
         }
-        /* นี่คือคีย์เวิร์ดสำคัญ: สั่งให้คอนเทนต์ในกล่องหยุดไหล เมื่อมีคนเอาเมาส์มาวางทับกล่อง (hover) */
         .ticker-container:hover .ticker-content {
           animation-play-state: paused !important;
         }
