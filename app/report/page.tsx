@@ -7,15 +7,45 @@ import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2'; 
 import { useMapEvents } from 'react-leaflet';
 
-// 🌟 ตั้งค่า Supabase 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://uvtjjhvvtaswzhwhowlj.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2dGpqaHZ2dGFzd3pod2hvd2xqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NDA3NjcsImV4cCI6MjA5MjExNjc2N30.Jjqi1LWgxEgpT2nBdjuNyoLxEP_VQcKf3GEbIYKPI8Y';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables เท่านั้น ปลอดภัย 100%)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error("Supabase Error: Missing environment variables.");
+}
+const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
 const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
+
+// 🚀 ฟังก์ชันช่วย: เช็คว่าพิกัดตกอยู่ในขอบเขต Polygon หรือไม่ (Point in Polygon)
+const isPointInPolygon = (point: number[], polygon: number[][]) => {
+  let x = point[0], y = point[1];
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    let xi = polygon[i][0], yi = polygon[i][1];
+    let xj = polygon[j][0], yj = polygon[j][1];
+    let intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
+const checkPointInFeature = (lng: number, lat: number, feature: any) => {
+  if (!feature.geometry || !feature.geometry.coordinates) return false;
+  const type = feature.geometry.type;
+  const coords = feature.geometry.coordinates;
+  if (type === 'Polygon') {
+    return isPointInPolygon([lng, lat], coords[0]);
+  } else if (type === 'MultiPolygon') {
+    for (let i = 0; i < coords.length; i++) {
+      if (isPointInPolygon([lng, lat], coords[i][0])) return true;
+    }
+  }
+  return false;
+};
 
 export default function ReportPage() {
   const [mounted, setMounted] = useState(false);
@@ -39,7 +69,6 @@ export default function ReportPage() {
     reporter_role: 'ประชาชนทั่วไป'
   });
 
-  // 📌 เปลี่ยนจาก FileList เป็น File เพื่อรองรับไฟล์ที่บีบอัดแล้ว
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [pdpaConsent, setPdpaConsent] = useState(false);
 
@@ -102,6 +131,34 @@ export default function ReportPage() {
     return result;
   }, [geoBlock]);
 
+  // 🚀 THE MAGIC: ระบบตรวจจับหมู่บ้านอัตโนมัติจาก GPS/คลิกแผนที่
+  useEffect(() => {
+    if (position && geoBlock && geoBlock.features) {
+      let foundVillage = null;
+      for (const feature of geoBlock.features) {
+        if (checkPointInFeature(position.lng, position.lat, feature)) {
+          const props = feature.properties || {};
+          const rawName = props.own_villag || props.name_th || props.vil_name || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || 'ไม่ระบุ'}`;
+          foundVillage = formatVillageName(rawName);
+          break; // เจอหมู่บ้านแล้วหยุดหา
+        }
+      }
+
+      // ถ้าเจอว่าอยู่ในเขตหมู่บ้านไหน และไม่ซ้ำกับของเดิมที่เลือกไว้
+      if (foundVillage && foundVillage !== formData.village_name) {
+        setFormData(prev => ({ ...prev, village_name: foundVillage }));
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'info',
+          title: `📍 อัปเดตพื้นที่: ${foundVillage}`,
+          showConfirmButton: false,
+          timer: 2500
+        });
+      }
+    }
+  }, [position, geoBlock]);
+
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
   const customIcon = L ? L.divIcon({
     className: 'bg-transparent border-none',
@@ -160,7 +217,6 @@ export default function ReportPage() {
     setFormData(prev => ({ ...prev, severity_level: level }));
   };
 
-  // 🪄 ฟังก์ชันบีบอัดรูปภาพ (เพิ่มใหม่)
   const compressImage = (file: File, maxWidth = 1024, quality = 0.8): Promise<File> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -172,13 +228,10 @@ export default function ReportPage() {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-
-          // ปรับขนาดถ้ากว้างเกิน maxWidth
           if (width > maxWidth) {
             height = Math.round((height * maxWidth) / width);
             width = maxWidth;
           }
-
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d');
@@ -186,10 +239,8 @@ export default function ReportPage() {
           
           ctx.drawImage(img, 0, 0, width, height);
           
-          // แปลงเป็น Blob แล้วสร้างเป็น File ใหม่ (เป็น JPEG เพื่อลดขนาด)
           canvas.toBlob((blob) => {
             if (!blob) return reject(new Error('Canvas is empty'));
-            // เปลี่ยนนามสกุลไฟล์เป็น .jpg เพราะเราบีบอัดเป็น JPEG
             const newFileName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
             const compressedFile = new File([blob], newFileName, {
               type: 'image/jpeg',
@@ -204,7 +255,6 @@ export default function ReportPage() {
     });
   };
 
-  // 🤖 🚀 ฟังก์ชันส่งรูปไปให้ AI วิเคราะห์ (แก้ไขให้บีบอัดก่อนส่ง)
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const originalFile = e.target.files[0];
@@ -213,13 +263,9 @@ export default function ReportPage() {
       setAiResult(null);
 
       try {
-        // 1. บีบอัดรูปภาพก่อน (ลดขนาดเหลือไม่เกิน 1024px และ Quality 80%)
         const compressedFile = await compressImage(originalFile, 1024, 0.8);
-        
-        // เก็บไฟล์ที่บีบอัดแล้วไว้ใน State เพื่อเอาไป Upload Supabase ภายหลัง
         setSelectedFile(compressedFile);
 
-        // 2. แปลงไฟล์ที่บีบอัดแล้วเป็น Base64 ส่งให้ AI
         const base64data = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.readAsDataURL(compressedFile);
@@ -227,7 +273,6 @@ export default function ReportPage() {
           reader.onerror = error => reject(error);
         });
 
-        // 3. ส่งให้ AI
         const res = await fetch('/api/analyze-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -257,7 +302,7 @@ export default function ReportPage() {
         console.error("File compression or AI Request failed:", error);
         Swal.fire({ icon: 'error', title: 'ประมวลผลรูปไม่สำเร็จ', text: 'กรุณาลองเลือกรูปใหม่อีกครั้ง' });
       } finally {
-        setIsAnalyzingAI(false); // ปิดป้ายโหลดเมื่อทำงานเสร็จทุกอย่าง
+        setIsAnalyzingAI(false);
       }
     }
   };
@@ -278,8 +323,6 @@ export default function ReportPage() {
 
     try {
       let imageUrl = null;
-
-      // ใช้ selectedFile (ที่บีบอัดแล้ว) ในการอัปโหลด Supabase
       if (selectedFile) {
         const fileExt = selectedFile.name.split('.').pop();
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
@@ -345,16 +388,16 @@ export default function ReportPage() {
         denyButtonText: 'แจ้งเหตุเพิ่ม',
         confirmButtonColor: '#3b82f6',
         denyButtonColor: '#10b981',    
-        reverseButtons: true           
+        reverseButtons: true            
       }).then((result) => {
         if (result.isConfirmed) {
           window.location.href = '/';
         } else {
           setFormData({ ...formData, description: '', reporter_name: '' });
           setPosition(null);
-          setSelectedFile(null); // เคลียร์ไฟล์
+          setSelectedFile(null); 
           setPdpaConsent(false);
-          setAiResult(null); // เคลียร์ AI Result
+          setAiResult(null); 
         }
       });
 
