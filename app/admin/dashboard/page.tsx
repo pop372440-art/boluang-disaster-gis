@@ -21,9 +21,22 @@ export default function ExecutiveDashboard() {
   const [pieData, setPieData] = useState<any[]>([]);
   const [barData, setBarData] = useState<any[]>([]);
   const [liveIncidents, setLiveIncidents] = useState<any[]>([]);
+  
+  // 🚨 [ตำแหน่งที่ 1] State สำหรับ AI Early Warning
+  const [warningData, setWarningData] = useState({ level: 1, message: 'กำลังประเมินสถานการณ์...', rain: 0 });
 
   useEffect(() => {
     fetchDashboardData();
+  }, []);
+
+  // 🚨 [ตำแหน่งที่ 2] Effect สำหรับดึงข้อมูล AI Early Warning ทันทีที่เปิดหน้าเว็บ
+  useEffect(() => {
+    fetch('/api/early-warning')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setWarningData(data);
+      })
+      .catch(err => console.error("Early Warning Error:", err));
   }, []);
 
   const fetchDashboardData = async () => {
@@ -124,8 +137,28 @@ export default function ExecutiveDashboard() {
           <span className="hidden sm:inline">กลับหน้าแผนที่หลัก</span>
         </Link>
       </header>
-
+    
       <main className="p-4 md:p-8 max-w-[1400px] mx-auto space-y-6">
+        
+        {/* 🚨 AI Early Warning Banner (วางตรงนี้เลยครับ) */}
+        {warningData.level >= 3 && (
+          <div className={`col-span-1 md:col-span-4 p-4 rounded-2xl border flex items-center justify-between shadow-lg animate-pulse ${warningData.level >= 4 ? 'bg-red-900/50 border-red-500' : 'bg-orange-900/50 border-orange-500'}`}>
+            <div className="flex items-center space-x-4">
+              <div className="text-3xl text-white">⚠️</div>
+              <div>
+                <h3 className="text-white font-bold text-lg">AI Early Warning (แจ้งเตือนภัยล่วงหน้าอัตโนมัติ)</h3>
+                <p className="text-gray-200 text-sm">{warningData.message} (ปริมาณฝนปัจจุบัน: {warningData.rain} mm)</p>
+              </div>
+            </div>
+            <div className="hidden md:block bg-black/30 px-3 py-1 rounded-full border border-white/20 text-white text-xs font-mono">
+              ประเมินโดย Gemini AI
+            </div>
+          </div>
+        )}
+
+        {/* 🍱 Bento Box Grid Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
+          <div className="col-span-1 md:col-span-2 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col justify-between">
         
         {/* 🍱 Bento Box Grid Layout */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
