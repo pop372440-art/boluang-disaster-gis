@@ -22,14 +22,14 @@ export default function ExecutiveDashboard() {
   const [barData, setBarData] = useState<any[]>([]);
   const [liveIncidents, setLiveIncidents] = useState<any[]>([]);
   
-  // 🚨 [ตำแหน่งที่ 1] State สำหรับ AI Early Warning
+  // 🚨 State สำหรับ AI Early Warning
   const [warningData, setWarningData] = useState({ level: 1, message: 'กำลังประเมินสถานการณ์...', rain: 0 });
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
-  // 🚨 [ตำแหน่งที่ 2] Effect สำหรับดึงข้อมูล AI Early Warning ทันทีที่เปิดหน้าเว็บ
+  // 🚨 Effect สำหรับดึงข้อมูล AI Early Warning ทันทีที่เปิดหน้าเว็บ
   useEffect(() => {
     fetch('/api/early-warning')
       .then(res => res.json())
@@ -55,16 +55,12 @@ export default function ExecutiveDashboard() {
         const active = total - resolved;
         
         setStats({ total, active, resolved });
-
-        // ดึง 10 รายการล่าสุด
         setLiveIncidents(data.slice(0, 10));
 
-        // ประมวลผล กราฟโดนัท
         const typeCount: any = {};
         data.forEach(d => { typeCount[d.risk_type] = (typeCount[d.risk_type] || 0) + 1; });
         setPieData(Object.keys(typeCount).map(k => ({ name: k, value: typeCount[k] })));
 
-        // ประมวลผล กราฟแท่ง (Top 5)
         const villageCount: any = {};
         data.forEach(d => { villageCount[d.village_name] = (villageCount[d.village_name] || 0) + 1; });
         const sortedVillages = Object.keys(villageCount)
@@ -73,7 +69,6 @@ export default function ExecutiveDashboard() {
           .slice(0, 5);
         setBarData(sortedVillages);
       } else {
-        // ข้อมูลจำลอง
         setStats({ total: 24, active: 4, resolved: 20 });
         setLiveIncidents([
           { created_at: new Date().toISOString(), risk_type: 'ไฟป่า / หมอกควัน', village_name: 'บ้านเตียนอาง', description: 'เสาไฟโซล่าเซลล์หัก', severity_level: 2, status: 'ดำเนินการเสร็จแล้ว' },
@@ -107,7 +102,6 @@ export default function ExecutiveDashboard() {
     return `${d.getDate()}/${d.getMonth() + 1}/${(d.getFullYear() + 543).toString().slice(-2)}`;
   };
 
-  // แยกร่าง Array เป็น 2 ชุดเพื่อให้ไหลแบบ Infinite
   const scrollingIncidents = [...liveIncidents, ...liveIncidents];
 
   if (loading) {
@@ -137,10 +131,10 @@ export default function ExecutiveDashboard() {
           <span className="hidden sm:inline">กลับหน้าแผนที่หลัก</span>
         </Link>
       </header>
-    
+
       <main className="p-4 md:p-8 max-w-[1400px] mx-auto space-y-6">
         
-        {/* 🚨 AI Early Warning Banner (วางตรงนี้เลยครับ) */}
+        {/* 🚨 AI Early Warning Banner */}
         {warningData.level >= 3 && (
           <div className={`col-span-1 md:col-span-4 p-4 rounded-2xl border flex items-center justify-between shadow-lg animate-pulse ${warningData.level >= 4 ? 'bg-red-900/50 border-red-500' : 'bg-orange-900/50 border-orange-500'}`}>
             <div className="flex items-center space-x-4">
@@ -159,10 +153,6 @@ export default function ExecutiveDashboard() {
         {/* 🍱 Bento Box Grid Layout */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
           <div className="col-span-1 md:col-span-2 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col justify-between">
-        
-        {/* 🍱 Bento Box Grid Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
-          <div className="col-span-1 md:col-span-2 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col justify-between">
             <div>
               <h2 className="text-gray-400 text-xs font-bold tracking-widest uppercase mb-1">TOTAL INCIDENTS</h2>
               <div className="text-4xl md:text-5xl font-extrabold text-white mb-2">{stats.total} <span className="text-sm text-gray-500 font-normal">รายการ</span></div>
@@ -173,12 +163,14 @@ export default function ExecutiveDashboard() {
               ระบบวิเคราะห์ข้อมูลทำงานปกติ
             </div>
           </div>
+          
           <div className="col-span-1 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col relative overflow-hidden">
             <div className="w-8 h-8 bg-orange-500/10 rounded-full flex items-center justify-center mb-3"><span className="text-orange-400 text-sm">⚡</span></div>
             <h3 className="text-gray-400 text-xs font-bold tracking-widest uppercase mb-1">กำลังดำเนินการ</h3>
             <div className="text-4xl font-extrabold text-orange-400">{stats.active}</div>
             <div className="absolute bottom-0 left-0 w-full h-1 bg-orange-500"></div>
           </div>
+          
           <div className="col-span-1 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col relative overflow-hidden">
             <div className="w-8 h-8 bg-emerald-500/10 rounded-full flex items-center justify-center mb-3"><span className="text-emerald-400 text-sm">✅</span></div>
             <h3 className="text-gray-400 text-xs font-bold tracking-widest uppercase mb-1">แก้ไขเสร็จสิ้น</h3>
@@ -187,7 +179,6 @@ export default function ExecutiveDashboard() {
             <div className="absolute bottom-0 left-0 w-full h-1 bg-emerald-500"></div>
           </div>
           
-          {/* Box 4: Pie Chart */}
           <div className="col-span-1 md:col-span-2 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col h-[320px]">
             <h3 className="text-white text-sm font-bold mb-1 flex items-center"><span className="mr-2">📊</span> สัดส่วนประเภทภัยพิบัติ</h3>
             <p className="text-[10px] text-gray-400 mb-4">วิเคราะห์ความถี่ของเหตุการณ์เพื่อวางแผนทรัพยากร</p>
@@ -197,7 +188,6 @@ export default function ExecutiveDashboard() {
                   <Pie data={pieData} cx="50%" cy="45%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value" stroke="none">
                     {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
                   </Pie>
-                  {/* 🛠️ แก้ไขสี Tooltip ตรงนี้ (เพิ่ม itemStyle และ labelStyle ให้เป็นสีขาว) */}
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px' }} 
                     itemStyle={{ color: '#ffffff', fontWeight: 'bold' }}
@@ -209,7 +199,6 @@ export default function ExecutiveDashboard() {
             </div>
           </div>
           
-          {/* Box 5: Bar Chart */}
           <div className="col-span-1 md:col-span-2 bg-[#172033] p-6 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col h-[320px]">
             <h3 className="text-white text-sm font-bold mb-1 flex items-center"><span className="mr-2">📍</span> Top 5 พื้นที่เสี่ยงภัย (Hotspots)</h3>
             <p className="text-[10px] text-gray-400 mb-4">หมู่บ้านที่ได้รับการแจ้งเหตุมากที่สุด</p>
@@ -219,7 +208,6 @@ export default function ExecutiveDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                   <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                  {/* 🛠️ แก้ไขสี Tooltip ตรงนี้ (เพิ่ม itemStyle และ labelStyle ให้เป็นสีขาว) */}
                   <Tooltip 
                     cursor={{ fill: '#334155', opacity: 0.4 }} 
                     contentStyle={{ backgroundColor: '#0f172a', borderColor: '#38bdf8', borderRadius: '8px', color: '#ffffff', fontSize: '12px' }} 
@@ -255,12 +243,9 @@ export default function ExecutiveDashboard() {
             <div className="col-span-3 text-right">การจัดการ</div>
           </div>
 
-          {/* 🌟 คอนเทนเนอร์แสดงผลแบบไหลอัตโนมัติ (ใส่คลาส ticker-container) */}
           <div className="relative h-[320px] overflow-hidden ticker-container">
-            
             <div className="absolute w-full ticker-content">
               {scrollingIncidents.map((incident, idx) => {
-                
                 let statusColor = "";
                 let statusText = incident.status || "รับเรื่องแล้ว";
                 let icon = "";
@@ -274,7 +259,6 @@ export default function ExecutiveDashboard() {
                   statusText = "อยู่ระหว่างดำเนินการ";
                   icon = "🚧";
                 } else {
-                  // 🚀 ข้อความสถานะตามที่รีเควส
                   statusColor = "bg-blue-950 text-blue-400 border-blue-800";
                   statusText = "รับเรื่องแจ้งเหตุแล้ว 🔍 อยู่ระหว่างตรวจสอบเพื่อดำเนินการ"; 
                   icon = "📥"; 
@@ -282,12 +266,10 @@ export default function ExecutiveDashboard() {
 
                 return (
                   <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-4 px-6 py-4 border-b border-[#2d3748]/50 hover:bg-[#1e293b]/60 transition-colors items-center">
-                    
                     <div className="col-span-1 md:col-span-2 flex md:flex-col items-center md:items-start justify-between md:justify-center">
                       <span className="text-gray-300 font-mono text-xs">{formatTime(incident.created_at)}</span>
                       <span className="text-gray-500 font-mono text-[10px]">{formatDate(incident.created_at)}</span>
                     </div>
-                    
                     <div className="col-span-1 md:col-span-3">
                       <div className="flex items-center space-x-2">
                         <span className="text-white font-bold text-[13px] truncate">{incident.risk_type}</span>
@@ -297,11 +279,9 @@ export default function ExecutiveDashboard() {
                         <span className="text-red-400 mr-1">📍</span> {incident.village_name}
                       </div>
                     </div>
-                    
                     <div className="col-span-1 md:col-span-4 text-gray-300 text-[12px] line-clamp-2 pr-4">
                       {incident.description.replace('[AI วิเคราะห์]', '🤖 ').substring(0, 80)}...
                     </div>
-                    
                     <div className="col-span-1 md:col-span-3 flex justify-start md:justify-end">
                       <div className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full border ${statusColor}`}>
                         <span className="text-[10px]">{icon}</span>
