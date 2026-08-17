@@ -1662,7 +1662,7 @@ export default function BoLuangDashboard() {
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm10 3h6m-3-3v6" />
                     </svg>
-                    <span>สแกนเพื่อแจ้งปัญหา</span>
+                    <span>รายงานเหตุ / ปัญหาสิ่งแวดล้อม</span>
                   </button>
                   <p className="text-[11px] text-gray-400 mt-3 leading-relaxed text-center">สแกนคิวอาร์โค้ดเพื่อเปิดแบบฟอร์มแจ้งปัญหา พร้อมใช้สำหรับการเก็บข้อมูลจากประชาชน</p>
                 </div>
