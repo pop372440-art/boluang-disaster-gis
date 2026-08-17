@@ -418,9 +418,11 @@ export default function BoLuangDashboard() {
 
     loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang);
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
-    loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
+    // 🛑 ปิดการโหลดแปลงที่ดินชั่วคราว เพื่อเพิ่มความเร็วหน้า Landing
+    // loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
     loadGeoJSON(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=${GISTDA_API_KEY}`, setGeoHotspot);
-    loadGeoJSON(`/geojson/earthquake.geojson?v=${ts}`, setGeoEarthquake);
+    // 🛑 ปิดการโหลดแผ่นดินไหวชั่วคราว เพื่อเพิ่มความเร็วหน้า Landing
+    // loadGeoJSON(`/geojson/earthquake.geojson?v=${ts}`, setGeoEarthquake);
     loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
 
