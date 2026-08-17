@@ -63,7 +63,6 @@ export default function ReportPage() {
   const [mapRef, setMapRef] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
 
-  // 🌍 ปรับปรุงตัวแปรตั้งต้นให้เป็นปัญหาที่พบบ่อย (PM 2.5)
   const [formData, setFormData] = useState({
     village_name: '',
     risk_type: 'ไฟป่า / หมอกควัน (PM 2.5)',
@@ -76,7 +75,7 @@ export default function ReportPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [pdpaConsent, setPdpaConsent] = useState(false);
 
-  // 🛡️ ระบบนับถอยหลัง (Timer) ที่ถูกต้องตามหลัก React
+  // 🛡️ ระบบนับถอยหลัง (Timer)
   useEffect(() => {
     if (cooldownTime > 0) {
       const timer = setTimeout(() => {
@@ -177,7 +176,7 @@ export default function ReportPage() {
     html: `
       <div class="relative flex flex-col items-center">
         <div class="w-8 h-8 bg-red-600 rounded-full border-2 border-white shadow-lg flex items-center justify-center z-10 animate-bounce">
-          <span class="text-white text-sm">📍</span>
+          <span class="text-white text-sm">🚨</span>
         </div>
         <div class="w-3 h-3 bg-black/40 rounded-full blur-[2px] -mt-1 z-0"></div>
       </div>
@@ -425,15 +424,15 @@ export default function ReportPage() {
 
   if (!mounted) return <div className="h-screen w-screen bg-gray-100 flex items-center justify-center">Loading...</div>;
 
-  // 🌍 ปรับปรุงตัวเลือกให้ตรงกับตัวชี้วัด Smart Environment
+  // 🌍 ปรับปรุงตัวเลือก: รวมภัยพิบัติเดิม + เพิ่มปัญหาสิ่งแวดล้อมเพื่อโกยคะแนน Smart Environment
   const riskTypes = [
     'ไฟป่า / หมอกควัน (PM 2.5)',
-    'การลักลอบทิ้งขยะ / ขยะตกค้าง',
-    'มลพิษทางน้ำ / แหล่งน้ำเน่าเสีย',
-    'การลักลอบตัดไม้ / บุกรุกพื้นที่ป่า',
     'น้ำป่าไหลหลาก / น้ำท่วม',
     'ดินโคลนถล่ม / ดินสไลด์',
     'ต้นไม้ล้มขวางทาง',
+    'การลักลอบทิ้งขยะ / ขยะมูลฝอยตกค้าง',
+    'มลพิษทางน้ำ / น้ำเสีย',
+    'การบุกรุกทำลายป่า / ลักลอบตัดไม้',
     'อื่นๆ'
   ];
 
@@ -457,21 +456,21 @@ export default function ReportPage() {
         )}
       </div>
 
-      {/* 🟢 ฟอร์มแจ้งข้อมูล (เปลี่ยนตีมหัวเป็นเชิงอนุรักษ์/เฝ้าระวัง) */}
+      {/* 🔴 ฟอร์มแจ้งข้อมูล (กลับมาใช้ตีมแดงฉุกเฉินตามชื่อโครงการเดิม แต่แฝง Smart Environment) */}
       <div className="order-2 md:order-1 w-full md:w-[420px] h-[60vh] md:h-full bg-white shadow-[0_-10px_20px_rgba(0,0,0,0.15)] md:shadow-2xl z-10 flex flex-col relative flex-shrink-0">
         
-        {/* 📍 ปรับปรุง Header ตรงนี้ */}
-        <div className="bg-emerald-600 text-white p-4 md:p-5 shadow-md flex-shrink-0">
+        {/* 📍 ปรับ Header ให้ตรงกับโครงร่างการประกวด */}
+        <div className="bg-red-600 text-white p-4 md:p-5 shadow-md flex-shrink-0">
           <div className="w-full flex justify-center pb-3 md:hidden">
             <div className="w-12 h-1.5 bg-white/40 rounded-full"></div>
           </div>
           
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <span className="text-2xl animate-pulse">🌱</span>
+              <span className="text-2xl animate-pulse">🚨</span>
               <div>
-                <h1 className="text-lg font-bold">ระบบเฝ้าระวังสิ่งแวดล้อม</h1>
-                <p className="text-[11px] text-emerald-200">Bo Luang Smart Environment</p>
+                <h1 className="text-lg font-bold">รายงานเหตุสาธารณภัย</h1>
+                <p className="text-[11px] text-red-200">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</p>
               </div>
             </div>
             <div className="flex space-x-2">
@@ -540,15 +539,15 @@ export default function ReportPage() {
 
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">2. พื้นที่หมู่บ้านที่พบปัญหา</label>
-              <select name="village_name" value={formData.village_name} onChange={handleVillageChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-emerald-500 focus:border-emerald-500 bg-white outline-none">
+              <select name="village_name" value={formData.village_name} onChange={handleVillageChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white outline-none">
                 {villageList.length > 0 ? villageList.map((v: any) => <option key={v.name} value={v.name}>{v.name}</option>) : <option value="">กำลังโหลด...</option>}
               </select>
             </div>
 
-            {/* 📍 ปรับปรุง Label ตรงนี้ */}
+            {/* 📍 ปรับ Label ให้ครอบคลุมทั้ง 2 ประเด็น */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">3. ประเภทปัญหาสิ่งแวดล้อม / ภัยพิบัติ <span className="text-red-500">*</span></label>
-              <select name="risk_type" value={formData.risk_type} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-emerald-500 focus:border-emerald-500 bg-white outline-none">
+              <label className="block text-sm font-bold text-gray-700 mb-2">3. ประเภทสาธารณภัย / ปัญหาสิ่งแวดล้อม <span className="text-red-500">*</span></label>
+              <select name="risk_type" value={formData.risk_type} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white outline-none">
                 {riskTypes.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
@@ -566,7 +565,7 @@ export default function ReportPage() {
 
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">5. รายละเอียดและข้อเสนอแนะ <span className="text-red-500">*</span></label>
-              <textarea name="description" value={formData.description} onChange={handleInputChange} rows={3} placeholder="เช่น พบการลักลอบทิ้งขยะอันตรายบริเวณริมลำห้วย..." className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-emerald-500 focus:border-emerald-500 bg-white resize-none outline-none"></textarea>
+              <textarea name="description" value={formData.description} onChange={handleInputChange} rows={3} placeholder="เช่น พบการลักลอบทิ้งขยะ หรือ ไฟป่ากำลังลุกลาม..." className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white resize-none outline-none"></textarea>
             </div>
 
             <div className="flex items-center mt-6 mb-2">
@@ -576,11 +575,11 @@ export default function ReportPage() {
             <div className="grid grid-cols-2 gap-4 pb-4">
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 mb-1">ชื่อผู้แจ้ง (ไม่บังคับ)</label>
-                <input type="text" name="reporter_name" value={formData.reporter_name} onChange={handleInputChange} placeholder="ระบุชื่อ..." className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] text-gray-700 bg-white outline-none focus:border-emerald-500" />
+                <input type="text" name="reporter_name" value={formData.reporter_name} onChange={handleInputChange} placeholder="ระบุชื่อ..." className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] text-gray-700 bg-white outline-none focus:border-red-500" />
               </div>
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 mb-1">สถานะผู้แจ้ง</label>
-                <select name="reporter_role" value={formData.reporter_role} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] text-gray-700 bg-white outline-none focus:border-emerald-500">
+                <select name="reporter_role" value={formData.reporter_role} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] text-gray-700 bg-white outline-none focus:border-red-500">
                   <option value="ประชาชนทั่วไป">ประชาชนทั่วไป</option>
                   <option value="ผู้นำชุมชน/กำนัน/ผู้ใหญ่บ้าน">ผู้นำชุมชน</option>
                   <option value="เจ้าหน้าที่รัฐ/อปท.">เจ้าหน้าที่รัฐ</option>
@@ -615,7 +614,7 @@ export default function ReportPage() {
                 ? 'bg-gray-400 text-gray-100 cursor-not-allowed border-none' 
                 : !pdpaConsent 
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed border-none' 
-                  : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 hover:shadow-xl active:scale-[0.98]'}`}
+                  : 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 hover:shadow-xl active:scale-[0.98]'}`}
           >
             {isSubmitting ? (
               <span>กำลังส่งข้อมูล...</span>
