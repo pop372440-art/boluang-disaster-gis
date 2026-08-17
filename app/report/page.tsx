@@ -465,23 +465,23 @@ export default function ReportPage() {
             <div className="w-12 h-1.5 bg-white/40 rounded-full"></div>
           </div>
           
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <span className="text-2xl animate-pulse">🚨</span>
-              <div>
-                <h1 className="text-lg font-bold">รายงานเหตุสาธารณภัย</h1>
-                <p className="text-[11px] text-red-200">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</p>
-              </div>
-            </div>
-            <div className="flex space-x-2">
-              <a href="/" className="bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg text-[11px] md:text-xs font-bold transition-colors shadow-sm flex items-center">
-                🏠 หน้าแรก
-              </a>
-              <a href="/status" className="bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg text-[11px] md:text-xs font-bold transition-colors shadow-sm flex items-center">
-                🔍 สถานะ
-              </a>
-            </div>
-          </div>
+          <div className="flex items-center justify-between w-full">
+  <div className="flex items-center space-x-2 md:space-x-3 min-w-0">
+    <span className="text-xl md:text-2xl animate-pulse flex-shrink-0">🚨</span>
+    <div className="min-w-0">
+      <h1 className="text-[15px] md:text-lg font-bold truncate">รายงานเหตุสาธารณภัย</h1>
+      <p className="text-[10px] md:text-[11px] text-red-200 truncate">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</p>
+    </div>
+  </div>
+  <div className="flex space-x-1.5 md:space-x-2 flex-shrink-0 ml-2">
+    <a href="/" className="bg-white/20 hover:bg-white/30 px-2 py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition-colors shadow-sm flex items-center whitespace-nowrap">
+      🏠 หน้าแรก
+    </a>
+    <a href="/status" className="bg-white/20 hover:bg-white/30 px-2 py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition-colors shadow-sm flex items-center whitespace-nowrap">
+      🔍 สถานะ
+    </a>
+  </div>
+</div>
         </div>
 
         <div className="p-4 md:p-5 overflow-y-auto flex-1 custom-scrollbar">
