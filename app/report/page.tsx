@@ -459,29 +459,34 @@ export default function ReportPage() {
       {/* 🔴 ฟอร์มแจ้งข้อมูล (กลับมาใช้ตีมแดงฉุกเฉินตามชื่อโครงการเดิม แต่แฝง Smart Environment) */}
       <div className="order-2 md:order-1 w-full md:w-[420px] h-[60vh] md:h-full bg-white shadow-[0_-10px_20px_rgba(0,0,0,0.15)] md:shadow-2xl z-10 flex flex-col relative flex-shrink-0">
         
-        {/* 📍 ปรับ Header ให้ตรงกับโครงร่างการประกวด */}
+        {/* 📍 ปรับ Header ให้เป็นแนวตั้ง (Stacked) ไอคอนอยู่บนสุด ข้อความแสดงเต็ม */}
         <div className="bg-red-600 text-white p-4 md:p-5 shadow-md flex-shrink-0">
           <div className="w-full flex justify-center pb-3 md:hidden">
             <div className="w-12 h-1.5 bg-white/40 rounded-full"></div>
           </div>
           
-          <div className="flex items-center justify-between w-full">
-  <div className="flex items-center space-x-2 md:space-x-3 min-w-0">
-    <span className="text-xl md:text-2xl animate-pulse flex-shrink-0">🚨</span>
-    <div className="min-w-0">
-      <h1 className="text-[15px] md:text-lg font-bold truncate">รายงานเหตุสาธารณภัย</h1>
-      <p className="text-[10px] md:text-[11px] text-red-200 truncate">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</p>
-    </div>
-  </div>
-  <div className="flex space-x-1.5 md:space-x-2 flex-shrink-0 ml-2">
-    <a href="/" className="bg-white/20 hover:bg-white/30 px-2 py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition-colors shadow-sm flex items-center whitespace-nowrap">
-      🏠 หน้าแรก
-    </a>
-    <a href="/status" className="bg-white/20 hover:bg-white/30 px-2 py-1.5 rounded-lg text-[10px] md:text-xs font-bold transition-colors shadow-sm flex items-center whitespace-nowrap">
-      🔍 สถานะ
-    </a>
-  </div>
-</div>
+          <div className="flex flex-col items-center justify-center text-center space-y-3">
+            {/* ไอคอนไซเรนอยู่ตรงกลางด้านบน */}
+            <div className="text-3xl md:text-4xl animate-pulse">
+              🚨
+            </div>
+            
+            {/* ข้อความแบบเต็มๆ ไม่โดนตัด ... */}
+            <div>
+              <h1 className="text-[17px] md:text-xl font-bold">รายงานเหตุสาธารณภัย</h1>
+              <p className="text-[11px] md:text-xs text-red-200 mt-0.5">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</p>
+            </div>
+            
+            {/* ปุ่มเมนูย้ายมาอยู่ตรงกลางด้านล่าง */}
+            <div className="flex space-x-2 pt-1">
+              <a href="/" className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition-colors shadow-sm flex items-center">
+                🏠 หน้าแรก
+              </a>
+              <a href="/status" className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-xs md:text-sm font-bold transition-colors shadow-sm flex items-center">
+                🔍 สถานะ
+              </a>
+            </div>
+          </div>
         </div>
 
         <div className="p-4 md:p-5 overflow-y-auto flex-1 custom-scrollbar">
