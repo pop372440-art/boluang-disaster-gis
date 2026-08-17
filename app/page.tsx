@@ -1437,6 +1437,21 @@ export default function BoLuangDashboard() {
                 </div>
               </div>
             </div>
+
+            {/* ======================================================== */}
+          {/* 🤖 วางโค้ด Gemini AI ตรงนี้เลยครับ! */}
+          <div className="hidden xl:flex flex-1 items-center justify-center px-6 animate-fade-in-api">
+            <div className="bg-[#0f172a]/80 border border-emerald-500/30 rounded-full px-5 py-1.5 flex items-center space-x-3 shadow-[0_0_15px_rgba(16,185,129,0.15)] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all cursor-default">
+              <span className="text-[18px] animate-pulse">🌤️</span>
+              <div className="flex items-center space-x-2.5">
+                <span className="text-[13px] font-bold text-[#38bdf8] tracking-wide">Gemini AI</span>
+                <span className="bg-[#10b981] text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">SAFE</span>
+                <span className="text-gray-500 mx-1">|</span>
+                <span className="text-[12px] text-gray-300 font-medium">สภาพอากาศปกติ ไม่พบความเสี่ยงภัยพิบัติรุนแรง (ปริมาณฝน: 0 mm)</span>
+              </div>
+            </div>
+          </div>
+          {/* ======================================================== */}
             
           </div>
         </div>
