@@ -238,6 +238,18 @@ export default function BoLuangDashboard() {
   // 🎯 Action Functions
   // ==========================================
   
+  // 💡 ฟังก์ชันเปิด AI Chatbot (สำหรับประกวด)
+  const toggleChat = () => {
+    Swal.fire({
+      title: '🌲 AI น้องหัวสน',
+      text: 'ระบบผู้ช่วยอัจฉริยะกำลังอยู่ระหว่างการเชื่อมต่อฐานข้อมูล กรุณาลองใหม่ในภายหลัง',
+      icon: 'info',
+      background: '#0f172a',
+      color: '#fff',
+      confirmButtonColor: '#10b981'
+    });
+  };
+
   const handleViewImage = (imageUrl: string) => {
     Swal.fire({
       imageUrl: imageUrl,
@@ -1622,15 +1634,14 @@ export default function BoLuangDashboard() {
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
               
-              {/* 🚀 จัด Group ให้อยู่บรรทัดเดียวกัน */}
-              <div className="flex items-center justify-between w-full mb-2 pr-6 md:pr-0">
+              {/* 🚀 จัด Group ให้อยู่บรรทัดเดียวกัน (อัปเกรดเป็น Smart Environment) */}
+              <div className="flex items-center justify-between w-full mb-3 border-b border-[#1e293b] pb-3 pr-6 md:pr-0">
                 <div className="flex items-center space-x-3">
-                  <div className="bg-gradient-to-br from-[#2dd4bf] to-[#3b82f6] p-2 rounded-xl shadow-[0_4px_10px_rgba(45,212,191,0.3)] flex-shrink-0">
-                    <svg className="w-5 h-5 md:w-6 md:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                    </svg>
+                  <span className="text-2xl animate-pulse">🌍</span>
+                  <div className="flex flex-col">
+                    <h2 className="text-[16px] md:text-[18px] font-bold text-[#7dd3fc] tracking-wide leading-tight">ชั้นข้อมูลเฝ้าระวัง</h2>
+                    <p className="text-[10px] md:text-[11px] text-emerald-400 font-medium">Smart Environment</p>
                   </div>
-                  <h2 className="text-[18px] md:text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">Layers</h2>
                 </div>
                 
                 {/* 🚀 ป้าย Active และ Zoom */}
@@ -1653,18 +1664,16 @@ export default function BoLuangDashboard() {
               {/* Report Tool */}
               <div>
                 <div className="flex items-center mb-3">
-                  <svg className="w-3.5 h-3.5 text-[#38bdf8] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                  <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold uppercase">Report Tool</span>
+                  <span className="text-[13px] mr-2">🚨</span>
+                  <span className="text-[10px] md:text-[11px] text-[#ef4444] tracking-widest font-bold uppercase">SMART REPORTING</span>
                   <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
                 </div>
                 <div className="bg-[#0b132b]/50 border border-[#1e293b] p-4 rounded-xl mb-4">
-                  <button onClick={() => setShowScanModal(true)} className="w-full py-3 bg-gradient-to-r from-[#f43f5e] to-[#f59e0b] hover:brightness-110 rounded-xl text-[14px] font-bold text-white shadow-[0_4px_15px_rgba(244,63,94,0.4)] flex items-center justify-center space-x-2 transition-all cursor-pointer">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm10 3h6m-3-3v6" />
-                    </svg>
-                    <span>สแกนเพื่อแจ้งปัญหา</span>
+                  <button onClick={() => setShowScanModal(true)} className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white px-5 py-3 rounded-xl font-bold shadow-lg hover:shadow-red-500/50 transition-all flex items-center justify-center space-x-2 border border-red-500/30">
+                    <span className="text-lg">🚨</span>
+                    <span className="text-[14px]">รายงานเหตุ / ปัญหาสิ่งแวดล้อม</span>
                   </button>
-                  <p className="text-[11px] text-gray-400 mt-3 leading-relaxed text-center">สแกนคิวอาร์โค้ดเพื่อเปิดแบบฟอร์มแจ้งปัญหา พร้อมใช้สำหรับการเก็บข้อมูลจากประชาชน</p>
+                  <p className="text-[11px] text-gray-400 mt-3 leading-relaxed text-center">เปิดคิวอาร์โค้ดสำหรับสแกนแจ้งปัญหาผ่านสมาร์ทโฟน (ประเมินความรุนแรงด้วย AI)</p>
                 </div>
               </div> 
               
@@ -1736,6 +1745,21 @@ export default function BoLuangDashboard() {
           </div>
         </div>
       </aside>
+
+      {/* 🌲 ปุ่ม AI น้องหัวสน (Floating Button ขวาล่าง) */}
+      <button 
+        onClick={toggleChat}
+        className="fixed bottom-6 right-6 z-[9999] bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white p-1 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.5)] hover:shadow-[0_0_30px_rgba(16,185,129,0.8)] transition-all transform hover:scale-105 group"
+      >
+        <div className="flex items-center space-x-2 bg-[#0f172a]/20 rounded-full px-4 py-2 backdrop-blur-sm border border-white/10">
+          <span className="text-2xl group-hover:animate-bounce">🌲</span>
+          <div className="flex flex-col text-left">
+            <span className="text-[10px] font-medium text-emerald-200 leading-tight">ผู้ช่วยอัจฉริยะ</span>
+            <span className="text-sm font-bold leading-tight">AI น้องหัวสน</span>
+          </div>
+        </div>
+      </button>
+
     </main>
   );
 }
