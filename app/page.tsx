@@ -418,13 +418,39 @@ export default function BoLuangDashboard() {
 
     loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang);
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
+    
     // 🛑 ปิดการโหลดแปลงที่ดินชั่วคราว เพื่อเพิ่มความเร็วหน้า Landing
     // loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
-    loadGeoJSON(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=${GISTDA_API_KEY}`, setGeoHotspot);
-    // 🛑 ปิดการโหลดแผ่นดินไหวชั่วคราว เพื่อเพิ่มความเร็วหน้า Landing
+    
+    // 🛑 ปิดบรรทัดนี้ไปเลยครับ (เอาไปโหลดแยกต่างหาก)
+    // loadGeoJSON(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=${GISTDA_API_KEY}`, setGeoHotspot);
+    
+    // 🛑 ปิดการโหลดแผ่นดินไหวชั่วคราว
     // loadGeoJSON(`/geojson/earthquake.geojson?v=${ts}`, setGeoEarthquake);
-    loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
+    
+    // 🛑 ปิดบรรทัดนี้ไปเลยครับ (เอาไปโหลดแยกต่างหาก)
+    // loadGeoJSON(`/geojson/boluang_landslide_risk.json?v=${ts}`, setGeoLandslide);
   }, []);
+
+  // 💡 โค้ดชุดใหม่ 1: โหลดจุดความร้อน GISTDA ก็ต่อเมื่อกดเปิดสวิตช์ hotspot
+  useEffect(() => {
+    if (hotspot && !geoHotspot) {
+      fetch(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=${GISTDA_API_KEY}`)
+        .then(res => res.json())
+        .then(data => setGeoHotspot(data))
+        .catch(e => console.error(e));
+    }
+  }, [hotspot]);
+
+  // 💡 โค้ดชุดใหม่ 2: โหลดดินถล่ม ก็ต่อเมื่อกดเปิดสวิตช์ showLandslide
+  useEffect(() => {
+    if (showLandslide && !geoLandslide) {
+      fetch(`/geojson/boluang_landslide_risk.json?v=${Date.now()}`)
+        .then(res => res.json())
+        .then(data => setGeoLandslide(data))
+        .catch(e => console.error(e));
+    }
+  }, [showLandslide]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -968,7 +994,16 @@ export default function BoLuangDashboard() {
             </div>
           </div>
 
-          <MapContainer center={[18.1633, 98.3744]} zoom={isMobile ? 10 : 11} maxZoom={20} zoomControl={false} attributionControl={false} className="w-full h-full z-0" ref={setMapRef}>
+          <MapContainer 
+          center={[18.1633, 98.3744]} 
+          zoom={isMobile ? 10 : 11} 
+          maxZoom={20} 
+          zoomControl={false} 
+          attributionControl={false} 
+          preferCanvas={true} /* 👈 เพิ่มบรรทัดนี้บรรทัดเดียว ลื่นขึ้น 300% */
+          className="w-full h-full z-0" 
+          ref={setMapRef}
+          >
             
             {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
             {!windyLayer && satelliteLayer && <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} />}
