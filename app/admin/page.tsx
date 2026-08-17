@@ -321,7 +321,13 @@ export default function AdminPanel() {
                             </div>
                           )}
                           <div>
-                            <div className="text-sm text-gray-200 line-clamp-2 max-w-xs">{report.description}</div>
+                            {/* 💡 พระเอกอยู่ตรงนี้ครับ: ใส่ title และ cursor-help สำหรับ Hover */}
+                            <div 
+                              className="text-sm text-gray-200 line-clamp-2 max-w-sm cursor-help"
+                              title={report.description}
+                            >
+                              {report.description}
+                            </div>
                             <div className="text-xs text-gray-500 mt-1">👤 {report.reporter_name} ({report.reporter_role})</div>
                           </div>
                         </div>
