@@ -63,9 +63,10 @@ export default function ReportPage() {
   const [mapRef, setMapRef] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
 
+  // 🌍 ปรับปรุงตัวแปรตั้งต้นให้เป็นปัญหาที่พบบ่อย (PM 2.5)
   const [formData, setFormData] = useState({
     village_name: '',
-    risk_type: 'ไฟป่า / หมอกควัน',
+    risk_type: 'ไฟป่า / หมอกควัน (PM 2.5)',
     severity_level: 3,
     description: '',
     reporter_name: '',
@@ -75,13 +76,13 @@ export default function ReportPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [pdpaConsent, setPdpaConsent] = useState(false);
 
-  // 🛡️ ระบบนับถอยหลัง (Timer) ที่ถูกต้องตามหลัก React (ทำงานอัตโนมัติเมื่อค่า cooldownTime เปลี่ยน)
+  // 🛡️ ระบบนับถอยหลัง (Timer) ที่ถูกต้องตามหลัก React
   useEffect(() => {
     if (cooldownTime > 0) {
       const timer = setTimeout(() => {
         setCooldownTime((prev) => prev - 1);
       }, 1000);
-      return () => clearTimeout(timer); // ล้างหน่วยความจำทุก 1 วินาทีเพื่อความเสถียร
+      return () => clearTimeout(timer);
     }
   }, [cooldownTime]);
 
@@ -176,7 +177,7 @@ export default function ReportPage() {
     html: `
       <div class="relative flex flex-col items-center">
         <div class="w-8 h-8 bg-red-600 rounded-full border-2 border-white shadow-lg flex items-center justify-center z-10 animate-bounce">
-          <span class="text-white text-sm">🚨</span>
+          <span class="text-white text-sm">📍</span>
         </div>
         <div class="w-3 h-3 bg-black/40 rounded-full blur-[2px] -mt-1 z-0"></div>
       </div>
@@ -379,10 +380,8 @@ export default function ReportPage() {
 
       localStorage.setItem('bl_latest_tracking_code', trackingCode);
       
-      // 🛡️ เริ่มระบบ Cooldown ทันทีที่ส่งข้อมูลผ่าน!
       setCooldownTime(60);
 
-      // แสดง Popup แจ้งเตือนความสำเร็จ
       Swal.fire({
         title: 'ส่งข้อมูลสำเร็จ!',
         html: `
@@ -400,7 +399,7 @@ export default function ReportPage() {
         `,
         showDenyButton: true,
         confirmButtonText: 'กลับหน้าหลัก',
-        denyButtonText: 'แจ้งเหตุเพิ่ม',
+        denyButtonText: 'แจ้งข้อมูลเพิ่ม',
         confirmButtonColor: '#3b82f6',
         denyButtonColor: '#10b981',    
         reverseButtons: true            
@@ -408,7 +407,6 @@ export default function ReportPage() {
         if (result.isConfirmed) {
           window.location.href = '/';
         } else {
-          // หากคลิก "แจ้งเหตุเพิ่ม" จะล้างแค่ฟอร์ม แต่ปุ่มและเวลาจะยังคงนับถอยหลังต่อไป
           setFormData({ ...formData, description: '', reporter_name: '' });
           setPosition(null);
           setSelectedFile(null); 
@@ -427,7 +425,17 @@ export default function ReportPage() {
 
   if (!mounted) return <div className="h-screen w-screen bg-gray-100 flex items-center justify-center">Loading...</div>;
 
-  const riskTypes = ['ไฟป่า / หมอกควัน', 'ดินโคลนถล่ม / ดินสไลด์', 'น้ำป่าไหลหลาก / น้ำท่วม', 'ต้นไม้ล้มขวางทาง', 'แผ่นดินไหว', 'อื่นๆ'];
+  // 🌍 ปรับปรุงตัวเลือกให้ตรงกับตัวชี้วัด Smart Environment
+  const riskTypes = [
+    'ไฟป่า / หมอกควัน (PM 2.5)',
+    'การลักลอบทิ้งขยะ / ขยะตกค้าง',
+    'มลพิษทางน้ำ / แหล่งน้ำเน่าเสีย',
+    'การลักลอบตัดไม้ / บุกรุกพื้นที่ป่า',
+    'น้ำป่าไหลหลาก / น้ำท่วม',
+    'ดินโคลนถล่ม / ดินสไลด์',
+    'ต้นไม้ล้มขวางทาง',
+    'อื่นๆ'
+  ];
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-screen bg-white font-sans overflow-hidden">
@@ -443,26 +451,27 @@ export default function ReportPage() {
           <div className="absolute top-4 md:top-6 left-1/2 transform -translate-x-1/2 z-[400] pointer-events-none w-[90%] md:w-auto flex justify-center">
             <div className="bg-black/70 backdrop-blur-md text-white px-4 md:px-6 py-2 md:py-2.5 rounded-full shadow-2xl border border-gray-600 flex items-center space-x-2 animate-bounce">
               <span className="text-base md:text-lg">👇</span>
-              <span className="text-[12px] md:text-sm font-medium tracking-wide">เลื่อนและคลิกเพื่อปักหมุดจุดเกิดเหตุ</span>
+              <span className="text-[12px] md:text-sm font-medium tracking-wide">เลื่อนและคลิกเพื่อปักหมุดตำแหน่ง</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* 🔴 ฟอร์มแจ้งเหตุ */}
+      {/* 🟢 ฟอร์มแจ้งข้อมูล (เปลี่ยนตีมหัวเป็นเชิงอนุรักษ์/เฝ้าระวัง) */}
       <div className="order-2 md:order-1 w-full md:w-[420px] h-[60vh] md:h-full bg-white shadow-[0_-10px_20px_rgba(0,0,0,0.15)] md:shadow-2xl z-10 flex flex-col relative flex-shrink-0">
         
-        <div className="bg-red-600 text-white p-4 md:p-5 shadow-md flex-shrink-0">
+        {/* 📍 ปรับปรุง Header ตรงนี้ */}
+        <div className="bg-emerald-600 text-white p-4 md:p-5 shadow-md flex-shrink-0">
           <div className="w-full flex justify-center pb-3 md:hidden">
             <div className="w-12 h-1.5 bg-white/40 rounded-full"></div>
           </div>
           
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <span className="text-2xl animate-pulse">🚨</span>
+              <span className="text-2xl animate-pulse">🌱</span>
               <div>
-                <h1 className="text-lg font-bold">รายงานจุดเสี่ยงภัย</h1>
-                <p className="text-[11px] text-red-200">ระบบแจ้งเหตุ ต.บ่อหลวง</p>
+                <h1 className="text-lg font-bold">ระบบเฝ้าระวังสิ่งแวดล้อม</h1>
+                <p className="text-[11px] text-emerald-200">Bo Luang Smart Environment</p>
               </div>
             </div>
             <div className="flex space-x-2">
@@ -493,7 +502,7 @@ export default function ReportPage() {
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="flex items-center">
-              <div className="flex-1 border-t border-gray-200"></div><span className="px-3 text-xs font-bold text-gray-400">ข้อมูลการแจ้งเหตุ</span><div className="flex-1 border-t border-gray-200"></div>
+              <div className="flex-1 border-t border-gray-200"></div><span className="px-3 text-xs font-bold text-gray-400">ข้อมูลการรายงาน</span><div className="flex-1 border-t border-gray-200"></div>
             </div>
 
             <div>
@@ -530,15 +539,16 @@ export default function ReportPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">2. พื้นที่หมู่บ้านที่พบเหตุ</label>
-              <select name="village_name" value={formData.village_name} onChange={handleVillageChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white outline-none">
+              <label className="block text-sm font-bold text-gray-700 mb-2">2. พื้นที่หมู่บ้านที่พบปัญหา</label>
+              <select name="village_name" value={formData.village_name} onChange={handleVillageChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-emerald-500 focus:border-emerald-500 bg-white outline-none">
                 {villageList.length > 0 ? villageList.map((v: any) => <option key={v.name} value={v.name}>{v.name}</option>) : <option value="">กำลังโหลด...</option>}
               </select>
             </div>
 
+            {/* 📍 ปรับปรุง Label ตรงนี้ */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">3. ประเภทของสาธารณภัย <span className="text-red-500">*</span></label>
-              <select name="risk_type" value={formData.risk_type} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white outline-none">
+              <label className="block text-sm font-bold text-gray-700 mb-2">3. ประเภทปัญหาสิ่งแวดล้อม / ภัยพิบัติ <span className="text-red-500">*</span></label>
+              <select name="risk_type" value={formData.risk_type} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-emerald-500 focus:border-emerald-500 bg-white outline-none">
                 {riskTypes.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
@@ -556,7 +566,7 @@ export default function ReportPage() {
 
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">5. รายละเอียดและข้อเสนอแนะ <span className="text-red-500">*</span></label>
-              <textarea name="description" value={formData.description} onChange={handleInputChange} rows={3} placeholder="เช่น ไฟป่ากำลังลุกลามเข้าใกล้สวนชาวบ้าน..." className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white resize-none outline-none"></textarea>
+              <textarea name="description" value={formData.description} onChange={handleInputChange} rows={3} placeholder="เช่น พบการลักลอบทิ้งขยะอันตรายบริเวณริมลำห้วย..." className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-emerald-500 focus:border-emerald-500 bg-white resize-none outline-none"></textarea>
             </div>
 
             <div className="flex items-center mt-6 mb-2">
@@ -566,11 +576,11 @@ export default function ReportPage() {
             <div className="grid grid-cols-2 gap-4 pb-4">
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 mb-1">ชื่อผู้แจ้ง (ไม่บังคับ)</label>
-                <input type="text" name="reporter_name" value={formData.reporter_name} onChange={handleInputChange} placeholder="ระบุชื่อ..." className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] text-gray-700 bg-white outline-none focus:border-red-500" />
+                <input type="text" name="reporter_name" value={formData.reporter_name} onChange={handleInputChange} placeholder="ระบุชื่อ..." className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] text-gray-700 bg-white outline-none focus:border-emerald-500" />
               </div>
               <div>
                 <label className="block text-[11px] font-bold text-gray-700 mb-1">สถานะผู้แจ้ง</label>
-                <select name="reporter_role" value={formData.reporter_role} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] text-gray-700 bg-white outline-none focus:border-red-500">
+                <select name="reporter_role" value={formData.reporter_role} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] text-gray-700 bg-white outline-none focus:border-emerald-500">
                   <option value="ประชาชนทั่วไป">ประชาชนทั่วไป</option>
                   <option value="ผู้นำชุมชน/กำนัน/ผู้ใหญ่บ้าน">ผู้นำชุมชน</option>
                   <option value="เจ้าหน้าที่รัฐ/อปท.">เจ้าหน้าที่รัฐ</option>
@@ -593,11 +603,10 @@ export default function ReportPage() {
 
         <div className="p-4 md:p-5 border-t border-gray-200 bg-white flex-shrink-0 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
           <div className="flex justify-between items-center mb-3">
-            <span className="text-[11px] font-bold text-gray-500">พิกัดเกิดเหตุ (GPS):</span>
+            <span className="text-[11px] font-bold text-gray-500">พิกัด (GPS):</span>
             {position ? <span className="text-[11px] font-mono font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded border border-blue-200">{position.lat.toFixed(5)}, {position.lng.toFixed(5)}</span> : <span className="text-[11px] font-bold text-red-500 bg-red-50 px-2.5 py-1 rounded border border-red-100">ยังไม่ระบุพิกัด</span>}
           </div>
           
-          {/* 🛡️ ปุ่ม Submit ที่ตรวจจับเวลา Cooldown แบบ 100% */}
           <button 
             onClick={handleSubmit} 
             disabled={isSubmitting || !pdpaConsent || cooldownTime > 0} 
@@ -606,14 +615,14 @@ export default function ReportPage() {
                 ? 'bg-gray-400 text-gray-100 cursor-not-allowed border-none' 
                 : !pdpaConsent 
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed border-none' 
-                  : 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 hover:shadow-xl active:scale-[0.98]'}`}
+                  : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 hover:shadow-xl active:scale-[0.98]'}`}
           >
             {isSubmitting ? (
               <span>กำลังส่งข้อมูล...</span>
             ) : cooldownTime > 0 ? (
               <span>⏳ กรุณารอ {cooldownTime} วินาที</span>
             ) : (
-              <><span className="text-lg">✅</span> <span>ส่งข้อมูลแจ้งเหตุ</span></>
+              <><span className="text-lg">✅</span> <span>ส่งข้อมูลรายงาน</span></>
             )}
           </button>
         </div>
