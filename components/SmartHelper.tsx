@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function SmartHelper() {
   const [isOpen, setIsOpen] = useState(false);
@@ -9,6 +9,52 @@ export default function SmartHelper() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // ==========================================
+  // 🌟 ระบบ Typewriter Effect (พิมพ์ทีละประโยค)
+  // ==========================================
+  const [textIndex, setTextIndex] = useState(0);
+  const [displayText, setDisplayText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const phrases = [
+    "สวัสดีครับ! 👋",
+    "ผมคือ 'น้องต้นสน' 🌲",
+    "AI ประจำเทศบาล 🤖",
+    "มีอะไรให้ผมช่วยเหลือ...",
+    "สอบถามข้อมูลพื้นที่ได้เลยครับ ✨"
+  ];
+
+  useEffect(() => {
+    if (isOpen) return; // ถ้าเปิดแชทอยู่ ไม่ต้องเล่นเอฟเฟกต์
+
+    let typingSpeed = isDeleting ? 40 : 80; // ความเร็วตอนพิมพ์ กับ ตอนลบ
+    const currentPhrase = phrases[textIndex];
+
+    if (!isDeleting && displayText === currentPhrase) {
+      // พิมพ์ประโยคจบแล้ว ให้หยุดรอ 2 วินาที ก่อนเริ่มลบ
+      const timeout = setTimeout(() => setIsDeleting(true), 2000);
+      return () => clearTimeout(timeout);
+    }
+
+    if (isDeleting && displayText === '') {
+      // ลบข้อความหมดแล้ว ให้เปลี่ยนไปประโยคถัดไป
+      setIsDeleting(false);
+      setTextIndex((prev) => (prev + 1) % phrases.length);
+      const timeout = setTimeout(() => {}, 500); // รอแป๊บนึงก่อนเริ่มพิมพ์ใหม่
+      return () => clearTimeout(timeout);
+    }
+
+    // กลไกการพิมพ์/ลบ ทีละตัวอักษร
+    const timeout = setTimeout(() => {
+      setDisplayText(currentPhrase.substring(0, displayText.length + (isDeleting ? -1 : 1)));
+    }, typingSpeed);
+
+    return () => clearTimeout(timeout);
+  }, [displayText, isDeleting, textIndex, isOpen]);
+
+  // ==========================================
+  // 💬 ฟังก์ชันส่งข้อความ
+  // ==========================================
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
@@ -35,22 +81,6 @@ export default function SmartHelper() {
 
   return (
     <div className="fixed bottom-6 right-6 z-[9999]">
-      {/* 🌟 แทรก CSS สำหรับข้อความวิ่ง (Marquee) */}
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes scrollText {
-          0% { transform: translateX(250px); }
-          100% { transform: translateX(-100%); }
-        }
-        .animate-marquee {
-          display: inline-block;
-          white-space: nowrap;
-          animation: scrollText 12s linear infinite;
-        }
-        .animate-marquee:hover {
-          animation-play-state: paused;
-        }
-      `}} />
-
       {/* หน้าต่างแชท */}
       {isOpen && (
         <div className="bg-white w-[350px] h-[450px] rounded-3xl shadow-2xl flex flex-col mb-4 border border-gray-100 overflow-hidden transform transition-all duration-300 ease-out translate-y-0 opacity-100">
@@ -78,7 +108,7 @@ export default function SmartHelper() {
           </div>
           
           {/* พื้นที่ข้อความ */}
-          <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-gray-50/50">
+          <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-gray-50/50 custom-scrollbar">
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.sender === 'ai' && (
@@ -130,25 +160,25 @@ export default function SmartHelper() {
       {/* 📍 กลุ่มปุ่มเปิดแชทรูปมาสคอต (ด้านล่างขวา) */}
       <div className="relative flex justify-end items-end">
         
-        {/* 🌟 บอลลูนทักทาย (ข้อความวิ่ง Marquee) */}
+        {/* 🌟 บอลลูนทักทาย (Typewriter Effect) */}
         {!isOpen && (
           <div 
-            className="absolute bottom-[75px] right-2 bg-white text-blue-600 text-[13px] font-bold py-2.5 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.25)] border border-blue-100 cursor-pointer overflow-hidden w-[250px]" 
+            className="absolute bottom-[75px] right-2 bg-white text-blue-700 text-[13px] font-bold px-4 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.25)] border border-blue-100 cursor-pointer w-[250px] h-[50px] flex items-center justify-center text-center transition-all hover:scale-105" 
             onClick={() => setIsOpen(true)}
             title="คลิกเพื่อคุยกับน้องต้นสน"
           >
-            {/* กล่องบรรจุข้อความวิ่ง */}
-            <div className="w-full relative flex items-center h-5">
-              <div className="animate-marquee absolute">
-                สวัสดีครับ! ผมคือ "น้องต้นสน" AI ประจำเทศบาล มีอะไรให้ผมช่วยเหลือหรือสอบถามข้อมูลพื้นที่ได้เลยครับ 🌲
-              </div>
-            </div>
+            {/* ขัอความกำลังพิมพ์ พร้อมขีดกะพริบ | */}
+            <span>
+              {displayText}
+              <span className="animate-pulse text-blue-400 font-normal">|</span>
+            </span>
+
             {/* สามเหลี่ยมชี้ลงมาที่มาสคอต */}
             <div className="absolute -bottom-2 right-6 w-4 h-4 bg-white transform rotate-45 border-r border-b border-blue-100"></div>
           </div>
         )}
 
-        {/* 🌟 ปุ่มมาสคอตแบบโปร่งใส (ไร้กรอบสีขาว) */}
+        {/* 🌟 ปุ่มมาสคอตแบบโปร่งใส (ลบพื้นหลังขาวออกแล้ว) */}
         <button 
           onClick={() => setIsOpen(!isOpen)} 
           className="relative w-20 h-20 flex items-center justify-center hover:scale-110 transition-transform duration-300 z-50 group bg-transparent focus:outline-none"
@@ -156,12 +186,12 @@ export default function SmartHelper() {
           <img 
             src="/mascot.png" 
             alt="เปิดแชท" 
-            /* ใส่ Drop Shadow ให้เงาเกิดตามรูปทรงของมาสคอต แทนที่จะเป็นเงากล่องสี่เหลี่ยม */
+            /* ใส่ Drop Shadow สะท้อนตามเงารูปทรงของมาสคอต */
             className={`w-full h-full object-contain drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)] transition-transform duration-500 ${isOpen ? 'scale-110' : 'group-hover:rotate-6 group-hover:scale-110'}`} 
           />
         </button>
 
-        {/* 🟢 จุดเขียวแสดงสถานะ Online (ปรับตำแหน่งให้แนบกับตัวมาสคอต) */}
+        {/* 🟢 จุดเขียวแสดงสถานะ Online (ปรับให้แนบตัวมาสคอต) */}
         {!isOpen && (
           <span className="absolute bottom-2 right-2 flex h-4 w-4 z-50">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
