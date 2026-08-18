@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 export default function SmartHelper() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{sender: 'user'|'ai', text: string}[]>([
-    { sender: 'ai', text: 'สวัสดีครับ! ผมคือ "ผู้ช่วยบ่อหลวง" AI ประจำเทศบาล มีอะไรให้ผมช่วยเหลือหรือสอบถามข้อมูลพื้นที่ได้เลยครับ 🤖' }
+    { sender: 'ai', text: 'สวัสดีครับ! ผมคือ "น้องต้นสน" AI ประจำเทศบาล มีอะไรให้ผมช่วยเหลือหรือสอบถามข้อมูลพื้นที่ได้เลยครับ 🤖' }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
