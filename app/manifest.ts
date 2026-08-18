@@ -3,7 +3,7 @@ import { MetadataRoute } from 'next'
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'ระบบภูมิสารสนเทศ เทศบาลตำบลบ่อหลวง',
-    short_name: 'BO GIS',
+    short_name: 'BL GIS',
     description: 'ระบบสารสนเทศทางภูมิศาสตร์เพื่อบริหารจัดการด้านสาธารณภัย เทศบาลตำบลบ่อหลวง',
     start_url: '/',
     display: 'standalone',
