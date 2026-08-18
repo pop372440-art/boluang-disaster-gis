@@ -142,8 +142,8 @@ export default function SmartHelper() {
       <div className="relative flex justify-end items-end">
         {!isOpen && !isMinimized && (
           <>
-            {/* 🌟 บอลลูนทักทาย */}
-            <div className="absolute bottom-[65px] right-2 bg-white text-blue-700 text-[12px] font-bold px-4 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.25)] border border-blue-100 w-[200px] h-[45px] flex items-center justify-center text-center transition-all hover:scale-105">
+            {/* 🌟 บอลลูนทักทาย (ปรับขนาด w-[150px] ให้เล็กลงและกระชับพอดีคำ) */}
+            <div className="absolute bottom-[65px] right-2 bg-white text-blue-700 text-[11px] font-bold px-2 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.25)] border border-blue-100 w-[150px] h-[40px] flex items-center justify-center text-center transition-all hover:scale-105">
               
               {/* 🔴 ปุ่มปิด (ซ่อน AI ให้กลายเป็นปุ่มเล็ก) */}
               <button 
@@ -154,7 +154,7 @@ export default function SmartHelper() {
                 ✖
               </button>
 
-              <span className="cursor-pointer w-full" onClick={() => setIsOpen(true)}>
+              <span className="cursor-pointer w-full whitespace-nowrap" onClick={() => setIsOpen(true)}>
                 {displayText}
                 <span className="animate-pulse text-blue-400 font-normal">|</span>
               </span>
@@ -163,7 +163,7 @@ export default function SmartHelper() {
               <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-white transform rotate-45 border-r border-b border-blue-100"></div>
             </div>
 
-            {/* 🌟 ตัวมาสคอต (ปรับขนาดลงเหลือ w-16 h-16) */}
+            {/* 🌟 ตัวมาสคอต */}
             <button 
               onClick={() => setIsOpen(true)} 
               className="relative w-16 h-16 flex items-center justify-center hover:scale-110 transition-transform duration-300 z-50 group bg-transparent focus:outline-none"
@@ -172,7 +172,6 @@ export default function SmartHelper() {
             </button>
           </>
         )}
-
         {/* ========================================== */}
         {/* 3. โหมดซ่อนตัว (Tiny Minimized Icon) */}
         {/* ========================================== */}
