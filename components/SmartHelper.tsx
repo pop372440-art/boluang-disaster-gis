@@ -34,48 +34,110 @@ export default function SmartHelper() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[999]">
+    <div className="fixed bottom-6 right-6 z-[9999]">
       {/* หน้าต่างแชท */}
       {isOpen && (
-        <div className="bg-white w-[350px] h-[450px] rounded-2xl shadow-2xl flex flex-col mb-4 border border-gray-200 overflow-hidden transform transition-all">
+        <div className="bg-white w-[350px] h-[450px] rounded-3xl shadow-2xl flex flex-col mb-4 border border-gray-100 overflow-hidden transform transition-all duration-300 ease-out translate-y-0 opacity-100">
           
-          {/* 📍 หัวแชท + โลโก้มาสคอต (แก้แท็กปิดให้ครบสมบูรณ์แล้ว) */}
-          <div className="bg-blue-600 p-4 text-white font-bold flex justify-between items-center shadow-md">
+          {/* 📍 หัวแชท + โลโก้มาสคอต */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white font-bold flex justify-between items-center shadow-md">
             <div className="flex items-center space-x-3">
-              <img src="/mascot.png" alt="น้องบ่อหลวง" className="w-10 h-10 object-cover rounded-full border-2 border-white shadow-sm" />
+              <div className="relative flex-shrink-0">
+                <img 
+                  src="/mascot.png" 
+                  alt="น้องต้นสน" 
+                  /* 🌟 เพิ่ม Animation ตอนกำลังคิด (isLoading) ให้มาสคอตกระพริบและขยายตัวนิดๆ */
+                  className={`w-11 h-11 object-cover rounded-full border-2 border-white shadow-sm transition-all duration-300 ${isLoading ? 'animate-pulse scale-110 shadow-blue-300' : ''}`} 
+                />
+                {/* 🟢 จุดสีเขียว Online บนหัวแชท */}
+                <span className="absolute bottom-0 right-0 flex h-3 w-3">
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-400 border-2 border-blue-600"></span>
+                </span>
+              </div>
               <div className="flex flex-col">
-                <span className="leading-tight">ผู้ช่วยบ่อหลวง (AI)</span>
-                <span className="text-[10px] text-blue-200 font-normal">พร้อมให้บริการ 24 ชม.</span>
+                <span className="leading-tight text-[15px]">ผู้ช่วยบ่อหลวง (AI)</span>
+                <span className="text-[11px] text-blue-100 font-normal mt-0.5 flex items-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 mr-1.5 animate-pulse"></span>
+                  พร้อมให้บริการ 24 ชม.
+                </span>
               </div>
             </div>
             {/* ปุ่มปิดแชท */}
-            <button onClick={() => setIsOpen(false)} className="hover:text-gray-300 text-xl">✖</button>
+            <button onClick={() => setIsOpen(false)} className="hover:text-blue-200 hover:rotate-90 transition-transform duration-200 text-2xl leading-none -mt-1">&times;</button>
           </div>
           
           {/* พื้นที่ข้อความ */}
-          <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-gray-50">
+          <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-gray-50/50">
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${msg.sender === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none shadow-sm'}`}>
+                {msg.sender === 'ai' && (
+                  <img src="/mascot.png" alt="AI" className="w-6 h-6 rounded-full mr-2 self-end mb-1 opacity-80" />
+                )}
+                <div className={`max-w-[75%] p-3 rounded-2xl text-[14px] leading-relaxed shadow-sm ${msg.sender === 'user' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-sm'}`}>
                   {msg.text}
                 </div>
               </div>
             ))}
-            {isLoading && <div className="text-gray-400 text-xs animate-pulse">ผู้ช่วยบ่อหลวงกำลังพิมพ์...</div>}
+            {/* สถานะกำลังพิมพ์ */}
+            {isLoading && (
+              <div className="flex justify-start items-end">
+                 <img src="/mascot.png" alt="AI" className="w-6 h-6 rounded-full mr-2 opacity-80 animate-bounce" />
+                 <div className="bg-white border border-gray-100 p-3 rounded-2xl rounded-bl-sm shadow-sm flex space-x-1.5 items-center h-[38px]">
+                   <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                   <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                   <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                 </div>
+              </div>
+            )}
           </div>
 
           {/* ช่องพิมพ์ข้อความ */}
-          <form onSubmit={sendMessage} className="p-3 bg-white border-t border-gray-200 flex space-x-2">
-            <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="พิมพ์สอบถามที่นี่..." className="flex-1 px-4 py-2 border rounded-full text-sm outline-none focus:border-blue-500 text-gray-800" disabled={isLoading}/>
-            <button type="submit" disabled={isLoading} className="bg-blue-600 text-white px-4 py-2 rounded-full font-bold hover:bg-blue-700 disabled:bg-gray-400">ส่ง</button>
+          <form onSubmit={sendMessage} className="p-3 bg-white border-t border-gray-100 flex space-x-2">
+            <input 
+              type="text" 
+              value={input} 
+              onChange={(e) => setInput(e.target.value)} 
+              placeholder={isLoading ? "น้องต้นสนกำลังคิด..." : "พิมพ์สอบถามที่นี่..."} 
+              className="flex-1 px-4 py-2.5 bg-gray-100 border-transparent rounded-full text-sm outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-gray-800 disabled:opacity-50" 
+              disabled={isLoading}
+            />
+            <button 
+              type="submit" 
+              disabled={isLoading || !input.trim()} 
+              className="bg-blue-600 text-white px-5 py-2.5 rounded-full font-bold hover:bg-blue-700 hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:bg-gray-300 disabled:hover:translate-y-0 disabled:shadow-none"
+            >
+              ส่ง
+            </button>
           </form>
         </div>
       )}
 
-      {/* 📍 ปุ่มเปิดแชทรูปมาสคอต */}
-      <button onClick={() => setIsOpen(!isOpen)} className="w-16 h-16 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform border-4 border-white overflow-hidden bg-white z-50">
-        <img src="/mascot.png" alt="เปิดแชท" className="w-full h-full object-cover" />
-      </button>
+      {/* 📍 กลุ่มปุ่มเปิดแชทรูปมาสคอต (ด้านล่างขวา) */}
+      <div className="relative flex justify-end">
+        {/* 🌟 บอลลูนทักทาย (แสดงตอนปิดแชท) */}
+        {!isOpen && (
+          <div className="absolute bottom-[75px] right-0 bg-white text-blue-600 text-[13px] font-bold px-4 py-2.5 rounded-t-2xl rounded-bl-2xl rounded-br-sm shadow-[0_10px_25px_rgba(0,0,0,0.15)] animate-bounce whitespace-nowrap border border-blue-50 cursor-pointer" onClick={() => setIsOpen(true)}>
+            มีคำถาม ถามได้นะ! 👋
+            {/* สามเหลี่ยมชี้ลงมาที่มาสคอต */}
+            <div className="absolute -bottom-2 right-4 w-4 h-4 bg-white transform rotate-45 border-r border-b border-blue-50"></div>
+          </div>
+        )}
+
+        <button 
+          onClick={() => setIsOpen(!isOpen)} 
+          className="relative w-16 h-16 rounded-full shadow-[0_10px_25px_rgba(37,99,235,0.4)] flex items-center justify-center hover:scale-110 transition-transform duration-300 border-4 border-white overflow-hidden bg-white z-50 group"
+        >
+          <img src="/mascot.png" alt="เปิดแชท" className={`w-full h-full object-cover transition-transform duration-500 ${isOpen ? 'scale-110' : 'group-hover:rotate-12'}`} />
+        </button>
+
+        {/* 🟢 จุดเขียวแสดงสถานะ Online (กระพริบตลอดเวลา) */}
+        {!isOpen && (
+          <span className="absolute bottom-0 right-0 flex h-4 w-4 z-50">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500 border-2 border-white"></span>
+          </span>
+        )}
+      </div>
     </div>
   );
 }
