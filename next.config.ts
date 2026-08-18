@@ -1,6 +1,14 @@
+import withPWAInit from "@ducanh2912/next-pwa";
+
+// 🌟 ตั้งค่า PWA
+const withPWA = withPWAInit({
+  dest: "public",
+  disable: process.env.NODE_ENV === "development", 
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 1. ส่วนของ rewrites (ของเดิมที่มีอยู่แล้ว)
+  // 1. ส่วนของ rewrites (ของเดิมที่มีอยู่แล้ว ห้ามลบ)
   async rewrites() {
     return [
       {
@@ -10,7 +18,7 @@ const nextConfig = {
     ];
   },
 
-  // 2. ส่วนของ headers (เพิ่มใหม่เพื่อแก้ CORS)
+  // 2. ส่วนของ headers (เพิ่มใหม่เพื่อแก้ CORS ของเดิม ห้ามลบ)
   async headers() {
     return [
       {
@@ -26,4 +34,5 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// 🌟 นำตั้งค่า PWA มาครอบ nextConfig เดิม แล้ว Export ออกไป
+export default withPWA(nextConfig);
