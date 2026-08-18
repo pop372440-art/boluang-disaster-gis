@@ -957,8 +957,15 @@ export default function BoLuangDashboard() {
       {/* 🗺️ ระบบแผนที่หลัก */}
       <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">        
         <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>         
-          {/* 🚀 ชุดปุ่มควบคุมแผนที่ */}
-          <div className="absolute top-[100px] left-[15px] md:left-[375px] z-[1000] flex flex-col space-y-2 transition-all duration-300 pointer-events-auto">
+            
+          {/* 🚀 ชุดปุ่มควบคุมแผนที่ (เลื่อนหลบอัตโนมัติเมื่อกาง/พับ Sidebar) */}
+          <div 
+            className={`absolute top-[110px] z-[1000] flex flex-col space-y-2 transition-all duration-500 ease-in-out pointer-events-auto ${
+              isLeftPanelOpen 
+                ? 'left-[315px] md:left-[390px]' /* ระยะตอนกาง Sidebar (หลบมาทางขวา) */
+                : 'left-[15px] md:left-[24px]'   /* ระยะตอนพับ Sidebar (กลับไปชิดขอบซ้าย) */
+            }`}
+          >
             
             {/* 📍 ปุ่ม Locate Me */}
             <button 
@@ -992,6 +999,7 @@ export default function BoLuangDashboard() {
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg>
               </button>
             </div>
+            
           </div>
 
           <MapContainer 
