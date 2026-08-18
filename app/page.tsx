@@ -963,7 +963,7 @@ export default function BoLuangDashboard() {
             className={`absolute top-[110px] z-[1000] flex flex-col space-y-2 transition-all duration-500 ease-in-out pointer-events-auto ${
               isLeftPanelOpen 
                 ? 'left-[315px] md:left-[390px]' /* ระยะตอนกาง Sidebar (หลบมาทางขวา) */
-                : 'left-[15px] md:left-[24px]'   /* ระยะตอนพับ Sidebar (กลับไปชิดขอบซ้าย) */
+                : 'left-[15px] md:left-[50px]'   /* ระยะตอนพับ Sidebar (กลับไปชิดขอบซ้าย) */
             }`}
           >
             
