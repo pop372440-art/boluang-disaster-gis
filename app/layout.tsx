@@ -17,9 +17,6 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'Bo Luang GIS | ระบบจัดการสาธารณภัย',
-  description: 'ระบบสารสนเทศทางภูมิศาสตร์เพื่อการบริหารจัดการสาธารณภัย ตำบลบ่อหลวง',
-  // 🌟 เพิ่มบรรทัดนี้เพื่อเรียกใช้ไฟล์ PWA (แอปพลิเคชันมือถือ)
-  manifest: '/manifest.json',
 }
 
 export default function RootLayout({
