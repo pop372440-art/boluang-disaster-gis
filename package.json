@@ -18,7 +18,8 @@
     "react-dom": "19.2.4",
     "react-leaflet": "^5.0.0",
     "sweetalert2": "^11.10.5",
-    "@google/generative-ai": "latest"
+    "@google/generative-ai": "latest",
+    "@ducanh2912/next-pwa": "^10.0.0" // 🌟 เพิ่มบรรทัดนี้เข้าไปครับ
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
