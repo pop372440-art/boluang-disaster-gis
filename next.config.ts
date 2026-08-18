@@ -8,6 +8,9 @@ const withPWA = withPWAInit({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 🚨 เพิ่มบรรทัดนี้เพื่อแก้ Error ระบบ Build ขัดแย้งกัน
+  turbopack: {},
+
   // 1. ส่วนของ rewrites (ของเดิมที่มีอยู่แล้ว ห้ามลบ)
   async rewrites() {
     return [
@@ -34,5 +37,5 @@ const nextConfig = {
   },
 };
 
-// 🌟 นำตั้งค่า PWA มาครอบ nextConfig เดิม แล้ว Export ออกไป
+// นำตั้งค่า PWA มาครอบ nextConfig เดิม แล้ว Export ออกไป
 export default withPWA(nextConfig);
