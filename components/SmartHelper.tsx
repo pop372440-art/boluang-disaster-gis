@@ -35,6 +35,22 @@ export default function SmartHelper() {
 
   return (
     <div className="fixed bottom-6 right-6 z-[9999]">
+      {/* 🌟 แทรก CSS สำหรับข้อความวิ่ง (Marquee) */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes scrollText {
+          0% { transform: translateX(250px); }
+          100% { transform: translateX(-100%); }
+        }
+        .animate-marquee {
+          display: inline-block;
+          white-space: nowrap;
+          animation: scrollText 12s linear infinite;
+        }
+        .animate-marquee:hover {
+          animation-play-state: paused;
+        }
+      `}} />
+
       {/* หน้าต่างแชท */}
       {isOpen && (
         <div className="bg-white w-[350px] h-[450px] rounded-3xl shadow-2xl flex flex-col mb-4 border border-gray-100 overflow-hidden transform transition-all duration-300 ease-out translate-y-0 opacity-100">
@@ -42,17 +58,12 @@ export default function SmartHelper() {
           {/* 📍 หัวแชท + โลโก้มาสคอต */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white font-bold flex justify-between items-center shadow-md">
             <div className="flex items-center space-x-3">
-              <div className="relative flex-shrink-0">
+              <div className="relative flex-shrink-0 bg-white rounded-full p-0.5">
                 <img 
                   src="/mascot.png" 
                   alt="น้องต้นสน" 
-                  /* 🌟 เพิ่ม Animation ตอนกำลังคิด (isLoading) ให้มาสคอตกระพริบและขยายตัวนิดๆ */
-                  className={`w-11 h-11 object-cover rounded-full border-2 border-white shadow-sm transition-all duration-300 ${isLoading ? 'animate-pulse scale-110 shadow-blue-300' : ''}`} 
+                  className={`w-10 h-10 object-contain rounded-full transition-all duration-300 ${isLoading ? 'animate-pulse scale-110 shadow-blue-300' : ''}`} 
                 />
-                {/* 🟢 จุดสีเขียว Online บนหัวแชท */}
-                <span className="absolute bottom-0 right-0 flex h-3 w-3">
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-400 border-2 border-blue-600"></span>
-                </span>
               </div>
               <div className="flex flex-col">
                 <span className="leading-tight text-[15px]">ผู้ช่วยบ่อหลวง (AI)</span>
@@ -71,7 +82,9 @@ export default function SmartHelper() {
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.sender === 'ai' && (
-                  <img src="/mascot.png" alt="AI" className="w-6 h-6 rounded-full mr-2 self-end mb-1 opacity-80" />
+                  <div className="w-6 h-6 rounded-full mr-2 self-end mb-1 opacity-80 bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <img src="/mascot.png" alt="AI" className="w-5 h-5 object-contain" />
+                  </div>
                 )}
                 <div className={`max-w-[75%] p-3 rounded-2xl text-[14px] leading-relaxed shadow-sm ${msg.sender === 'user' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-sm'}`}>
                   {msg.text}
@@ -81,7 +94,9 @@ export default function SmartHelper() {
             {/* สถานะกำลังพิมพ์ */}
             {isLoading && (
               <div className="flex justify-start items-end">
-                 <img src="/mascot.png" alt="AI" className="w-6 h-6 rounded-full mr-2 opacity-80 animate-bounce" />
+                 <div className="w-6 h-6 rounded-full mr-2 opacity-80 bg-blue-100 flex items-center justify-center animate-bounce">
+                    <img src="/mascot.png" alt="AI" className="w-5 h-5 object-contain" />
+                 </div>
                  <div className="bg-white border border-gray-100 p-3 rounded-2xl rounded-bl-sm shadow-sm flex space-x-1.5 items-center h-[38px]">
                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
@@ -113,28 +128,44 @@ export default function SmartHelper() {
       )}
 
       {/* 📍 กลุ่มปุ่มเปิดแชทรูปมาสคอต (ด้านล่างขวา) */}
-      <div className="relative flex justify-end">
-        {/* 🌟 บอลลูนทักทาย (แสดงตอนปิดแชท) */}
+      <div className="relative flex justify-end items-end">
+        
+        {/* 🌟 บอลลูนทักทาย (ข้อความวิ่ง Marquee) */}
         {!isOpen && (
-          <div className="absolute bottom-[75px] right-0 bg-white text-blue-600 text-[13px] font-bold px-4 py-2.5 rounded-t-2xl rounded-bl-2xl rounded-br-sm shadow-[0_10px_25px_rgba(0,0,0,0.15)] animate-bounce whitespace-nowrap border border-blue-50 cursor-pointer" onClick={() => setIsOpen(true)}>
-            มีคำถาม ถามได้นะ! 👋
+          <div 
+            className="absolute bottom-[75px] right-2 bg-white text-blue-600 text-[13px] font-bold py-2.5 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.25)] border border-blue-100 cursor-pointer overflow-hidden w-[250px]" 
+            onClick={() => setIsOpen(true)}
+            title="คลิกเพื่อคุยกับน้องต้นสน"
+          >
+            {/* กล่องบรรจุข้อความวิ่ง */}
+            <div className="w-full relative flex items-center h-5">
+              <div className="animate-marquee absolute">
+                สวัสดีครับ! ผมคือ "น้องต้นสน" AI ประจำเทศบาล มีอะไรให้ผมช่วยเหลือหรือสอบถามข้อมูลพื้นที่ได้เลยครับ 🌲
+              </div>
+            </div>
             {/* สามเหลี่ยมชี้ลงมาที่มาสคอต */}
-            <div className="absolute -bottom-2 right-4 w-4 h-4 bg-white transform rotate-45 border-r border-b border-blue-50"></div>
+            <div className="absolute -bottom-2 right-6 w-4 h-4 bg-white transform rotate-45 border-r border-b border-blue-100"></div>
           </div>
         )}
 
+        {/* 🌟 ปุ่มมาสคอตแบบโปร่งใส (ไร้กรอบสีขาว) */}
         <button 
           onClick={() => setIsOpen(!isOpen)} 
-          className="relative w-16 h-16 rounded-full shadow-[0_10px_25px_rgba(37,99,235,0.4)] flex items-center justify-center hover:scale-110 transition-transform duration-300 border-4 border-white overflow-hidden bg-white z-50 group"
+          className="relative w-20 h-20 flex items-center justify-center hover:scale-110 transition-transform duration-300 z-50 group bg-transparent focus:outline-none"
         >
-          <img src="/mascot.png" alt="เปิดแชท" className={`w-full h-full object-cover transition-transform duration-500 ${isOpen ? 'scale-110' : 'group-hover:rotate-12'}`} />
+          <img 
+            src="/mascot.png" 
+            alt="เปิดแชท" 
+            /* ใส่ Drop Shadow ให้เงาเกิดตามรูปทรงของมาสคอต แทนที่จะเป็นเงากล่องสี่เหลี่ยม */
+            className={`w-full h-full object-contain drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)] transition-transform duration-500 ${isOpen ? 'scale-110' : 'group-hover:rotate-6 group-hover:scale-110'}`} 
+          />
         </button>
 
-        {/* 🟢 จุดเขียวแสดงสถานะ Online (กระพริบตลอดเวลา) */}
+        {/* 🟢 จุดเขียวแสดงสถานะ Online (ปรับตำแหน่งให้แนบกับตัวมาสคอต) */}
         {!isOpen && (
-          <span className="absolute bottom-0 right-0 flex h-4 w-4 z-50">
+          <span className="absolute bottom-2 right-2 flex h-4 w-4 z-50">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500 border-2 border-white"></span>
+            <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500 border-2 border-white shadow-sm"></span>
           </span>
         )}
       </div>
