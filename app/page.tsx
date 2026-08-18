@@ -1518,111 +1518,134 @@ export default function BoLuangDashboard() {
         </div>
       )}
 
-      {/* Sidebar ซ้าย (ข้อมูลอากาศ/น้ำ) */}
-      <aside className={`absolute top-[80px] md:top-24 z-[70] w-[300px] md:w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-r-2xl md:rounded-2xl shadow-2xl p-4 md:p-5 backdrop-blur-xl pointer-events-auto max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar transition-transform duration-500 ease-in-out ${isLeftPanelOpen ? 'translate-x-0 left-0 md:left-4' : '-translate-x-full left-0 md:left-4'}`}>
-        
-        {/* 🌤️ การ์ดเข้าสู่ระบบ Weather Dashboard */}
-        <div className="relative mb-4">
-          <div 
-            onClick={() => window.open('/weather', '_blank')}
-            className="bg-[#0f172a] border border-[#1e293b] hover:border-[#0ea5e9]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden"
-          >
-            <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#0ea5e9] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
-            <div className="flex items-start space-x-4 relative z-10">
-              <div className="w-12 h-12 bg-gradient-to-b from-[#38bdf8] to-[#0284c7] rounded-[14px] flex items-center justify-center shadow-md flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
-                </svg>
-              </div>
-              <div className="flex flex-col mt-0.5">
-                <h3 className="text-[15px] font-extrabold text-white group-hover:text-[#38bdf8] transition-colors leading-tight">ระบบตรวจสอบสภาพอากาศ</h3>
-                <p className="text-[12px] font-bold text-[#e2e8f0] mt-1 mb-1">Bo Luang Weather</p>
-                <p className="text-[11px] text-gray-400 leading-relaxed">ตรวจสอบอุณหภูมิ ปริมาณฝน และการพยากรณ์อากาศในพื้นที่</p>
+     {/* Sidebar ซ้าย (ข้อมูลอากาศ/น้ำ) */}
+      <aside 
+        className={`absolute top-[80px] md:top-24 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto ${isLeftPanelOpen ? 'translate-x-0 left-0 md:left-4' : 'translate-x-[-100%] left-0 md:left-4'}`}
+      >
+        <div className="relative flex h-full items-start">
+          
+          {/* ตัวกรอบเนื้อหาแผงด้านซ้าย */}
+          <div className="w-[300px] md:w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-r-2xl md:rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.5)] p-4 md:p-5 backdrop-blur-xl max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar">
+            
+            {/* 🌤️ การ์ดเข้าสู่ระบบ Weather Dashboard */}
+            <div className="relative mb-4">
+              <div 
+                onClick={() => window.open('/weather', '_blank')}
+                className="bg-[#0f172a] border border-[#1e293b] hover:border-[#0ea5e9]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden"
+              >
+                <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#0ea5e9] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
+                <div className="flex items-start space-x-4 relative z-10">
+                  <div className="w-12 h-12 bg-gradient-to-b from-[#38bdf8] to-[#0284c7] rounded-[14px] flex items-center justify-center shadow-md flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
+                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
+                    </svg>
+                  </div>
+                  <div className="flex flex-col mt-0.5">
+                    <h3 className="text-[15px] font-extrabold text-white group-hover:text-[#38bdf8] transition-colors leading-tight">ระบบตรวจสอบสภาพอากาศ</h3>
+                    <p className="text-[12px] font-bold text-[#e2e8f0] mt-1 mb-1">Bo Luang Weather</p>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">ตรวจสอบอุณหภูมิ ปริมาณฝน และการพยากรณ์อากาศในพื้นที่</p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* 🌊 การ์ดเข้าสู่ระบบ Flood Watch */}
-        <div className="relative mb-4">
-          <div 
-            onClick={() => window.open('/flood', '_blank')}
-            className="bg-[#0f172a] border border-[#1e293b] hover:border-[#3b82f6]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden"
-          >
-            {/* เอฟเฟกต์แสง Background (Glow) โทนสีน้ำเงิน */}
-            <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#3b82f6] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
-            <div className="flex items-start space-x-4 relative z-10">
-              <div className="w-12 h-12 bg-gradient-to-b from-[#60a5fa] to-[#2563eb] rounded-[14px] flex items-center justify-center shadow-md flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </div>
-              <div className="flex flex-col mt-0.5">
-                <h3 className="text-[15px] font-extrabold text-white group-hover:text-[#60a5fa] transition-colors leading-tight">ระบบเฝ้าระวังน้ำท่วมและน้ำป่า</h3>
-                <p className="text-[12px] font-bold text-[#e2e8f0] mt-1 mb-1">Bo Luang Flood Watch</p>
-                <p className="text-[11px] text-gray-400 leading-relaxed">ติดตามระดับน้ำลำห้วย แจ้งเตือนน้ำป่าไหลหลาก และดินถล่มในพื้นที่เกษตรกรรม</p>
+            {/* 🌊 การ์ดเข้าสู่ระบบ Flood Watch */}
+            <div className="relative mb-4">
+              <div 
+                onClick={() => window.open('/flood', '_blank')}
+                className="bg-[#0f172a] border border-[#1e293b] hover:border-[#3b82f6]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden"
+              >
+                {/* เอฟเฟกต์แสง Background (Glow) โทนสีน้ำเงิน */}
+                <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#3b82f6] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
+                <div className="flex items-start space-x-4 relative z-10">
+                  <div className="w-12 h-12 bg-gradient-to-b from-[#60a5fa] to-[#2563eb] rounded-[14px] flex items-center justify-center shadow-md flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
+                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </div>
+                  <div className="flex flex-col mt-0.5">
+                    <h3 className="text-[15px] font-extrabold text-white group-hover:text-[#60a5fa] transition-colors leading-tight">ระบบเฝ้าระวังน้ำท่วมและน้ำป่า</h3>
+                    <p className="text-[12px] font-bold text-[#e2e8f0] mt-1 mb-1">Bo Luang Flood Watch</p>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">ติดตามระดับน้ำลำห้วย แจ้งเตือนน้ำป่าไหลหลาก และดินถล่มในพื้นที่เกษตรกรรม</p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+                      
+            <div className="space-y-4">
+              {/* หมวดพยากรณ์อากาศ */}
+              <div>
+                <div className="flex items-center mb-2">
+                  <span className="text-[13px] mr-2">🌦️</span>
+                  <span className="text-[10px] md:text-[11px] text-[#38bdf8] tracking-widest font-bold">พยากรณ์และปริมาณฝน</span>
+                  <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
+                </div>
+                <div className="space-y-1">
+                  <CustomToggleBox label="พยากรณ์อากาศ (รายพื้นที่)" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} dotColor="#38bdf8" apiStatus={apiStatus.tmd} />
+                  <CustomToggleBox label="ฝนสะสม 24 ชม. (TMD)" active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#facc15" apiStatus={apiStatus.tmd} />
+                </div>
+              </div>
+
+              {/* หมวดคุณภาพอากาศ */}
+              <div>
+                <div className="flex items-center mb-2">
+                  <span className="text-[13px] mr-2">🌫️</span>
+                  <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">คุณภาพอากาศ (AIR QUALITY)</span>
+                  <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
+                </div>
+                <div className="space-y-1">
+                  <CustomToggleBox label="ค่าฝุ่น PM2.5 (รายพื้นที่)" active={pm25} onClick={() => setPm25(!pm25)} dotColor="#06b6d4" apiStatus={apiStatus.pm25} />
+                </div>
+              </div>
+
+              {/* หมวดน้ำและน้ำท่วม */}
+              <div className="mt-4 pt-4 border-t border-[#1e293b]">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] p-2 rounded-xl shadow-[0_4px_10px_rgba(37,99,235,0.4)]">
+                    <span className="text-white text-[18px]">🌊</span>
+                  </div>
+                  <h2 className="text-[18px] md:text-[20px] font-serif font-bold tracking-wide text-[#60a5fa]">น้ำและน้ำท่วม</h2>
+                </div>
+
+                <div className="flex items-center mb-2">
+                  <span className="text-[13px] mr-2">💧</span>
+                  <span className="text-[10px] md:text-[11px] text-blue-400 tracking-widest font-bold">ข้อมูลแหล่งน้ำ (สทนช.)</span>
+                  <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
+                </div>
+                <div className="space-y-1 bg-[#0f172a] p-3 rounded-xl border border-[#1e293b]">
+                  <CustomToggleBox label="ระดับน้ำในพื้นที่" active={onwrWaterLevel} onClick={() => setOnwrWaterLevel(!onwrWaterLevel)} dotColor="#2563eb" apiStatus={apiStatus.onwrWater} />
+                  <CustomToggleBox label="ปริมาณฝน 24 ชม. (สถานี)" active={onwrRain} onClick={() => setOnwrRain(!onwrRain)} dotColor="#3b82f6" apiStatus={apiStatus.onwrRain} />
                   
-        <div className="space-y-4">
-               
-          {/* หมวดพยากรณ์อากาศ */}
-          <div>
-            <div className="flex items-center mb-2">
-              <span className="text-[13px] mr-2">🌦️</span>
-              <span className="text-[10px] md:text-[11px] text-[#38bdf8] tracking-widest font-bold">พยากรณ์และปริมาณฝน</span>
-              <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
+                  <div className="flex items-center space-x-3 px-3 py-1.5 rounded-xl border border-[#1e293b] bg-[#0b132b]/50 hover:bg-[#1e293b]/80 transition-colors duration-200 cursor-pointer select-none mb-1 group" onClick={() => window.open('https://flood.nonarkara.org/BoLuang?city=%E0%B8%9A%E0%B9%88%E0%B8%AD%E0%B8%AB%E0%B8%A5%E0%B8%A7%E0%B8%87&tv=1', '_blank')}>
+                    <div className="relative w-8 h-4 rounded-full bg-[#1e293b] flex items-center justify-center flex-shrink-0 border border-gray-600 group-hover:border-[#0ea5e9] transition-colors">
+                      <svg className="w-2.5 h-2.5 text-gray-400 group-hover:text-[#0ea5e9] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                    </div>
+                    <div className="flex items-center space-x-2 flex-1">
+                      <div className="w-2.5 h-2.5 rounded-[3px] shadow-sm bg-[#0ea5e9]"></div>
+                      <span className="text-[13px] font-medium text-gray-400 group-hover:text-white transition-colors">สรุปรายงานน้ำท่วม (FloodDash)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>       
             </div>
-            <div className="space-y-1">
-              <CustomToggleBox label="พยากรณ์อากาศ (รายพื้นที่)" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} dotColor="#38bdf8" apiStatus={apiStatus.tmd} />
-              <CustomToggleBox label="ฝนสะสม 24 ชม. (TMD)" active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#facc15" apiStatus={apiStatus.tmd} />
-            </div>
+
           </div>
 
-          {/* หมวดคุณภาพอากาศ */}
-          <div>
-            <div className="flex items-center mb-2">
-              <span className="text-[13px] mr-2">🌫️</span>
-              <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">คุณภาพอากาศ (AIR QUALITY)</span>
-              <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
-            </div>
-            <div className="space-y-1">
-              <CustomToggleBox label="ค่าฝุ่น PM2.5 (รายพื้นที่)" active={pm25} onClick={() => setPm25(!pm25)} dotColor="#06b6d4" apiStatus={apiStatus.pm25} />
-            </div>
-          </div>
+          {/* 🔘 ปุ่มพับเก็บ (Toggle Button) ด้านซ้าย */}
+          <button 
+            onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)} 
+            className="hidden md:flex absolute -right-[32px] top-6 w-[32px] h-16 bg-[#0b132b]/95 border-y border-r border-[#1e293b] rounded-r-xl items-center justify-center text-gray-400 hover:text-[#38bdf8] hover:bg-[#1e293b] transition-colors shadow-[5px_0_15px_rgba(0,0,0,0.5)] backdrop-blur-md z-[80] cursor-pointer"
+            title={isLeftPanelOpen ? "ซ่อนแผงข้อมูล" : "แสดงแผงข้อมูล"}
+          >
+            <svg 
+              className={`w-5 h-5 transform transition-transform duration-300 ${isLeftPanelOpen ? 'rotate-180' : 'rotate-0'}`} 
+              fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
 
-          {/* หมวดน้ำและน้ำท่วม */}
-          <div className="mt-4 pt-4 border-t border-[#1e293b]">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] p-2 rounded-xl shadow-[0_4px_10px_rgba(37,99,235,0.4)]">
-                <span className="text-white text-[18px]">🌊</span>
-              </div>
-              <h2 className="text-[18px] md:text-[20px] font-serif font-bold tracking-wide text-[#60a5fa]">น้ำและน้ำท่วม</h2>
-            </div>
-
-            <div className="flex items-center mb-2">
-              <span className="text-[13px] mr-2">💧</span>
-              <span className="text-[10px] md:text-[11px] text-blue-400 tracking-widest font-bold">ข้อมูลแหล่งน้ำ (สทนช.)</span>
-              <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
-            </div>
-            <div className="space-y-1 bg-[#0f172a] p-3 rounded-xl border border-[#1e293b]">
-              <CustomToggleBox label="ระดับน้ำในพื้นที่" active={onwrWaterLevel} onClick={() => setOnwrWaterLevel(!onwrWaterLevel)} dotColor="#2563eb" apiStatus={apiStatus.onwrWater} />
-              <CustomToggleBox label="ปริมาณฝน 24 ชม. (สถานี)" active={onwrRain} onClick={() => setOnwrRain(!onwrRain)} dotColor="#3b82f6" apiStatus={apiStatus.onwrRain} />
-              
-              <div className="flex items-center space-x-3 px-3 py-1.5 rounded-xl border border-[#1e293b] bg-[#0b132b]/50 hover:bg-[#1e293b]/80 transition-colors duration-200 cursor-pointer select-none mb-1 group" onClick={() => window.open('https://flood.nonarkara.org/BoLuang?city=%E0%B8%9A%E0%B9%88%E0%B8%AD%E0%B8%AB%E0%B8%A5%E0%B8%A7%E0%B8%87&tv=1', '_blank')}>
-                <div className="relative w-8 h-4 rounded-full bg-[#1e293b] flex items-center justify-center flex-shrink-0 border border-gray-600 group-hover:border-[#0ea5e9] transition-colors">
-                  <svg className="w-2.5 h-2.5 text-gray-400 group-hover:text-[#0ea5e9] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                </div>
-                <div className="flex items-center space-x-2 flex-1">
-                  <div className="w-2.5 h-2.5 rounded-[3px] shadow-sm bg-[#0ea5e9]"></div>
-                  <span className="text-[13px] font-medium text-gray-400 group-hover:text-white transition-colors">สรุปรายงานน้ำท่วม (FloodDash)</span>
-                </div>
-              </div>
-            </div>
-          </div>       
         </div>
       </aside>
 
