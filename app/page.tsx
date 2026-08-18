@@ -1785,23 +1785,6 @@ export default function BoLuangDashboard() {
                   <CustomToggleBox label="ขอบเขตตำบลบ่อหลวง" active={showBoluang} onClick={() => setShowBoluang(!showBoluang)} dotColor="#38bdf8" />
                   <CustomToggleBox label="โซน 13 หมู่บ้าน" active={showBlock} onClick={() => setShowBlock(!showBlock)} dotColor="#fcd34d" />
                   
-                  {/* 🌟 Legend สีหมู่บ้าน (วางตรงนี้ครับ!) */}
-                  {showBlock && (
-                    <div className="mt-2 mb-3 ml-2 bg-[#0f172a]/80 border border-[#1e293b] rounded-xl p-3 shadow-inner animate-fade-in-api">
-                      <div className="text-[11px] font-bold text-gray-400 mb-2 border-b border-[#1e293b] pb-1 flex items-center">
-                        <span className="mr-1.5">🎨</span> สัญลักษณ์สี 13 หมู่บ้าน
-                      </div>
-                      <div className="grid grid-cols-3 gap-2.5">
-                        {Array.from({length: 13}).map((_, i) => (
-                          <div key={`legend-moo-${i+1}`} className="flex items-center space-x-1.5">
-                            <div className="w-2.5 h-2.5 rounded-full shadow-[0_0_5px_rgba(255,255,255,0.2)]" style={{ backgroundColor: BLOCK_COLORS[i] }}></div>
-                            <span className="text-[10px] text-gray-300 font-medium whitespace-nowrap">หมู่ {i + 1}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
                   {/* โหมดเจ้าหน้าที่ (Admin Only) */}
                   <div className="relative mt-2 pt-2 border-t border-[#1e293b]/50">
                     <CustomToggleBox label="แปลงที่ดินรายบุคคล" active={showParcel} onClick={() => setShowParcel(!showParcel)} dotColor="#4ade80" />
