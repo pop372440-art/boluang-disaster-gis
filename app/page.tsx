@@ -205,6 +205,9 @@ export default function BoLuangDashboard() {
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [showScanModal, setShowScanModal] = useState(false);
 
+  // 🌟 State สำหรับเปิด/ปิดหน้าต่าง QR Code ติดตั้งแอป
+  const [showQrModal, setShowQrModal] = useState(false);
+
   // ----------------------------------------
   // State: Data ข้อมูลจาก API
   // ----------------------------------------
@@ -1499,15 +1502,31 @@ export default function BoLuangDashboard() {
           </div>
         </div>
 
-        <div onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer">
-          <svg className="w-4 h-4 text-[#2dd4bf] mr-1.5 md:mr-2 transform rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
-          </svg>
-          <span className="text-[11px] md:text-[13px] font-mono font-medium text-gray-300 tracking-wide">
-            GIS Layers <span className="hidden md:inline text-gray-500 mx-1">· boluang</span>
-          </span>
+        {/* === ฝั่งขวา: กลุ่มปุ่มเครื่องมือ === */}
+        <div className="flex items-center space-x-2 md:space-x-3">          
+          {/* 📱 1. ปุ่ม QR Code ติดตั้งแอป (ตรงจุดที่วงสีแดง) */}
+          <button
+            onClick={() => setShowQrModal(true)}
+            className="hidden md:flex items-center bg-gradient-to-r from-blue-600 to-blue-500 border border-blue-400 hover:border-white rounded-full px-3 py-1.5 shadow-[0_0_15px_rgba(37,99,235,0.3)] hover:shadow-[0_0_20px_rgba(37,99,235,0.6)] hover:scale-105 transition-all cursor-pointer group"
+          >
+            <svg className="w-4 h-4 text-white mr-1.5 group-hover:animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            <span className="text-[12px] font-bold text-white tracking-wide">ติดตั้งแอป (PWA)</span>
+          </button>
+
+          {/* 🗺️ 2. ปุ่ม GIS Layers (ของเดิม) */}
+          <div onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer flex-shrink-0">
+            <svg className="w-4 h-4 text-[#2dd4bf] mr-1.5 md:mr-2 transform rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+            </svg>
+            <span className="text-[11px] md:text-[13px] font-mono font-medium text-gray-300 tracking-wide">
+              GIS Layers <span className="hidden md:inline text-gray-500 mx-1">· boluang</span>
+            </span>
+          </div>
         </div>
-      </header>
+        
+      </header>      
      {/* Sidebar ซ้าย (ข้อมูลอากาศ/น้ำ) */}
       <aside 
         className={`absolute top-[80px] md:top-24 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto ${isLeftPanelOpen ? 'translate-x-0 left-0 md:left-4' : 'translate-x-[-100%] left-0 md:left-4'}`}
@@ -1799,6 +1818,53 @@ export default function BoLuangDashboard() {
           </div>
         </div>
       </aside>
+      
+      {/* ========================================== */}
+      {/* 📱 Modal โชว์ QR Code สำหรับติดตั้งแอป PWA */}
+      {/* ========================================== */}
+      {showQrModal && (
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#050b14]/80 backdrop-blur-md px-4 pointer-events-auto"
+          onClick={() => setShowQrModal(false)}
+        >
+          <div 
+            className="bg-[#0b132b] border border-[#1e293b] rounded-3xl p-6 md:p-8 shadow-[0_0_50px_rgba(37,99,235,0.2)] max-w-sm w-full relative flex flex-col items-center text-center animate-fade-in-api"
+            onClick={(e) => e.stopPropagation()} // ป้องกันการกดทะลุ
+          >
+            {/* ปุ่มกากบาทปิด */}
+            <button 
+              onClick={() => setShowQrModal(false)} 
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-[#1e293b] rounded-full text-gray-400 hover:text-white hover:bg-red-500 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+
+            {/* ไอคอนและหัวข้อ */}
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-500 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-500/30">
+              <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">ติดตั้งแอปลงมือถือ</h3>
+            <p className="text-[13px] text-gray-400 mb-6 leading-relaxed">
+              ใช้แอปกล้องในสมาร์ทโฟน สแกนคิวอาร์โค้ดด้านล่าง เพื่อเปิดระบบและกด <span className="text-white font-bold">"เพิ่มลงในหน้าจอหลัก"</span> (Add to Home Screen)
+            </p>
+
+            {/* 🌟 กล่องโชว์ QR Code (ดึงจาก API อัตโนมัติด้วย URL ของท่านเลย) */}
+            <div className="bg-white p-4 rounded-2xl shadow-inner mb-6 w-[200px] h-[200px] flex items-center justify-center">
+              <img 
+                src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://boluang-disaster-gis.vercel.app/" 
+                alt="QR Code สำหรับเข้าเว็บไซต์" 
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <button 
+              onClick={() => setShowQrModal(false)} 
+              className="w-full bg-[#1e293b] hover:bg-[#334155] text-white py-3 rounded-xl font-bold transition-colors border border-[#334155]"
+            >
+              ปิดหน้าต่าง
+            </button>
+          </div>
+        </div>
+      )}      
     </main>
   );
 }
