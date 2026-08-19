@@ -12,12 +12,31 @@ export default function manifest(): MetadataRoute.Manifest {
     icons: [
       {
         src: '/apple-icon.png',
-        sizes: '192x192',
+        sizes: '1254x1254',
         type: 'image/png',
       },
       {
         src: '/apple-icon.png',
         sizes: '512x512',
+        type: 'image/png',
+      },
+      {
+        src: '/apple-icon.png',
+        sizes: '192x192',
+        type: 'image/png',
+      },
+    ],
+    // 🌟 เพิ่ม Screenshots ปลดล็อค Richer UI ใน Android
+    screenshots: [
+      {
+        src: '/screen-wide.png',
+        sizes: '1280x720', // ใส่ขนาดคร่าวๆ ของจอคอมแนวนอน
+        type: 'image/png',
+        form_factor: 'wide',
+      },
+      {
+        src: '/screen-mobile.png',
+        sizes: '750x1334', // ใส่ขนาดคร่าวๆ ของจอมือถือแนวตั้ง
         type: 'image/png',
       },
     ],
