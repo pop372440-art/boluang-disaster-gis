@@ -332,7 +332,7 @@ export default function ReportPage() {
   }
 
   // 👇 วางโค้ดใหม่ตรงนี้ 👇
-  if (!imageFile) { 
+  if (!selectedFile) { 
     Swal.fire({ icon: 'warning', title: 'ลืมแนบรูปภาพ!', text: 'กรุณาถ่ายภาพหรือแนบรูปสถานที่เกิดเหตุ เพื่อความรวดเร็วในการประเมินสถานการณ์ครับ' });
     return;
   }
