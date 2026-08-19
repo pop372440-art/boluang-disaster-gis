@@ -730,17 +730,30 @@ export default function BoLuangDashboard() {
   const styleBoluang = { color: '#0ea5e9', weight: 3, fill: false, interactive: true }; 
   const onEachBoluangFeature = (feature: any, layer: any) => {
     
-    // 🌟 เอาการสร้างป้ายข้อความออกทั้งหมด เพื่อไม่ให้ไปแย่งการชี้เมาส์ของระดับหมู่บ้าน
-    
     layer.on({
       mouseover: (e: any) => {
-        // เมื่อชี้เส้นแนวเขต ให้เส้นเรืองแสงและหนาขึ้นเท่านั้น
-        e.target.setStyle({ weight: 5, color: '#38bdf8' });
-        if (e.target.bringToFront) e.target.bringToFront();
+        const target = e.target;
+        
+        // 1. เมื่อเมาส์แตะโดน "เส้นขอบ" ให้เส้นหนาและสว่างขึ้น
+        target.setStyle({ weight: 5, color: '#38bdf8' });
+        if (target.bringToFront) target.bringToFront();
+        
+        // 2. "เสก" ป้ายข้อความขึ้นมา ณ วินาทีนั้น และให้โผล่ตรงปลายเมาส์ (e.latlng)
+        target.bindTooltip('เขตเทศบาลตำบลบ่อหลวง', { 
+          sticky: true, 
+          direction: 'auto', 
+          className: 'village-hover-tooltip' 
+        }).openTooltip(e.latlng);
       },
       mouseout: (e: any) => {
-        // เมื่อเอาเมาส์ออก ให้เส้นกลับเป็นปกติ
-        e.target.setStyle(styleBoluang);
+        const target = e.target;
+        
+        // 1. เมื่อเมาส์ขยับออกจากเส้น ให้เส้นกลับเป็นปกติ
+        target.setStyle(styleBoluang);
+        
+        // 2. "ทำลาย" ป้ายทิ้งทันที เพื่อไม่ให้ไปกวนพื้นที่ด้านใน
+        target.closeTooltip();
+        target.unbindTooltip();
       }
     });
   };
