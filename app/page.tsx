@@ -1470,9 +1470,9 @@ export default function BoLuangDashboard() {
             ทต.บ่อหลวง จ.เชียงใหม่
             </p>
             </div>
-
             </div>
-          <div className="hidden lg:flex items-center space-x-6 border-l border-[#1e293b] pl-6">
+
+            <div className="hidden lg:flex items-center space-x-6 border-l border-[#1e293b] pl-6">
             
             <div className="flex flex-col justify-center">
               <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถานะระบบ</span>
@@ -1541,7 +1541,7 @@ export default function BoLuangDashboard() {
             </span>
           </div>
         </div>
-        
+        </div>
       </header>      
      {/* Sidebar ซ้าย (ข้อมูลอากาศ/น้ำ) */}
       <aside 
