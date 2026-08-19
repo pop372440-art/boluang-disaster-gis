@@ -1452,7 +1452,9 @@ export default function BoLuangDashboard() {
             
             <div className="flex flex-col justify-center ml-2">
   
-  {/* 💻 ข้อความสำหรับหน้าจอคอมพิวเตอร์ (หน้าจอกว้างจะโชว์แบบเต็ม 2 บรรทัด) */}
+  <div className="flex flex-col justify-center ml-2">
+  
+  {/* 💻 หน้าจอคอมพิวเตอร์ (โชว์เต็ม 2 บรรทัดเหมือนเดิม) */}
   <div className="hidden md:block">
     <h1 className="text-sm font-bold text-white">
       ระบบสารสนเทศทางภูมิศาสตร์เพื่อบริหารจัดการด้านสาธารณภัย
@@ -1462,12 +1464,14 @@ export default function BoLuangDashboard() {
     </p>
   </div>
 
-  {/* 📱 ข้อความสำหรับหน้าจอมือถือ (โชว์แค่บรรทัดเดียว ไม่มีชื่อเทศบาล) */}
-  <div className="block md:hidden max-w-[200px]">
-    <h1 className="text-[11px] font-bold text-white leading-tight">
-      ระบบสารสนเทศทางภูมิศาสตร์เพื่อบริหารจัดการด้านสาธารณภัย
+  {/* 📱 หน้าจอมือถือ (โชว์แค่คำว่า ระบบ GIS สาธารณภัย) */}
+  <div className="block md:hidden">
+    <h1 className="text-[13px] sm:text-sm font-bold text-white tracking-wide leading-tight">
+      ระบบ GIS สาธารณภัย
     </h1>
   </div>
+
+</div>
 
 </div>
             <div className="hidden lg:flex items-center space-x-6 border-l border-[#1e293b] pl-6">
