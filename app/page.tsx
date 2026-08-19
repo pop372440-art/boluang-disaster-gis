@@ -1450,12 +1450,28 @@ export default function BoLuangDashboard() {
               />
             </div>
             
-            <div className="flex flex-col border-l-2 border-[#1e293b] pl-3 md:pl-4">
-              <h1 className="text-[12px] md:text-[14px] font-bold tracking-wide text-white leading-tight">ระบบสารสนเทศทางภูมิศาสตร์เพื่อบริหารจัดการด้านสาธารณภัย</h1>
-              <h2 className="text-[11px] md:text-[13px] font-bold tracking-wide text-[#38bdf8] leading-tight mt-0.5">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</h2>
+            <div className="flex flex-col justify-center ml-2">
+             {/* 💻 ข้อความสำหรับหน้าจอคอมพิวเตอร์ (หน้าจอกว้างจะโชว์ส่วนนี้) */}
+            <div className="hidden md:block">
+            <h1 className="text-sm font-bold text-white">
+            ระบบสารสนเทศทางภูมิศาสตร์เพื่อบริหารจัดการด้านสาธารณภัย
+            </h1>
+            <p className="text-xs text-blue-400">
+            เทศบาลตำบลบ่อหลวง จ.เชียงใหม่
+            </p>
             </div>
-          </div>
 
+            {/* 📱 ข้อความสำหรับหน้าจอมือถือ (หน้าจอเล็กจะโชว์ส่วนนี้แทน) */}
+            <div className="block md:hidden">
+            <h1 className="text-sm font-bold text-white tracking-wide">
+            ระบบ GIS สาธารณภัย
+            </h1>
+            <p className="text-[11px] text-blue-400">
+            ทต.บ่อหลวง จ.เชียงใหม่
+            </p>
+            </div>
+
+            </div>
           <div className="hidden lg:flex items-center space-x-6 border-l border-[#1e293b] pl-6">
             
             <div className="flex flex-col justify-center">
