@@ -730,27 +730,17 @@ export default function BoLuangDashboard() {
   const styleBoluang = { color: '#0ea5e9', weight: 3, fill: false, interactive: true }; 
   const onEachBoluangFeature = (feature: any, layer: any) => {
     
-    // ลบบรรทัด layer.bindTooltip เดิมทิ้งไป เพื่อไม่ให้ป้ายค้างกลางแผนที่
+    // 🌟 เอาการสร้างป้ายข้อความออกทั้งหมด เพื่อไม่ให้ไปแย่งการชี้เมาส์ของระดับหมู่บ้าน
     
     layer.on({
       mouseover: (e: any) => {
-        const target = e.target;
-        target.setStyle({ weight: 5, color: '#38bdf8' });
-        if (target.bringToFront) target.bringToFront();
-        
-        // 🌟 เสกป้ายขึ้นมาเฉพาะ "วินาทีที่เมาส์แตะโดนเส้น" เท่านั้น
-        target.bindTooltip('เขตเทศบาลตำบลบ่อหลวง', { 
-          sticky: true, 
-          direction: 'auto', 
-          className: 'village-hover-tooltip' 
-        }).openTooltip(e.latlng);
+        // เมื่อชี้เส้นแนวเขต ให้เส้นเรืองแสงและหนาขึ้นเท่านั้น
+        e.target.setStyle({ weight: 5, color: '#38bdf8' });
+        if (e.target.bringToFront) e.target.bringToFront();
       },
       mouseout: (e: any) => {
-        const target = e.target;
-        target.setStyle(styleBoluang);
-        
-        // 🌟 ทำลายป้ายทิ้งทันทีที่เมาส์ขยับออกจากเส้น
-        target.unbindTooltip();
+        // เมื่อเอาเมาส์ออก ให้เส้นกลับเป็นปกติ
+        e.target.setStyle(styleBoluang);
       }
     });
   };
@@ -1481,7 +1471,7 @@ export default function BoLuangDashboard() {
   {/* 📱 หน้าจอมือถือ (โชว์แค่คำว่า ระบบ GIS สาธารณภัย) */}
   <div className="block md:hidden">
     <h1 className="text-[13px] sm:text-sm font-bold text-white tracking-wide leading-tight">
-      ระบบ GIS สาธารณภัย
+      ระบบ GIS boluang
     </h1>
   </div>
 
