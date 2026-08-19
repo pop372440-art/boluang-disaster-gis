@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: 'Bo Luang GIS | ระบบจัดการสาธารณภัย',
+export const metadata: Metadata = {appleWebApp: { title: 'BL GIS', statusBarStyle: 'black-translucent' },
+  icons: { apple: '/android-chrome-192x192.png' }, // 👈 เพิ่มบรรทัดนี้เข้าไปครับ
 }
 
 export default function RootLayout({
