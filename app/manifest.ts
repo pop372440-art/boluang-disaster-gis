@@ -24,7 +24,7 @@ export default function manifest(): MetadataRoute.Manifest {
     screenshots: [
       {
         src: '/screen-wide.png', // ต้องอัปโหลดไฟล์นี้ไว้ใน public/
-        sizes: '1280x720', // ขนาดโดยประมาณของแนวนอน
+        sizes: '750×1334px', // ขนาดโดยประมาณของแนวนอน
         type: 'image/png',
         form_factor: 'wide',
       },
