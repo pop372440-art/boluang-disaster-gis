@@ -11,32 +11,26 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#38bdf8',
     icons: [
       {
-        src: '/apple-icon.png',
-        sizes: '1254x1254',
-        type: 'image/png',
-      },
-      {
-        src: '/apple-icon.png',
-        sizes: '512x512',
-        type: 'image/png',
-      },
-      {
-        src: '/apple-icon.png',
+        src: '/android-chrome-192x192.png', // ชี้ไปที่ไฟล์รูปขนาด 192 ของจริง
         sizes: '192x192',
         type: 'image/png',
       },
+      {
+        src: '/android-chrome-512x512.png', // ชี้ไปที่ไฟล์รูปขนาด 512 ของจริง
+        sizes: '512x512',
+        type: 'image/png',
+      }
     ],
-    // 🌟 เพิ่ม Screenshots ปลดล็อค Richer UI ใน Android
     screenshots: [
       {
-        src: '/screen-wide.png',
-        sizes: '1280x720', // ใส่ขนาดคร่าวๆ ของจอคอมแนวนอน
+        src: '/screen-wide.png', // ต้องอัปโหลดไฟล์นี้ไว้ใน public/
+        sizes: '1280x720', // ขนาดโดยประมาณของแนวนอน
         type: 'image/png',
         form_factor: 'wide',
       },
       {
-        src: '/screen-mobile.png',
-        sizes: '750x1334', // ใส่ขนาดคร่าวๆ ของจอมือถือแนวตั้ง
+        src: '/screen-mobile.png', // ต้องอัปโหลดไฟล์นี้ไว้ใน public/
+        sizes: '750x1334', // ขนาดโดยประมาณของแนวตั้ง
         type: 'image/png',
       },
     ],
