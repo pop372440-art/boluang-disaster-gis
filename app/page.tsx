@@ -729,14 +729,28 @@ export default function BoLuangDashboard() {
   // 🚀 ตั้งค่าให้ Hover เฉพาะเส้นขอบเขต (Border)
   const styleBoluang = { color: '#0ea5e9', weight: 3, fill: false, interactive: true }; 
   const onEachBoluangFeature = (feature: any, layer: any) => {
-    layer.bindTooltip('เขตเทศบาลตำบลบ่อหลวง', { sticky: true, direction: 'auto', className: 'village-hover-tooltip' });
+    
+    // ลบบรรทัด layer.bindTooltip เดิมทิ้งไป เพื่อไม่ให้ป้ายค้างกลางแผนที่
+    
     layer.on({
       mouseover: (e: any) => {
-        e.target.setStyle({ weight: 5, color: '#38bdf8' });
-        if (e.target.bringToFront) e.target.bringToFront();
+        const target = e.target;
+        target.setStyle({ weight: 5, color: '#38bdf8' });
+        if (target.bringToFront) target.bringToFront();
+        
+        // 🌟 เสกป้ายขึ้นมาเฉพาะ "วินาทีที่เมาส์แตะโดนเส้น" เท่านั้น
+        target.bindTooltip('เขตเทศบาลตำบลบ่อหลวง', { 
+          sticky: true, 
+          direction: 'auto', 
+          className: 'village-hover-tooltip' 
+        }).openTooltip(e.latlng);
       },
       mouseout: (e: any) => {
-        e.target.setStyle(styleBoluang);
+        const target = e.target;
+        target.setStyle(styleBoluang);
+        
+        // 🌟 ทำลายป้ายทิ้งทันทีที่เมาส์ขยับออกจากเส้น
+        target.unbindTooltip();
       }
     });
   };
