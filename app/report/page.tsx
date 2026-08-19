@@ -319,18 +319,26 @@ export default function ReportPage() {
   };
 
   const handleSubmit = async (e: any) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!position) {
-      Swal.fire({ icon: 'warning', title: 'ลืมปักหมุด!', text: 'กรุณากดปุ่มดึงตำแหน่ง หรือคลิกบนแผนที่ครับ' });
-      return;
-    }
-    if (!formData.description) {
-      Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบ', text: 'กรุณาระบุรายละเอียดของสถานการณ์' });
-      return;
-    }
+  if (!position) {
+    Swal.fire({ icon: 'warning', title: 'ลืมปักหมุด!', text: 'กรุณากดปุ่มดึงตำแหน่ง หรือคลิกบนแผนที่ครับ' });
+    return;
+  }
+  
+  if (!formData.description) {
+    Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบ', text: 'กรุณาระบุรายละเอียดของสถานการณ์' });
+    return;
+  }
 
-    setIsSubmitting(true);
+  // 👇 วางโค้ดใหม่ตรงนี้ 👇
+  if (!imageFile) { 
+    Swal.fire({ icon: 'warning', title: 'ลืมแนบรูปภาพ!', text: 'กรุณาถ่ายภาพหรือแนบรูปสถานที่เกิดเหตุ เพื่อความรวดเร็วในการประเมินสถานการณ์ครับ' });
+    return;
+  }
+
+  setIsSubmitting(true);
+  // ... (โค้ดบันทึกข้อมูลทำงานต่อ) ...
 
     try {
       let imageUrl = null;
