@@ -1519,20 +1519,39 @@ export default function BoLuangDashboard() {
               </div>
             </div>
 
-            {/* ======================================================== */}
-          {/* 🤖 วางโค้ด Gemini AI ตรงนี้เลยครับ! */}
-          <div className="hidden xl:flex flex-1 items-center justify-center px-6 animate-fade-in-api">
-            <div className="bg-[#0f172a]/80 border border-emerald-500/30 rounded-full px-5 py-1.5 flex items-center space-x-3 shadow-[0_0_15px_rgba(16,185,129,0.15)] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all cursor-default">
-              <span className="text-[18px] animate-pulse">🌤️</span>
-              <div className="flex items-center space-x-2.5">
-                <span className="text-[13px] font-bold text-[#38bdf8] tracking-wide">Gemini AI</span>
-                <span className="bg-[#10b981] text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">SAFE</span>
-                <span className="text-gray-500 mx-1">|</span>
-                <span className="text-[12px] text-gray-300 font-medium">สภาพอากาศปกติ ไม่พบความเสี่ยงภัยพิบัติรุนแรง (ปริมาณฝน: 0 mm)</span>
+           {/* ======================================================== */}
+            {/* 🕰️ Live Weather & Date-Time Widget (โหลดเร็ว น้ำหนักเบา) */}
+            <div className="hidden xl:flex flex-1 items-center justify-center px-6">
+              <div className="bg-[#0f172a]/60 border border-[#1e293b] rounded-full px-5 py-2 flex items-center space-x-4 shadow-sm backdrop-blur-sm cursor-default">
+                
+                {/* อุณหภูมิและไอคอนสภาพอากาศปัจจุบัน */}
+                <div className="flex items-center space-x-2">
+                  <span className="text-[20px]">
+                     {/* ใช้ฟังก์ชันดึง Emoji สภาพอากาศที่ท่านมีอยู่แล้ว โดยดึงจากสถานีบ่อหลวงที่ index 0 */}
+                     {localWeatherData.length > 0 ? getWeatherEmoji(localWeatherData[0].wCode) : '🌤️'}
+                  </span>
+                  <span className="text-[16px] font-black text-white tracking-wide">
+                     {localWeatherData.length > 0 ? Math.round(localWeatherData[0].temp) : '--'}°C
+                  </span>
+                </div>
+
+                <div className="w-[1px] h-5 bg-[#1e293b]"></div>
+
+                {/* วันที่และเวลา */}
+                <div className="flex flex-col">
+                   <div className="flex items-center space-x-2">
+                      <span className="text-[#38bdf8] font-bold text-[13px] tracking-widest">
+                         {currentTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                      </span>
+                      <span className="text-gray-400 text-[11px] font-medium">
+                         {currentTime.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
+                      </span>
+                   </div>
+                </div>
+
               </div>
             </div>
-          </div>
-          {/* ======================================================== */}
+            {/* ======================================================== */}
             
           </div>
         </div>
