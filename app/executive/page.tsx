@@ -19,7 +19,7 @@ export default function ExecutiveDashboard() {
   const BO_LUANG_LAT = 18.1633;
   const BO_LUANG_LNG = 98.3744;
 
-  // นาฬิกา Real-time สำหรับจอ Command Center
+  // นาฬิกา Real-time
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -104,131 +104,128 @@ export default function ExecutiveDashboard() {
   }, []);
 
   if (isLoading) return (
-    <div className="flex h-screen items-center justify-center bg-[#030712] text-white">
+    <div className="flex h-screen items-center justify-center bg-[#0d1617] text-white">
         <div className="flex flex-col items-center">
-            <div className="w-16 h-16 border-4 border-[#38bdf8] border-t-transparent rounded-full animate-spin mb-6 shadow-[0_0_15px_#38bdf8]"></div>
-            <span className="font-mono text-[#38bdf8] text-xl tracking-widest animate-pulse">SYSTEM INITIALIZING...</span>
+            <div className="w-16 h-16 border-4 border-[#2dd4bf] border-t-transparent rounded-full animate-spin mb-6"></div>
+            <span className="font-mono text-[#2dd4bf] text-xl tracking-widest animate-pulse">SYSTEM INITIALIZING...</span>
         </div>
     </div>
   );
 
   if (!data) return null;
 
+  // ปรับแก้ Theme สีตามภาพตัวอย่าง (ใช้เขียว Mint/Teal เป็นหลัก)
   const getTheme = (status: string) => {
-      if (status === 'CRITICAL') return { border: 'border-red-500/50', bg: 'bg-[#ef4444]', text: 'text-[#f87171]', icon: '🚨', glow: 'shadow-[0_0_30px_rgba(239,68,68,0.2)]' };
-      if (status === 'WARNING') return { border: 'border-yellow-500/50', bg: 'bg-[#facc15]', text: 'text-[#facc15]', icon: '⚠️', glow: 'shadow-[0_0_30px_rgba(250,204,21,0.15)]' };
-      return { border: 'border-[#38bdf8]/50', bg: 'bg-[#0ea5e9]', text: 'text-[#38bdf8]', icon: '✅', glow: 'shadow-[0_0_30px_rgba(56,189,248,0.1)]' };
+      if (status === 'CRITICAL') return { border: 'border-red-500/50', bg: 'bg-[#ef4444]', text: 'text-[#f87171]', icon: '🚨' };
+      if (status === 'WARNING') return { border: 'border-yellow-500/50', bg: 'bg-[#facc15]', text: 'text-[#facc15]', icon: '⚠️' };
+      return { border: 'border-[#2dd4bf]/40', bg: 'bg-[#0f766e]', text: 'text-[#2dd4bf]', icon: '✅' }; // สีเขียวมิ้นต์ (Teal)
   };
   const theme = getTheme(data.ai.status);
 
   return (
-    <div className="min-h-screen bg-[#030712] p-4 md:p-8 font-sans text-white overflow-x-hidden flex flex-col">
+    // 🎨 พื้นหลังหลัก (Background) ใช้สีดำอมเขียวเข้ม (Deep Forest/Obsidian)
+    <div className="min-h-screen bg-[#0a1112] p-4 md:p-8 font-sans text-gray-100 overflow-x-hidden flex flex-col">
       
-      {/* 🖥️ Top Bar (Header & Clock) */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 border-b border-gray-800 pb-4">
+      {/* 🖥️ Top Bar */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 pb-4">
         <div>
             <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white flex items-center">
                 EXECUTIVE <span className={`ml-3 ${theme.text}`}>DASHBOARD</span>
             </h1>
-            <p className="text-gray-400 mt-2 text-lg tracking-wide uppercase">Bo Luang Disaster Command Center</p>
+            <p className="text-gray-400 mt-2 text-sm tracking-widest uppercase">Bo Luang Disaster Command Center</p>
         </div>
         <div className="mt-4 md:mt-0 text-right">
-            <div className="text-3xl md:text-4xl font-mono font-bold text-white tracking-widest drop-shadow-md">
+            <div className="text-3xl md:text-4xl font-mono font-bold text-white tracking-widest">
                 {currentTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </div>
-            <div className="text-sm text-gray-500 font-medium mt-1">
+            <div className="text-sm text-gray-400 mt-1">
                 {currentTime.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </div>
         </div>
       </div>
 
-      {/* 🎯 Main Grid Layout (จอทีวีเต็มรูปแบบ) */}
+      {/* 🎯 Main Grid Layout */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1">
         
-        {/* 🧠 ฝั่งซ้าย: AI Analysis (กินพื้นที่ 5 ส่วน) */}
+        {/* 🧠 ฝั่งซ้าย: AI Analysis */}
         <div className="xl:col-span-5 flex flex-col gap-6">
             
             {/* AI Summary Box */}
-            <div className={`flex-1 border ${theme.border} bg-[#0b1120] rounded-3xl p-8 ${theme.glow} flex flex-col`}>
-                <div className="flex items-center space-x-4 mb-6 pb-4 border-b border-gray-800/50">
-                    <div className="w-14 h-14 rounded-full bg-gray-900 flex items-center justify-center text-3xl shadow-inner border border-gray-700">🧠</div>
+            <div className={`flex-1 border border-gray-800 bg-[#111a1c] rounded-3xl p-8 flex flex-col shadow-lg`}>
+                <div className="flex items-center space-x-4 mb-6 pb-4 border-b border-gray-800">
+                    <div className="text-3xl">🧠</div>
                     <div>
-                        <h2 className={`text-2xl font-bold ${theme.text}`}>AI Executive Briefing</h2>
-                        <span className="text-sm text-gray-400 font-mono">Status: {data.ai.status}</span>
+                        <h2 className={`text-xl font-bold ${theme.text}`}>AI Executive Briefing</h2>
+                        <span className="text-xs text-gray-400 font-mono tracking-widest">Status: {data.ai.status}</span>
                     </div>
                 </div>
                 
                 <div className="space-y-6 flex-1">
-                    <div className="bg-[#030712]/50 p-6 rounded-2xl border border-gray-800">
-                        <h3 className="text-[#38bdf8] font-bold text-lg mb-3 flex items-center"><span className="text-2xl mr-3">📍</span> สถานการณ์ปัจจุบัน</h3>
-                        <p className="text-gray-300 text-lg leading-relaxed">{data.ai.dailyInsight}</p>
+                    <div className="p-1">
+                        <h3 className="text-[#2dd4bf] font-bold text-sm mb-3 flex items-center"><span className="text-lg mr-3">📍</span> สถานการณ์ปัจจุบัน</h3>
+                        <p className="text-gray-300 text-base leading-relaxed pl-7 border-l-2 border-[#2dd4bf]/30">{data.ai.dailyInsight}</p>
                     </div>
                     
-                    <div className="bg-[#030712]/50 p-6 rounded-2xl border border-gray-800">
-                        <h3 className="text-yellow-400 font-bold text-lg mb-3 flex items-center"><span className="text-2xl mr-3">📅</span> แนวโน้ม 7 วันข้างหน้า</h3>
-                        <p className="text-gray-300 text-lg leading-relaxed">{data.ai.weeklyTrend}</p>
+                    <div className="p-1">
+                        <h3 className="text-[#2dd4bf] font-bold text-sm mb-3 flex items-center"><span className="text-lg mr-3">📅</span> แนวโน้ม 7 วันข้างหน้า</h3>
+                        <p className="text-gray-300 text-base leading-relaxed pl-7 border-l-2 border-[#2dd4bf]/30">{data.ai.weeklyTrend}</p>
                     </div>
                 </div>
             </div>
 
             {/* Action Box */}
-            <div className="border border-gray-800 bg-[#0b1120] rounded-3xl p-8 shadow-lg">
-                <h3 className="text-lg text-white font-bold mb-6 flex items-center uppercase tracking-widest">
-                    <span className="text-2xl mr-3">🎯</span> ข้อเสนอแนะการสั่งการ
+            <div className="border border-gray-800 bg-[#111a1c] rounded-3xl p-8 shadow-lg">
+                <h3 className="text-base text-white font-bold mb-6 flex items-center tracking-wide">
+                    <span className="text-xl mr-3">🎯</span> ข้อเสนอแนะการสั่งการ
                 </h3>
-                <ul className="space-y-4">
+                <ul className="space-y-3">
                     {data.ai.actions.map((action: string, idx: number) => (
-                        <li key={idx} className="flex items-start bg-[#030712] p-4 rounded-xl border border-gray-800/50">
-                            <span className="text-[#38bdf8] mr-4 text-xl">▪</span>
-                            <span className="text-base text-gray-200 font-medium leading-relaxed">{action}</span>
+                        <li key={idx} className="flex items-center bg-[#0a1112] p-4 rounded-xl border border-gray-800/60 transition-colors hover:border-[#2dd4bf]/50">
+                            <div className="w-1.5 h-1.5 rounded-full bg-[#2dd4bf] mr-4 flex-shrink-0"></div>
+                            <span className="text-sm text-gray-300 font-medium">{action}</span>
                         </li>
                     ))}
                 </ul>
             </div>
         </div>
 
-        {/* 📊 ฝั่งขวา: Data & Graphs (กินพื้นที่ 7 ส่วน) */}
+        {/* 📊 ฝั่งขวา: Data & Graphs */}
         <div className="xl:col-span-7 flex flex-col gap-6">
             
             {/* Top 3 KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-[#0b1120] border border-gray-800 rounded-3xl p-6 relative overflow-hidden group hover:border-[#38bdf8]/50 transition-colors">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl group-hover:opacity-20 transition-opacity">🌡️</div>
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">อุณหภูมิ (TMD)</h3>
-                    <div className="flex items-baseline space-x-2">
-                        <span className="text-5xl font-black text-white">{Math.round(data.currentTemp)}</span>
-                        <span className="text-xl text-gray-500 font-bold">°C</span>
+                <div className="bg-[#111a1c] border border-gray-800 rounded-2xl p-6 relative overflow-hidden group">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">อุณหภูมิ (TMD)</h3>
+                    <div className="flex items-baseline space-x-1">
+                        <span className="text-4xl font-black text-white">{Math.round(data.currentTemp)}</span>
+                        <span className="text-lg text-gray-500 font-bold">°C</span>
                     </div>
                 </div>
 
-                <div className="bg-[#0b1120] border border-gray-800 rounded-3xl p-6 relative overflow-hidden group hover:border-[#4ade80]/50 transition-colors">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl group-hover:opacity-20 transition-opacity">🌧️</div>
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">ฝน 24 ชม. (ONWR)</h3>
-                    <div className="flex items-baseline space-x-2">
-                        <span className="text-5xl font-black text-[#4ade80]">{data.actualRain24h}</span>
-                        <span className="text-xl text-gray-500 font-bold">มม.</span>
+                <div className="bg-[#111a1c] border border-gray-800 rounded-2xl p-6 relative overflow-hidden group">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">ฝน 24 ชม. (ONWR)</h3>
+                    <div className="flex items-baseline space-x-1">
+                        <span className="text-4xl font-black text-[#4ade80]">{data.actualRain24h}</span>
+                        <span className="text-lg text-gray-500 font-bold">มม.</span>
                     </div>
                 </div>
 
-                <div className="bg-[#0b1120] border border-gray-800 rounded-3xl p-6 relative overflow-hidden group hover:border-[#facc15]/50 transition-colors">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl group-hover:opacity-20 transition-opacity">🌪️</div>
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">พยากรณ์สูงสุด (Windy)</h3>
-                    <div className="flex items-baseline space-x-2">
-                        <span className="text-5xl font-black text-[#facc15]">{data.maxRain7Days.toFixed(1)}</span>
-                        <span className="text-xl text-gray-500 font-bold">มม.</span>
+                <div className="bg-[#111a1c] border border-gray-800 rounded-2xl p-6 relative overflow-hidden group">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">พยากรณ์สูงสุด (WINDY)</h3>
+                    <div className="flex items-baseline space-x-1">
+                        <span className="text-4xl font-black text-[#facc15]">{data.maxRain7Days.toFixed(1)}</span>
+                        <span className="text-lg text-gray-500 font-bold">มม.</span>
                     </div>
                 </div>
             </div>
 
-            {/* Giant 7-Day Forecast Graph (แก้บั๊ก 0 มม. แล้ว) */}
-            <div className="flex-1 bg-[#0b1120] border border-gray-800 rounded-3xl p-8 shadow-lg flex flex-col min-h-[400px]">
-                <div className="flex justify-between items-end mb-8">
-                    <div>
-                        <h3 className="text-xl font-bold text-white flex items-center">
-                            <span className="mr-3 text-2xl">📊</span> กราฟพยากรณ์ปริมาณฝน 7 วัน
-                        </h3>
-                        <p className="text-sm text-gray-400 mt-2 ml-9">ข้อมูลจำลองอ้างอิงจาก Global Forecast Models</p>
-                    </div>
+            {/* Giant 7-Day Forecast Graph */}
+            <div className="flex-1 bg-[#111a1c] border border-gray-800 rounded-3xl p-8 shadow-lg flex flex-col min-h-[400px]">
+                <div className="mb-8">
+                    <h3 className="text-lg font-bold text-white flex items-center">
+                        <span className="mr-3 text-xl">📊</span> กราฟพยากรณ์ปริมาณฝน 7 วัน
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1 ml-8 tracking-wide">ข้อมูลจำลองอ้างอิงจาก Global Forecast Models</p>
                 </div>
                 
                 {/* Graph Container */}
@@ -238,36 +235,31 @@ export default function ExecutiveDashboard() {
                         const dayName = date.toLocaleDateString('th-TH', { weekday: 'short' });
                         const dateNum = date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
                         
-                        // 🛠️ แก้บั๊กกราฟ 0 มม.: กำหนดความสูงขั้นต่ำไว้ที่ 4% เพื่อให้เห็นฐานกราฟเสมอ
-                        const maxVal = Math.max(data.maxRain7Days, 10); // ป้องกันหาร 0 และกำหนดเพดานต่ำสุดที่ 10 มม.
+                        const maxVal = Math.max(data.maxRain7Days, 10); 
                         const heightPct = Math.max((rain / maxVal) * 100, 4); 
                         
-                        // เปลี่ยนสีกราฟตามระดับความอันตราย
-                        const barColor = rain >= 50 ? 'bg-gradient-to-t from-[#991b1b] to-[#ef4444]' : 
-                                         rain >= 20 ? 'bg-gradient-to-t from-[#854d0e] to-[#facc15]' : 
-                                         'bg-gradient-to-t from-[#075985] to-[#38bdf8]';
+                        // 🎨 สีกราฟแท่ง ปรับให้เข้ากับธีม (Teal/Mint) 
+                        const barColor = rain >= 50 ? 'bg-gradient-to-t from-[#9f1239] to-[#fb7185]' : 
+                                         rain >= 20 ? 'bg-gradient-to-t from-[#ca8a04] to-[#fde047]' : 
+                                         'bg-gradient-to-t from-[#0f766e] to-[#2dd4bf]';
 
                         return (
                             <div key={idx} className="flex flex-col items-center flex-1 h-full justify-end group">
-                                {/* ตัวเลขเหนือแท่งกราฟ (โชว์เสมอ ไม่ต้อง Hover ก็เห็น) */}
-                                <div className={`text-sm md:text-base font-bold mb-3 ${rain > 0 ? 'text-white' : 'text-gray-600'}`}>
+                                <div className={`text-sm font-bold mb-3 ${rain > 0 ? 'text-white' : 'text-gray-600'}`}>
                                     {rain.toFixed(1)}
                                 </div>
                                 
-                                {/* แท่งกราฟ */}
                                 <div className="w-full h-full flex items-end justify-center relative">
-                                    {/* เส้นกริดลางๆ ด้านหลังกราฟ */}
-                                    <div className="absolute w-full h-full border-b border-gray-800 -z-10"></div>
+                                    <div className="absolute w-full h-full border-b border-gray-800/50 -z-10"></div>
                                     <div 
-                                        className={`w-full max-w-[48px] rounded-t-lg ${barColor} shadow-lg transition-all duration-700 ease-out`} 
+                                        className={`w-full max-w-[40px] rounded-t-lg ${barColor} shadow-lg transition-all duration-700 ease-out`} 
                                         style={{ height: `${heightPct}%` }}
                                     ></div>
                                 </div>
                                 
-                                {/* ป้ายกำกับแกน X (วันและวันที่) */}
                                 <div className="mt-4 text-center">
                                     <div className="text-sm font-bold text-gray-300">{dayName}</div>
-                                    <div className="text-xs text-gray-500 mt-1">{dateNum}</div>
+                                    <div className="text-xs text-gray-600 mt-1">{dateNum}</div>
                                 </div>
                             </div>
                         );
