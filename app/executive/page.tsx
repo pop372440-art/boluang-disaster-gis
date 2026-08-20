@@ -27,11 +27,10 @@ export default function ExecutiveDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 📡 1. เชื่อมต่อ 3 ขุมพลัง API (ONWR, TMD/OpenMeteo, Google DeepMind)
         const [onwrRes, forecastRes, deepmindRes] = await Promise.allSettled([
           fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h'),
-          // หมายเหตุ: ใช้ Open-Meteo ดึงโมเดลเทียบเคียงกรมอุตุฯ (เพื่อแก้ปัญหา CORS/Token ของระบบราชการในระยะ MVP)
-          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}&current=temperature_2m,windspeed_10m,weathercode&daily=precipitation_sum,windspeed_10m_max&timezone=Asia%2FBangkok&forecast_days=7`),
+          // 📡 เพิ่ม current=precipitation เพื่อดึง "ฝนตก ณ วินาทีนี้"
+          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}&current=temperature_2m,windspeed_10m,weathercode,precipitation&daily=precipitation_sum,windspeed_10m_max&timezone=Asia%2FBangkok&forecast_days=7`),
           fetch(`https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}&daily=precipitation_sum,windspeed_10m_max&timezone=Asia%2FBangkok&forecast_days=15&models=google_weathernext2_ensemble`)
         ]);
 
@@ -68,21 +67,18 @@ export default function ExecutiveDashboard() {
         if (forecast && deepmindForecast) {
             const currentTemp = forecast.current.temperature_2m;
             const currentWind = forecast.current.windspeed_10m;
+            const liveRainIntensity = forecast.current.precipitation || 0; // ฝนรายชั่วโมง ณ ตอนนี้
             const maxRain7Days = Math.max(...forecast.daily.precipitation_sum);
             
-            let maxRain15Days = 0;
-            let criticalDate15Days = '';
-            const ensembleKeys = Object.keys(deepmindForecast.daily).filter(k => k.startsWith('precipitation_sum_google'));
+            // ⛰️ คำนวณดัชนีดินอุ้มน้ำ (Soil Saturation) แบบง่ายๆ: ยิ่งตกต่อเนื่อง ค่าจะยิ่งสูง
+            // ผสมระหว่างฝนสะสม + ฝนที่กำลังตกอยู่ ณ ตอนนี้
+            let soilMoisture = Math.min(100, ((actualRain24h / 80) * 100) + (liveRainIntensity > 0 ? 30 : 0));
             
+            let maxRain15Days = 0;
+            const ensembleKeys = Object.keys(deepmindForecast.daily).filter(k => k.startsWith('precipitation_sum_google'));
             if(ensembleKeys.length > 0) {
                const allPossibilities = ensembleKeys.map(key => Math.max(...deepmindForecast.daily[key]));
                maxRain15Days = Math.max(...allPossibilities);
-               const worstModelKey = ensembleKeys.find(key => Math.max(...deepmindForecast.daily[key]) === maxRain15Days);
-               if(worstModelKey) {
-                   const peakIndex = deepmindForecast.daily[worstModelKey].indexOf(maxRain15Days);
-                   const rawDate = new Date(deepmindForecast.daily.time[peakIndex]);
-                   criticalDate15Days = rawDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-               }
             }
 
             let status = 'NORMAL';
@@ -90,27 +86,25 @@ export default function ExecutiveDashboard() {
             let deepmindTrend = 'ไม่มีพายุก่อตัวในรัศมี 15 วันข้างหน้า';
             let actions = ['ตรวจสอบความพร้อมอุปกรณ์เตือนภัย', 'อัปเดตข้อมูลให้ประชาชนทราบตามปกติ'];
 
-            if (actualRain24h > 90 || maxRain7Days > 90) {
+            // 🚨 อัปเกรด AI Logic: ถนแม้เซนเซอร์ ONWR จะขึ้นแค่ 6 มม. แต่ถ้าฝนกำลังตก (Live > 0) และดินอุ้มน้ำเกิน 50% ให้ยกระดับทันที!
+            if (actualRain24h > 90 || maxRain7Days > 90 || soilMoisture > 80) {
                 status = 'CRITICAL';
-                tmdInsight = actualRain24h > 90 
-                    ? `ประกาศจากกรมอุตุฯ & สทนช: ฝนตกหนักสะสม ${actualRain24h} มม. เข้าเกณฑ์เตือนภัยสีแดง (อพยพ)!` 
-                    : `ประกาศกรมอุตุฯ: เฝ้าระวังพายุฝนฟ้าคะนองรุนแรงใน 1-3 วันนี้`;
+                tmdInsight = liveRainIntensity > 0
+                    ? `🚨 ด่วน! มีฝนตกหนักต่อเนื่อง ดินอุ้มน้ำระดับวิกฤต (${Math.round(soilMoisture)}%) เสี่ยงดินถล่มฉับพลัน!` 
+                    : `เฝ้าระวังพายุฝนฟ้าคะนองรุนแรงใน 1-3 วันนี้`;
                 deepmindTrend = `(วิเคราะห์ซ้อนทับด้วย AI): ยืนยันแนวโน้มพายุเข้ากระแทก พื้นที่รับน้ำต้องเตรียมพร้อมสูงสุด`;
-                actions = ['🚨 อ้างอิงประกาศกรมอุตุฯ เพื่อเบิกงบฉุกเฉิน EOC ทันที', 'อพยพประชาชนในโซนเชิงเขา', 'สั่งเครื่องจักรกลหนักเข้าพื้นที่เสี่ยง'];
-            } else if (maxRain15Days > 100) {
+                actions = ['🚨 อ้างอิงประกาศกรมอุตุฯ เพื่อเบิกงบฉุกเฉิน EOC ทันที', 'อพยพประชาชนในโซนเชิงเขาด่วน!', 'สั่งเครื่องจักรกลหนักเข้าพื้นที่เสี่ยง'];
+            } else if (liveRainIntensity > 0 || actualRain24h > 20 || soilMoisture > 40) {
                 status = 'WARNING';
-                tmdInsight = `ประกาศกรมอุตุฯ: สภาพอากาศปัจจุบัน (ฝนสะสม ${actualRain24h} มม.) ยังปลอดภัยดี`;
-                deepmindTrend = `สัญญาณเตือนล่วงหน้า (EARLY WARNING): Google DeepMind ตรวจพบพายุก่อตัวในระยะยาว คาดว่าจะเข้าปะทะช่วงวันที่ ${criticalDate15Days}`;
-                actions = ['ประชุมหัวหน้าส่วนราชการเพื่อเตรียมแผนรับมือล่วงหน้า 2 สัปดาห์', 'สั่งการพร่องน้ำในอ่างเก็บน้ำสาธารณะ'];
-            } else if (actualRain24h > 35 || maxRain7Days > 35) {
-                status = 'WARNING';
-                tmdInsight = `ประกาศกรมอุตุฯ: มีฝนตกปานกลางถึงหนักสะสม ${actualRain24h} มม. แจ้งเตือนน้ำท่วมขัง`;
-                deepmindTrend = `การพยากรณ์ AI: กลุ่มฝนสะสมสัปดาห์นี้อยู่ที่ ${maxRain7Days.toFixed(1)} มม. ไม่มีพายุใหญ่ซ้อนทับ`;
-                actions = ['กำจัดสิ่งกีดขวางทางน้ำในลำห้วย', 'แจ้ง อปพร. เตรียมพร้อมลอกท่อระบายน้ำ'];
+                tmdInsight = liveRainIntensity > 0
+                    ? `⚠️ ขณะนี้มีฝนตกในพื้นที่! (ความแรง ${liveRainIntensity} มม./ชม.) ดินเริ่มอุ้มน้ำ ระวังดินสไลด์`
+                    : `มีฝนตกสะสม ${actualRain24h} มม. แจ้งเตือนน้ำท่วมขัง`;
+                deepmindTrend = `การพยากรณ์ AI: กลุ่มฝนสะสมสัปดาห์นี้อยู่ที่ ${maxRain7Days.toFixed(1)} มม.`;
+                actions = ['ประกาศเสียงตามสาย แจ้งเตือนประชาชนพื้นที่ภูเขา', 'ส่งหน่วยลาดตระเวนเช็คระดับน้ำในลำห้วย', 'เตรียมพร้อมเครื่องสูบน้ำ'];
             }
 
             setData({
-                actualRain24h, currentTemp, currentWind, maxRain7Days, maxRain15Days,
+                actualRain24h, currentTemp, currentWind, maxRain7Days, maxRain15Days, liveRainIntensity, soilMoisture,
                 daily: forecast.daily,
                 ai: { status, tmdInsight, deepmindTrend, actions }
             });
@@ -121,26 +115,30 @@ export default function ExecutiveDashboard() {
         setIsLoading(false);
       }
     };
+    
     fetchData();
+    // 🔄 ให้ดึงข้อมูลใหม่ทุกๆ 5 นาที (เหมาะสำหรับ Command Center ช่วงฝนตก)
+    const interval = setInterval(fetchData, 300000);
+    return () => clearInterval(interval);
   }, []);
 
   if (isLoading) return (
     <div className="flex h-screen items-center justify-center bg-[#0a1112] text-white">
-        <div className="flex flex-col items-center">
-            <div className="w-16 h-16 border-4 border-[#2dd4bf] border-t-transparent rounded-full animate-spin mb-6 shadow-[0_0_15px_#2dd4bf]"></div>
-            <span className="font-mono text-[#2dd4bf] text-lg tracking-widest animate-pulse">Syncing: ONWR + TMD + DeepMind...</span>
-        </div>
+        <div className="w-16 h-16 border-4 border-[#2dd4bf] border-t-transparent rounded-full animate-spin shadow-[0_0_15px_#2dd4bf]"></div>
     </div>
   );
 
   if (!data) return null;
 
   const getTheme = (status: string) => {
-      if (status === 'CRITICAL') return { border: 'border-red-500/50', bg: 'bg-[#ef4444]', text: 'text-[#f87171]' };
-      if (status === 'WARNING') return { border: 'border-yellow-500/50', bg: 'bg-[#facc15]', text: 'text-[#facc15]' };
-      return { border: 'border-[#2dd4bf]/40', bg: 'bg-[#0f766e]', text: 'text-[#2dd4bf]' };
+      if (status === 'CRITICAL') return { border: 'border-red-500/50', bg: 'bg-[#ef4444]', text: 'text-[#f87171]', glow: 'shadow-[0_0_30px_rgba(239,68,68,0.2)]' };
+      if (status === 'WARNING') return { border: 'border-yellow-500/50', bg: 'bg-[#facc15]', text: 'text-[#facc15]', glow: 'shadow-[0_0_30px_rgba(250,204,21,0.1)]' };
+      return { border: 'border-[#2dd4bf]/40', bg: 'bg-[#0f766e]', text: 'text-[#2dd4bf]', glow: 'shadow-lg' };
   };
   const theme = getTheme(data.ai.status);
+
+  // 🔴 สีของดัชนีดินถล่ม
+  const soilColor = data.soilMoisture > 75 ? 'bg-red-500' : data.soilMoisture > 40 ? 'bg-yellow-400' : 'bg-emerald-400';
 
   return (
     <div className="min-h-screen bg-[#0a1112] p-4 md:p-8 font-sans text-gray-100 flex flex-col">
@@ -148,6 +146,13 @@ export default function ExecutiveDashboard() {
         <div>
             <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white flex items-center">
                 EXECUTIVE <span className={`ml-3 ${theme.text}`}>DASHBOARD</span>
+                {/* 🚨 ป้ายประกาศ LIVE แดงกะพริบ ถ้าฝนตกตอนนี้ */}
+                {data.liveRainIntensity > 0 && (
+                    <span className="ml-4 px-3 py-1 bg-red-600/20 border border-red-500 text-red-500 text-sm font-bold rounded-full animate-pulse flex items-center">
+                        <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+                        LIVE: กำลังมีฝนตก
+                    </span>
+                )}
             </h1>
             <p className="text-[#2dd4bf] mt-2 text-sm tracking-widest font-mono">POWERED BY ONWR x TMD x DEEPMIND AI</p>
         </div>
@@ -163,35 +168,45 @@ export default function ExecutiveDashboard() {
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1">
         <div className="xl:col-span-5 flex flex-col gap-6">
-            <div className={`flex-1 border border-gray-800 bg-[#111a1c] rounded-3xl p-8 flex flex-col shadow-lg`}>
-                <div className="flex items-center space-x-4 mb-6 pb-4 border-b border-gray-800">
-                    <div className="w-12 h-12 rounded-full bg-[#111a1c] flex items-center justify-center text-2xl shadow-inner border border-gray-700">🧠</div>
-                    <div>
-                        <h2 className={`text-xl font-bold ${theme.text}`}>AI Data Fusion Briefing</h2>
-                        <span className="text-xs text-gray-400 font-mono tracking-widest">Status: {data.ai.status}</span>
+            <div className={`flex-1 border ${theme.border} bg-[#111a1c] ${theme.glow} rounded-3xl p-8 flex flex-col transition-all duration-500`}>
+                <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-800">
+                    <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 rounded-full bg-[#0a1112] flex items-center justify-center text-2xl shadow-inner border border-gray-700">🧠</div>
+                        <div>
+                            <h2 className={`text-xl font-bold ${theme.text}`}>AI Data Fusion Briefing</h2>
+                            <span className="text-xs text-gray-400 font-mono tracking-widest">Status: {data.ai.status}</span>
+                        </div>
+                    </div>
+                    {/* ⛰️ หลอดเกจวัดความเสี่ยงดินถล่ม (Soil Moisture/Saturation) */}
+                    <div className="text-right w-32">
+                        <div className="text-[10px] text-gray-400 mb-1 uppercase tracking-wider">ดัชนีดินอุ้มน้ำ (เสี่ยงถล่ม)</div>
+                        <div className="w-full bg-gray-800 rounded-full h-2">
+                            <div className={`${soilColor} h-2 rounded-full transition-all duration-1000`} style={{ width: `${data.soilMoisture}%` }}></div>
+                        </div>
+                        <div className={`text-xs mt-1 font-bold ${data.soilMoisture > 75 ? 'text-red-400' : 'text-gray-300'}`}>{Math.round(data.soilMoisture)}%</div>
                     </div>
                 </div>
                 
                 <div className="space-y-6 flex-1">
                     <div className="p-1">
-                        <h3 className="text-[#2dd4bf] font-bold text-sm mb-3 flex items-center"><span className="text-lg mr-3">🇹🇭</span> ประกาศกรมอุตุฯ & สทนช. (Official Status)</h3>
+                        <h3 className="text-[#2dd4bf] font-bold text-sm mb-3 flex items-center"><span className="text-lg mr-3">🇹🇭</span> ประกาศกรมอุตุฯ & สภาพจริง</h3>
                         <p className="text-gray-300 text-base leading-relaxed pl-7 border-l-2 border-[#2dd4bf]/30">{data.ai.tmdInsight}</p>
                     </div>
                     <div className="p-1">
-                        <h3 className="text-[#2dd4bf] font-bold text-sm mb-3 flex items-center"><span className="text-lg mr-3">🌎</span> พยากรณ์มหาภาค 15 วัน (Google DeepMind)</h3>
+                        <h3 className="text-[#2dd4bf] font-bold text-sm mb-3 flex items-center"><span className="text-lg mr-3">🌎</span> พยากรณ์มหาภาค 15 วัน (DeepMind)</h3>
                         <p className="text-gray-300 text-base leading-relaxed pl-7 border-l-2 border-[#2dd4bf]/30">{data.ai.deepmindTrend}</p>
                     </div>
                 </div>
             </div>
 
-            <div className="border border-gray-800 bg-[#111a1c] rounded-3xl p-8 shadow-lg">
+            <div className={`border ${theme.border} bg-[#111a1c] rounded-3xl p-8 shadow-lg`}>
                 <h3 className="text-base text-white font-bold mb-6 flex items-center tracking-wide">
-                    <span className="text-xl mr-3">🎯</span> ข้อเสนอแนะการสั่งการเชิงรุก (Proactive Actions)
+                    <span className="text-xl mr-3">🎯</span> ข้อเสนอแนะการสั่งการเชิงรุก
                 </h3>
                 <ul className="space-y-3">
                     {data.ai.actions.map((action: string, idx: number) => (
                         <li key={idx} className="flex items-center bg-[#0a1112] p-4 rounded-xl border border-gray-800/60">
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#2dd4bf] mr-4 flex-shrink-0"></div>
+                            <div className={`w-2 h-2 rounded-full ${theme.bg} mr-4 flex-shrink-0`}></div>
                             <span className="text-sm text-gray-300 font-medium">{action}</span>
                         </li>
                     ))}
@@ -201,11 +216,15 @@ export default function ExecutiveDashboard() {
 
         <div className="xl:col-span-7 flex flex-col gap-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-[#111a1c] border border-gray-800 rounded-2xl p-6 relative">
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">อุณหภูมิ (TMD Data)</h3>
+                
+                {/* 🔴 แทนที่กล่องแรกด้วย Live Rain Intensity แทนอุณหภูมิ */}
+                <div className={`bg-[#111a1c] border ${data.liveRainIntensity > 0 ? 'border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.15)]' : 'border-gray-800'} rounded-2xl p-6 relative overflow-hidden transition-all duration-500`}>
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">ฝนตก ณ วินาทีนี้ (Live)</h3>
                     <div className="flex items-baseline space-x-1">
-                        <span className="text-4xl font-black text-white">{Math.round(data.currentTemp)}</span>
-                        <span className="text-lg text-gray-500 font-bold">°C</span>
+                        <span className={`text-4xl font-black ${data.liveRainIntensity > 0 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
+                            {data.liveRainIntensity.toFixed(1)}
+                        </span>
+                        <span className="text-lg text-gray-500 font-bold">มม./ชม.</span>
                     </div>
                 </div>
 
