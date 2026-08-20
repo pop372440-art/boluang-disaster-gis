@@ -23,7 +23,8 @@ export default function ExecutiveDashboard() {
       try {
         const [onwrRes, forecastRes] = await Promise.allSettled([
           fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h'),
-          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}&current=temperature_2m,windspeed_10m,weathercode&daily=precipitation_sum,windspeed_10m_max,time&timezone=Asia%2FBangkok&forecast_days=7`)
+          // 🛑 1. แก้ไข URL: ลบคำว่า time ออกจาก daily=precipitation_sum,windspeed_10m_max
+          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}&current=temperature_2m,windspeed_10m,weathercode&daily=precipitation_sum,windspeed_10m_max&timezone=Asia%2FBangkok&forecast_days=7`)
         ]);
 
         let actualRain24h = 0;
@@ -46,12 +47,19 @@ export default function ExecutiveDashboard() {
 
         let forecast = null;
         if (forecastRes.status === 'fulfilled') {
-            forecast = await forecastRes.value.json();
+            const forecastJson = await forecastRes.value.json();
+            // 🛡️ 2. เกราะป้องกัน: เช็คว่า API คืนค่า Error มาหรือไม่ก่อนนำไปใช้งาน
+            if (!forecastJson.error) {
+                forecast = forecastJson;
+            } else {
+                console.error("Open-Meteo API Error:", forecastJson.reason);
+            }
         }
 
-        if (forecast) {
-            const currentTemp = forecast.current.temperature_2m;
-            const currentWind = forecast.current.windspeed_10m;
+        // 🛡️ 3. เกราะป้องกัน: ตรวจสอบว่ามีข้อมูล current และ daily ครบถ้วนก่อนคำนวณ
+        if (forecast && forecast.current && forecast.daily) {
+            const currentTemp = forecast.current.temperature_2m || 0;
+            const currentWind = forecast.current.windspeed_10m || 0;
             const maxRain7Days = Math.max(...forecast.daily.precipitation_sum);
             const maxWind7Days = Math.max(...forecast.daily.windspeed_10m_max);
             
@@ -91,9 +99,17 @@ export default function ExecutiveDashboard() {
                 daily: forecast.daily,
                 ai: { status, dailyInsight, weeklyTrend, actions }
             });
+        } else {
+            // กรณี API ล่ม หรือดึงข้อมูลไม่ได้ ให้เซ็ตค่าเริ่มต้นกันเว็บพัง
+             setData({
+                actualRain24h,
+                currentTemp: 0, currentWind: 0, maxRain7Days: 0, maxWind7Days: 0,
+                daily: { precipitation_sum: [], time: [] },
+                ai: { status: 'NORMAL', dailyInsight: 'กำลังเชื่อมต่อข้อมูลสภาพอากาศ...', weeklyTrend: 'ไม่สามารถดึงข้อมูลพยากรณ์ล่วงหน้าได้', actions: ['โปรดรีเฟรชหน้าเว็บอีกครั้ง'] }
+            });
         }
       } catch (e) {
-        console.error(e);
+        console.error("Data processing error:", e);
       } finally {
         setIsLoading(false);
       }
