@@ -30,7 +30,7 @@ export default function ExecutiveDashboard() {
       try {
         const [onwrRes, forecastRes] = await Promise.allSettled([
           fetch('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h'),
-          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}&current=temperature_2m,windspeed_10m,weathercode&daily=precipitation_sum,windspeed_10m_max,time&timezone=Asia%2FBangkok&forecast_days=7`)
+          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}&current=temperature_2m,windspeed_10m,weathercode&daily=precipitation_sum,windspeed_10m_max&timezone=Asia%2FBangkok&forecast_days=7`)
         ]);
 
         let actualRain24h = 0;
