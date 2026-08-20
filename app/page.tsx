@@ -173,7 +173,16 @@ export default function BoLuangDashboard() {
   
   const [isMobile, setIsMobile] = useState(false);
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+  
+  // 🟢 1. เพิ่ม State ตัวแปรเวลา ตรงนี้ครับ
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
+  // 🟢 2. เพิ่ม useEffect ให้นาฬิกาเดินทุก 1 วินาที ตรงนี้ครับ
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  
   const [apiStatus, setApiStatus] = useState({ tmd: '', pm25: '', onwrRain: '', onwrWater: '' });
   const [searchQuery, setSearchQuery] = useState('');
 
