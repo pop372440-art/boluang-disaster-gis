@@ -151,7 +151,6 @@ export default function ExecutiveDashboard() {
   return (
     <div className="min-h-screen bg-[#0a1112] p-4 md:p-8 font-sans text-gray-100 flex flex-col overflow-hidden">
       
-      {/* CSS Animation */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes scroll-up {
           0% { transform: translateY(0); }
@@ -189,10 +188,29 @@ export default function ExecutiveDashboard() {
         </div>
       </div>
 
-      {/* 🔴 Top KPI Row (ยกระดับตัวชี้วัดความเป็นความตายขึ้นมาด้านบนสุด) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 shrink-0">
-          <div className={`bg-[#111a1c] border ${data.liveRainIntensity > 0 ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'border-gray-800'} rounded-2xl p-6 relative overflow-hidden transition-all duration-500`}>
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center"><span className="mr-2">📡</span> ฝนตก ณ วินาทีนี้ (Live Satellite)</h3>
+      {/* 🔴 Top KPI Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 shrink-0 z-50">
+          
+          {/* KPI 1: Live Rain + Tooltip นวัตกรรมสถานีโทรมาตรเสมือน */}
+          <div className={`bg-[#111a1c] border ${data.liveRainIntensity > 0 ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'border-gray-800'} rounded-2xl p-6 relative transition-all duration-500`}>
+              <div className="relative group flex items-center mb-2 cursor-help w-max">
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center">
+                      <span className="mr-2">📡</span> ฝนตก ณ วินาทีนี้ (Live)
+                  </h3>
+                  <span className="ml-2 text-[#2dd4bf] text-sm animate-pulse border border-[#2dd4bf]/50 rounded-full w-4 h-4 flex items-center justify-center">i</span>
+                  
+                  {/* 💡 Tooltip Box (ก้าวข้ามข้อจำกัดฮาร์ดแวร์) */}
+                  <div className="absolute top-full left-0 mt-3 w-80 p-4 bg-[#0a1112] border border-[#2dd4bf]/50 rounded-2xl shadow-[0_0_25px_rgba(45,212,191,0.2)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
+                      <div className="absolute -top-2 left-6 w-4 h-4 bg-[#0a1112] border-t border-l border-[#2dd4bf]/50 transform rotate-45"></div>
+                      <h4 className="text-[#2dd4bf] text-sm font-bold mb-2 flex items-center">
+                          <span className="mr-2">💡</span> นวัตกรรม "สถานีโทรมาตรเสมือน"
+                      </h4>
+                      <p className="text-[12px] text-gray-300 leading-relaxed font-mono">
+                          ก้าวข้ามข้อจำกัดพื้นที่ภูเขาที่ไม่มีสถานีวัดฝน (Hardware Limitation) ด้วยเทคโนโลยี <b>Grid-based Satellite Radar</b> เจาะจงพิกัดตำบลบ่อหลวงแบบ Real-time ขจัดปัญหาข้อมูลล่าช้าและผิดพลาด (Data Lag)
+                      </p>
+                  </div>
+              </div>
+
               <div className="flex items-baseline space-x-1">
                   <span className={`text-4xl md:text-5xl font-black ${data.liveRainIntensity > 0 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
                       {data.liveRainIntensity.toFixed(1)}
@@ -201,6 +219,7 @@ export default function ExecutiveDashboard() {
               </div>
           </div>
 
+          {/* KPI 2: ONWR */}
           <div className="bg-[#111a1c] border border-gray-800 rounded-2xl p-6 relative">
               <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center"><span className="mr-2">🇹🇭</span> ฝนสะสม 24 ชม. (ONWR)</h3>
               <div className="flex items-baseline space-x-1">
@@ -209,6 +228,7 @@ export default function ExecutiveDashboard() {
               </div>
           </div>
 
+          {/* KPI 3: Soil Saturation */}
           <div className={`bg-[#111a1c] border ${data.soilMoisture > 75 ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'border-gray-800'} rounded-2xl p-6 relative flex flex-col justify-center`}>
               <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center"><span className="mr-2">⛰️</span> ดัชนีดินอุ้มน้ำ (เสี่ยงสไลด์)</h3>
               <div className="flex items-center space-x-4">
@@ -222,13 +242,10 @@ export default function ExecutiveDashboard() {
           </div>
       </div>
 
-      {/* 🎯 Main Grid Layout (ขยายการสั่งการ / ย่อกราฟ) */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1 z-10">
         
-        {/* 🧠 ฝั่งซ้าย: AI Analysis & Action (ขยายพื้นที่เป็น 6 ส่วน) */}
+        {/* 🧠 ฝั่งซ้าย: AI Analysis & Action */}
         <div className="xl:col-span-6 flex flex-col gap-6 h-full">
-            
-            {/* AI Summary Box (พร้อม News Ticker) */}
             <div className={`flex-1 border ${theme.border} bg-[#111a1c] ${theme.glow} rounded-3xl p-8 flex flex-col transition-all duration-500 overflow-hidden relative min-h-[250px]`}>
                 <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-800 shrink-0 z-20 bg-[#111a1c]">
                     <div className="flex items-center space-x-4">
@@ -241,7 +258,6 @@ export default function ExecutiveDashboard() {
                         </div>
                     </div>
                 </div>
-                
                 <div className="flex-1 relative overflow-hidden">
                     <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#111a1c] via-transparent to-[#111a1c] z-10"></div>
                     <div className="ticker-container absolute top-full left-0 right-0 flex flex-col space-y-8 pb-10 px-2 cursor-default">
@@ -263,7 +279,6 @@ export default function ExecutiveDashboard() {
                 </div>
             </div>
 
-            {/* 🎯 Action Box (ขยายใหญ่ขึ้น เด่นขึ้น) */}
             <div className={`border ${data.ai.status === 'CRITICAL' ? 'border-red-500 bg-[#3f0f0f]' : 'border-gray-800 bg-[#111a1c]'} rounded-3xl p-8 shadow-2xl shrink-0 transition-colors duration-500`}>
                 <h3 className={`text-xl font-bold mb-6 flex items-center tracking-wide ${data.ai.status === 'CRITICAL' ? 'text-red-400' : 'text-white'}`}>
                     <span className="text-3xl mr-4">🎯</span> ข้อเสนอแนะการสั่งการเชิงรุก (Proactive Actions)
@@ -279,20 +294,34 @@ export default function ExecutiveDashboard() {
             </div>
         </div>
 
-        {/* 📊 ฝั่งขวา: กราฟ & อนาคต (ย่อเหลือ 6 ส่วน) */}
+        {/* 📊 ฝั่งขวา: กราฟ & อนาคต */}
         <div className="xl:col-span-6 flex flex-col gap-6">
-            
-            {/* 🔮 Giant Graph & DeepMind Insight */}
-            <div className="flex-1 bg-[#111a1c] border border-gray-800 rounded-3xl p-8 shadow-xl flex flex-col">
+            <div className="flex-1 bg-[#111a1c] border border-gray-800 rounded-3xl p-8 shadow-xl flex flex-col min-h-[450px]">
                 
-                {/* 🌎 DeepMind Insight Box (วางเด่นชัดเหนือกราฟ) */}
+                {/* 🌎 DeepMind Insight Box + Tooltip อธิบาย */}
                 <div className="mb-8">
                     <div className="bg-[#0a1112] p-5 rounded-2xl border border-[#2dd4bf]/30 shadow-[0_0_15px_rgba(45,212,191,0.05)] mb-6">
-                        <div className="flex items-center justify-between mb-3">
-                            <h4 className="text-sm text-[#2dd4bf] font-bold uppercase tracking-widest flex items-center">
-                                <span className="text-xl mr-2">🌎</span> DeepMind 15-Day Vision
-                            </h4>
-                            <span className="text-[10px] bg-[#2dd4bf]/10 text-[#2dd4bf] px-2 py-1 rounded border border-[#2dd4bf]/20">Global Atmospheric Patterns</span>
+                        <div className="flex items-center justify-between mb-3 relative">
+                            
+                            <div className="relative group flex items-center cursor-help w-max">
+                                <h4 className="text-sm text-[#2dd4bf] font-bold uppercase tracking-widest flex items-center">
+                                    <span className="text-xl mr-2">🌎</span> DeepMind 15-Day Vision
+                                </h4>
+                                <span className="ml-2 text-[#2dd4bf] text-sm animate-pulse border border-[#2dd4bf]/50 rounded-full w-4 h-4 flex items-center justify-center">i</span>
+                                
+                                {/* 💡 Tooltip Box (ทำไมต้อง DeepMind) */}
+                                <div className="absolute top-full left-0 mt-3 w-80 p-4 bg-[#0a1112] border border-[#2dd4bf]/50 rounded-2xl shadow-[0_0_25px_rgba(45,212,191,0.2)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
+                                    <div className="absolute -top-2 left-6 w-4 h-4 bg-[#0a1112] border-t border-l border-[#2dd4bf]/50 transform rotate-45"></div>
+                                    <h4 className="text-[#2dd4bf] text-sm font-bold mb-2 flex items-center">
+                                        <span className="mr-2">🔮</span> AI Predictive Vision
+                                    </h4>
+                                    <p className="text-[12px] text-gray-300 leading-relaxed font-mono">
+                                        ทำนายล่วงหน้า 15 วัน โดยที่ AI ไม่ได้วิเคราะห์จากเครื่องวัดบนพื้นดิน แต่ประเมินจาก <b>"โครงสร้างชั้นบรรยากาศโลก" (Global Atmospheric Patterns)</b> เพื่อดักจับร่องมรสุมจากพม่าและพายุไต้ฝุ่น ช่วยให้ผู้บริหารเตรียมรับมือก่อนเกิดเหตุ
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <span className="text-[10px] bg-[#2dd4bf]/10 text-[#2dd4bf] px-2 py-1 rounded border border-[#2dd4bf]/20 hidden md:block">Global Atmospheric Patterns</span>
                         </div>
                         <p className="text-base text-gray-200 leading-relaxed font-medium">
                             {data.ai.deepmindTrend}
@@ -307,7 +336,6 @@ export default function ExecutiveDashboard() {
                     </div>
                 </div>
                 
-                {/* Graph Container (ปรับขนาดให้กระชับขึ้น) */}
                 <div className="flex-1 flex items-end justify-between space-x-3 h-full pb-2">
                     {data.daily.precipitation_sum.map((rain: number, idx: number) => {
                         const date = new Date(data.daily.time[idx]);
