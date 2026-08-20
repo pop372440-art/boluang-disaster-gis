@@ -1547,16 +1547,23 @@ export default function BoLuangDashboard() {
                 <div className="w-[1px] h-5 bg-[#1e293b]"></div>
 
                 {/* วันที่และเวลา */}
-                <div className="flex flex-col">
-                   <div className="flex items-center space-x-2">
-                      <span className="text-[#38bdf8] font-bold text-[13px] tracking-widest">
-                         {currentTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
-                      </span>
-                      <span className="text-gray-400 text-[11px] font-medium">
-                         {currentTime.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
-                      </span>
-                   </div>
-                </div>
+        <div className="flex flex-col w-[120px]">
+           <div className="flex items-center space-x-2">
+              {mounted ? (
+                <>
+                  <span className="text-[#38bdf8] font-bold text-[13px] tracking-widest">
+                     {currentTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                  </span>
+                  <span className="text-gray-400 text-[11px] font-medium">
+                     {currentTime.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
+                  </span>
+                </>
+              ) : (
+                /* โครงหลอกกัน Error */
+                <span className="text-gray-500 text-[11px] animate-pulse">กำลังซิงค์เวลา...</span>
+              )}
+           </div>
+        </div>
 
               </div>
             </div>
