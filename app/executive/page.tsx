@@ -88,30 +88,29 @@ export default function ExecutiveDashboard() {
             let status = 'NORMAL';
             let tmdInsight = `อุณหภูมิ ${currentTemp}°C ลม ${currentWind} กม./ชม. สภาพอากาศปัจจุบันปลอดภัย`;
             
-            // 🌎 การสร้าง Context สำหรับ DeepMind (ผูกเข้ากับกราฟ)
             let deepmindTrend = '';
             if(maxRain15Days > 80) {
-                deepmindTrend = `AI ของ Google ตรวจพบ "พายุไต้ฝุ่นจากทะเลจีนใต้" กำลังก่อตัวและมีทิศทางพุ่งชนภาคเหนือตอนล่าง คาดว่าจะส่งผลกระทบในพื้นที่ช่วงวันที่ ${criticalDate15Days} (ฝนสะสมทะลุ ${maxRain15Days.toFixed(1)} มม.) เตรียมตัวรับมือ!`;
+                deepmindTrend = `AI ของ Google ตรวจพบ "พายุไต้ฝุ่น" กำลังก่อตัว คาดว่าจะส่งผลกระทบในพื้นที่ช่วงวันที่ ${criticalDate15Days} (ฝนสะสมทะลุ ${maxRain15Days.toFixed(1)} มม.) เตรียมตัวรับมือ!`;
             } else if (maxRain15Days > 30) {
-                deepmindTrend = `AI ของ Google มองเห็น "ร่องมรสุมกำลังปานกลางจากพม่า" พาดผ่านภาคเหนือตอนล่างในช่วงสัปดาห์หน้า คาดว่าจะมีกลุ่มฝนสะสม ${maxRain15Days.toFixed(1)} มม. แต่อาจไม่มีพายุใหญ่ซ้อนทับ`;
+                deepmindTrend = `AI ของ Google มองเห็น "ร่องมรสุม" พาดผ่านช่วงสัปดาห์หน้า คาดว่าจะมีกลุ่มฝนสะสม ${maxRain15Days.toFixed(1)} มม. แต่อาจไม่มีพายุใหญ่ซ้อนทับ`;
             } else {
                 deepmindTrend = `AI ของ Google ประเมินโครงสร้างชั้นบรรยากาศโลก (Global Atmospheric Patterns) ล่วงหน้า 15 วัน ไม่พบสัญญาณพายุรุนแรงก่อตัว สภาพอากาศยังคงปกติ`;
             }
 
-            let actions = ['ตรวจสอบความพร้อมอุปกรณ์เตือนภัย', 'อัปเดตข้อมูลให้ประชาชนทราบตามปกติ'];
+            let actions = ['ตรวจสอบความพร้อมอุปกรณ์เตือนภัย', 'อัปเดตข้อมูลสถานการณ์ให้ประชาชนทราบตามปกติ'];
 
             if (actualRain24h > 90 || maxRain7Days > 90 || soilMoisture > 80) {
                 status = 'CRITICAL';
                 tmdInsight = liveRainIntensity > 0
                     ? `🚨 ด่วน! มีฝนตกหนักต่อเนื่อง ดินอุ้มน้ำระดับวิกฤต (${Math.round(soilMoisture)}%) เสี่ยงดินถล่มฉับพลัน!` 
                     : `ประกาศจากกรมอุตุฯ: เฝ้าระวังพายุฝนฟ้าคะนองรุนแรงใน 1-3 วันนี้`;
-                actions = ['🚨 อ้างอิงประกาศกรมอุตุฯ เพื่อเบิกงบฉุกเฉิน EOC ทันที', 'อพยพประชาชนในโซนเชิงเขาด่วน!', 'สั่งเครื่องจักรกลหนักเข้าพื้นที่เสี่ยง'];
+                actions = ['🚨 อ้างอิงประกาศกรมอุตุฯ เพื่อเบิกงบฉุกเฉิน เปิดศูนย์ EOC ทันที', 'อพยพประชาชนในโซนเสี่ยงภัยเชิงเขาโดยด่วน', 'สั่งเครื่องจักรกลหนักเข้าพื้นที่สแตนด์บาย'];
             } else if (liveRainIntensity > 0 || actualRain24h > 20 || soilMoisture > 40) {
                 status = 'WARNING';
                 tmdInsight = liveRainIntensity > 0
                     ? `⚠️ ขณะนี้มีฝนตกในพื้นที่! (ความแรง ${liveRainIntensity} มม./ชม.) ดินเริ่มอุ้มน้ำ ระวังดินสไลด์`
-                    : `มีฝนตกสะสม ${actualRain24h} มม. แจ้งเตือนน้ำท่วมขัง`;
-                actions = ['ประกาศเสียงตามสาย แจ้งเตือนประชาชนพื้นที่ภูเขา', 'ส่งหน่วยลาดตระเวนเช็คระดับน้ำในลำห้วย', 'เตรียมพร้อมเครื่องสูบน้ำ'];
+                    : `มีฝนตกสะสม ${actualRain24h} มม. แจ้งเตือนน้ำท่วมขังและดินชุ่มน้ำ`;
+                actions = ['ประกาศเสียงตามสาย แจ้งเตือนประชาชนพื้นที่ภูเขาและริมน้ำ', 'ส่งหน่วยลาดตระเวนเช็คระดับน้ำในลำห้วยสาธารณะ', 'เตรียมพร้อมเครื่องสูบน้ำและเครื่องตัดถ่าง'];
             }
 
             setData({
@@ -142,9 +141,9 @@ export default function ExecutiveDashboard() {
   );
 
   const getTheme = (status: string) => {
-      if (status === 'CRITICAL') return { border: 'border-red-500/50', bg: 'bg-[#ef4444]', text: 'text-[#f87171]', glow: 'shadow-[0_0_30px_rgba(239,68,68,0.2)]' };
-      if (status === 'WARNING') return { border: 'border-yellow-500/50', bg: 'bg-[#facc15]', text: 'text-[#facc15]', glow: 'shadow-[0_0_30px_rgba(250,204,21,0.1)]' };
-      return { border: 'border-[#2dd4bf]/40', bg: 'bg-[#0f766e]', text: 'text-[#2dd4bf]', glow: 'shadow-lg' };
+      if (status === 'CRITICAL') return { border: 'border-red-500/50', bg: 'bg-[#ef4444]', text: 'text-[#f87171]', glow: 'shadow-[0_0_30px_rgba(239,68,68,0.25)]' };
+      if (status === 'WARNING') return { border: 'border-yellow-500/50', bg: 'bg-[#facc15]', text: 'text-[#facc15]', glow: 'shadow-[0_0_30px_rgba(250,204,21,0.15)]' };
+      return { border: 'border-[#2dd4bf]/40', bg: 'bg-[#0f766e]', text: 'text-[#2dd4bf]', glow: 'shadow-[0_0_20px_rgba(45,212,191,0.1)]' };
   };
   const theme = getTheme(data.ai.status);
   const soilColor = data.soilMoisture > 75 ? 'bg-red-500' : data.soilMoisture > 40 ? 'bg-yellow-400' : 'bg-emerald-400';
@@ -167,7 +166,7 @@ export default function ExecutiveDashboard() {
       `}} />
 
       {/* 🖥️ Top Bar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 pb-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 pb-4 border-b border-gray-800">
         <div>
             <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white flex items-center">
                 EXECUTIVE <span className={`ml-3 ${theme.text}`}>DASHBOARD</span>
@@ -181,7 +180,7 @@ export default function ExecutiveDashboard() {
             <p className="text-[#2dd4bf] mt-2 text-sm tracking-widest font-mono">POWERED BY ONWR x TMD x DEEPMIND AI</p>
         </div>
         <div className="mt-4 md:mt-0 text-right">
-            <div className="text-3xl md:text-4xl font-mono font-bold text-white tracking-widest">
+            <div className="text-3xl md:text-4xl font-mono font-bold text-white tracking-widest drop-shadow-md">
                 {currentTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </div>
             <div className="text-sm text-gray-400 mt-1">
@@ -190,124 +189,126 @@ export default function ExecutiveDashboard() {
         </div>
       </div>
 
+      {/* 🔴 Top KPI Row (ยกระดับตัวชี้วัดความเป็นความตายขึ้นมาด้านบนสุด) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 shrink-0">
+          <div className={`bg-[#111a1c] border ${data.liveRainIntensity > 0 ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'border-gray-800'} rounded-2xl p-6 relative overflow-hidden transition-all duration-500`}>
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center"><span className="mr-2">📡</span> ฝนตก ณ วินาทีนี้ (Live Satellite)</h3>
+              <div className="flex items-baseline space-x-1">
+                  <span className={`text-4xl md:text-5xl font-black ${data.liveRainIntensity > 0 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
+                      {data.liveRainIntensity.toFixed(1)}
+                  </span>
+                  <span className="text-lg text-gray-500 font-bold ml-2">มม./ชม.</span>
+              </div>
+          </div>
+
+          <div className="bg-[#111a1c] border border-gray-800 rounded-2xl p-6 relative">
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center"><span className="mr-2">🇹🇭</span> ฝนสะสม 24 ชม. (ONWR)</h3>
+              <div className="flex items-baseline space-x-1">
+                  <span className="text-4xl md:text-5xl font-black text-[#4ade80]">{data.actualRain24h}</span>
+                  <span className="text-lg text-gray-500 font-bold ml-2">มม.</span>
+              </div>
+          </div>
+
+          <div className={`bg-[#111a1c] border ${data.soilMoisture > 75 ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'border-gray-800'} rounded-2xl p-6 relative flex flex-col justify-center`}>
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center"><span className="mr-2">⛰️</span> ดัชนีดินอุ้มน้ำ (เสี่ยงสไลด์)</h3>
+              <div className="flex items-center space-x-4">
+                  <span className={`text-4xl md:text-5xl font-black ${data.soilMoisture > 75 ? 'text-red-400 animate-pulse' : data.soilMoisture > 40 ? 'text-yellow-400' : 'text-[#2dd4bf]'}`}>
+                      {Math.round(data.soilMoisture)}%
+                  </span>
+                  <div className="flex-1 bg-gray-800 rounded-full h-3 overflow-hidden border border-gray-700">
+                      <div className={`${soilColor} h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_currentColor]`} style={{ width: `${data.soilMoisture}%` }}></div>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      {/* 🎯 Main Grid Layout (ขยายการสั่งการ / ย่อกราฟ) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1">
         
-        {/* 🧠 ฝั่งซ้าย: AI Analysis (ปัจจุบันล้วนๆ) */}
-        <div className="xl:col-span-5 flex flex-col gap-6 h-full">
+        {/* 🧠 ฝั่งซ้าย: AI Analysis & Action (ขยายพื้นที่เป็น 6 ส่วน) */}
+        <div className="xl:col-span-6 flex flex-col gap-6 h-full">
             
-            <div className={`flex-1 border ${theme.border} bg-[#111a1c] ${theme.glow} rounded-3xl p-8 flex flex-col transition-all duration-500 overflow-hidden relative min-h-[300px]`}>
+            {/* AI Summary Box (พร้อม News Ticker) */}
+            <div className={`flex-1 border ${theme.border} bg-[#111a1c] ${theme.glow} rounded-3xl p-8 flex flex-col transition-all duration-500 overflow-hidden relative min-h-[250px]`}>
                 <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-800 shrink-0 z-20 bg-[#111a1c]">
                     <div className="flex items-center space-x-4">
                         <div className="w-12 h-12 rounded-full bg-[#0a1112] flex items-center justify-center text-2xl shadow-inner border border-gray-700">🧠</div>
                         <div>
-                            <h2 className={`text-xl font-bold ${theme.text}`}>AI Current Briefing</h2>
-                            <span className="text-xs text-gray-400 font-mono tracking-widest flex items-center">
-                                Status: <span className={`ml-2 ${data.ai.status !== 'NORMAL' ? 'animate-pulse' : ''}`}>{data.ai.status}</span>
+                            <h2 className={`text-2xl font-bold ${theme.text}`}>AI Current Briefing</h2>
+                            <span className="text-sm text-gray-400 font-mono tracking-widest flex items-center mt-1">
+                                Status: <span className={`ml-2 font-bold ${data.ai.status !== 'NORMAL' ? 'animate-pulse text-white' : ''}`}>{data.ai.status}</span>
                             </span>
                         </div>
-                    </div>
-                    <div className="text-right w-32">
-                        <div className="text-[10px] text-gray-400 mb-1 uppercase tracking-wider">ดัชนีดินอุ้มน้ำ (เสี่ยงถล่ม)</div>
-                        <div className="w-full bg-gray-800 rounded-full h-2">
-                            <div className={`${soilColor} h-2 rounded-full transition-all duration-1000 shadow-[0_0_10px_currentColor]`} style={{ width: `${data.soilMoisture}%` }}></div>
-                        </div>
-                        <div className={`text-xs mt-1 font-bold ${data.soilMoisture > 75 ? 'text-red-400' : 'text-gray-300'}`}>{Math.round(data.soilMoisture)}%</div>
                     </div>
                 </div>
                 
                 <div className="flex-1 relative overflow-hidden">
                     <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#111a1c] via-transparent to-[#111a1c] z-10"></div>
-                    
                     <div className="ticker-container absolute top-full left-0 right-0 flex flex-col space-y-8 pb-10 px-2 cursor-default">
                         <div className="pb-4 border-b border-gray-800/50">
-                            <h3 className="text-[#2dd4bf] font-bold text-sm mb-3 flex items-center"><span className="text-lg mr-3">🇹🇭</span> ประกาศกรมอุตุฯ & สภาพจริง (Micro-climate)</h3>
-                            <p className="text-gray-300 text-[15px] leading-relaxed pl-7 border-l-2 border-[#2dd4bf]/30">
+                            <h3 className="text-[#2dd4bf] font-bold text-base mb-3 flex items-center"><span className="text-xl mr-3">🇹🇭</span> ประกาศกรมอุตุฯ & สภาพจริง (Micro-climate)</h3>
+                            <p className="text-gray-200 text-[16px] leading-relaxed pl-7 border-l-2 border-[#2dd4bf]/40">
                                 {data.ai.tmdInsight}
-                                {data.liveRainIntensity > 0 && <span className="block mt-2 text-red-400">🚨 ระบบเซนเซอร์ดาวเทียม (Virtual Rain Gauge) ตรวจจับพบกลุ่มฝนตกกระจุกตัวเหนือพิกัดตำบลบ่อหลวง ณ ขณะนี้</span>}
+                                {data.liveRainIntensity > 0 && <span className="block mt-3 text-red-400 font-bold bg-red-900/20 p-3 rounded-lg border border-red-500/30">🚨 ตรวจพบกลุ่มฝนตกกระจุกตัวเหนือพิกัดตำบลบ่อหลวง ณ ขณะนี้ (Bypassing ONWR Sensors)</span>}
                             </p>
                         </div>
                         <div className="pb-4 text-gray-400">
-                            <h3 className="text-gray-400 font-bold text-sm mb-3 flex items-center"><span className="text-lg mr-3">⚙️</span> AI Engine Logs (ONWR/TMD)</h3>
+                            <h3 className="text-gray-400 font-bold text-sm mb-3 flex items-center"><span className="text-lg mr-3">⚙️</span> AI Engine Logs</h3>
                             <p className="text-xs leading-relaxed pl-7 border-l-2 border-gray-700/50 font-mono text-gray-500">
-                                [LOG] ระบบอ่านค่าสถานีวัดน้ำฝน สทนช. เทียบกับ Open-Meteo Radar...<br/>
-                                [LOG] อัลกอริทึมประเมินความชุ่มน้ำของผิวดิน (Soil Saturation) เพื่อแจ้งเตือนจุดเสี่ยงภัย
+                                [LOG] Syncing Local Data with Satellite Radar...<br/>
+                                [LOG] อัลกอริทึมประเมินความชุ่มน้ำของผิวดิน (Soil Saturation) เพื่อแจ้งเตือนจุดเสี่ยงภัยดินถล่ม
                             </p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="border border-gray-800 bg-[#111a1c] rounded-3xl p-8 shadow-lg shrink-0">
-                <h3 className="text-base text-white font-bold mb-6 flex items-center tracking-wide">
-                    <span className="text-xl mr-3">🎯</span> ข้อเสนอแนะการสั่งการเชิงรุก (Proactive Actions)
+            {/* 🎯 Action Box (ขยายใหญ่ขึ้น เด่นขึ้น) */}
+            <div className={`border ${data.ai.status === 'CRITICAL' ? 'border-red-500 bg-[#3f0f0f]' : 'border-gray-800 bg-[#111a1c]'} rounded-3xl p-8 shadow-2xl shrink-0 transition-colors duration-500`}>
+                <h3 className={`text-xl font-bold mb-6 flex items-center tracking-wide ${data.ai.status === 'CRITICAL' ? 'text-red-400' : 'text-white'}`}>
+                    <span className="text-3xl mr-4">🎯</span> ข้อเสนอแนะการสั่งการเชิงรุก (Proactive Actions)
                 </h3>
-                <ul className="space-y-3">
+                <ul className="space-y-4">
                     {data.ai.actions.map((action: string, idx: number) => (
-                        <li key={idx} className="flex items-center bg-[#0a1112] p-4 rounded-xl border border-gray-800/60 hover:border-[#2dd4bf]/50 transition-colors">
-                            <div className={`w-2 h-2 rounded-full ${theme.bg} mr-4 flex-shrink-0 ${data.ai.status !== 'NORMAL' ? 'animate-pulse' : ''}`}></div>
-                            <span className="text-sm text-gray-200 font-medium">{action}</span>
+                        <li key={idx} className="flex items-center bg-[#0a1112]/80 p-5 rounded-xl border border-gray-700/50 hover:border-[#2dd4bf]/50 transition-colors shadow-sm">
+                            <div className={`w-3 h-3 rounded-full ${theme.bg} mr-5 flex-shrink-0 ${data.ai.status !== 'NORMAL' ? 'animate-pulse shadow-[0_0_10px_currentColor]' : ''}`}></div>
+                            <span className="text-base md:text-lg text-gray-100 font-semibold tracking-wide">{action}</span>
                         </li>
                     ))}
                 </ul>
             </div>
         </div>
 
-        {/* 📊 ฝั่งขวา: กราฟ & อนาคต (DeepMind) */}
-        <div className="xl:col-span-7 flex flex-col gap-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 shrink-0">
-                <div className={`bg-[#111a1c] border ${data.liveRainIntensity > 0 ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.15)]' : 'border-gray-800'} rounded-2xl p-6 relative overflow-hidden transition-all duration-500`}>
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">ฝนตก ณ วินาทีนี้ (Live)</h3>
-                    <div className="flex items-baseline space-x-1">
-                        <span className={`text-4xl font-black ${data.liveRainIntensity > 0 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
-                            {data.liveRainIntensity.toFixed(1)}
-                        </span>
-                        <span className="text-lg text-gray-500 font-bold">มม./ชม.</span>
-                    </div>
-                </div>
-
-                <div className="bg-[#111a1c] border border-gray-800 rounded-2xl p-6 relative">
-                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">ฝน 24 ชม. (ONWR)</h3>
-                    <div className="flex items-baseline space-x-1">
-                        <span className="text-4xl font-black text-[#4ade80]">{data.actualRain24h}</span>
-                        <span className="text-lg text-gray-500 font-bold">มม.</span>
-                    </div>
-                </div>
-
-                <div className="bg-[#111a1c] border border-[#2dd4bf]/20 rounded-2xl p-6 relative overflow-hidden group">
-                    <h3 className="text-[10px] font-bold text-[#2dd4bf] uppercase tracking-widest mb-2">ความเสี่ยง 15 วัน (DeepMind)</h3>
-                    <div className="flex items-baseline space-x-1">
-                        <span className="text-4xl font-black text-[#facc15]">{data.maxRain15Days.toFixed(1)}</span>
-                        <span className="text-lg text-[#facc15]/50 font-bold">มม.</span>
-                    </div>
-                </div>
-            </div>
-
+        {/* 📊 ฝั่งขวา: กราฟ & อนาคต (ย่อเหลือ 6 ส่วน) */}
+        <div className="xl:col-span-6 flex flex-col gap-6">
+            
             {/* 🔮 Giant Graph & DeepMind Insight */}
-            <div className="flex-1 bg-[#111a1c] border border-gray-800 rounded-3xl p-8 shadow-lg flex flex-col min-h-[450px]">
+            <div className="flex-1 bg-[#111a1c] border border-gray-800 rounded-3xl p-8 shadow-xl flex flex-col">
                 
-                {/* 🌎 ย้ายคำอธิบาย DeepMind มาไว้เหนือกราฟ */}
-                <div className="mb-6 pb-6 border-b border-gray-800/50">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <h3 className="text-lg font-bold text-white flex items-center">
-                                <span className="mr-3 text-xl">📊</span> กราฟพยากรณ์ปริมาณฝน (TMD x Global Models)
-                            </h3>
-                            <p className="text-xs text-gray-500 mt-1 ml-8 tracking-wide">โมเดลผสานข้อมูลระดับพื้นที่ เพื่อความแม่นยำสูงสุดในตำบลบ่อหลวง</p>
-                        </div>
-                        <div className="bg-[#0a1112] px-4 py-2 rounded-xl border border-gray-700 max-w-sm">
-                            <h4 className="text-[11px] text-[#2dd4bf] font-bold uppercase tracking-widest mb-1 flex items-center">
-                                <span>🌎 DeepMind 15-Day Vision</span>
+                {/* 🌎 DeepMind Insight Box (วางเด่นชัดเหนือกราฟ) */}
+                <div className="mb-8">
+                    <div className="bg-[#0a1112] p-5 rounded-2xl border border-[#2dd4bf]/30 shadow-[0_0_15px_rgba(45,212,191,0.05)] mb-6">
+                        <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-sm text-[#2dd4bf] font-bold uppercase tracking-widest flex items-center">
+                                <span className="text-xl mr-2">🌎</span> DeepMind 15-Day Vision
                             </h4>
-                            {/* แสดงข้อความวิเคราะห์มหาภาค (ที่ท่านต้องการ) */}
-                            <p className="text-[13px] text-gray-300 leading-snug">
-                                {data.ai.deepmindTrend}
-                            </p>
+                            <span className="text-[10px] bg-[#2dd4bf]/10 text-[#2dd4bf] px-2 py-1 rounded border border-[#2dd4bf]/20">Global Atmospheric Patterns</span>
                         </div>
+                        <p className="text-base text-gray-200 leading-relaxed font-medium">
+                            {data.ai.deepmindTrend}
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 className="text-lg font-bold text-white flex items-center">
+                            <span className="mr-3 text-xl">📊</span> กราฟพยากรณ์ปริมาณฝน (TMD x Global Models)
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1 ml-8 tracking-wide">ความละเอียดสูงระดับตำบลบ่อหลวง</p>
                     </div>
                 </div>
                 
-                {/* Graph Container */}
-                <div className="flex-1 flex items-end justify-between space-x-2 md:space-x-4 h-full pb-4">
+                {/* Graph Container (ปรับขนาดให้กระชับขึ้น) */}
+                <div className="flex-1 flex items-end justify-between space-x-3 h-full pb-2">
                     {data.daily.precipitation_sum.map((rain: number, idx: number) => {
                         const date = new Date(data.daily.time[idx]);
                         const dayName = date.toLocaleDateString('th-TH', { weekday: 'short' });
@@ -322,19 +323,19 @@ export default function ExecutiveDashboard() {
 
                         return (
                             <div key={idx} className="flex flex-col items-center flex-1 h-full justify-end group">
-                                <div className={`text-sm font-bold mb-3 ${rain > 0 ? 'text-white' : 'text-gray-600'}`}>
+                                <div className={`text-sm font-bold mb-3 transition-colors ${rain > 0 ? 'text-white' : 'text-gray-600'}`}>
                                     {rain.toFixed(1)}
                                 </div>
                                 <div className="w-full h-full flex items-end justify-center relative">
                                     <div className="absolute w-full h-full border-b border-gray-800/50 -z-10"></div>
                                     <div 
-                                        className={`w-full max-w-[40px] rounded-t-lg ${barColor} shadow-lg transition-all duration-700 ease-out`} 
+                                        className={`w-full max-w-[36px] rounded-t-lg ${barColor} shadow-md transition-all duration-700 ease-out opacity-90 group-hover:opacity-100 group-hover:shadow-[0_0_15px_currentColor]`} 
                                         style={{ height: `${heightPct}%` }}
                                     ></div>
                                 </div>
                                 <div className="mt-4 text-center">
-                                    <div className="text-sm font-bold text-gray-300">{dayName}</div>
-                                    <div className="text-xs text-gray-600 mt-1">{dateNum}</div>
+                                    <div className="text-[13px] font-bold text-gray-300">{dayName}</div>
+                                    <div className="text-[10px] text-gray-500 mt-1 uppercase">{dateNum}</div>
                                 </div>
                             </div>
                         );
