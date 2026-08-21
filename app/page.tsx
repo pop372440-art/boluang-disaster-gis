@@ -1460,6 +1460,8 @@ export default function BoLuangDashboard() {
       {/* ========================================== */}
 
       <header className="absolute top-0 left-0 right-0 h-[72px] bg-[#0b132b]/95 border-b border-[#1e293b] backdrop-blur-xl z-[80] flex items-center justify-between px-4 md:px-6 pointer-events-auto shadow-md">
+        
+        {/* === ฝั่งซ้าย: โลโก้ และ Widget สภาพอากาศ === */}
         <div className="flex items-center space-x-4 md:space-x-6">
           <button onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)} className="md:hidden p-2 bg-[#1e293b] rounded-lg text-gray-300 hover:text-white">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
@@ -1467,114 +1469,90 @@ export default function BoLuangDashboard() {
 
           <div className="flex items-center space-x-3 md:space-x-4">
             
-         {/* 🚀 โลโก้ GIS บ่อหลวง (แก้ปัญหาขอบแหว่งขั้นเด็ดขาด) */}
+            {/* โลโก้ */}
             <div className="relative flex-shrink-0 w-14 h-14 md:w-16 md:h-16 min-w-[56px] min-h-[56px] md:min-w-[64px] md:min-h-[64px] rounded-full shadow-[0_0_15px_rgba(56,189,248,0.4)] flex items-center justify-center bg-[#e5e7eb] p-[1.5px]">
-              <img 
-                src="/Logogis3.png" 
-                alt="โลโก้เทศบาลตำบลบ่อหลวง GIS" 
-                className="w-full h-full object-fill rounded-full"
-              />
+              <img src="/Logogis3.png" alt="โลโก้เทศบาลตำบลบ่อหลวง GIS" className="w-full h-full object-fill rounded-full" />
             </div>
             
+            {/* ชื่อระบบ */}
             <div className="flex flex-col justify-center ml-2">
-  
-  <div className="flex flex-col justify-center ml-2">
-  
-  {/* 💻 หน้าจอคอมพิวเตอร์ (โชว์เต็ม 2 บรรทัดเหมือนเดิม) */}
-  <div className="hidden md:block">
-    <h1 className="text-sm font-bold text-white">
-      ระบบสารสนเทศทางภูมิศาสตร์เพื่อบริหารจัดการด้านสาธารณภัย
-    </h1>
-    <p className="text-xs text-blue-400">
-      เทศบาลตำบลบ่อหลวง จ.เชียงใหม่
-    </p>
-  </div>
+              <div className="hidden md:block">
+                <h1 className="text-sm font-bold text-white">ระบบสารสนเทศทางภูมิศาสตร์เพื่อบริหารจัดการด้านสาธารณภัย</h1>
+                <p className="text-xs text-blue-400">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</p>
+              </div>
+              <div className="block md:hidden">
+                <h1 className="text-[13px] sm:text-sm font-bold text-white tracking-wide leading-tight">ระบบ GIS boluang</h1>
+              </div>
+            </div>
 
-  {/* 📱 หน้าจอมือถือ (โชว์แค่คำว่า ระบบ GIS สาธารณภัย) */}
-  <div className="block md:hidden">
-    <h1 className="text-[13px] sm:text-sm font-bold text-white tracking-wide leading-tight">
-      ระบบ GIS boluang
-    </h1>
-  </div>
-
-</div>
-
-</div>
+            {/* Status & Stats & Weather Widget */}
             <div className="hidden lg:flex items-center space-x-6 border-l border-[#1e293b] pl-6">
-            
-            <div className="flex flex-col justify-center">
-              <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถานะระบบ</span>
-              <div className="flex items-center text-[12px] font-mono text-gray-400">
-                <div className="flex items-center space-x-1.5">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#10b981]"></span>
-                  </span>
-                  <span className="text-[#10b981]">ONLINE</span>
+              
+              <div className="flex flex-col justify-center">
+                <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถานะระบบ</span>
+                <div className="flex items-center text-[12px] font-mono text-gray-400">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#10b981]"></span>
+                    </span>
+                    <span className="text-[#10b981]">ONLINE</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex flex-col justify-center border-l border-[#1e293b] pl-6">
-              <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถิติผู้เข้าชม</span>
-              <div className="flex items-center text-[12px] font-mono text-gray-400">
-                <div className="flex items-center space-x-1.5">
-                  <span>วันนี้: <span className="text-[#10b981]">{visitStats.today.toLocaleString()}</span></span>
-                </div>
-                <span className="mx-2 text-gray-600">|</span>
-                <div className="flex items-center space-x-1.5">
-                  <span>รวม: <span className="text-[#38bdf8]">{visitStats.total.toLocaleString()}</span></span>
+              <div className="flex flex-col justify-center border-l border-[#1e293b] pl-6">
+                <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถิติผู้เข้าชม</span>
+                <div className="flex items-center text-[12px] font-mono text-gray-400">
+                  <div className="flex items-center space-x-1.5">
+                    <span>วันนี้: <span className="text-[#10b981]">{visitStats.today.toLocaleString()}</span></span>
+                  </div>
+                  <span className="mx-2 text-gray-600">|</span>
+                  <div className="flex items-center space-x-1.5">
+                    <span>รวม: <span className="text-[#38bdf8]">{visitStats.total.toLocaleString()}</span></span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-           {/* ======================================================== */}
-            {/* 🕰️ Live Weather & Date-Time Widget (โหลดเร็ว น้ำหนักเบา) */}
-            <div className="hidden xl:flex flex-1 items-center justify-center px-6">
-              <div className="bg-[#0f172a]/60 border border-[#1e293b] rounded-full px-5 py-2 flex items-center space-x-4 shadow-sm backdrop-blur-sm cursor-default">
-                
-                {/* อุณหภูมิและไอคอนสภาพอากาศปัจจุบัน */}
-                <div className="flex items-center space-x-2">
-                  <span className="text-[20px]">
-                     {/* ใช้ฟังก์ชันดึง Emoji สภาพอากาศที่ท่านมีอยู่แล้ว โดยดึงจากสถานีบ่อหลวงที่ index 0 */}
-                     {localWeatherData.length > 0 ? getWeatherEmoji(localWeatherData[0].wCode) : '🌤️'}
-                  </span>
-                  <span className="text-[16px] font-black text-white tracking-wide">
-                     {localWeatherData.length > 0 ? Math.round(localWeatherData[0].temp) : '--'}°C
-                  </span>
+              {/* 🕰️ Live Weather & Date-Time Widget */}
+              <div className="hidden xl:flex flex-1 items-center justify-center px-6">
+                <div className="bg-[#0f172a]/60 border border-[#1e293b] rounded-full px-5 py-2 flex items-center space-x-4 shadow-sm backdrop-blur-sm cursor-default">
+                  
+                  {/* อุณหภูมิและไอคอน */}
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[20px]">{headerWeather ? getWeatherEmoji(headerWeather.wCode) : '🌤️'}</span>
+                    <span className="text-[16px] font-black text-white tracking-wide">{headerWeather ? Math.round(headerWeather.temp) : '--'}°C</span>
+                  </div>
+                  
+                  <div className="w-[1px] h-5 bg-[#1e293b]"></div>
+                  
+                  {/* วันที่และเวลา */}
+                  <div className="flex flex-col w-[120px]">
+                    <div className="flex items-center space-x-2">
+                      {mounted ? (
+                        <>
+                          <span className="text-[#38bdf8] font-bold text-[13px] tracking-widest">
+                            {currentTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                          </span>
+                          <span className="text-gray-400 text-[11px] font-medium">
+                            {currentTime.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-gray-500 text-[11px] animate-pulse">กำลังซิงค์เวลา...</span>
+                      )}
+                    </div>
+                  </div>
+
                 </div>
-
-                <div className="w-[1px] h-5 bg-[#1e293b]"></div>
-
-                {/* วันที่และเวลา */}
-        <div className="flex flex-col w-[120px]">
-           <div className="flex items-center space-x-2">
-              {mounted ? (
-                <>
-                  <span className="text-[#38bdf8] font-bold text-[13px] tracking-widest">
-                     {currentTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
-                  </span>
-                  <span className="text-gray-400 text-[11px] font-medium">
-                     {currentTime.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
-                  </span>
-                </>
-              ) : (
-                /* โครงหลอกกัน Error */
-                <span className="text-gray-500 text-[11px] animate-pulse">กำลังซิงค์เวลา...</span>
-              )}
-           </div>
-        </div>
-
               </div>
+
             </div>
-            {/* ======================================================== */}
-            
           </div>
-        </div>
+        </div> {/* 🟢 [จุดสำคัญ] ปิด div ฝั่งซ้ายตรงนี้! เพื่อให้ฝั่งขวาถูกดันไปริมสุด */}
 
         {/* === ฝั่งขวา: กลุ่มปุ่มเครื่องมือ === */}
         <div className="flex items-center space-x-2 md:space-x-3">          
-          {/* 📱 1. ปุ่ม QR Code ติดตั้งแอป (ตรงจุดที่วงสีแดง) */}
           <button
             onClick={() => setShowQrModal(true)}
             className="hidden md:flex items-center bg-gradient-to-r from-blue-600 to-blue-500 border border-blue-400 hover:border-white rounded-full px-3 py-1.5 shadow-[0_0_15px_rgba(37,99,235,0.3)] hover:shadow-[0_0_20px_rgba(37,99,235,0.6)] hover:scale-105 transition-all cursor-pointer group"
@@ -1585,7 +1563,6 @@ export default function BoLuangDashboard() {
             <span className="text-[12px] font-bold text-white tracking-wide">ติดตั้งแอป (PWA)</span>
           </button>
 
-          {/* 🗺️ 2. ปุ่ม GIS Layers (ของเดิม) */}
           <div onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer flex-shrink-0">
             <svg className="w-4 h-4 text-[#2dd4bf] mr-1.5 md:mr-2 transform rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
@@ -1595,9 +1572,12 @@ export default function BoLuangDashboard() {
             </span>
           </div>
         </div>
-        </div>
-      </header>      
-     {/* Sidebar ซ้าย (ข้อมูลอากาศ/น้ำ) */}
+
+      </header>
+      
+      {/* ========================================== */}
+      {/* Sidebar ซ้าย (ข้อมูลอากาศ/น้ำ) */}
+       {/* ========================================== */}
       <aside 
         className={`absolute top-[80px] md:top-24 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto ${isLeftPanelOpen ? 'translate-x-0 left-0 md:left-4' : 'translate-x-[-100%] left-0 md:left-4'}`}
       >
