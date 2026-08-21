@@ -47,19 +47,18 @@ const cleanName = (str: string) => {
   return String(str).replace(/^(จังหวัด|จ\.|อำเภอ|อ\.|ตำบล|ต\.)/g, '').trim();
 };
 
-// 🛡️ API Resilience ทะลวงข้อมูล
-const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 15000) => {
+// 🛡️ API Resilience (Direct Fetch)
+const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 10000) => {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
-    let fetchUrl = url.includes('open-meteo') ? url : `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-    const res = await fetch(fetchUrl, { signal: controller.signal });
+    // ดึงข้อมูลตรงๆ ไม่ต้องผ่าน Proxy
+    const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
     
     if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-    let data = await res.json();
-    if (data.contents) data = JSON.parse(data.contents); 
+    const data = await res.json();
     
     try { sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data })); } catch (e) {}
     return { data, status: '🟢 เชื่อมต่อสำเร็จ' };
