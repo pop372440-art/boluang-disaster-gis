@@ -231,7 +231,7 @@ export default function WeatherDashboard() {
         </Link>
       </header>
 
-      <main className="p-4 md:p-6 max-w-[1400px] mx-auto mt-2 space-y-6">
+      <main className="p-4 md:p-6 w-full space-y-5">
 
         {/* 🚨 Dynamic Alert: โชว์เฉพาะเมื่อตรวจพบภัยจริง (Data Honesty) */}
         {staticWeather.rain_today > 0 ? (
