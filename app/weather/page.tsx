@@ -78,7 +78,7 @@ const getAqiStatus = (aqi: number) => {
 // ==========================================
 export default function WeatherDashboard() {
   const [windyLayer, setWindyLayer] = useState('radar');
-  const [windyZoom, setWindyZoom] = useState(5); // 🚀 เพิ่ม State สำหรับควบคุม Zoom ของ Windy
+  const [windyZoom, setWindyZoom] = useState(5); 
   const [searchQuery, setSearchQuery] = useState('');
   const [position, setPosition] = useState({ lat: INITIAL_LAT, lng: INITIAL_LNG });
   const [locationName, setLocationName] = useState('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
@@ -233,14 +233,28 @@ export default function WeatherDashboard() {
 
       <main className="p-4 md:p-6 max-w-[1400px] mx-auto mt-2 space-y-6">
 
-        {/* 🚨 ป้ายแจ้งเตือนสภาพอากาศรุนแรง */}
-        <div className="bg-[#e11d48] rounded-2xl p-4 md:p-5 shadow-lg border border-red-400 flex items-start space-x-4 animate-pulse-slow">
-          <div className="mt-1 w-6 h-6 rounded-full border-2 border-white flex-shrink-0 animate-ping"></div>
-          <div>
-            <h3 className="text-white font-extrabold text-lg tracking-wide">แจ้งเตือนสภาพอากาศรุนแรง</h3>
-            <p className="text-white/90 text-sm md:text-base font-medium mt-1">ขณะนี้มีโอกาสเกิดพายุฝนฟ้าคะนอง โปรดระมัดระวังในการเดินทาง</p>
+        {/* 🚨 Dynamic Alert: โชว์เฉพาะเมื่อตรวจพบภัยจริง (Data Honesty) */}
+        {staticWeather.rain_today > 0 ? (
+          <div className="bg-red-900/40 border border-red-500/50 rounded-xl p-4 md:p-5 shadow-lg flex items-start space-x-4 animate-pulse-slow">
+            <div className="mt-1 w-6 h-6 rounded-full border-2 border-white flex-shrink-0 animate-ping bg-red-500"></div>
+            <div>
+              <h3 className="text-red-400 font-extrabold text-lg tracking-wide">แจ้งเตือนสภาพอากาศ (Live Alert)</h3>
+              <p className="text-white/90 text-sm md:text-base font-medium mt-1">
+                <b>ข้อมูลดาวเทียม:</b> ตรวจพบกลุ่มฝนกำลังตกในพื้นที่ (ความแรง: {staticWeather.rain_today.toFixed(1)} มม.) โปรดระมัดระวังในการเดินทาง
+              </p>
+            </div>
           </div>
-        </div>
+        ) : staticWeather.weather_code >= 61 ? (
+          <div className="bg-yellow-900/40 border border-yellow-500/50 rounded-xl p-4 md:p-5 shadow-lg flex items-start space-x-4">
+            <div className="mt-1 w-6 h-6 rounded-full border-2 border-yellow-400 flex-shrink-0 flex items-center justify-center"><span className="text-[10px]">⚠️</span></div>
+            <div>
+              <h3 className="text-yellow-400 font-extrabold text-lg tracking-wide">เฝ้าระวังพยากรณ์อากาศ (Forecast Warning)</h3>
+              <p className="text-white/90 text-sm md:text-base font-medium mt-1">
+                <b>แบบจำลอง:</b> คาดการณ์ว่าอาจมีฝนตกหรือสภาพอากาศแปรปรวนในวันนี้ โปรดเตรียมพร้อมรับมือ
+              </p>
+            </div>
+          </div>
+        ) : null}
 
         {/* 🔍 แถบค้นหาพื้นที่ & ปุ่มควบคุม */}
         <div className="bg-[#e2e8f0] rounded-2xl p-3 md:p-4 shadow-inner flex flex-col md:flex-row md:items-end space-y-3 md:space-y-0 md:space-x-4">
