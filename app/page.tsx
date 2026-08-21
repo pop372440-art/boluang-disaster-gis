@@ -1665,8 +1665,36 @@ useEffect(() => {
                   <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
                 </div>
                 <div className="space-y-1">
-                  <CustomToggleBox label="พยากรณ์อากาศ (รายพื้นที่)" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} dotColor="#38bdf8" apiStatus={apiStatus.tmd} />
-                  <CustomToggleBox label="ฝนสะสม 24 ชม. (TMD)" active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#facc15" apiStatus={apiStatus.tmd} />
+                  <CustomToggleBox label="พยากรณ์อากาศรายพื้นที่" source="ข้อมูล: Open-Meteo & TMD" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} dotColor="#38bdf8" apiStatus={apiStatus.tmd} />
+                  <CustomToggleBox label="ฝนสะสม 24 ชม." source="สถานีตรวจวัดจริง สทนช." active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#facc15" apiStatus={apiStatus.tmd} />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center mb-2">
+                  <span className="text-[13px] mr-2">🌫️</span>
+                  <span className="text-[10px] md:text-[11px] text-gray-400 tracking-widest font-bold">คุณภาพอากาศ (AIR QUALITY)</span>
+                  <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
+                </div>
+                <div className="space-y-1">
+                  <CustomToggleBox label="ค่าฝุ่น PM2.5" source="ดาวเทียมวิเคราะห์ Open-Meteo" active={pm25} onClick={() => setPm25(!pm25)} dotColor="#06b6d4" apiStatus={apiStatus.pm25} />
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-[#1e293b]">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] p-2 rounded-xl shadow-[0_4px_10px_rgba(37,99,235,0.4)]"><span className="text-white text-[18px]">🌊</span></div>
+                  <h2 className="text-[18px] md:text-[20px] font-serif font-bold tracking-wide text-[#60a5fa]">น้ำและน้ำท่วม</h2>
+                </div>
+                <div className="flex items-center mb-2">
+                  <span className="text-[13px] mr-2">💧</span>
+                  <span className="text-[10px] md:text-[11px] text-blue-400 tracking-widest font-bold">ข้อมูลแหล่งน้ำ (สทนช.)</span>
+                  <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
+                </div>
+                <div className="space-y-1 bg-[#0f172a] p-3 rounded-xl border border-[#1e293b]">
+                  <CustomToggleBox label="ระดับน้ำในพื้นที่" source="เซนเซอร์ สทนช." active={onwrWaterLevel} onClick={() => setOnwrWaterLevel(!onwrWaterLevel)} dotColor="#2563eb" apiStatus={apiStatus.onwrWater} />
+                  <CustomToggleBox label="ปริมาณฝน 24 ชม." source="สถานี สทนช." active={onwrRain} onClick={() => setOnwrRain(!onwrRain)} dotColor="#3b82f6" apiStatus={apiStatus.onwrRain} />
+                  {/* ... ปุ่ม FloodDash ของท่านคงไว้เหมือนเดิม ... */}
                 </div>
               </div>
 
@@ -1854,17 +1882,38 @@ useEffect(() => {
               </div>
 
               {/* ภัยพิบัติทางธรรมชาติ */}
+              {/* ⚠️ การจัด Logic แจ้งเตือนภัย (Hazard Logic) */}
+              <div className="bg-[#ef4444]/10 border border-[#ef4444]/30 p-3 rounded-xl mb-4">
+                <div className="flex items-center mb-2">
+                  <span className="text-[11px] text-[#fca5a5] font-bold tracking-widest">🚨 ภัยพิบัติ (HAZARDS)</span>
+                  <div className="flex-1 border-t border-[#ef4444]/30 ml-3"></div>
+                </div>
+                <div className="space-y-1">
+                  <CustomToggleBox label="จุดความร้อน/ไฟป่า" source="ดาวเทียม GISTDA" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#ea580c" />
+                  <CustomToggleBox label="พื้นที่เสี่ยงดินถล่ม" source="ข้อมูลอ้างอิง: กรมทรัพยากรฯ" active={showLandslide} onClick={() => setShowLandslide(!showLandslide)} dotColor="#ef4444" />
+                  <CustomToggleBox label="รอยเลื่อนแผ่นดินไหว" source="ข้อมูลอ้างอิง: กรมทรัพยากรธรณี" active={earthquakeLayer} onClick={() => setEarthquakeLayer(!earthquakeLayer)} dotColor="#c084fc" />
+                </div>
+              </div>
+
+              {/* แผนที่และขอบเขตพื้นที่ (BASEMAP) */}
               <div>
                 <div className="flex items-center mb-2">
-                  <span className="text-[10px] md:text-[11px] text-[#fca5a5] tracking-widest font-bold">NATURAL HAZARDS (เตือนภัย)</span>
+                  <span className="text-[11px] text-[#10b981] font-bold">แผนที่พื้นฐาน (BASEMAP)</span>
                   <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
                 </div>
                 <div className="space-y-1">
-                  <CustomToggleBox label="จุดความร้อน/ไฟป่า (Hotspot)" active={hotspot} onClick={() => setHotspot(!hotspot)} dotColor="#ea580c" />
-                  <CustomToggleBox label="จุดปลอดภัย / ศูนย์พักพิง" active={showSafeZone} onClick={() => setShowSafeZone(!showSafeZone)} dotColor="#10b981" />
-                  <CustomToggleBox label="พื้นที่เสี่ยงดินถล่ม (Heatmap)" active={showLandslide} onClick={() => setShowLandslide(!showLandslide)} dotColor="#ef4444" />
-                  <CustomToggleBox label="รอยเลื่อนแผ่นดินไหว" active={earthquakeLayer} onClick={() => setEarthquakeLayer(!earthquakeLayer)} dotColor="#c084fc" />
+                  <CustomToggleBox label="จุดปลอดภัย / ศูนย์พักพิง" source="ข้อมูลเทศบาล" active={showSafeZone} onClick={() => setShowSafeZone(!showSafeZone)} dotColor="#10b981" />
+                  <CustomToggleBox label="แผนที่ดาวเทียม" source="Google Maps" active={satelliteLayer} onClick={() => setSatelliteLayer(!satelliteLayer)} dotColor="#10b981" />
+                  <CustomToggleBox label="ขอบเขตตำบลบ่อหลวง" active={showBoluang} onClick={() => setShowBoluang(!showBoluang)} dotColor="#38bdf8" />
+                  <CustomToggleBox label="โซน 13 หมู่บ้าน" active={showBlock} onClick={() => setShowBlock(!showBlock)} dotColor="#fcd34d" />
                 </div>
+              </div>
+
+              {/* 🛡️ บอร์ดความโปร่งใสของข้อมูล (Data Honesty Board) */}
+              <div className="mt-6 p-3 bg-[#0f172a]/80 border border-[#1e293b] rounded-xl text-center shadow-inner">
+                  <p className="text-[10px] text-gray-500 font-mono leading-relaxed">
+                      <b>ความโปร่งใสของข้อมูล (Data Honesty):</b><br/>ข้อมูลภัยพิบัติถูกดึงจาก API ของหน่วยงานรัฐแบบ Real-time ข้อมูลพื้นที่เสี่ยงเป็นเพียงการอ้างอิงทางภูมิศาสตร์ ไม่ใช่การทำนายล่วงหน้า
+                  </p>
               </div>
 
               {/* แผนที่และขอบเขตพื้นที่ */}
