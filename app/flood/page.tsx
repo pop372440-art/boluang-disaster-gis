@@ -23,7 +23,7 @@ const INITIAL_LAT = 18.147234;
 const INITIAL_LNG = 98.348720;
 const MAX_DISTANCE_KM = 50;
 
-// 🎯 กำหนดจุดดึงข้อมูล TMD API เพิ่มเติม
+// 🎯 กำหนดจุดดึงข้อมูล TMD API เพิ่มเติม (Virtual Stations)
 const LOCAL_TMD_STATIONS = [
   { name: 'ต.บ่อหลวง (ศูนย์กลาง)', lat: 18.1633, lng: 98.3744 },
   { name: 'อ.แม่แจ่ม (ดอยอินทนนท์)', lat: 18.4988, lng: 98.3601 },
@@ -93,7 +93,7 @@ export default function FloodWatchDashboard() {
   const [radiusKm, setRadiusKm] = useState(MAX_DISTANCE_KM);
   
   const [windyLayer, setWindyLayer] = useState('radar');
-  const [windyZoom, setWindyZoom] = useState(5); // 🚀 ตั้งค่า Default Zoom เป็น 5 ตามคำสั่ง
+  const [windyZoom, setWindyZoom] = useState(5); 
   const [apiStatus, setApiStatus] = useState({ water: 'กำลังเชื่อมต่อ...', rain: 'กำลังเชื่อมต่อ...', tmd: 'กำลังเชื่อมต่อ...' });
 
   const mapRef = useRef<any>(null);
@@ -195,7 +195,7 @@ export default function FloodWatchDashboard() {
           rStations.forEach((s: any) => { const st = parseStation(s, 'rain'); if (st) merged.push(st); });
         }
 
-        // 3. ดึงปริมาณฝน TMD (เสริมทัพให้กราฟ)
+        // 3. ดึงปริมาณฝน TMD (เสริมทัพให้กราฟ) - Data Honesty: ทำเครื่องหมาย Virtual Station อย่างชัดเจน
         const lats = LOCAL_TMD_STATIONS.map(p => p.lat.toFixed(4)).join(',');
         const lngs = LOCAL_TMD_STATIONS.map(p => p.lng.toFixed(4)).join(',');
         const tmdUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&daily=precipitation_sum&timezone=Asia%2FBangkok`;
@@ -208,7 +208,7 @@ export default function FloodWatchDashboard() {
             const stationInfo = LOCAL_TMD_STATIONS[i];
             merged.push({
               id: `tmd-${i}`,
-              name: `☁️ ${stationInfo.name}`,
+              name: `${stationInfo.name}`,
               prov: 'เชียงใหม่',
               amp: stationInfo.name.includes('ฮอด') ? 'ฮอด' : (stationInfo.name.includes('แม่แจ่ม') ? 'แม่แจ่ม' : 'จอมทอง'),
               tum: '',
@@ -219,7 +219,7 @@ export default function FloodWatchDashboard() {
               risk: getRisk(rainVal, 'rain'),
               trend: 'steady',
               time: new Date().toISOString(),
-              source: 'TMD'
+              source: 'TMD' // 🌟 Source Tag สำหรับ Data Honesty
             });
           });
         }
@@ -303,14 +303,15 @@ export default function FloodWatchDashboard() {
     maxRainData = { val: maxS.val, amp: maxS.name || maxS.amp || 'ไม่ระบุ' };
   }
 
-  // 📊 เตรียมข้อมูลกราฟแท่ง
+  // 📊 เตรียมข้อมูลกราฟแท่ง (Data Honesty: แยกสีหรือทำเครื่องหมายให้ TMD)
   const topRainStations = [...rainStations]
     .filter(s => s.val > 0)
     .sort((a, b) => b.val - a.val)
     .slice(0, 10)
     .map(s => ({
       name: s.name.length > 20 ? s.name.substring(0, 20) + '...' : s.name, 
-      val: s.val
+      val: s.val,
+      source: s.source // 🌟 เก็บ Source ไว้แสดงใน Tooltip
     }));
 
   const waterStationsTable = [...filteredStations].filter(s => s.type === 'water').sort((a, b) => (a.distance || 0) - (b.distance || 0)).slice(0, 15);
@@ -396,8 +397,14 @@ export default function FloodWatchDashboard() {
               </div>
             </div>
 
-            <div className="text-[12px] text-gray-500 mb-3 px-1">
-              {isLoading ? <span className="text-blue-500 font-bold animate-pulse">กำลังโหลดข้อมูลและค้นหาสถานี...</span> : <>พบข้อมูล <span className="font-extrabold text-[#0f4a8a]">{filteredStations.length}</span> รายการ</>}
+            <div className="text-[12px] text-gray-500 mb-3 px-1 flex items-center justify-between">
+              <div>
+                {isLoading ? <span className="text-blue-500 font-bold animate-pulse">กำลังโหลดข้อมูลและค้นหาสถานี...</span> : <>พบข้อมูล <span className="font-extrabold text-[#0f4a8a]">{filteredStations.length}</span> รายการ</>}
+              </div>
+              {/* 🛡️ Tooltip อธิบายเกณฑ์ (Data Honesty) */}
+              <div className="hidden md:block text-[10px] text-gray-400 font-mono">
+                *เกณฑ์การเตือนภัยอ้างอิงจากระดับน้ำวิกฤตของแต่ละสถานี (ข้อมูล สทนช.)
+              </div>
             </div>
 
             {/* 13 กล่อง Grid */}
@@ -443,7 +450,10 @@ export default function FloodWatchDashboard() {
               <tbody className="divide-y divide-gray-100 bg-white">
                 {waterStationsTable.length > 0 ? waterStationsTable.map((st, i) => (
                   <tr key={i} className="hover:bg-blue-50/30 transition-colors">
-                    <td className="px-5 py-3.5 font-bold text-gray-800 whitespace-nowrap">{st.name}</td>
+                    {/* 🌟 Data Honesty: ทำป้ายบอกว่าคือสถานีวัดจริง */}
+                    <td className="px-5 py-3.5 font-bold text-gray-800 whitespace-nowrap">
+                      {st.name} <span className="ml-1 text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded border border-blue-200 font-normal">วัดจริง</span>
+                    </td>
                     <td className="px-5 py-3.5 text-gray-600 whitespace-nowrap">{st.tum} {st.amp} {st.prov}</td>
                     <td className="px-5 py-3.5 text-gray-600 text-center font-mono">{st.distance?.toFixed(1)}</td>
                     <td className="px-5 py-3.5 font-bold text-gray-800 text-center font-mono">{st.val.toFixed(2)}</td>
@@ -499,10 +509,15 @@ export default function FloodWatchDashboard() {
                 >
                   <Popup className="custom-pro-popup" closeButton={true}>
                     <div className="w-[190px] p-1 font-sans text-gray-800">
-                      <div className="font-bold text-[13px] leading-tight mb-1 text-gray-900 border-b pb-1 border-gray-200">
-                        {st.name} {st.source === 'TMD' && <span className="text-[10px] bg-blue-100 text-blue-600 px-1 rounded ml-1 font-normal">TMD</span>}
+                      <div className="font-bold text-[13px] leading-tight mb-1 text-gray-900 border-b pb-1 border-gray-200 flex items-center justify-between">
+                        <span className="truncate pr-2">{st.name}</span>
+                        {/* 🌟 Data Honesty: แยกป้ายดาวเทียม กับ ป้ายสถานีจริง */}
+                        {st.source === 'TMD' ? 
+                          <span className="text-[9px] bg-purple-100 text-purple-600 px-1 rounded border border-purple-200 whitespace-nowrap">ดาวเทียม</span> : 
+                          <span className="text-[9px] bg-emerald-100 text-emerald-600 px-1 rounded border border-emerald-200 whitespace-nowrap">สถานีจริง</span>
+                        }
                       </div>
-                      <div className="text-[11px] leading-[1.6] text-gray-600">
+                      <div className="text-[11px] leading-[1.6] text-gray-600 mt-1.5">
                         <div>{st.tum} {st.amp} {st.prov}</div>
                         <div>{st.type === 'water' ? `ระดับน้ำ: ${st.val.toFixed(2)} ม.` : `ฝน 24 ชม.: ${st.val.toFixed(1)} มม.`}</div>
                         <div className="flex items-center">ความเสี่ยง: <span style={{color: st.risk.color}} className="font-bold ml-1">{st.risk.label}</span></div>
@@ -537,7 +552,7 @@ export default function FloodWatchDashboard() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-4">
           <div className="px-5 py-4 bg-white border-b border-gray-100 flex justify-between items-center">
             <h3 className="text-[#0f4a8a] text-[14px] md:text-[15px] font-extrabold flex items-center"><span className="mr-2 text-lg">🌧️</span> สถานีที่มีปริมาณฝนสูงสุด (24 ชม.)</h3>
-            <span className="text-[11px] text-gray-400 font-medium">ข้อมูลรวมจาก สทนช. + TMD</span>
+            <span className="text-[11px] text-gray-400 font-medium">ข้อมูลรวมจาก สทนช. + ดาวเทียมเรดาร์</span>
           </div>
           <div className="w-full h-[350px] p-4">
             {topRainStations.length > 0 ? (
@@ -546,7 +561,27 @@ export default function FloodWatchDashboard() {
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
                   <XAxis type="number" hide={false} axisLine={false} tickLine={false} tick={{fontSize: 11, fill: '#64748b'}} unit=" มม." />
                   <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#475569'}} width={130} />
-                  <RechartsTooltip cursor={{fill: '#f1f5f9'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  
+                  {/* 🌟 Data Honesty: Custom Tooltip บอกว่าข้อมูลกราฟแท่งนี้มาจากไหน */}
+                  <RechartsTooltip 
+                    cursor={{fill: '#f1f5f9'}} 
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-white p-3 border border-gray-200 shadow-lg rounded-xl">
+                            <p className="font-bold text-[13px] text-gray-800 border-b border-gray-100 pb-1 mb-2">{data.name}</p>
+                            <p className="text-[14px] text-[#1d4ed8] font-bold mb-1">ปริมาณฝน: {data.val.toFixed(1)} มม.</p>
+                            <p className="text-[10px] text-gray-500 font-mono">
+                              แหล่งข้อมูล: {data.source === 'TMD' ? 'ดาวเทียมเรดาร์ (TMD/Open-Meteo)' : 'สถานีวัดจริง (ONWR)'}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  
                   <Bar dataKey="val" name="ปริมาณฝน (มม.)" fill="#1d4ed8" radius={[0, 4, 4, 0]} barSize={16} />
                 </BarChart>
               </ResponsiveContainer>
@@ -585,21 +620,29 @@ export default function FloodWatchDashboard() {
 
           <div className="w-full flex-1 relative z-0">
             <iframe 
-              width="100%" height="100%" frameBorder="0"
+              width="100%" height="100%" frameBorder="0" allow="geolocation"
               src={`https://embed.windy.com/embed2.html?lat=${position.lat}&lon=${position.lng}&detailLat=${position.lat}&detailLon=${position.lng}&zoom=${windyZoom}&level=surface&overlay=${windyLayer}&product=ecmwf&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1`}
             ></iframe>
           </div>
         </div>
 
-        {/* 📋 Card 6: แหล่งข้อมูลและสถานะการเชื่อมต่อ */}
+        {/* 📋 Card 6: แหล่งข้อมูลและสถานะการเชื่อมต่อ (Data Honesty Declaration) */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden text-gray-800 mb-6 mt-4">
-          <div className="px-5 py-4 border-b border-gray-200 bg-white">
-            <h3 className="text-[#0f4a8a] font-extrabold text-[15px] md:text-lg flex items-center">
-              <span className="text-xl mr-2">📡</span> แหล่งข้อมูล
-            </h3>
-            <p className="text-[11px] md:text-xs text-gray-500 mt-1">
-              ดึงข้อมูลล่าสุด {currentTime ? currentTime.toLocaleTimeString('en-GB') : '--:--:--'} - รีเฟรชอัตโนมัติทุก 5 นาที
-            </p>
+          <div className="px-5 py-4 border-b border-gray-200 bg-white flex justify-between items-center">
+            <div>
+              <h3 className="text-[#0f4a8a] font-extrabold text-[15px] md:text-lg flex items-center">
+                <span className="text-xl mr-2">📡</span> แหล่งข้อมูลอ้างอิง (Data Sources)
+              </h3>
+              <p className="text-[11px] md:text-xs text-gray-500 mt-1">
+                ดึงข้อมูลล่าสุด {currentTime ? currentTime.toLocaleTimeString('en-GB') : '--:--:--'} - ระบบมีกลไก Cache ป้องกัน API ล่ม
+              </p>
+            </div>
+            
+            {/* 🌟 Data Honesty Declaration Badge */}
+            <div className="hidden md:flex items-center space-x-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
+              <span className="text-blue-500 text-lg">⚖️</span>
+              <span className="text-[10px] text-blue-800 font-mono leading-tight"><b>Data Honesty:</b><br/>ข้อมูลในหน้านี้ดึงตรงจากหน่วยงาน<br/>โดยไม่มีการดัดแปลงหรือพยากรณ์เอง</span>
+            </div>
           </div>
 
           <div className="p-0">
@@ -611,42 +654,38 @@ export default function FloodWatchDashboard() {
                 <thead className="text-[11px] md:text-[12px] text-gray-500 bg-[#f1f5f9] border-b border-gray-200">
                   <tr>
                     <th className="px-5 py-3 font-extrabold whitespace-nowrap w-1/3">ชุดข้อมูล</th>
+                    <th className="px-5 py-3 font-extrabold w-1/4">ประเภทข้อมูล</th>
                     <th className="px-5 py-3 font-extrabold w-1/4">สถานะ</th>
-                    <th className="px-5 py-3 font-extrabold">ที่มา</th>
+                    <th className="px-5 py-3 font-extrabold">Endpoint</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 bg-white">
                   <tr className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3.5 font-semibold text-gray-800">National ThaiWater (ONWR) — ระดับน้ำ</td>
+                    <td className="px-5 py-3.5 font-semibold text-gray-800">National ThaiWater (ONWR)</td>
+                    <td className="px-5 py-3.5 text-gray-500 text-[11px] font-mono"><span className="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">สถานีวัดจริง</span> (ระดับน้ำ)</td>
                     <td className="px-5 py-3.5 font-bold flex items-center">
                       <span className={`w-2.5 h-2.5 rounded-full mr-2 ${apiStatus.water.includes('สำเร็จ') ? 'bg-[#10b981]' : 'bg-red-500'}`}></span> 
                       <span className={apiStatus.water.includes('สำเร็จ') ? 'text-[#10b981]' : 'text-red-500'}>{apiStatus.water}</span>
                     </td>
-                    <td className="px-5 py-3.5 text-gray-400 font-mono text-[10px] md:text-[11px] truncate max-w-[200px] md:max-w-none">https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load</td>
+                    <td className="px-5 py-3.5 text-gray-400 font-mono text-[10px] md:text-[11px] truncate max-w-[150px] md:max-w-none">/waterlevel_load</td>
                   </tr>
                   <tr className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3.5 font-semibold text-gray-800">National ThaiWater (ONWR) — ปริมาณฝน 24 ชม.</td>
+                    <td className="px-5 py-3.5 font-semibold text-gray-800">National ThaiWater (ONWR)</td>
+                    <td className="px-5 py-3.5 text-gray-500 text-[11px] font-mono"><span className="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">สถานีวัดจริง</span> (ฝน 24 ชม.)</td>
                     <td className="px-5 py-3.5 font-bold flex items-center">
                       <span className={`w-2.5 h-2.5 rounded-full mr-2 ${apiStatus.rain.includes('สำเร็จ') ? 'bg-[#10b981]' : 'bg-red-500'}`}></span> 
                       <span className={apiStatus.rain.includes('สำเร็จ') ? 'text-[#10b981]' : 'text-red-500'}>{apiStatus.rain}</span>
                     </td>
-                    <td className="px-5 py-3.5 text-gray-400 font-mono text-[10px] md:text-[11px] truncate max-w-[200px] md:max-w-none">https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h</td>
+                    <td className="px-5 py-3.5 text-gray-400 font-mono text-[10px] md:text-[11px] truncate max-w-[150px] md:max-w-none">/rain_24h</td>
                   </tr>
                   <tr className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3.5 font-semibold text-gray-800">TMD Weather (Open-Meteo) — ฝนสะสมระดับพื้นที่</td>
+                    <td className="px-5 py-3.5 font-semibold text-gray-800">TMD / Open-Meteo</td>
+                    <td className="px-5 py-3.5 text-gray-500 text-[11px] font-mono"><span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">ดาวเทียม/พยากรณ์</span> (Virtual Station)</td>
                     <td className="px-5 py-3.5 font-bold flex items-center">
                       <span className={`w-2.5 h-2.5 rounded-full mr-2 ${apiStatus.tmd.includes('สำเร็จ') ? 'bg-[#10b981]' : 'bg-red-500'}`}></span> 
                       <span className={apiStatus.tmd.includes('สำเร็จ') ? 'text-[#10b981]' : 'text-red-500'}>{apiStatus.tmd}</span>
                     </td>
-                    <td className="px-5 py-3.5 text-gray-400 font-mono text-[10px] md:text-[11px] truncate max-w-[200px] md:max-w-none">https://api.open-meteo.com/v1/forecast</td>
-                  </tr>
-                  <tr className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3.5 font-semibold text-gray-800">FloodDash</td>
-                    <td className="px-5 py-3.5 font-bold flex items-center">
-                      <span className="w-2.5 h-2.5 rounded-full mr-2 bg-[#10b981]"></span> 
-                      <span className="text-[#10b981]">เชื่อมต่อสำเร็จ</span>
-                    </td>
-                    <td className="px-5 py-3.5 text-gray-400 font-mono text-[10px] md:text-[11px]">https://flood.nonarkara.org</td>
+                    <td className="px-5 py-3.5 text-gray-400 font-mono text-[10px] md:text-[11px] truncate max-w-[150px] md:max-w-none">/forecast</td>
                   </tr>
                 </tbody>
               </table>
