@@ -334,7 +334,7 @@ export default function FloodWatchDashboard() {
         </div>
       </header>
 
-      <main className="p-4 md:p-6 max-w-[1500px] mx-auto space-y-5">
+      <main className="p-4 md:p-6 w-full space-y-5">
 
         {/* 💳 Card 1: แผงควบคุมและ 13 กล่อง */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
