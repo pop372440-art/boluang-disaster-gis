@@ -507,9 +507,10 @@ export default function WeatherDashboard() {
             {/* Iframe ของ Windy (ใช้ embed2.html + calendar=now เพื่อให้แสดง Timeline เคลื่อนไหว) */}
             <div className="w-full flex-1 rounded-2xl overflow-hidden relative border border-gray-200 shadow-inner">
               <iframe 
-                width="100%" height="100%" frameBorder="0"
-                src={`https://embed.windy.com/embed2.html?lat=${position.lat}&lon=${position.lng}&detailLat=${position.lat}&detailLon=${position.lng}&zoom=${windyZoom}&level=surface&overlay=${windyLayer}&product=ecmwf&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1`}
-              ></iframe>
+  width="100%" height="100%" frameBorder="0"
+  allow="geolocation" 
+  src={`https://embed.windy.com/embed2...`}
+></iframe>
             </div>
 
             {/* Footer ของแผงควบคุม Windy */}
