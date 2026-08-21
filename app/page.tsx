@@ -174,8 +174,7 @@ export default function BoLuangDashboard() {
   const [isMobile, setIsMobile] = useState(false);
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
   const [isMobile, setIsMobile] = useState(false);
-  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
-
+ 
 // 🟢 1. เพิ่ม State ตัวแปรเวลา ตรงนี้ครับ
 const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
