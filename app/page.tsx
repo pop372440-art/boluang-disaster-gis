@@ -182,6 +182,42 @@ export default function BoLuangDashboard() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const [isMobile, setIsMobile] = useState(false);
+const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+
+// 🟢 1. เพิ่ม State ตัวแปรเวลา ตรงนี้ครับ
+const [currentTime, setCurrentTime] = useState<Date>(new Date());
+
+// 🟢 2. เพิ่ม useEffect ให้นาฬิกาเดินทุก 1 วินาที ตรงนี้ครับ
+useEffect(() => {
+  const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+  return () => clearInterval(timer);
+}, []);
+
+// ========================================================
+// 🌟 วางโค้ด headerWeather ต่อท้ายตรงนี้ได้เลยครับ! 🌟
+// ========================================================
+const [headerWeather, setHeaderWeather] = useState<{ temp: number; wCode: number } | null>(null);
+
+useEffect(() => {
+  const fetchHeaderWeather = async () => {
+    try {
+      const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}&current=temperature_2m,weathercode&timezone=Asia%2FBangkok`);
+      const data = await res.json();
+      if (data && data.current) {
+        setHeaderWeather({
+          temp: data.current.temperature_2m,
+          wCode: data.current.weathercode
+        });
+      }
+    } catch (err) {
+      console.warn('Header weather fetch failed:', err);
+    }
+  };
+  fetchHeaderWeather();
+}, []);
+// ========================================================
   
   const [apiStatus, setApiStatus] = useState({ tmd: '', pm25: '', onwrRain: '', onwrWater: '' });
   const [searchQuery, setSearchQuery] = useState('');
