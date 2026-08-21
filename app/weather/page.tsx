@@ -211,45 +211,47 @@ export default function WeatherDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b132b] text-white font-sans selection:bg-[#0ea5e9] selection:text-white pb-10">
+    <div className="min-h-screen bg-[#f1f5f9] text-gray-800 font-sans selection:bg-[#0ea5e9] selection:text-white pb-10 flex flex-col">
       
       {/* 🚀 Header */}
-      <header className="bg-[#0f172a]/90 backdrop-blur-xl border-b border-[#1e293b] px-4 md:px-6 py-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
-        <div className="flex items-center space-x-3 md:space-x-4">
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-[#38bdf8] to-[#0284c7] rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(56,189,248,0.4)]">
-            <svg className="w-6 h-6 md:w-7 md:h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <header className="bg-[#0b132b] px-6 py-4 flex justify-between items-center border-b border-[#1e293b]">
+        <div className="flex items-center space-x-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-[#38bdf8] to-[#0284c7] rounded-xl flex items-center justify-center shadow-lg">
+            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
             </svg>
           </div>
           <div>
-            <h1 className="text-[16px] md:text-[20px] font-extrabold text-white leading-tight tracking-wide">ระบบตรวจสอบสภาพอากาศ</h1>
-            <p className="text-[11px] md:text-[13px] text-[#38bdf8] font-bold mt-0.5">Bo Luang Weather Center</p>
+            <h1 className="text-[18px] md:text-[22px] font-extrabold text-[#60a5fa] leading-tight">ระบบตรวจสอบสภาพอากาศ</h1>
+            <h2 className="text-[14px] md:text-[16px] font-bold text-white mt-1">Bo Luang Weather Center</h2>
+            <p className="text-[12px] md:text-[13px] text-gray-400 mt-1">ตรวจสอบอุณหภูมิ ปริมาณฝน และการพยากรณ์อากาศในพื้นที่</p>
           </div>
         </div>
-        <Link href="/" className="flex items-center space-x-2 bg-[#1e293b] hover:bg-[#334155] border border-gray-700 px-3 md:px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all shadow-sm">
+        <Link href="/" className="flex items-center space-x-2 bg-[#1e293b] hover:bg-[#334155] border border-gray-700 px-4 py-2.5 rounded-xl text-sm md:text-base font-bold text-white transition-all shadow-sm">
           <span>⬅️</span> <span className="hidden md:inline">กลับหน้าแผนที่หลัก</span>
         </Link>
       </header>
 
-      <main className="p-4 md:p-6 w-full space-y-5">
+      {/* 🟢 ปลดล็อคความกว้างเต็มจอ (w-full) */}
+      <main className="p-4 md:p-6 w-full space-y-6 flex-1">
 
-        {/* 🚨 Dynamic Alert: โชว์เฉพาะเมื่อตรวจพบภัยจริง (Data Honesty) */}
+        {/* 🚨 ป้ายแจ้งเตือนสภาพอากาศรุนแรง (Data Honesty) */}
         {staticWeather.rain_today > 0 ? (
-          <div className="bg-red-900/40 border border-red-500/50 rounded-xl p-4 md:p-5 shadow-lg flex items-start space-x-4 animate-pulse-slow">
-            <div className="mt-1 w-6 h-6 rounded-full border-2 border-white flex-shrink-0 animate-ping bg-red-500"></div>
+          <div className="bg-red-900/10 border border-red-500/50 rounded-2xl p-5 md:p-6 shadow-md flex items-start space-x-4">
+            <div className="mt-1 w-6 h-6 rounded-full border-2 border-red-500 flex-shrink-0 animate-ping bg-red-500"></div>
             <div>
-              <h3 className="text-red-400 font-extrabold text-lg tracking-wide">แจ้งเตือนสภาพอากาศ (Live Alert)</h3>
-              <p className="text-white/90 text-sm md:text-base font-medium mt-1">
+              <h3 className="text-red-600 font-extrabold text-lg md:text-xl tracking-wide">แจ้งเตือนสภาพอากาศ (Live Alert)</h3>
+              <p className="text-gray-700 text-sm md:text-base font-medium mt-1">
                 <b>ข้อมูลดาวเทียม:</b> ตรวจพบกลุ่มฝนกำลังตกในพื้นที่ (ความแรง: {staticWeather.rain_today.toFixed(1)} มม.) โปรดระมัดระวังในการเดินทาง
               </p>
             </div>
           </div>
         ) : staticWeather.weather_code >= 61 ? (
-          <div className="bg-yellow-900/40 border border-yellow-500/50 rounded-xl p-4 md:p-5 shadow-lg flex items-start space-x-4">
-            <div className="mt-1 w-6 h-6 rounded-full border-2 border-yellow-400 flex-shrink-0 flex items-center justify-center"><span className="text-[10px]">⚠️</span></div>
+          <div className="bg-yellow-900/10 border border-yellow-500/50 rounded-2xl p-5 md:p-6 shadow-md flex items-start space-x-4">
+            <div className="mt-1 w-6 h-6 rounded-full border-2 border-yellow-500 flex-shrink-0 flex items-center justify-center text-yellow-600 font-bold text-xs">⚠️</div>
             <div>
-              <h3 className="text-yellow-400 font-extrabold text-lg tracking-wide">เฝ้าระวังพยากรณ์อากาศ (Forecast Warning)</h3>
-              <p className="text-white/90 text-sm md:text-base font-medium mt-1">
+              <h3 className="text-yellow-700 font-extrabold text-lg md:text-xl tracking-wide">เฝ้าระวังพยากรณ์อากาศ (Forecast Warning)</h3>
+              <p className="text-gray-700 text-sm md:text-base font-medium mt-1">
                 <b>แบบจำลอง:</b> คาดการณ์ว่าอาจมีฝนตกหรือสภาพอากาศแปรปรวนในวันนี้ โปรดเตรียมพร้อมรับมือ
               </p>
             </div>
@@ -257,29 +259,29 @@ export default function WeatherDashboard() {
         ) : null}
 
         {/* 🔍 แถบค้นหาพื้นที่ & ปุ่มควบคุม */}
-        <div className="bg-[#e2e8f0] rounded-2xl p-3 md:p-4 shadow-inner flex flex-col md:flex-row md:items-end space-y-3 md:space-y-0 md:space-x-4">
+        <div className="bg-white rounded-2xl p-4 md:p-5 shadow-sm border border-gray-200 flex flex-col md:flex-row md:items-end space-y-3 md:space-y-0 md:space-x-4">
           <div className="flex-1">
-            <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">ค้นหาพื้นที่ (ชื่อจังหวัด / อำเภอ / ตำบล / หมู่บ้าน)</label>
+            <label className="block text-xs md:text-sm font-bold text-gray-600 mb-1.5 ml-1">ค้นหาพื้นที่ (ชื่อจังหวัด / อำเภอ / ตำบล / หมู่บ้าน)</label>
             <form onSubmit={handleSearchSubmit} className="relative">
               <input 
                 type="text" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="เช่น แม่แจ่ม, ฮอด, เชียงใหม่" 
-                className="w-full bg-white border border-gray-300 text-gray-800 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:border-transparent shadow-sm"
+                className="w-full bg-gray-50 border border-gray-300 text-gray-800 text-sm md:text-base rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:border-transparent shadow-sm"
               />
             </form>
           </div>
           <div className="flex space-x-2 md:space-x-3 w-full md:w-auto">
             <button 
               onClick={handleResetToCenter}
-              className="flex-1 md:flex-none bg-[#f1f5f9] hover:bg-[#e2e8f0] text-gray-800 px-5 py-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 transition-colors shadow-sm"
+              className="flex-1 md:flex-none bg-gray-100 hover:bg-gray-200 text-gray-800 px-5 py-3 rounded-xl font-bold text-sm md:text-base flex items-center justify-center space-x-2 transition-colors shadow-sm"
             >
               <span>🏠</span> <span className="whitespace-nowrap">กลับบ่อหลวง</span>
             </button>
             <button 
               onClick={handleCurrentLocation}
-              className="flex-1 md:flex-none bg-[#bae6fd] hover:bg-[#7dd3fc] text-[#0369a1] px-5 py-3 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 transition-colors shadow-sm"
+              className="flex-1 md:flex-none bg-sky-100 hover:bg-sky-200 text-sky-800 px-5 py-3 rounded-xl font-bold text-sm md:text-base flex items-center justify-center space-x-2 transition-colors shadow-sm"
             >
               <span>📍</span> <span className="whitespace-nowrap">พิกัดปัจจุบัน</span>
             </button>
@@ -287,30 +289,30 @@ export default function WeatherDashboard() {
         </div>
 
         {/* 🗺️ แผนที่ดาวเทียมเลือกพิกัด */}
-        <div className="bg-[#0f172a] rounded-3xl border border-[#334155] shadow-lg overflow-hidden flex flex-col">
-          <div className="bg-[#1e293b] px-4 md:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between border-b border-[#334155]">
-            <div className="flex items-center space-x-2 text-white font-bold text-sm">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="bg-gray-50 px-5 py-4 flex flex-col md:flex-row md:items-center justify-between border-b border-gray-200">
+            <div className="flex items-center space-x-2 text-gray-800 font-extrabold text-sm md:text-base">
               <span>🛰️</span> <span>แผนที่ดาวเทียม (คลิก / ลากหมุด เพื่อเลือกพิกัด)</span>
             </div>
             <div className="flex items-center mt-2 md:mt-0 text-xs font-mono">
               <a 
                 href={`https://www.google.com/maps/search/?api=1&query=${position.lat},${position.lng}`} 
                 target="_blank" rel="noopener noreferrer"
-                className="bg-[#0ea5e9] hover:bg-[#0284c7] text-white px-3 py-1.5 rounded-lg font-bold transition-colors shadow-sm flex items-center space-x-1"
+                className="bg-[#0ea5e9] hover:bg-[#0284c7] text-white px-4 py-2 rounded-lg font-bold transition-colors shadow-sm flex items-center space-x-1"
               >
                 <span>เปิดใน Google Maps ↗</span>
               </a>
             </div>
           </div>
           
-          <div className="h-[300px] md:h-[400px] w-full relative z-0">
+          <div className="h-[350px] md:h-[500px] w-full relative z-0">
             <MapContainer 
               center={[position.lat, position.lng]} 
               zoom={14} 
               maxZoom={20} 
               zoomControl={true} 
               attributionControl={false} 
-              className="w-full h-full bg-[#0b132b]" 
+              className="w-full h-full bg-gray-100" 
               ref={mapRef}
             >
               <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={20} />
@@ -323,105 +325,105 @@ export default function WeatherDashboard() {
               />
             </MapContainer>
           </div>
-          <div className="bg-[#e2e8f0] px-4 py-2 text-[11px] md:text-xs text-gray-600 font-bold flex items-center">
+          <div className="bg-gray-50 px-5 py-3 text-[12px] md:text-[13px] text-gray-600 font-bold flex items-center border-t border-gray-200">
             <span>💡 คลิกที่แผนที่หรือลากหมุด 📍 เพื่อปักตำแหน่งใหม่ ระบบจะดึงข้อมูลสภาพอากาศของจุดนั้นให้อัตโนมัติ</span>
           </div>
         </div>
         
         {/* 📍 แถบสถานะพื้นที่แบบ Real-time */}
-        <div className="bg-[#1e293b] rounded-2xl p-4 shadow-lg border border-[#334155] flex flex-col md:flex-row items-center justify-between text-sm transition-all mt-4 mb-2">
-          <div className="flex items-center space-x-2 text-gray-300 text-center md:text-left">
-            <span className="text-red-400 text-lg animate-pulse">📍</span>
+        <div className="bg-[#1e293b] rounded-2xl p-4 md:p-5 shadow-lg border border-[#334155] flex flex-col md:flex-row items-center justify-between text-sm md:text-base transition-all">
+          <div className="flex items-center space-x-3 text-gray-200 text-center md:text-left">
+            <span className="text-red-400 text-xl animate-pulse">📍</span>
             <span className="font-bold whitespace-nowrap hidden sm:inline">พื้นที่ตรวจสอบสภาพอากาศ:</span>
             <span className="text-white font-medium">{locationName}</span>
           </div>
-          <div className="flex items-center space-x-3 mt-3 md:mt-0 text-gray-400 font-mono text-[12px] md:text-sm">
+          <div className="flex items-center space-x-3 mt-3 md:mt-0 text-gray-300 font-mono text-[13px] md:text-sm">
             <span>พิกัด: <span className="text-[#38bdf8]">{position.lat.toFixed(4)}, {position.lng.toFixed(4)}</span></span>
             <span className="hidden md:inline">|</span>
             <span>อัปเดตล่าสุด: <span className="text-emerald-400 font-bold">{currentTime ? currentTime.toLocaleTimeString('th-TH') : '--:--:--'}</span></span>
           </div>
         </div>
 
-        {/* 🍱 Bento Box Grid Layout (ข้อมูลอากาศจำลองแบบ Static) */}
+        {/* 🍱 Bento Box Grid Layout (ข้อมูลอากาศ) */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
 
           {/* 📦 กล่อง 1: สภาพอากาศปัจจุบัน */}
-          <div className="col-span-1 md:col-span-1 bg-gradient-to-br from-[#0f172a] to-[#1e293b] p-6 rounded-3xl border border-[#334155] shadow-lg relative overflow-hidden flex flex-col justify-center items-center text-center group hover:border-[#38bdf8]/50 transition-colors">
+          <div className="col-span-1 md:col-span-1 bg-gradient-to-br from-[#0f172a] to-[#1e293b] p-6 md:p-8 rounded-3xl border border-[#334155] shadow-lg relative overflow-hidden flex flex-col justify-center items-center text-center group hover:border-[#38bdf8]/50 transition-colors">
             <div className="absolute -right-6 -top-6 w-32 h-32 bg-[#38bdf8] rounded-full blur-[60px] opacity-20 group-hover:opacity-40 transition-opacity"></div>
-            <span className="text-6xl drop-shadow-lg mb-2 transform group-hover:scale-110 transition-transform">{getWeatherEmoji(staticWeather.weather_code)}</span>
-            <div className="text-5xl font-extrabold text-white mb-1">{staticWeather.temperature_2m.toFixed(1)}°<span className="text-2xl text-gray-400">C</span></div>
-            <p className="text-[#38bdf8] font-bold text-lg">{getWmoWeatherDesc(staticWeather.weather_code)}</p>
+            <span className="text-7xl drop-shadow-lg mb-3 transform group-hover:scale-110 transition-transform">{getWeatherEmoji(staticWeather.weather_code)}</span>
+            <div className="text-6xl font-extrabold text-white mb-2">{staticWeather.temperature_2m.toFixed(1)}°<span className="text-3xl text-gray-400">C</span></div>
+            <p className="text-[#38bdf8] font-bold text-xl">{getWmoWeatherDesc(staticWeather.weather_code)}</p>
           </div>
 
           {/* 📦 กล่อง 2: คุณภาพอากาศ (AQI) */}
-          <div className="col-span-1 bg-[#0f172a] p-6 rounded-3xl border border-[#334155] shadow-lg flex flex-col justify-between hover:border-[#38bdf8]/30 transition-colors">
+          <div className="col-span-1 bg-white p-6 md:p-7 rounded-3xl border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center space-x-2 text-gray-400 font-bold text-sm tracking-widest">
+              <div className="flex items-center space-x-2 text-gray-500 font-extrabold text-sm tracking-widest">
                 <span>🌫️</span> <span>AIR QUALITY (AQI)</span>
               </div>
-              <div className={`px-2 py-1 rounded-md text-[10px] font-bold ${aqiStatus.bg}`} style={{ color: aqiStatus.color }}>{aqiStatus.text}</div>
+              <div className={`px-2.5 py-1 rounded-md text-xs font-bold ${aqiStatus.bg}`} style={{ color: aqiStatus.color }}>{aqiStatus.text}</div>
             </div>
             <div className="flex items-end justify-between">
               <div>
-                <div className="text-4xl font-extrabold" style={{ color: aqiStatus.color }}>{staticAqi.us_aqi}</div>
-                <div className="text-xs text-gray-500 mt-1 font-mono">US AQI Standard</div>
+                <div className="text-5xl font-extrabold" style={{ color: aqiStatus.color }}>{staticAqi.us_aqi}</div>
+                <div className="text-xs text-gray-400 mt-1 font-mono">US AQI Standard</div>
               </div>
               <div className="text-right">
-                <div className="text-xl font-bold text-white">{staticAqi.pm2_5.toFixed(1)} <span className="text-xs text-gray-400">µg/m³</span></div>
-                <div className="text-[10px] text-gray-500 mt-1">PM 2.5</div>
+                <div className="text-2xl font-bold text-gray-800">{staticAqi.pm2_5.toFixed(1)} <span className="text-sm text-gray-500">µg/m³</span></div>
+                <div className="text-xs text-gray-400 mt-1">PM 2.5</div>
               </div>
             </div>
           </div>
 
           {/* 📦 กล่อง 3: ลมและความชื้น */}
-          <div className="col-span-1 bg-[#0f172a] p-6 rounded-3xl border border-[#334155] shadow-lg flex flex-col justify-center space-y-6 hover:border-[#38bdf8]/30 transition-colors">
+          <div className="col-span-1 bg-white p-6 md:p-7 rounded-3xl border border-gray-200 shadow-sm flex flex-col justify-center space-y-6 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-blue-500/10 rounded-full flex items-center justify-center"><span className="text-blue-400 text-lg">💨</span></div>
+              <div className="flex items-center space-x-3.5">
+                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center"><span className="text-blue-500 text-xl">💨</span></div>
                 <div>
-                  <div className="text-xs text-gray-400 font-bold">ความเร็วลม</div>
-                  <div className="text-xl font-extrabold text-white">{(staticWeather.wind_speed_10m / 3.6).toFixed(1)} <span className="text-xs font-normal text-gray-500">ม./วินาที</span></div>
+                  <div className="text-xs md:text-sm text-gray-500 font-bold">ความเร็วลม</div>
+                  <div className="text-2xl font-extrabold text-gray-800">{(staticWeather.wind_speed_10m / 3.6).toFixed(1)} <span className="text-xs font-normal text-gray-500">ม./วินาที</span></div>
                 </div>
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-cyan-500/10 rounded-full flex items-center justify-center"><span className="text-cyan-400 text-lg">💧</span></div>
+              <div className="flex items-center space-x-3.5">
+                <div className="w-12 h-12 bg-cyan-50 rounded-2xl flex items-center justify-center"><span className="text-cyan-500 text-xl">💧</span></div>
                 <div>
-                  <div className="text-xs text-gray-400 font-bold">ความชื้นสัมพัทธ์</div>
-                  <div className="text-xl font-extrabold text-white">{staticWeather.relative_humidity_2m}<span className="text-xs font-normal text-gray-500">%</span></div>
+                  <div className="text-xs md:text-sm text-gray-500 font-bold">ความชื้นสัมพัทธ์</div>
+                  <div className="text-2xl font-extrabold text-gray-800">{staticWeather.relative_humidity_2m}<span className="text-xs font-normal text-gray-500">%</span></div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* 📦 กล่อง 4: ข้อมูลฝนตกและ UV */}
-          <div className="col-span-1 bg-[#0f172a] p-6 rounded-3xl border border-[#334155] shadow-lg flex flex-col justify-center space-y-6 hover:border-[#38bdf8]/30 transition-colors">
+          <div className="col-span-1 bg-white p-6 md:p-7 rounded-3xl border border-gray-200 shadow-sm flex flex-col justify-center space-y-6 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-indigo-500/10 rounded-full flex items-center justify-center"><span className="text-indigo-400 text-lg">🌧️</span></div>
+              <div className="flex items-center space-x-3.5">
+                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center"><span className="text-indigo-500 text-xl">🌧️</span></div>
                 <div>
-                  <div className="text-xs text-gray-400 font-bold">ปริมาณฝน (วันนี้)</div>
-                  <div className="text-xl font-extrabold text-white">{staticWeather.rain_today.toFixed(1)} <span className="text-xs font-normal text-gray-500">มม.</span></div>
+                  <div className="text-xs md:text-sm text-gray-500 font-bold">ปริมาณฝน (วันนี้)</div>
+                  <div className="text-2xl font-extrabold text-gray-800">{staticWeather.rain_today.toFixed(1)} <span className="text-xs font-normal text-gray-500">มม.</span></div>
                 </div>
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-purple-500/10 rounded-full flex items-center justify-center"><span className="text-purple-400 text-lg">☀️</span></div>
+              <div className="flex items-center space-x-3.5">
+                <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center"><span className="text-purple-500 text-xl">☀️</span></div>
                 <div>
-                  <div className="text-xs text-gray-400 font-bold">UV Index (สูงสุด)</div>
-                  <div className="text-xl font-extrabold text-white">{staticWeather.uv_max} <span className="text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded ml-1">Index</span></div>
+                  <div className="text-xs md:text-sm text-gray-500 font-bold">UV Index (สูงสุด)</div>
+                  <div className="text-2xl font-extrabold text-gray-800">{staticWeather.uv_max} <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded ml-1">Index</span></div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* 📦 กล่อง 5: กราฟพยากรณ์อุณหภูมิ 7 วัน */}
-          <div className="col-span-1 md:col-span-2 bg-[#0f172a] p-5 md:p-6 rounded-3xl border border-[#334155] shadow-lg h-[350px] flex flex-col">
+          <div className="col-span-1 md:col-span-2 bg-white p-6 md:p-7 rounded-3xl border border-gray-200 shadow-sm h-[400px] flex flex-col">
             <div className="flex items-center mb-4">
-              <span className="text-lg mr-2">📈</span>
-              <h3 className="text-white text-sm md:text-base font-bold">พยากรณ์อุณหภูมิ 7 วันล่วงหน้า (°C)</h3>
+              <span className="text-xl mr-2">📈</span>
+              <h3 className="text-gray-800 text-base md:text-lg font-extrabold">พยากรณ์อุณหภูมิ 7 วันล่วงหน้า (°C)</h3>
             </div>
             <div className="flex-1 w-full h-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -436,10 +438,10 @@ export default function WeatherDashboard() {
                       <stop offset="95%" stopColor="#38bdf8" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                  <XAxis dataKey="day" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} domain={['dataMin - 2', 'dataMax + 2']} />
-                  <RechartsTooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '12px', color: '#fff' }} itemStyle={{ fontWeight: 'bold' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="day" stroke="#64748b" fontSize={13} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#64748b" fontSize={13} tickLine={false} axisLine={false} domain={['dataMin - 2', 'dataMax + 2']} />
+                  <RechartsTooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '12px', color: '#1e293b', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} itemStyle={{ fontWeight: 'bold' }} />
                   <Area type="monotone" name="อุณหภูมิสูงสุด" dataKey="maxTemp" stroke="#f87171" strokeWidth={3} fillOpacity={1} fill="url(#colorMax)" />
                   <Area type="monotone" name="อุณหภูมิต่ำสุด" dataKey="minTemp" stroke="#38bdf8" strokeWidth={3} fillOpacity={1} fill="url(#colorMin)" />
                 </AreaChart>
@@ -448,93 +450,98 @@ export default function WeatherDashboard() {
           </div>
 
           {/* 📦 กล่อง 6: กราฟพยากรณ์ปริมาณฝน 7 วัน */}
-          <div className="col-span-1 md:col-span-2 bg-[#0f172a] p-5 md:p-6 rounded-3xl border border-[#334155] shadow-lg h-[350px] flex flex-col">
+          <div className="col-span-1 md:col-span-2 bg-white p-6 md:p-7 rounded-3xl border border-gray-200 shadow-sm h-[400px] flex flex-col">
             <div className="flex items-center mb-4">
-              <span className="text-lg mr-2">🌧️</span>
-              <h3 className="text-white text-sm md:text-base font-bold">พยากรณ์ปริมาณน้ำฝน 7 วัน (มม.)</h3>
+              <span className="text-xl mr-2">🌧️</span>
+              <h3 className="text-gray-800 text-base md:text-lg font-extrabold">พยากรณ์ปริมาณน้ำฝน 7 วัน (มม.)</h3>
             </div>
             <div className="flex-1 w-full h-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={staticForecast} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                  <XAxis dataKey="day" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                  <RechartsTooltip cursor={{ fill: '#1e293b', opacity: 0.5 }} contentStyle={{ backgroundColor: '#1e293b', borderColor: '#0ea5e9', borderRadius: '12px', color: '#fff' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="day" stroke="#64748b" fontSize={13} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#64748b" fontSize={13} tickLine={false} axisLine={false} />
+                  <RechartsTooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ backgroundColor: '#ffffff', borderColor: '#0ea5e9', borderRadius: '12px', color: '#1e293b', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
                   <Bar name="ปริมาณฝนสะสม" dataKey="rain" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* 📦 กล่อง 7: แผนที่ Windy Interactive (ปรับปรุงรูปแบบสว่าง & เคลื่อนไหวเต็มรูปแบบ) */}
-          <div className="col-span-1 md:col-span-4 bg-[#f8fafc] p-2 md:p-3 rounded-3xl border border-gray-300 shadow-xl flex flex-col mt-2 h-[600px] md:h-[700px]">
+          {/* 📦 กล่อง 7: แผนที่ Windy Interactive (ปรับปรุงควบคุมและจัดระเบียบใหม่ให้สมส่วน) */}
+          <div className="col-span-1 md:col-span-4 bg-white p-4 md:p-6 rounded-3xl border border-gray-200 shadow-md flex flex-col mt-4 h-[650px] md:h-[800px]">
             
             {/* Header ของแผงควบคุม Windy */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center px-4 py-2 bg-transparent">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-4 border-b border-gray-100">
               <div className="flex items-center space-x-3">
-                <span className="text-2xl drop-shadow-md">🛰️</span>
+                <span className="text-3xl">🛰️</span>
                 <div className="flex flex-col">
-                  <span className="text-gray-900 font-extrabold text-[15px] md:text-[18px] leading-tight tracking-wide">แผนที่อากาศเคลื่อนไหว (Windy)</span>
-                  <span className="text-gray-500 font-medium text-[10px] md:text-[12px] truncate w-[250px] md:w-auto">เรดาร์ฝน ลม เมฆ และมลพิษแบบเรียลไทม์ • {locationName}</span>
+                  <span className="text-gray-900 font-extrabold text-lg md:text-xl leading-tight">แผนที่อากาศเรียลไทม์ (Windy)</span>
+                  <span className="text-gray-500 font-medium text-xs md:text-sm mt-0.5">เรดาร์ฝน ลม เมฆ และมลพิษแบบเรียลไทม์ • {locationName}</span>
                 </div>
               </div>
               
-              {/* ชุดปุ่ม Zoom มุมขวาบน */}
-              <div className="flex items-center space-x-2 mt-3 md:mt-0 bg-white rounded-full px-2 py-1 shadow-sm border border-gray-200">
-                 <button onClick={() => setWindyZoom(Math.max(1, windyZoom - 1))} className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-white text-[#0ea5e9] hover:bg-[#e0f2fe] flex items-center justify-center font-bold shadow-sm transition-colors">-</button>
-                 <span className="text-[11px] md:text-xs font-mono text-gray-700 font-bold px-1 md:px-2">z{windyZoom}</span>
-                 <button onClick={() => setWindyZoom(Math.min(20, windyZoom + 1))} className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-white text-[#0ea5e9] hover:bg-[#e0f2fe] flex items-center justify-center font-bold shadow-sm transition-colors">+</button>
+              {/* ชุดปุ่ม Zoom มุมขวาบน และปุ่มตำแหน่งปัจจุบัน */}
+              <div className="flex items-center space-x-3 mt-4 md:mt-0">
+                 <button onClick={handleCurrentLocation} className="bg-[#0f172a] text-white px-4 py-2 rounded-xl text-xs md:text-sm font-bold shadow-sm flex items-center hover:bg-gray-800 transition">
+                   <span className="mr-1.5 text-red-500 text-base">📍</span> ตำแหน่งของฉัน
+                 </button>
+                 <div className="flex items-center space-x-2 bg-gray-100 rounded-xl px-3 py-1.5 border border-gray-200">
+                    <button onClick={() => setWindyZoom(Math.max(1, windyZoom - 1))} className="w-7 h-7 rounded-lg bg-white text-[#0ea5e9] hover:bg-sky-50 flex items-center justify-center font-bold shadow-sm transition-colors text-base">-</button>
+                    <span className="text-xs md:text-sm font-mono text-gray-700 font-bold px-2">z{windyZoom}</span>
+                    <button onClick={() => setWindyZoom(Math.min(20, windyZoom + 1))} className="w-7 h-7 rounded-lg bg-white text-[#0ea5e9] hover:bg-sky-50 flex items-center justify-center font-bold shadow-sm transition-colors text-base">+</button>
+                 </div>
               </div>
             </div>
 
             {/* แถบปุ่ม Layer ของ Windy */}
-            <div className="flex space-x-2 overflow-x-auto custom-scrollbar px-4 py-3 w-full mb-1">
+            <div className="flex space-x-3 py-4 overflow-x-auto custom-scrollbar w-full">
               {WINDY_LAYERS.map((layer) => (
                 <button 
                   key={layer.id}
                   onClick={() => setWindyLayer(layer.id)}
-                  className={`flex items-center space-x-1.5 px-4 py-2 rounded-full text-xs md:text-sm font-bold whitespace-nowrap transition-all duration-300 flex-shrink-0 border
+                  className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold whitespace-nowrap transition-all duration-300 flex-shrink-0 border
                     ${windyLayer === layer.id 
                       ? 'bg-[#0f4a8a] text-white border-[#0f4a8a] shadow-md transform scale-105' 
-                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900 shadow-sm'
+                      : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 shadow-sm'
                     }`}
                 >
-                  <span className="text-sm md:text-base">{layer.icon}</span><span>{layer.label}</span>
+                  <span className="text-base">{layer.icon}</span><span>{layer.label}</span>
                 </button>
               ))}
             </div>
 
-            {/* Iframe ของ Windy (ใช้ embed2.html + calendar=now เพื่อให้แสดง Timeline เคลื่อนไหว) */}
+            {/* Iframe ของ Windy */}
             <div className="w-full flex-1 rounded-2xl overflow-hidden relative border border-gray-200 shadow-inner">
               <iframe 
-  width="100%" height="100%" frameBorder="0"
-  allow="geolocation" 
-  src={`https://embed.windy.com/embed2...`}
-></iframe>
+                width="100%" height="100%" frameBorder="0" allow="geolocation"
+                src={`https://embed.windy.com/embed2.html?lat=${position.lat}&lon=${position.lng}&detailLat=${position.lat}&detailLon=${position.lng}&zoom=${windyZoom}&level=surface&overlay=${windyLayer}&product=ecmwf&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1`}
+              ></iframe>
             </div>
 
             {/* Footer ของแผงควบคุม Windy */}
-            <div className="flex flex-col md:flex-row items-center justify-between px-4 py-2.5 bg-transparent space-y-2 md:space-y-0">
-               <div className="text-[10px] md:text-xs text-gray-500 font-bold flex items-center text-center md:text-left">
-                 <span className="mr-1.5 text-orange-500 text-sm">💡</span> เลื่อนแถบเวลาด้านล่างแผนที่เพื่อดูพยากรณ์ล่วงหน้า
+            <div className="flex flex-col md:flex-row items-center justify-between pt-3 text-xs md:text-sm text-gray-500 font-bold">
+               <div className="flex items-center">
+                 <span className="mr-2 text-orange-500 text-base">💡</span> เลื่อนแถบเวลาด้านล่างแผนที่เพื่อดูพยากรณ์อากาศล่วงหน้า
                </div>
                <a 
                  href={`https://www.windy.com/?${position.lat},${position.lng},${windyZoom}`} 
                  target="_blank" rel="noopener noreferrer" 
-                 className="text-[10px] md:text-xs text-[#0ea5e9] hover:text-[#0284c7] font-bold flex items-center bg-[#e0f2fe]/60 px-3 py-1.5 rounded-lg transition-colors border border-[#bae6fd]"
+                 className="text-[#0ea5e9] hover:text-[#0284c7] font-bold flex items-center bg-sky-50 px-3.5 py-1.5 rounded-lg transition-colors border border-sky-200 mt-2 md:mt-0"
                >
                  เปิดหน้าจอเต็มใน Windy.com ↗
                </a>
             </div>
+
           </div>
 
         </div>
       </main>
 
       <style dangerouslySetInnerHTML={{__html: `
-        .custom-scrollbar::-webkit-scrollbar { height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
       `}} />
