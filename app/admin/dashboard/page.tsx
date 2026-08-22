@@ -42,7 +42,7 @@ export default function ExecutiveDashboard() {
         const active = total - resolved;
         
         setStats({ total, active, resolved });
-        setLiveIncidents(data.slice(0, 10));
+        setLiveIncidents(data.slice(0, 15)); // ดึงมาโชว์ 15 รายการ
 
         const typeCount: any = {};
         data.forEach(d => { typeCount[d.risk_type] = (typeCount[d.risk_type] || 0) + 1; });
@@ -72,6 +72,9 @@ export default function ExecutiveDashboard() {
     const d = new Date(isoString);
     return `${d.getDate()}/${d.getMonth() + 1}/${(d.getFullYear() + 543).toString().slice(-2)}`;
   };
+
+  // เตรียมข้อมูลสำหรับ Ticker (วนซ้ำเพื่อให้เลื่อนได้ไม่สะดุด)
+  const scrollingIncidents = [...liveIncidents, ...liveIncidents];
 
   if (loading) {
     return (
@@ -124,6 +127,7 @@ export default function ExecutiveDashboard() {
             <div className="text-6xl font-extrabold text-emerald-400">{stats.resolved}</div>
           </div>
           
+          {/* Charts */}
           <div className="col-span-1 md:col-span-2 bg-[#172033] p-8 rounded-2xl border border-[#2d3748] shadow-lg flex flex-col h-[400px]">
             <h3 className="text-white text-lg font-bold mb-4 flex items-center"><span className="mr-3">📊</span> สัดส่วนประเภทภัยพิบัติ</h3>
             <div className="flex-1 w-full h-full">
@@ -157,8 +161,8 @@ export default function ExecutiveDashboard() {
           </div>
         </div>
 
-        {/* 📋 LIVE TABLE */}
-        <div className="bg-[#172033] border border-[#2d3748] rounded-2xl shadow-xl overflow-hidden mt-8">
+        {/* 📡 LIVE INCIDENT TICKER (ตารางบิน) */}
+        <div className="bg-[#172033] border border-[#2d3748] rounded-2xl shadow-xl overflow-hidden flex flex-col mt-8">
           <div className="bg-[#1e293b] px-8 py-6 flex items-center justify-between border-b border-[#334155]">
             <h3 className="text-white font-bold text-lg tracking-wide uppercase">Live Incident Tracking</h3>
             <div className="flex items-center space-x-2 text-xs font-mono bg-emerald-900/40 text-emerald-400 px-4 py-2 rounded-full border border-emerald-800/50">
@@ -174,33 +178,53 @@ export default function ExecutiveDashboard() {
             <div className="col-span-3 text-right">สถานะการจัดการ</div>
           </div>
 
-          <div className="divide-y divide-[#2d3748]">
-            {liveIncidents.map((incident, idx) => {
-              let statusStyle = "bg-blue-950 text-blue-400 border-blue-800";
-              let statusText = incident.status || "รับเรื่องแล้ว";
-              
-              if (statusText.includes("เสร็จแล้ว") || statusText.includes("ปิดจ๊อบ")) {
-                statusStyle = "bg-emerald-950 text-emerald-400 border-emerald-800";
-                statusText = "เสร็จสิ้น";
-              } else if (statusText.includes("กำลัง") || statusText.includes("ระหว่าง")) {
-                statusStyle = "bg-orange-950 text-orange-400 border-orange-800";
-                statusText = "อยู่ระหว่างดำเนินการ";
-              }
+          <div className="relative h-[400px] overflow-hidden ticker-container">
+            <div className="absolute w-full ticker-content">
+              {scrollingIncidents.map((incident, idx) => {
+                let statusStyle = "bg-blue-950 text-blue-400 border-blue-800";
+                let statusText = incident.status || "รับเรื่องแล้ว";
+                
+                if (statusText.includes("เสร็จแล้ว") || statusText.includes("ปิดจ๊อบ")) {
+                  statusStyle = "bg-emerald-950 text-emerald-400 border-emerald-800";
+                  statusText = "เสร็จสิ้น";
+                } else if (statusText.includes("กำลัง") || statusText.includes("ระหว่าง")) {
+                  statusStyle = "bg-orange-950 text-orange-400 border-orange-800";
+                  statusText = "อยู่ระหว่างดำเนินการ";
+                }
 
-              return (
-                <div key={idx} className="grid grid-cols-12 gap-4 px-8 py-5 hover:bg-[#1e293b]/60 items-center">
-                  <div className="col-span-2 text-gray-300 font-mono text-sm">{formatTime(incident.created_at)}</div>
-                  <div className="col-span-3 text-white font-bold text-sm">{incident.risk_type}</div>
-                  <div className="col-span-4 text-gray-400 text-sm">{incident.description.substring(0, 60)}...</div>
-                  <div className="col-span-3 text-right">
-                    <span className={`px-4 py-1.5 rounded-full text-xs font-bold border ${statusStyle}`}>{statusText}</span>
+                return (
+                  <div key={idx} className="grid grid-cols-12 gap-4 px-8 py-5 border-b border-[#2d3748]/50 hover:bg-[#1e293b]/60 items-center">
+                    <div className="col-span-2 text-gray-300 font-mono text-sm">{formatTime(incident.created_at)}</div>
+                    <div className="col-span-3 text-white font-bold text-sm">{incident.risk_type}</div>
+                    <div className="col-span-4 text-gray-400 text-sm truncate">{incident.description}</div>
+                    <div className="col-span-3 text-right">
+                      <span className={`px-4 py-1.5 rounded-full text-xs font-bold border ${statusStyle}`}>{statusText}</span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+            
+            {/* Gradient Mask */}
+            <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-[#172033] to-transparent z-10 pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#172033] to-transparent z-10 pointer-events-none"></div>
           </div>
         </div>
       </main>
+
+      {/* 🌟 Animation Styles */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes vertical-scroll { 
+          0% { transform: translateY(0); } 
+          100% { transform: translateY(-50%); } 
+        }
+        .ticker-content { 
+          animation: vertical-scroll 45s linear infinite; 
+        }
+        .ticker-container:hover .ticker-content { 
+          animation-play-state: paused !important; 
+        }
+      `}} />
     </div>
   );
 }
