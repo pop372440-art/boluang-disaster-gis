@@ -153,18 +153,18 @@ export default function OpenDataPage() {
             </button>
           </div>
 
-          {/* Dataset 2: ข้อมูลแผนที่ (boluang.json) */}
+          {/* Dataset 2: ข้อมูลแผนที่แนวเขตตำบล (boluang.json) */}
           <div className="bg-[#1e293b] border border-[#334155] hover:border-[#38bdf8]/50 transition-all rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center space-x-3 mb-1">
                 <span className="text-2xl">🗺️</span>
-                <h4 className="text-white font-bold text-base">ข้อมูลแนวเขตและจุดปลอดภัยเชิงพื้นที่ (Boluang Spatial Data)</h4>
+                <h4 className="text-white font-bold text-base">ข้อมูลแนวเขตตำบลบ่อหลวง (Boluang Boundary Data)</h4>
               </div>
-              <p className="text-gray-400 text-sm ml-9">พิกัดภูมิศาสตร์แนวเขตหมู่บ้าน จุดปลอดภัย และศูนย์พักพิงชั่วคราว (GeoJSON Format)</p>
+              <p className="text-gray-400 text-sm ml-9">พิกัดภูมิศาสตร์แนวเขตตำบลบ่อหลวง (GeoJSON Format)</p>
             </div>
             <a 
               href="/geojson/boluang.json" 
-              download="boluang.json" 
+              download="ข้อมูลแนวเขตตำบลบ่อหลวง.geojson" 
               className="ml-9 md:ml-0 bg-[#0ea5e9] hover:bg-[#0284c7] text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-sky-400 flex-shrink-0"
             >
               <span>📍</span><span>ดาวน์โหลด boluang.json</span>
@@ -190,18 +190,36 @@ export default function OpenDataPage() {
             </a>
           </div>
 
-          {/* Dataset 4: ข้อมูลบล็อก/พื้นที่ (block.json) */}
+          {/* Dataset 2: ข้อมูลแผนที่แนวเขตตำบล (boluang.json) */}
           <div className="bg-[#1e293b] border border-[#334155] hover:border-[#38bdf8]/50 transition-all rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center space-x-3 mb-1">
-                <span className="text-2xl">📊</span>
-                <h4 className="text-white font-bold text-base">ผลสำรวจความต้องการชุมชนเชิงพื้นที่ (Block Data)</h4>
+                <span className="text-2xl">🗺️</span>
+                <h4 className="text-white font-bold text-base">ข้อมูลแนวเขตตำบลบ่อหลวง (Boluang Boundary Data)</h4>
               </div>
-              <p className="text-gray-400 text-sm ml-9">สถิติสรุปภาพรวมความต้องการของประชาชนด้านการบริหารจัดการสิ่งแวดล้อม แบ่งตามแปลงพื้นที่ (Block)</p>
+              <p className="text-gray-400 text-sm ml-9">พิกัดภูมิศาสตร์แนวเขตตำบลบ่อหลวง (GeoJSON Format)</p>
+            </div>
+            <a 
+              href="/geojson/boluang.json" 
+              download="ข้อมูลแนวเขตตำบลบ่อหลวง.geojson" 
+              className="ml-9 md:ml-0 bg-[#0ea5e9] hover:bg-[#0284c7] text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-sky-400 flex-shrink-0"
+            >
+              <span>📍</span><span>ดาวน์โหลด boluang.json</span>
+            </a>
+          </div>
+
+          {/* Dataset 4: ข้อมูลแนวเขตหมู่บ้าน แผนที่ภาษี (block.json) */}
+          <div className="bg-[#1e293b] border border-[#334155] hover:border-[#38bdf8]/50 transition-all rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center space-x-3 mb-1">
+                <span className="text-2xl">🏘️</span>
+                <h4 className="text-white font-bold text-base">ข้อมูลแนวเขตหมู่บ้าน จากแผนที่ภาษี (Village Boundary Data)</h4>
+              </div>
+              <p className="text-gray-400 text-sm ml-9">พิกัดทางภูมิศาสตร์ระบุแนวเขตหมู่บ้านและแปลงพื้นที่ (Block) อ้างอิงจากแผนที่ภาษี (GeoJSON Format)</p>
             </div>
             <a 
               href="/geojson/block.json" 
-              download="block.json" 
+              download="ข้อมูลแนวเขตหมู่บ้าน_แผนที่ภาษี.geojson" 
               className="ml-9 md:ml-0 bg-[#2563eb] hover:bg-[#1d4ed8] text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-blue-400 flex-shrink-0"
             >
               <span>📥</span><span>ดาวน์โหลด block.json</span>
