@@ -1,12 +1,84 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
+// สำคัญ: ต้องแน่ใจว่าท่านติดตั้งและตั้งค่า @supabase/supabase-js ไว้แล้ว
+import { createClient } from '@supabase/supabase-js';
+
+// กำหนดค่า Supabase (ควรดึงจาก .env ในระบบจริง)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default function OpenDataPage() {
-  // ฟังก์ชันจำลองการดาวน์โหลดไฟล์
-  const handleDownload = (filename: string) => {
-    alert(`กำลังเตรียมไฟล์: ${filename}\n(ในระบบจริงจะเริ่มดาวน์โหลดไฟล์ CSV/GeoJSON)`);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  // ฟังก์ชันดึงข้อมูลจาก Supabase และแปลงเป็น CSV สดๆ
+  const handleDownloadSupabaseCSV = async () => {
+    setIsDownloading(true);
+    try {
+      // 1. ดึงข้อมูลจากตาราง boluang_disaster_reports
+      const { data, error } = await supabase
+        .from('boluang_disaster_reports')
+        // เลือกเฉพาะฟิลด์ที่ปลอดภัย (ไม่เอา reporter_name เพื่อ PDPA)
+        .select('id, created_at, reporter_role, risk_type, severity_level, description, latitude, longitude, village_name, status')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        alert('ไม่พบข้อมูลการแจ้งเหตุในระบบ');
+        setIsDownloading(false);
+        return;
+      }
+
+      // 2. แปลงข้อมูล JSON เป็น CSV
+      // สร้าง Header
+      const headers = ['ID', 'วันที่แจ้งเหตุ', 'กลุ่มผู้แจ้ง', 'ประเภทภัย', 'ระดับความรุนแรง', 'รายละเอียด', 'ละติจูด', 'ลองจิจูด', 'หมู่บ้าน', 'สถานะ'];
+      const csvRows = [headers.join(',')];
+
+      // สร้างข้อมูลแต่ละบรรทัด
+      data.forEach((row) => {
+        // จัดรูปแบบวันที่ให้สวยงาม
+        const formattedDate = new Date(row.created_at).toLocaleString('th-TH');
+        // ทำความสะอาดข้อความ (หลีกเลี่ยง , ที่จะทำให้ CSV พัง)
+        const cleanDesc = row.description ? `"${row.description.replace(/"/g, '""')}"` : '""';
+        
+        const rowData = [
+          row.id,
+          `"${formattedDate}"`,
+          `"${row.reporter_role || ''}"`,
+          `"${row.risk_type || ''}"`,
+          row.severity_level || '',
+          cleanDesc,
+          row.latitude,
+          row.longitude,
+          `"${row.village_name || ''}"`,
+          `"${row.status || ''}"`
+        ];
+        csvRows.push(rowData.join(','));
+      });
+
+      const csvString = csvRows.join('\n');
+      
+      // 3. สร้างไฟล์และสั่งดาวน์โหลด
+      // ใช้ BOM (\uFEFF) เพื่อให้เปิดใน Excel ภาษาไทยได้ไม่เพี้ยน (UTF-8)
+      const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', `boluang_incidents_realtime_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+    } catch (error) {
+      console.error('Error generating CSV:', error);
+      alert('เกิดข้อผิดพลาดในการดึงข้อมูลจากระบบ');
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -50,47 +122,90 @@ export default function OpenDataPage() {
         {/* รายการชุดข้อมูล (Datasets) */}
         <div className="space-y-4">
           
-          {/* Dataset 1 */}
-          <div className="bg-[#1e293b] border border-[#334155] hover:border-[#38bdf8]/50 transition-all rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Dataset 1: สถิติการแจ้งเหตุ (ดึงสดจาก Supabase) */}
+          <div className="bg-[#1e293b] border border-[#334155] hover:border-[#38bdf8]/50 transition-all rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden">
+            {/* ป้ายกำกับ API */}
+            <div className="absolute top-0 right-0 bg-[#38bdf8] text-[#0f172a] text-[9px] font-black px-2 py-0.5 rounded-bl-lg">LIVE API</div>
+            
             <div>
-              <div className="flex items-center space-x-3 mb-1">
+              <div className="flex items-center space-x-3 mb-1 mt-1">
                 <span className="text-2xl">🚨</span>
                 <h4 className="text-white font-bold text-base">สถิติการรับแจ้งเหตุสาธารณภัย (Citizen Reports)</h4>
                 <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/30">PDPA Compliant</span>
               </div>
-              <p className="text-gray-400 text-sm ml-9">ข้อมูลประวัติการแจ้งเหตุ น้ำท่วม ดินถล่ม ไฟป่า และปัญหาสิ่งแวดล้อม พร้อมพิกัดภูมิศาสตร์และสถานะการแก้ไข (ย้อนหลัง 1 ปี)</p>
+              <p className="text-gray-400 text-sm ml-9">ข้อมูลประวัติการแจ้งเหตุถูกสร้างขึ้นใหม่แบบ Real-time จากระบบฐานข้อมูลกลาง พร้อมปกปิดข้อมูลผู้แจ้ง</p>
             </div>
-            <button onClick={() => handleDownload('bo_luang_incidents_2026.csv')} className="ml-9 md:ml-0 bg-[#2563eb] hover:bg-[#1d4ed8] text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-blue-400 flex-shrink-0">
-              <span>📥</span><span>ดาวน์โหลด .CSV</span>
+            
+            <button 
+              onClick={handleDownloadSupabaseCSV} 
+              disabled={isDownloading}
+              className={`ml-9 md:ml-0 ${isDownloading ? 'bg-gray-600 border-gray-500' : 'bg-gradient-to-r from-[#0284c7] to-[#2563eb] hover:from-[#0369a1] hover:to-[#1d4ed8] border border-[#38bdf8]/50 shadow-[0_4px_12px_rgba(37,99,235,0.25)]'} text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center space-x-2 flex-shrink-0 min-w-[160px]`}
+            >
+              {isDownloading ? (
+                <>
+                  <span className="animate-spin text-xl">⏳</span><span>กำลังสร้างไฟล์...</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-white text-lg">⬇️</span><span>ดาวน์โหลด CSV สด</span>
+                </>
+              )}
             </button>
           </div>
 
-          {/* Dataset 2 */}
+          {/* Dataset 2: ข้อมูลแผนที่ (boluang.json) */}
           <div className="bg-[#1e293b] border border-[#334155] hover:border-[#38bdf8]/50 transition-all rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center space-x-3 mb-1">
                 <span className="text-2xl">🗺️</span>
-                <h4 className="text-white font-bold text-base">พิกัดศูนย์พักพิงและจุดเสี่ยงภัยเชิงพื้นที่ (Spatial Data)</h4>
+                <h4 className="text-white font-bold text-base">ข้อมูลแนวเขตและจุดปลอดภัยเชิงพื้นที่ (Boluang Spatial Data)</h4>
               </div>
-              <p className="text-gray-400 text-sm ml-9">พิกัดทางภูมิศาสตร์ของจุดปลอดภัย ศูนย์พักพิงชั่วคราว และแนวเขตพื้นที่เสี่ยงดินถล่ม</p>
+              <p className="text-gray-400 text-sm ml-9">พิกัดภูมิศาสตร์แนวเขตหมู่บ้าน จุดปลอดภัย และศูนย์พักพิงชั่วคราว (GeoJSON Format)</p>
             </div>
-            <button onClick={() => handleDownload('bo_luang_spatial_zones.geojson')} className="ml-9 md:ml-0 bg-[#0ea5e9] hover:bg-[#0284c7] text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-sky-400 flex-shrink-0">
-              <span>📍</span><span>ดาวน์โหลด .GeoJSON</span>
-            </button>
+            <a 
+              href="/boluang.json" 
+              download="boluang.json" 
+              className="ml-9 md:ml-0 bg-[#0ea5e9] hover:bg-[#0284c7] text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-sky-400 flex-shrink-0"
+            >
+              <span>📍</span><span>ดาวน์โหลด boluang.json</span>
+            </a>
           </div>
 
-          {/* Dataset 3 */}
+          {/* Dataset 3: ข้อมูลพื้นที่เสี่ยงดินถล่ม (boluang_landslide_risk.json) */}
+          <div className="bg-[#1e293b] border border-[#334155] hover:border-[#f43f5e]/50 transition-all rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center space-x-3 mb-1">
+                <span className="text-2xl">⚠️</span>
+                <h4 className="text-white font-bold text-base">พิกัดพื้นที่เสี่ยงภัยดินถล่ม (Landslide Risk Zones)</h4>
+                <span className="bg-rose-500/20 text-rose-400 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-500/30">Hazard Data</span>
+              </div>
+              <p className="text-gray-400 text-sm ml-9">พิกัดทางภูมิศาสตร์ระบุแนวเขตพื้นที่เสี่ยงดินโคลนถล่มในเขตตำบลบ่อหลวง (GeoJSON Format)</p>
+            </div>
+            <a 
+              href="/boluang_landslide_risk.json" 
+              download="boluang_landslide_risk.json" 
+              className="ml-9 md:ml-0 bg-[#e11d48] hover:bg-[#be123c] text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-rose-400 flex-shrink-0"
+            >
+              <span>📍</span><span>ดาวน์โหลด landslide_risk.json</span>
+            </a>
+          </div>
+
+          {/* Dataset 4: ข้อมูลบล็อก/พื้นที่ (block.json) */}
           <div className="bg-[#1e293b] border border-[#334155] hover:border-[#38bdf8]/50 transition-all rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center space-x-3 mb-1">
                 <span className="text-2xl">📊</span>
-                <h4 className="text-white font-bold text-base">ผลสำรวจความต้องการชุมชน (Smart Environment V3)</h4>
+                <h4 className="text-white font-bold text-base">ผลสำรวจความต้องการชุมชนเชิงพื้นที่ (Block Data)</h4>
               </div>
-              <p className="text-gray-400 text-sm ml-9">สถิติสรุปภาพรวมความต้องการของประชาชนทั้ง 13 หมู่บ้าน ด้านการบริหารจัดการสิ่งแวดล้อมและสาธารณภัย (Aggregated Data)</p>
+              <p className="text-gray-400 text-sm ml-9">สถิติสรุปภาพรวมความต้องการของประชาชนด้านการบริหารจัดการสิ่งแวดล้อม แบ่งตามแปลงพื้นที่ (Block)</p>
             </div>
-            <button onClick={() => handleDownload('bo_luang_survey_v3_results.csv')} className="ml-9 md:ml-0 bg-[#2563eb] hover:bg-[#1d4ed8] text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-blue-400 flex-shrink-0">
-              <span>📥</span><span>ดาวน์โหลด .CSV</span>
-            </button>
+            <a 
+              href="/block.json" 
+              download="block.json" 
+              className="ml-9 md:ml-0 bg-[#2563eb] hover:bg-[#1d4ed8] text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-blue-400 flex-shrink-0"
+            >
+              <span>📥</span><span>ดาวน์โหลด block.json</span>
+            </a>
           </div>
 
         </div>
