@@ -163,7 +163,7 @@ export default function OpenDataPage() {
               <p className="text-gray-400 text-sm ml-9">พิกัดภูมิศาสตร์แนวเขตหมู่บ้าน จุดปลอดภัย และศูนย์พักพิงชั่วคราว (GeoJSON Format)</p>
             </div>
             <a 
-              href="/boluang.json" 
+              href="/geojson/boluang.json" 
               download="boluang.json" 
               className="ml-9 md:ml-0 bg-[#0ea5e9] hover:bg-[#0284c7] text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-sky-400 flex-shrink-0"
             >
@@ -182,7 +182,7 @@ export default function OpenDataPage() {
               <p className="text-gray-400 text-sm ml-9">พิกัดทางภูมิศาสตร์ระบุแนวเขตพื้นที่เสี่ยงดินโคลนถล่มในเขตตำบลบ่อหลวง (GeoJSON Format)</p>
             </div>
             <a 
-              href="/boluang_landslide_risk.json" 
+              href="/geojson/boluang_landslide_risk.json" 
               download="boluang_landslide_risk.json" 
               className="ml-9 md:ml-0 bg-[#e11d48] hover:bg-[#be123c] text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-rose-400 flex-shrink-0"
             >
@@ -200,7 +200,7 @@ export default function OpenDataPage() {
               <p className="text-gray-400 text-sm ml-9">สถิติสรุปภาพรวมความต้องการของประชาชนด้านการบริหารจัดการสิ่งแวดล้อม แบ่งตามแปลงพื้นที่ (Block)</p>
             </div>
             <a 
-              href="/block.json" 
+              href="/geojson/block.json" 
               download="block.json" 
               className="ml-9 md:ml-0 bg-[#2563eb] hover:bg-[#1d4ed8] text-white px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-blue-400 flex-shrink-0"
             >
