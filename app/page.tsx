@@ -1562,15 +1562,17 @@ export default function BoLuangDashboard() {
                 {/* เส้นคั่นกลาง */}
                 <div className="w-[1px] h-5 bg-[#1e293b]"></div>
 
-                {/* ⏱️ ส่วนเวลาและวันที่ (แก้ไม่ให้ตกบรรทัด) */}
-                <div className="flex items-center space-x-2 whitespace-nowrap">
+                {/* ⏱️ ส่วนเวลาและวันที่ (เพิ่มวินาที และ ปี พ.ศ.) */}
+                <div className="flex items-center space-x-3 whitespace-nowrap">
                   {mounted ? (
                     <>
-                      <span className="text-[#38bdf8] font-bold text-[13px] tracking-widest">
-                         {currentTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                      {/* เวลา (เพิ่ม second: '2-digit' ให้นาฬิกาเดิน) */}
+                      <span className="text-[#38bdf8] font-bold text-[14px] md:text-[15px] tracking-widest tabular-nums">
+                         {currentTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} น.
                       </span>
-                      <span className="text-gray-400 text-[11px] font-medium">
-                         {currentTime.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
+                      {/* วันที่ (เพิ่ม year: 'numeric' ให้แสดงปี พ.ศ.) */}
+                      <span className="text-gray-400 text-[11px] md:text-[12px] font-medium border-l border-gray-700 pl-3">
+                         {currentTime.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                       </span>
                     </>
                   ) : (
