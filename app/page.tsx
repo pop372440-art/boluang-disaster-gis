@@ -181,16 +181,16 @@ export default function BoLuangDashboard() {
   const [isMobile, setIsMobile] = useState(false);
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
 
-  // 🌟 เพิ่ม State ตัวแปรเวลา ตรงนี้ครับ
+  // 🌟 1. ประกาศ State สำหรับเวลา
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
-  // 🌟 เพิ่ม useEffect ให้นาฬิกาเดินทุก 1 วินาที ตรงนี้ครับ
+  // 🌟 2. เพิ่ม useEffect ให้นาฬิกาเดินทุก 1 วินาที
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // 🌟 วางโค้ด headerWeather ต่อท้ายตรงนี้ได้เลยครับ! 🌟
+  // 🌟 3. ประกาศ State และ Effect สำหรับ Header Weather
   const [headerWeather, setHeaderWeather] = useState<{ temp: number; wCode: number } | null>(null);
 
   useEffect(() => {
@@ -210,7 +210,7 @@ export default function BoLuangDashboard() {
     };
     fetchHeaderWeather();
   }, []);
-
+  
   const [apiStatus, setApiStatus] = useState({ tmd: '', pm25: '', onwrRain: '', onwrWater: '' });
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -1547,9 +1547,10 @@ export default function BoLuangDashboard() {
 
             {/* 🕰️ Live Weather & Date-Time Widget */}
             <div className="hidden xl:flex flex-1 items-center justify-center px-6 animate-fade-in-api">
-              <div className="bg-[#0f172a]/60 border border-[#1e293b] rounded-full px-5 py-2 flex items-center space-x-4 shadow-sm backdrop-blur-sm cursor-default">
+              <div className="bg-[#0f172a]/60 border border-[#1e293b] rounded-full px-5 py-2 flex items-center space-x-4 shadow-sm backdrop-blur-sm cursor-default flex-shrink-0">
                 
-                <div className="flex items-center space-x-2">
+                {/* ☁️ ส่วนสภาพอากาศ */}
+                <div className="flex items-center space-x-2 whitespace-nowrap">
                   <span className="text-[20px]">
                      {headerWeather ? getWeatherEmoji(headerWeather.wCode) : '🌤️'}
                   </span>
@@ -1558,24 +1559,27 @@ export default function BoLuangDashboard() {
                   </span>
                 </div>
 
+                {/* เส้นคั่นกลาง */}
                 <div className="w-[1px] h-5 bg-[#1e293b]"></div>
 
-                <div className="flex flex-col w-[120px]">
-                   <div className="flex items-center space-x-2">
-                      {mounted ? (
-                        <>
-                          <span className="text-[#38bdf8] font-bold text-[13px] tracking-widest">
-                             {currentTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
-                          </span>
-                          <span className="text-gray-400 text-[11px] font-medium">
-                             {currentTime.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-gray-500 text-[11px] animate-pulse">กำลังซิงค์เวลา...</span>
-                      )}
-                   </div>
+                {/* ⏱️ ส่วนเวลาและวันที่ (แก้ไม่ให้ตกบรรทัด) */}
+                <div className="flex items-center space-x-2 whitespace-nowrap">
+                  {mounted ? (
+                    <>
+                      <span className="text-[#38bdf8] font-bold text-[13px] tracking-widest">
+                         {currentTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                      </span>
+                      <span className="text-gray-400 text-[11px] font-medium">
+                         {currentTime.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-gray-500 text-[11px] animate-pulse">กำลังซิงค์เวลา...</span>
+                  )}
                 </div>
+
+              </div>
+            </div>
 
               </div>
             </div>
