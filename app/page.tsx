@@ -1820,23 +1820,34 @@ export default function BoLuangDashboard() {
                 </div>
               </div> 
               
-              {/* 📊 OPEN DATA DASHBOARD */}
-              <div>
-                <div className="flex items-center mb-3">
-                  <svg className="w-3.5 h-3.5 text-[#38bdf8] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                  <span className="text-[10px] md:text-[11px] text-[#38bdf8] tracking-widest font-bold uppercase">OPEN DATA (ข้อมูลสาธารณะ)</span>
-                  <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
-                </div>
-                <button 
-                  onClick={() => window.open('/admin/dashboard', '_blank')}
-                  className="w-full py-2.5 bg-[#0f172a] hover:bg-[#1e293b] border border-[#38bdf8]/50 rounded-xl text-[13px] font-bold text-[#38bdf8] shadow-sm flex items-center justify-center space-x-2 transition-all cursor-pointer"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  <span>สรุปสถิติสถานการณ์ (Dashboard)</span>
-                </button>
-              </div>              
+              {/* 📊 OPEN DATA DASHBOARD (ปรับปรุงใหม่ เพิ่มปุ่มดาวน์โหลด) */}
+          <div className="mt-2 mb-4">
+            <div className="flex items-center mb-3">
+              <svg className="w-3.5 h-3.5 text-[#38bdf8] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+              <span className="text-[10px] md:text-[11px] text-[#38bdf8] tracking-widest font-bold uppercase">ศูนย์ข้อมูลเปิด (OPEN DATA)</span>
+              <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
+            </div>
+            
+            <div className="flex flex-col space-y-2">
+              {/* ปุ่มที่ 1: สรุปสถิติ (เปิดแท็บใหม่ไปหน้า Dashboard เดิม) */}
+              <button 
+                onClick={() => window.open('/admin/dashboard', '_blank')} 
+                className="w-full py-2.5 bg-[#0f172a] hover:bg-[#1e293b] border border-gray-700 rounded-xl text-[13px] font-bold text-gray-300 shadow-sm flex items-center justify-center space-x-2 transition-all cursor-pointer"
+              >
+                <span className="text-[#38bdf8] text-base">📈</span>
+                <span>สรุปสถิติสถานการณ์ (Dashboard)</span>
+              </button>
+              
+              {/* 🌟 ปุ่มที่ 2: ดาวน์โหลดข้อมูลดิบ (ปุ่มสีน้ำเงินโดดเด่น เปิดไปหน้า Open Data) */}
+              <button 
+                onClick={() => window.open('/admin/open-data', '_blank')} 
+                className="w-full py-2.5 bg-gradient-to-r from-[#0284c7] to-[#2563eb] hover:from-[#0369a1] hover:to-[#1d4ed8] border border-[#38bdf8]/50 rounded-xl text-[13px] font-bold text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)] flex items-center justify-center space-x-2 transition-transform hover:-translate-y-0.5 cursor-pointer"
+              >
+                <span className="text-white text-base">📥</span>
+                <span>ดาวน์โหลดชุดข้อมูล (Open Data)</span>
+              </button>
+            </div>
+          </div>
 
               {/* แจ้งเหตุประชาชน */}
               <div>
