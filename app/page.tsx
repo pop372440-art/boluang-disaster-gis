@@ -1585,9 +1585,7 @@ export default function BoLuangDashboard() {
             </div>
             
           </div>
-        </div>
-        </div>
-
+        
         <div className="flex items-center space-x-2 md:space-x-3">          
           <button
             onClick={() => setShowQrModal(true)}
