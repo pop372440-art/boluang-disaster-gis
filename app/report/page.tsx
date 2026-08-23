@@ -151,11 +151,13 @@ const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
       const file = new File([blob], `Slip_BL_${trackingCode}.png`, { type: 'image/png' });
       const imageURL = URL.createObjectURL(blob);
 
-      // เช็คว่าเป็นมือถือที่รองรับการแชร์หรือไม่
-      const isMobileShareSupported = navigator.canShare && navigator.canShare({ files: [new File([], '')] });
+      // เช็คว่าเป็นมือถือหรือไม่ (Mobile / Tablet)
       const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      // เช็คว่าเบราว์เซอร์รองรับการ Share ไฟล์ภาพหรือไม่
+      const isShareSupported = navigator.canShare && navigator.canShare({ files: [new File([], '')] });
 
-      if (isMobileShareSupported) {
+      // 🌟 แก้ไขเงื่อนไข: บังคับให้หน้าต่างแชร์เด้ง "เฉพาะบนมือถือ" เท่านั้น
+      if (isMobileDevice && isShareSupported) {
         // มือถือ: เปิดหน้าต่างแชร์
         try {
           await navigator.share({
@@ -169,17 +171,20 @@ const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
              showFallbackImage(imageURL);
           }
         }
-      } else if (isMobileDevice) {
-        // มือถือรุ่นเก่า: โชว์รูปให้แตะค้าง
+      } else if (isMobileDevice && !isShareSupported) {
+        // มือถือรุ่นเก่า (ที่ไม่รองรับ Share): โชว์รูปให้แตะค้าง
         showFallbackImage(imageURL);
       } else {
-        // คอมพิวเตอร์ (PC): บังคับดาวน์โหลดลงเครื่องทันที!
+        // 💻 คอมพิวเตอร์ (PC): บังคับดาวน์โหลดลงเครื่องทันที! (ข้ามระบบ Share ของ Windows/Mac ไปเลย)
         const link = document.createElement('a');
         link.download = `Slip_แจ้งเหตุ_${trackingCode}.png`;
         link.href = imageURL;
         document.body.appendChild(link); // จำเป็นสำหรับบางเบราว์เซอร์บน PC
         link.click();
         document.body.removeChild(link);
+        
+        // คืนหน่วยความจำ
+        setTimeout(() => URL.revokeObjectURL(imageURL), 100);
       }
     }, 'image/png');
 
