@@ -49,35 +49,82 @@ const checkPointInFeature = (lng: number, lat: number, feature: any) => {
   return false;
 };
 
-// 🌟 ฟังก์ชันดาวน์โหลดรูปภาพ (Auto-Save Slip)
+// 🌟 ฟังก์ชันสร้างรูปภาพและเรียกหน้าต่างแชร์ (Share Sheet)
 const downloadSlipImage = async (trackingCode: string) => {
-  // หน่วงเวลาเล็กน้อยเพื่อให้ DOM ของ SweetAlert2 เรนเดอร์เสร็จสมบูรณ์ก่อนแคปภาพ
   setTimeout(async () => {
-    // หา Element ที่ต้องการแคป (ในที่นี้คือตัว Popup ของ SweetAlert2)
-    const slipElement = document.querySelector('.swal2-popup') as HTMLElement;
+    const slipElement = document.querySelector('#slip-content-container') as HTMLElement;
     
     if (slipElement) {
       try {
         const canvas = await html2canvas(slipElement, {
-          scale: 2, // เพิ่มความชัดระดับ Retina
+          scale: 2, 
           useCORS: true,
-          backgroundColor: '#ffffff' // ป้องกันพื้นหลังโปร่งใส
+          backgroundColor: '#ffffff'
         });
 
-        // แปลง Canvas เป็น Data URL
-        const image = canvas.toDataURL("image/png", 1.0);
-        
-        // สั่งสร้าง Link จำลองแล้วกด Download ทันที
-        const link = document.createElement('a');
-        link.download = `Slip_แจ้งเหตุ_${trackingCode}.png`;
-        link.href = image;
-        link.click();
+        // เช็คว่าอุปกรณ์นี้รองรับการ Share ไฟล์ภาพหรือไม่ (มีในมือถือสมัยใหม่แทบทุกรุ่น)
+        const isMobileShareSupported = navigator.canShare && navigator.canShare({ files: [new File([], '')] });
+
+        if (isMobileShareSupported) {
+          // 📱 สำหรับมือถือ: แปลง Canvas เป็นไฟล์ (Blob) แล้วสั่ง Share
+          canvas.toBlob(async (blob) => {
+            if (blob) {
+              const file = new File([blob], `Slip_BL_${trackingCode}.png`, { type: 'image/png' });
+              try {
+                // เรียกหน้าต่าง Share Sheet ของมือถือขึ้นมา
+                await navigator.share({
+                  title: 'หลักฐานการแจ้งเหตุ (เทศบาลตำบลบ่อหลวง)',
+                  text: `แจ้งเหตุสำเร็จ! รหัสติดตาม: ${trackingCode}`,
+                  files: [file]
+                });
+                console.log('แชร์สำเร็จ');
+              } catch (shareError: any) {
+                // ถ้าผู้ใช้กดยกเลิกการแชร์ ไม่ต้องแสดง Error
+                if (shareError.name !== 'AbortError') {
+                  console.error('Share failed:', shareError);
+                  fallbackDownload(canvas, trackingCode); // ถ้าแชร์ล่ม ให้สลับไปโหมดแตะค้าง
+                }
+              }
+            }
+          }, 'image/png');
+
+        } else {
+          // 💻 สำหรับคอมพิวเตอร์ หรือมือถือรุ่นเก่า: ใช้วิธีโหลดลงเครื่องปกติ / แตะค้าง
+          fallbackDownload(canvas, trackingCode);
+        }
         
       } catch (error) {
         console.error("Error capturing slip:", error);
       }
     }
-  }, 800); // รอ 800ms
+  }, 1000); // รอเรนเดอร์ 1 วิ
+};
+
+// ฟังก์ชันสำรอง (เหมือนโค้ดชุดก่อนหน้า)
+const fallbackDownload = (canvas: HTMLCanvasElement, trackingCode: string) => {
+  const image = canvas.toDataURL("image/png", 1.0);
+  const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  if (isMobileDevice) {
+    const imageContainer = document.getElementById('slip-image-result');
+    const originalContent = document.getElementById('slip-original-html');
+    if (imageContainer && originalContent) {
+      originalContent.style.display = 'none';
+      imageContainer.innerHTML = `
+        <div style="text-align: center; animation: fadeIn 0.5s ease-in-out;">
+          <p style="color: #ef4444; font-size: 13px; font-weight: bold; margin-bottom: 8px; animation: bounce 2s infinite;">
+            👇 แตะค้างที่รูปภาพเพื่อบันทึก 👇
+          </p>
+          <img src="${image}" alt="สลิปแจ้งเหตุ" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);" />
+        </div>
+      `;
+    }
+  } else {
+    const link = document.createElement('a');
+    link.download = `Slip_แจ้งเหตุ_${trackingCode}.png`;
+    link.href = image;
+    link.click();
+  }
 };
 
 export default function ReportPage() {
