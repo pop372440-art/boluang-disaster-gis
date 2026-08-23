@@ -151,158 +151,124 @@ export default function OpenDataPage() {
 
         <div className="space-y-4">
           
-          {/* รายการชุดข้อมูล (Datasets) - ฉบับปรับปรุงความชัดเจน */}
-        <div className="space-y-5">
-          
           {/* Dataset 1: สถิติการแจ้งเหตุ */}
-          <div className="bg-[#1e293b] border border-[#334155] hover:border-[#38bdf8] transition-all rounded-2xl p-6 flex flex-col md:flex-row justify-between gap-5 relative overflow-hidden group shadow-lg">
-            {/* ป้ายมุมขวาบนสุด */}
-            <div className="absolute top-0 right-0 bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-[10px] font-black px-3 py-1 rounded-bl-xl shadow-md">LIVE API</div>
-            
-            <div className="flex-1 mt-2 md:mt-0">
-              <div className="flex flex-wrap items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-blue-900/50 rounded-xl flex items-center justify-center text-xl shadow-inner border border-blue-800/50">🚨</div>
-                <h4 className="text-white font-extrabold text-[17px]">สถิติการรับแจ้งเหตุสาธารณภัย (Citizen Reports)</h4>
-                <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2.5 py-1 rounded-md border border-emerald-500/30">PDPA Compliant</span>
+          <div className="bg-[#1e293b] border border-[#334155] hover:border-[#38bdf8]/50 transition-all rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden">
+            <div className="absolute top-0 right-0 bg-[#38bdf8] text-[#0f172a] text-[9px] font-black px-2 py-0.5 rounded-bl-lg">LIVE API</div>
+            <div>
+              <div className="flex items-center space-x-3 mb-1 mt-1">
+                <span className="text-2xl">🚨</span>
+                <h4 className="text-white font-bold text-base">สถิติการรับแจ้งเหตุสาธารณภัย (Citizen Reports)</h4>
+                <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/30">PDPA Compliant</span>
               </div>
-              <p className="text-gray-300 text-sm ml-[3.25rem] leading-relaxed">ข้อมูลประวัติการแจ้งเหตุถูกสร้างขึ้นใหม่แบบ Real-time จากระบบฐานข้อมูลกลาง พร้อมปกปิดข้อมูลผู้แจ้ง</p>
-              
-              {/* 🌟 ป้ายสถิติแบบใหม่ (สวยและชัดเจนขึ้น) */}
-              <div className="ml-[3.25rem] mt-3 flex items-center">
-                <div className="bg-slate-800/80 border border-slate-600 rounded-full px-3 py-1 flex items-center space-x-1.5 shadow-inner">
-                  <span className="text-amber-400 text-xs">🔥</span>
-                  <span className="text-gray-300 text-[11px] font-medium tracking-wide">ดาวน์โหลดแล้ว <strong className="text-white font-bold">{downloadCounts.incidents}</strong> ครั้ง</span>
-                </div>
-              </div>
+              <p className="text-gray-400 text-sm ml-9">ข้อมูลประวัติการแจ้งเหตุถูกสร้างขึ้นใหม่แบบ Real-time จากระบบฐานข้อมูลกลาง พร้อมปกปิดข้อมูลผู้แจ้ง</p>
             </div>
             
-            <div className="flex items-center justify-end md:ml-6 min-w-[170px] mt-2 md:mt-0">
+            <div className="flex flex-col items-end gap-1 ml-9 md:ml-0 flex-shrink-0 min-w-[160px]">
               <button 
                 onClick={handleDownloadSupabaseCSV} 
                 disabled={isDownloading}
-                className={`w-full ${isDownloading ? 'bg-slate-600 border-slate-500 cursor-not-allowed' : 'bg-gradient-to-r from-[#0284c7] to-[#2563eb] hover:from-[#0369a1] hover:to-[#1d4ed8] border border-blue-400 shadow-[0_5px_15px_rgba(37,99,235,0.35)] hover:-translate-y-1'} text-white px-5 py-3 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center space-x-2`}
+                className={`w-full ${isDownloading ? 'bg-gray-600 border-gray-500' : 'bg-gradient-to-r from-[#0284c7] to-[#2563eb] hover:from-[#0369a1] hover:to-[#1d4ed8] border border-[#38bdf8]/50 shadow-[0_4px_12px_rgba(37,99,235,0.25)]'} text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center space-x-2`}
               >
                 {isDownloading ? (
-                  <><span className="animate-spin text-xl">⏳</span><span>กำลังสร้าง...</span></>
+                  <><span className="animate-spin text-xl">⏳</span><span>กำลังสร้างไฟล์...</span></>
                 ) : (
-                  <><span className="text-white text-lg">⬇️</span><span>ดาวน์โหลด CSV</span></>
+                  <><span className="text-white text-lg">⬇️</span><span>ดาวน์โหลด CSV สด</span></>
                 )}
               </button>
+              <div className="text-[10px] text-gray-500 font-mono text-center w-full">ดาวน์โหลดไปแล้ว {downloadCounts.incidents} ครั้ง</div>
             </div>
           </div>
 
           {/* Dataset 2: ศูนย์พักพิง */}
-          <div className="bg-[#1e293b] border border-[#334155] hover:border-[#10b981] transition-all rounded-2xl p-6 flex flex-col md:flex-row justify-between gap-5 relative overflow-hidden group shadow-lg">
-             <div className="absolute top-0 right-0 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[10px] font-black px-3 py-1 rounded-bl-xl shadow-md">LIVE API</div>
-            <div className="flex-1 mt-2 md:mt-0">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-emerald-900/50 rounded-xl flex items-center justify-center text-xl shadow-inner border border-emerald-800/50">🏥</div>
-                <h4 className="text-white font-extrabold text-[17px]">พิกัดศูนย์พักพิงและจุดปลอดภัย (Safe Zones)</h4>
+          <div className="bg-[#1e293b] border border-[#334155] hover:border-[#10b981]/50 transition-all rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden">
+             <div className="absolute top-0 right-0 bg-[#10b981] text-[#0f172a] text-[9px] font-black px-2 py-0.5 rounded-bl-lg">LIVE API</div>
+            <div>
+              <div className="flex items-center space-x-3 mb-1 mt-1">
+                <span className="text-2xl">🏥</span>
+                <h4 className="text-white font-bold text-base">พิกัดศูนย์พักพิงและจุดปลอดภัย (Safe Zones)</h4>
               </div>
-              <p className="text-gray-300 text-sm ml-[3.25rem] leading-relaxed">พิกัดสถานที่ ชื่อหมู่บ้าน ศูนย์การแพทย์ และจุดอพยพรวมพลในตำบลบ่อหลวง จำนวน 17 แห่ง</p>
-              
-              <div className="ml-[3.25rem] mt-3 flex items-center">
-                <div className="bg-slate-800/80 border border-slate-600 rounded-full px-3 py-1 flex items-center space-x-1.5 shadow-inner">
-                  <span className="text-blue-400 text-xs">📈</span>
-                  <span className="text-gray-300 text-[11px] font-medium tracking-wide">ดาวน์โหลดแล้ว <strong className="text-white font-bold">{downloadCounts.safeZones}</strong> ครั้ง</span>
-                </div>
-              </div>
+              <p className="text-gray-400 text-sm ml-9">พิกัดสถานที่ ชื่อหมู่บ้าน ศูนย์การแพทย์ และจุดอพยพรวมพลในตำบลบ่อหลวง จำนวน 17 แห่ง</p>
             </div>
-            <div className="flex items-center justify-end md:ml-6 min-w-[170px] mt-2 md:mt-0">
+            <div className="flex flex-col items-end gap-1 ml-9 md:ml-0 flex-shrink-0 min-w-[160px]">
               <button 
                 onClick={handleDownloadSafeZonesCSV} 
-                className="w-full bg-gradient-to-r from-[#10b981] to-[#059669] hover:from-[#059669] hover:to-[#047857] text-white px-5 py-3 rounded-xl font-bold text-sm shadow-[0_5px_15px_rgba(16,185,129,0.35)] hover:-translate-y-1 transition-all duration-300 flex items-center justify-center space-x-2 border border-emerald-400"
+                className="w-full bg-[#10b981] hover:bg-[#059669] text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-emerald-400"
               >
                 <span>📥</span><span>ดาวน์โหลด .CSV</span>
               </button>
+              <div className="text-[10px] text-gray-500 font-mono text-center w-full">ดาวน์โหลดไปแล้ว {downloadCounts.safeZones} ครั้ง</div>
             </div>
           </div>
 
           {/* Dataset 3: ข้อมูลแผนที่แนวเขตตำบล */}
-          <div className="bg-[#1e293b] border border-[#334155] hover:border-[#0ea5e9] transition-all rounded-2xl p-6 flex flex-col md:flex-row justify-between gap-5 relative group shadow-lg">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-sky-900/50 rounded-xl flex items-center justify-center text-xl shadow-inner border border-sky-800/50">🗺️</div>
-                <h4 className="text-white font-extrabold text-[17px]">ข้อมูลแนวเขตตำบลบ่อหลวง (Boluang Boundary Data)</h4>
+          <div className="bg-[#1e293b] border border-[#334155] hover:border-[#38bdf8]/50 transition-all rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center space-x-3 mb-1">
+                <span className="text-2xl">🗺️</span>
+                <h4 className="text-white font-bold text-base">ข้อมูลแนวเขตตำบลบ่อหลวง (Boluang Boundary Data)</h4>
               </div>
-              <p className="text-gray-300 text-sm ml-[3.25rem] leading-relaxed">พิกัดภูมิศาสตร์แนวเขตตำบลบ่อหลวง (GeoJSON Format)</p>
-              
-              <div className="ml-[3.25rem] mt-3 flex items-center">
-                <div className="bg-slate-800/80 border border-slate-600 rounded-full px-3 py-1 flex items-center space-x-1.5 shadow-inner">
-                  <span className="text-blue-400 text-xs">📈</span>
-                  <span className="text-gray-300 text-[11px] font-medium tracking-wide">ดาวน์โหลดแล้ว <strong className="text-white font-bold">{downloadCounts.boundary}</strong> ครั้ง</span>
-                </div>
-              </div>
+              <p className="text-gray-400 text-sm ml-9">พิกัดภูมิศาสตร์แนวเขตตำบลบ่อหลวง (GeoJSON Format)</p>
             </div>
-            <div className="flex items-center justify-end md:ml-6 min-w-[170px] mt-2 md:mt-0">
+            <div className="flex flex-col items-end gap-1 ml-9 md:ml-0 flex-shrink-0 min-w-[160px]">
               <a 
                 href="/geojson/boluang.json" 
                 download="ข้อมูลแนวเขตตำบลบ่อหลวง.geojson"
                 onClick={() => incrementCount('boundary')}
-                className="w-full bg-gradient-to-r from-[#0ea5e9] to-[#0284c7] hover:from-[#0284c7] hover:to-[#0369a1] text-white px-5 py-3 rounded-xl font-bold text-sm shadow-[0_5px_15px_rgba(14,165,233,0.35)] hover:-translate-y-1 transition-all duration-300 flex items-center justify-center space-x-2 border border-sky-400"
+                className="w-full bg-[#0ea5e9] hover:bg-[#0284c7] text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-sky-400"
               >
                 <span>📍</span><span>ดาวน์โหลด GeoJSON</span>
               </a>
+              <div className="text-[10px] text-gray-500 font-mono text-center w-full">ดาวน์โหลดไปแล้ว {downloadCounts.boundary} ครั้ง</div>
             </div>
           </div>
 
           {/* Dataset 4: ข้อมูลพื้นที่เสี่ยงดินถล่ม */}
-          <div className="bg-[#1e293b] border border-[#334155] hover:border-[#f43f5e] transition-all rounded-2xl p-6 flex flex-col md:flex-row justify-between gap-5 relative group shadow-lg">
-            <div className="flex-1">
-              <div className="flex flex-wrap items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-rose-900/50 rounded-xl flex items-center justify-center text-xl shadow-inner border border-rose-800/50">⚠️</div>
-                <h4 className="text-white font-extrabold text-[17px]">พิกัดพื้นที่เสี่ยงภัยดินถล่ม (Landslide Risk Zones)</h4>
-                <span className="bg-rose-500/20 text-rose-400 text-[10px] font-bold px-2.5 py-1 rounded-md border border-rose-500/30">Hazard Data</span>
+          <div className="bg-[#1e293b] border border-[#334155] hover:border-[#f43f5e]/50 transition-all rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center space-x-3 mb-1">
+                <span className="text-2xl">⚠️</span>
+                <h4 className="text-white font-bold text-base">พิกัดพื้นที่เสี่ยงภัยดินถล่ม (Landslide Risk Zones)</h4>
+                <span className="bg-rose-500/20 text-rose-400 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-500/30">Hazard Data</span>
               </div>
-              <p className="text-gray-300 text-sm ml-[3.25rem] leading-relaxed">พิกัดทางภูมิศาสตร์ระบุแนวเขตพื้นที่เสี่ยงดินโคลนถล่มในเขตตำบลบ่อหลวง อ้างอิงจากกรมทรัพยากรธรณี</p>
-              
-              <div className="ml-[3.25rem] mt-3 flex items-center">
-                <div className="bg-slate-800/80 border border-slate-600 rounded-full px-3 py-1 flex items-center space-x-1.5 shadow-inner">
-                  <span className="text-blue-400 text-xs">📈</span>
-                  <span className="text-gray-300 text-[11px] font-medium tracking-wide">ดาวน์โหลดแล้ว <strong className="text-white font-bold">{downloadCounts.landslide}</strong> ครั้ง</span>
-                </div>
-              </div>
+              <p className="text-gray-400 text-sm ml-9">พิกัดทางภูมิศาสตร์ระบุแนวเขตพื้นที่เสี่ยงดินโคลนถล่มในเขตตำบลบ่อหลวง อ้างอิงจากกรมทรัพยากรธรณี (GeoJSON Format)</p>
             </div>
-            <div className="flex items-center justify-end md:ml-6 min-w-[170px] mt-2 md:mt-0">
+            <div className="flex flex-col items-end gap-1 ml-9 md:ml-0 flex-shrink-0 min-w-[160px]">
               <a 
                 href="/geojson/boluang_landslide_risk.json" 
                 download="ข้อมูลพื้นที่เสี่ยงดินถล่ม_กรมทรัพยากรธรณี.geojson"
                 onClick={() => incrementCount('landslide')}
-                className="w-full bg-gradient-to-r from-[#e11d48] to-[#be123c] hover:from-[#be123c] hover:to-[#9f1239] text-white px-5 py-3 rounded-xl font-bold text-sm shadow-[0_5px_15px_rgba(225,29,72,0.35)] hover:-translate-y-1 transition-all duration-300 flex items-center justify-center space-x-2 border border-rose-400"
+                className="w-full bg-[#e11d48] hover:bg-[#be123c] text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-rose-400"
               >
                 <span>📍</span><span>ดาวน์โหลด GeoJSON</span>
               </a>
+              <div className="text-[10px] text-gray-500 font-mono text-center w-full">ดาวน์โหลดไปแล้ว {downloadCounts.landslide} ครั้ง</div>
             </div>
           </div>
 
           {/* Dataset 5: ข้อมูลแนวเขตหมู่บ้าน */}
-          <div className="bg-[#1e293b] border border-[#334155] hover:border-[#6366f1] transition-all rounded-2xl p-6 flex flex-col md:flex-row justify-between gap-5 relative group shadow-lg">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-indigo-900/50 rounded-xl flex items-center justify-center text-xl shadow-inner border border-indigo-800/50">🏘️</div>
-                <h4 className="text-white font-extrabold text-[17px]">ข้อมูลแนวเขตหมู่บ้าน จากแผนที่ภาษี (Village Boundary Data)</h4>
+          <div className="bg-[#1e293b] border border-[#334155] hover:border-[#38bdf8]/50 transition-all rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center space-x-3 mb-1">
+                <span className="text-2xl">🏘️</span>
+                <h4 className="text-white font-bold text-base">ข้อมูลแนวเขตหมู่บ้าน จากแผนที่ภาษี (Village Boundary Data)</h4>
               </div>
-              <p className="text-gray-300 text-sm ml-[3.25rem] leading-relaxed">พิกัดทางภูมิศาสตร์ระบุแนวเขตหมู่บ้านและแปลงพื้นที่ (Block) อ้างอิงจากระบบแผนที่ภาษี (GeoJSON Format)</p>
-              
-              <div className="ml-[3.25rem] mt-3 flex items-center">
-                <div className="bg-slate-800/80 border border-slate-600 rounded-full px-3 py-1 flex items-center space-x-1.5 shadow-inner">
-                  <span className="text-blue-400 text-xs">📈</span>
-                  <span className="text-gray-300 text-[11px] font-medium tracking-wide">ดาวน์โหลดแล้ว <strong className="text-white font-bold">{downloadCounts.villageBlock}</strong> ครั้ง</span>
-                </div>
-              </div>
+              <p className="text-gray-400 text-sm ml-9">พิกัดทางภูมิศาสตร์ระบุแนวเขตหมู่บ้านและแปลงพื้นที่ (Block) อ้างอิงจากระบบแผนที่ภาษี (GeoJSON Format)</p>
             </div>
-            <div className="flex items-center justify-end md:ml-6 min-w-[170px] mt-2 md:mt-0">
+            <div className="flex flex-col items-end gap-1 ml-9 md:ml-0 flex-shrink-0 min-w-[160px]">
               <a 
                 href="/geojson/block.json" 
                 download="ข้อมูลแนวเขตหมู่บ้าน_แผนที่ภาษี.geojson"
                 onClick={() => incrementCount('villageBlock')}
-                className="w-full bg-gradient-to-r from-[#6366f1] to-[#4f46e5] hover:from-[#4f46e5] hover:to-[#4338ca] text-white px-5 py-3 rounded-xl font-bold text-sm shadow-[0_5px_15px_rgba(99,102,241,0.35)] hover:-translate-y-1 transition-all duration-300 flex items-center justify-center space-x-2 border border-indigo-400"
+                className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 border border-blue-400"
               >
                 <span>📍</span><span>ดาวน์โหลด GeoJSON</span>
               </a>
+              <div className="text-[10px] text-gray-500 font-mono text-center w-full">ดาวน์โหลดไปแล้ว {downloadCounts.villageBlock} ครั้ง</div>
             </div>
           </div>
 
         </div>
-     );
+      </main>
+    </div>
+  );
 }
