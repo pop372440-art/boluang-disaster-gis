@@ -1371,58 +1371,52 @@ export default function BoLuangDashboard() {
 
               return (
                 <Marker key={`report-${incident.id}`} position={[incident.latitude, incident.longitude]} icon={getIncidentIcon(incident)}>
-                  <Popup className="custom-popup" minWidth={350} maxWidth={350}>
-                    {/* 🌟 ล็อกความกว้างไว้ที่ w-[350px] ชัวร์ๆ ไม่ให้ Leaflet บีบ */}
-                    <div className="w-[350px] bg-white rounded-[20px] shadow-[0_20px_50px_rgba(0,0,0,0.4)] overflow-hidden flex flex-col -m-5 border border-slate-100">
+                  <Popup className="custom-popup" minWidth={320} maxWidth={320}>
+                    {/* 🌟 ล็อกความกว้าง และเปลี่ยนเป็น Flat Design (ไร้เงาหนัก ไร้เบลอ) */}
+                    <div className="w-[320px] bg-white rounded-xl shadow-lg overflow-hidden flex flex-col -m-5 border border-slate-200">
                       
-                      {/* Header (สีครามเข้ม หรูหรา) */}
-                      <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-5 py-4 flex items-center justify-between relative overflow-hidden shrink-0">
-                        {/* เอฟเฟกต์แสงเงา */}
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-xl -mr-10 -mt-10"></div>
-                        
-                        <div className="flex items-center space-x-3 relative z-10 w-full pr-6">
-                          {/* ไอคอนเตือนภัย (SVG แบบทางการ) */}
-                          <div className="w-10 h-10 bg-rose-500/20 rounded-xl flex items-center justify-center border border-rose-500/30 shrink-0">
-                            <svg className="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      {/* Header (สีพื้น Solid Color คลีนๆ) */}
+                      <div className="bg-slate-800 px-4 py-3 flex items-center justify-between shrink-0 border-b border-slate-700">
+                        <div className="flex items-center space-x-2.5 w-full pr-6">
+                          <div className="w-8 h-8 bg-rose-500/10 rounded-lg flex items-center justify-center border border-rose-500/20 shrink-0">
+                            <svg className="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                             </svg>
                           </div>
-                          <h3 className="text-[15px] font-extrabold text-white leading-tight truncate">
+                          <h3 className="text-[14px] font-bold text-white truncate">
                             {incident.risk_type}
                           </h3>
                         </div>
                       </div>
 
                       {/* Content Body */}
-                      <div className="p-5 flex-1 space-y-4">
+                      <div className="p-4 flex-1 space-y-3.5">
                         
-                        {/* แถบความรุนแรง & สถานะ */}
+                        {/* แถบความรุนแรง & สถานะ (ดีไซน์เรียบง่าย) */}
                         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                           <div className="flex items-center space-x-2">
-                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">ความรุนแรง:</span>
-                            <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold text-white shadow-sm ${severityColor}`}>
+                            <span className="text-[11px] font-bold text-slate-500 uppercase">ความรุนแรง:</span>
+                            <span className={`px-2 py-0.5 rounded text-[11px] font-bold text-white ${severityColor}`}>
                               ระดับ {incident.severity_level}
                             </span>
                           </div>
-                          <span className={`px-3 py-1 rounded-lg text-[11px] font-bold border shadow-sm ${statusColor}`}>
+                          <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold border ${statusColor}`}>
                             {statusText}
                           </span>
                         </div>
 
                         {/* รายละเอียด */}
-                        <div className="space-y-3.5 text-[13px]">
+                        <div className="space-y-3 text-[13px]">
                           <div className="flex items-start">
-                            {/* SVG Pin Icon */}
-                            <svg className="w-4 h-4 text-slate-400 mt-0.5 mr-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            <svg className="w-4 h-4 text-slate-400 mt-0.5 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                             <div>
                               <span className="text-slate-500 font-bold text-[11px] block leading-none mb-1">พื้นที่เกิดเหตุ</span>
-                              <span className="text-slate-800 font-extrabold">{incident.village_name}</span>
+                              <span className="text-slate-800 font-bold">{incident.village_name}</span>
                             </div>
                           </div>
                           
-                          <div className="flex items-start bg-slate-50 p-3 rounded-xl border border-slate-100">
-                            {/* SVG Document Icon */}
-                            <svg className="w-4 h-4 text-slate-400 mt-0.5 mr-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                          <div className="flex items-start bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                            <svg className="w-4 h-4 text-slate-400 mt-0.5 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                             <div className="flex-1">
                               <span className="text-slate-500 font-bold text-[11px] block leading-none mb-1">รายละเอียด</span>
                               <p className="text-slate-700 leading-snug line-clamp-3">{incident.description}</p>
@@ -1430,8 +1424,7 @@ export default function BoLuangDashboard() {
                           </div>
 
                           <div className="flex items-start">
-                            {/* SVG User Icon */}
-                            <svg className="w-4 h-4 text-slate-400 mt-0.5 mr-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                            <svg className="w-4 h-4 text-slate-400 mt-0.5 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                             <div>
                               <span className="text-slate-500 font-bold text-[11px] block leading-none mb-1">ผู้แจ้ง ({incident.reporter_role})</span>
                               <span className="text-slate-700 font-bold">{incident.reporter_name || 'ไม่ระบุชื่อ'}</span>
@@ -1442,7 +1435,7 @@ export default function BoLuangDashboard() {
                         {/* รูปภาพ (ถ้ามี) */}
                         {incident.image_url && (
                           <div 
-                            className="mt-5 rounded-xl overflow-hidden shadow-sm border border-slate-200 relative group cursor-pointer"
+                            className="mt-4 rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:border-blue-400 transition-colors"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleViewImage(incident.image_url);
@@ -1451,45 +1444,38 @@ export default function BoLuangDashboard() {
                             <img 
                               src={incident.image_url} 
                               alt="Incident" 
-                              className="w-full h-40 object-cover transform transition-transform duration-500 group-hover:scale-105"
+                              className="w-full h-32 object-cover"
                               onError={(e: any) => { e.target.style.display = 'none'; }} 
                             />
-                            <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                               {/* SVG Zoom Icon */}
-                               <div className="bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center space-x-1.5 shadow-lg">
-                                 <svg className="w-4 h-4 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
-                                 <span className="text-slate-700 text-[11px] font-bold">ดูรูปขยาย</span>
-                               </div>
-                            </div>
                           </div>
                         )}
 
-                        {/* ปุ่ม Action (Professional Outline & Solid) */}
-                        <div className="grid grid-cols-2 gap-3 pt-5 mt-2 border-t border-slate-100">
+                        {/* ปุ่ม Action (ปรับสีปุ่มเริ่มนำทางให้ชัดเจน - ขาวบนน้ำเงิน) */}
+                        <div className="grid grid-cols-2 gap-2 pt-4 mt-1 border-t border-slate-100">
                           <a 
                             href={`https://maps.google.com/?q=${incident.latitude},${incident.longitude}`} 
                             target="_blank" 
                             rel="noreferrer"
-                            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 py-2.5 rounded-xl font-bold text-[13px] flex justify-center items-center space-x-2 transition-colors shadow-sm"
+                            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 py-2 rounded-lg font-bold text-[12px] flex justify-center items-center space-x-1.5 transition-colors"
                           >
-                            <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+                            <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
                             <span>เปิดใน Maps</span>
                           </a>
                           <a 
                             href={`https://www.google.com/maps/dir/?api=1&destination=${incident.latitude},${incident.longitude}`} 
                             target="_blank" 
                             rel="noreferrer"
-                            className="bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-bold text-[13px] flex justify-center items-center space-x-2 shadow-md shadow-blue-500/20 transition-all"
+                            className="bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold text-[12px] flex justify-center items-center space-x-1.5 transition-colors"
                           >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
                             <span>เริ่มนำทาง</span>
                           </a>
                         </div>
                       </div>
 
                       {/* Footer */}
-                      <div className="bg-slate-50 py-3 px-5 text-center shrink-0">
-                        <p className="text-[10px] text-slate-400 font-medium tracking-wide">
+                      <div className="bg-slate-50 py-2 px-4 text-center border-t border-slate-100 shrink-0">
+                        <p className="text-[10px] text-slate-500 font-medium">
                           แจ้งเหตุเมื่อ: {new Date(incident.created_at).toLocaleString('th-TH')}
                         </p>
                       </div>
