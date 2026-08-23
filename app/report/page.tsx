@@ -50,80 +50,173 @@ const checkPointInFeature = (lng: number, lat: number, feature: any) => {
 };
 
 // 🌟 ฟังก์ชันสร้างรูปภาพและเรียกหน้าต่างแชร์ (Share Sheet)
-const downloadSlipImage = async (trackingCode: string) => {
-  setTimeout(async () => {
-    const slipElement = document.querySelector('#slip-content-container') as HTMLElement;
+const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
+  try {
+    // 1. สร้างภาพ QR Code ให้พร้อมใช้งานก่อน
+    const qrImage = new Image();
+    qrImage.crossOrigin = "Anonymous"; 
+    qrImage.src = qrUrlStr;
+
+    await new Promise((resolve) => {
+      qrImage.onload = resolve;
+      qrImage.onerror = () => {
+        console.warn("QR Code โหลดไม่ทัน จะวาดสลิปแบบไม่มี QR แทน");
+        resolve(null);
+      };
+    });
+
+    // 2. เตรียม Canvas (เหมือนกระดาษวาดรูป) ความละเอียด 2 เท่า (Retina)
+    const canvas = document.createElement('canvas');
+    const scale = 2;
+    const width = 400;
+    const height = 550;
+    canvas.width = width * scale;
+    canvas.height = height * scale;
     
-    if (slipElement) {
-      try {
-        const canvas = await html2canvas(slipElement, {
-          scale: 2, 
-          useCORS: true,
-          backgroundColor: '#ffffff'
-        });
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // ตั้งค่าสเกล
+    ctx.scale(scale, scale);
 
-        // เช็คว่าอุปกรณ์นี้รองรับการ Share ไฟล์ภาพหรือไม่ (มีในมือถือสมัยใหม่แทบทุกรุ่น)
-        const isMobileShareSupported = navigator.canShare && navigator.canShare({ files: [new File([], '')] });
+    // 3. วาดพื้นหลังสลิป (สีขาว)
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
 
-        if (isMobileShareSupported) {
-          // 📱 สำหรับมือถือ: แปลง Canvas เป็นไฟล์ (Blob) แล้วสั่ง Share
-          canvas.toBlob(async (blob) => {
-            if (blob) {
-              const file = new File([blob], `Slip_BL_${trackingCode}.png`, { type: 'image/png' });
-              try {
-                // เรียกหน้าต่าง Share Sheet ของมือถือขึ้นมา
-                await navigator.share({
-                  title: 'หลักฐานการแจ้งเหตุ (เทศบาลตำบลบ่อหลวง)',
-                  text: `แจ้งเหตุสำเร็จ! รหัสติดตาม: ${trackingCode}`,
-                  files: [file]
-                });
-                console.log('แชร์สำเร็จ');
-              } catch (shareError: any) {
-                // ถ้าผู้ใช้กดยกเลิกการแชร์ ไม่ต้องแสดง Error
-                if (shareError.name !== 'AbortError') {
-                  console.error('Share failed:', shareError);
-                  fallbackDownload(canvas, trackingCode); // ถ้าแชร์ล่ม ให้สลับไปโหมดแตะค้าง
-                }
-              }
-            }
-          }, 'image/png');
+    // 4. วาดหัวสลิป
+    ctx.fillStyle = '#64748b';
+    ctx.font = 'bold 16px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('หมายเลขติดตามคำร้องของคุณ', width / 2, 60);
 
-        } else {
-          // 💻 สำหรับคอมพิวเตอร์ หรือมือถือรุ่นเก่า: ใช้วิธีโหลดลงเครื่องปกติ / แตะค้าง
-          fallbackDownload(canvas, trackingCode);
-        }
-        
-      } catch (error) {
-        console.error("Error capturing slip:", error);
-      }
+    // 5. วาดกล่องเขียว
+    ctx.fillStyle = '#059669';
+    roundRect(ctx, 40, 80, width - 80, 80, 16);
+    ctx.fill();
+
+    // 6. วาดรหัส Tracking (สีขาว บนกล่องเขียว)
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 38px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(trackingCode, width / 2, 133);
+
+    // 7. วาดกล่องเทาด้านล่าง
+    ctx.fillStyle = '#f8fafc';
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 2;
+    roundRect(ctx, 40, 180, width - 80, 310, 16);
+    ctx.fill();
+    ctx.stroke();
+
+    // 8. วาดป้ายสีน้ำเงิน "ข้อมูลบันทึกเข้าระบบแล้ว"
+    ctx.fillStyle = '#3b82f6';
+    roundRect(ctx, 80, 205, width - 160, 35, 18);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 14px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('✅ ข้อมูลบันทึกเข้าระบบแล้ว', width / 2, 227);
+
+    // 9. วาดกรอบสำหรับ QR
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 6]); // เส้นประ
+    roundRect(ctx, 110, 260, 180, 180, 12);
+    ctx.fill();
+    ctx.stroke();
+    ctx.setLineDash([]); // คืนค่าเส้นทึบ
+
+    // 10. แปะรูป QR (ถ้ามี)
+    if (qrImage.complete && qrImage.naturalWidth > 0) {
+      ctx.drawImage(qrImage, 120, 270, 160, 160);
     }
-  }, 1000); // รอเรนเดอร์ 1 วิ
+
+    // 11. วาดคำแนะนำด้านล่าง
+    ctx.fillStyle = '#475569';
+    ctx.font = 'bold 13px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('นำรูปนี้ให้ผู้นำชุมชน หรือ อสม.', width / 2, 465);
+    ctx.fillText('สแกนเพื่อตรวจสอบสถานะแทนคุณได้ทันที', width / 2, 485);
+
+    // 12. วาดท้ายสลิป
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '12px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`เทศบาลตำบลบ่อหลวง จ.เชียงใหม่ • ${new Date().toLocaleDateString('th-TH')}`, width / 2, 530);
+
+    // 13. แปลงร่าง Canvas เป็นไฟล์ภาพ
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const file = new File([blob], `Slip_BL_${trackingCode}.png`, { type: 'image/png' });
+      const imageURL = URL.createObjectURL(blob);
+
+      // เช็คว่าเป็นมือถือที่รองรับการแชร์หรือไม่
+      const isMobileShareSupported = navigator.canShare && navigator.canShare({ files: [new File([], '')] });
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+      if (isMobileShareSupported) {
+        // มือถือ: เปิดหน้าต่างแชร์
+        try {
+          await navigator.share({
+            title: 'หลักฐานการแจ้งเหตุ (เทศบาลตำบลบ่อหลวง)',
+            text: `แจ้งเหตุสำเร็จ! รหัสติดตาม: ${trackingCode}`,
+            files: [file]
+          });
+        } catch (shareError: any) {
+          if (shareError.name !== 'AbortError') {
+             // ถ้าแชร์ไม่ได้ ให้โชว์รูปให้แตะค้าง
+             showFallbackImage(imageURL);
+          }
+        }
+      } else if (isMobileDevice) {
+        // มือถือรุ่นเก่า: โชว์รูปให้แตะค้าง
+        showFallbackImage(imageURL);
+      } else {
+        // คอมพิวเตอร์ (PC): บังคับดาวน์โหลดลงเครื่องทันที!
+        const link = document.createElement('a');
+        link.download = `Slip_แจ้งเหตุ_${trackingCode}.png`;
+        link.href = imageURL;
+        document.body.appendChild(link); // จำเป็นสำหรับบางเบราว์เซอร์บน PC
+        link.click();
+        document.body.removeChild(link);
+      }
+    }, 'image/png');
+
+  } catch (error) {
+    console.error("Error creating slip image:", error);
+  }
 };
 
-// ฟังก์ชันสำรอง (เหมือนโค้ดชุดก่อนหน้า)
-const fallbackDownload = (canvas: HTMLCanvasElement, trackingCode: string) => {
-  const image = canvas.toDataURL("image/png", 1.0);
-  const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+// ฟังก์ชันช่วยวาดกล่องขอบมนใน Canvas
+const roundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) => {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
 
-  if (isMobileDevice) {
-    const imageContainer = document.getElementById('slip-image-result');
-    const originalContent = document.getElementById('slip-original-html');
-    if (imageContainer && originalContent) {
-      originalContent.style.display = 'none';
-      imageContainer.innerHTML = `
-        <div style="text-align: center; animation: fadeIn 0.5s ease-in-out;">
-          <p style="color: #ef4444; font-size: 13px; font-weight: bold; margin-bottom: 8px; animation: bounce 2s infinite;">
-            👇 แตะค้างที่รูปภาพเพื่อบันทึก 👇
-          </p>
-          <img src="${image}" alt="สลิปแจ้งเหตุ" style="max-width: 100%; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);" />
-        </div>
-      `;
-    }
-  } else {
-    const link = document.createElement('a');
-    link.download = `Slip_แจ้งเหตุ_${trackingCode}.png`;
-    link.href = image;
-    link.click();
+// ฟังก์ชันโชว์รูปภาพให้แตะค้าง (Fallback สำหรับมือถือ)
+const showFallbackImage = (imageURL: string) => {
+  const imageContainer = document.getElementById('slip-image-result');
+  const originalContent = document.getElementById('slip-original-html');
+  if (imageContainer && originalContent) {
+    originalContent.style.display = 'none';
+    imageContainer.innerHTML = `
+      <div style="text-align: center; margin-top: 10px;">
+        <p style="color: #ef4444; font-size: 13px; font-weight: bold; margin-bottom: 8px;">
+          👇 แตะค้างที่รูปภาพเพื่อบันทึก 👇
+        </p>
+        <img src="${imageURL}" alt="สลิปแจ้งเหตุ" style="max-width: 100%; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);" />
+      </div>
+    `;
   }
 };
 
@@ -536,7 +629,7 @@ export default function ReportPage() {
       });
 
       // 🌟 สั่งถ่ายรูปหน้าจอ Popup แล้วดาวน์โหลดลงเครื่องทันที (สลิปธนาคารสไตล์)
-      downloadSlipImage(trackingCode);
+     downloadSlipImage(trackingCode, qrCodeImageUrl);
 
     } catch (error: any) {
       console.error('Error:', error.message);
