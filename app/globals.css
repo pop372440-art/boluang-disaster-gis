@@ -24,52 +24,28 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
-/* --- ส่วนเพิ่มเติมสำหรับปรับแต่ง Leaflet Popup (Modern UI) --- */
-
-/* ลบกล่องและเงาเดิมของ Leaflet ทิ้ง */
+/* Custom Leaflet Popup for Minimal UI */
 .custom-popup .leaflet-popup-content-wrapper { 
   background: transparent !important; 
   box-shadow: none !important; 
   padding: 0 !important; 
 }
-
-/* บังคับความกว้างและตัดระยะขอบของ Content ด้านใน */
 .custom-popup .leaflet-popup-content { 
   margin: 0 !important; 
-  width: 350px !important; 
+  width: 320px !important; 
 }
-
-/* ซ่อนจงอย (สามเหลี่ยมชี้ลง) ด้านล่าง Popup */
 .custom-popup .leaflet-popup-tip-container { 
   display: none !important; 
 }
-
-/* ปรับแต่งปุ่มกากบาท (X) ปิดหน้าต่างให้สวยขึ้น */
 .custom-popup .leaflet-popup-close-button { 
-  color: rgba(255, 255, 255, 0.7) !important; 
-  font-weight: bold !important; 
-  font-size: 20px !important; 
-  top: 12px !important; 
-  right: 15px !important; 
+  color: rgba(255, 255, 255, 0.8) !important; 
+  font-weight: normal !important; 
+  font-size: 22px !important; 
+  top: 6px !important; 
+  right: 12px !important; 
   z-index: 50 !important; 
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5) !important; 
 }
-
-/* เอฟเฟกต์ตอนเอาเมาส์ชี้ปุ่มปิด (Hover) */
 .custom-popup .leaflet-popup-close-button:hover { 
   background: transparent !important; 
-  color: #fbbf24 !important; /* เปลี่ยนเป็นสีเหลืองตอนชี้ */
-}
-
-/* ปรับซ่อนปุ่มปิดของ Popup จุดพิกัดเดิมบางตัวที่ซ้อนกัน (ถ้ามี) */
-.leaflet-popup-close-button { 
-  color: #cbd5e1; 
-  font-size: 16px; 
-  padding-top: 4px; 
-  padding-right: 8px; 
-  z-index: 50;
-}
-.leaflet-popup-close-button:hover { 
-  color: #ef4444; 
-  background: transparent; 
+  color: white !important; 
 }
