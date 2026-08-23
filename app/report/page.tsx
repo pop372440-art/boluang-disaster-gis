@@ -6,6 +6,8 @@ import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2'; 
 import { useMapEvents } from 'react-leaflet';
+// 🌟 สำคัญ: อย่าลืม Import html2canvas ไว้ด้านบนสุดของไฟล์
+import html2canvas from 'html2canvas';
 
 // 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -45,6 +47,37 @@ const checkPointInFeature = (lng: number, lat: number, feature: any) => {
     }
   }
   return false;
+};
+
+// 🌟 ฟังก์ชันดาวน์โหลดรูปภาพ (Auto-Save Slip)
+const downloadSlipImage = async (trackingCode: string) => {
+  // หน่วงเวลาเล็กน้อยเพื่อให้ DOM ของ SweetAlert2 เรนเดอร์เสร็จสมบูรณ์ก่อนแคปภาพ
+  setTimeout(async () => {
+    // หา Element ที่ต้องการแคป (ในที่นี้คือตัว Popup ของ SweetAlert2)
+    const slipElement = document.querySelector('.swal2-popup') as HTMLElement;
+    
+    if (slipElement) {
+      try {
+        const canvas = await html2canvas(slipElement, {
+          scale: 2, // เพิ่มความชัดระดับ Retina
+          useCORS: true,
+          backgroundColor: '#ffffff' // ป้องกันพื้นหลังโปร่งใส
+        });
+
+        // แปลง Canvas เป็น Data URL
+        const image = canvas.toDataURL("image/png", 1.0);
+        
+        // สั่งสร้าง Link จำลองแล้วกด Download ทันที
+        const link = document.createElement('a');
+        link.download = `Slip_แจ้งเหตุ_${trackingCode}.png`;
+        link.href = image;
+        link.click();
+        
+      } catch (error) {
+        console.error("Error capturing slip:", error);
+      }
+    }
+  }, 800); // รอ 800ms
 };
 
 export default function ReportPage() {
@@ -318,6 +351,9 @@ export default function ReportPage() {
     }
   };
 
+  // ===============================================
+  // 🚀 ฟังก์ชัน Submit ที่เพิ่มระบบ Auto-Save Slip
+  // ===============================================
   const handleSubmit = async (e: any) => {
     e.preventDefault();
 
@@ -387,17 +423,21 @@ export default function ReportPage() {
       
       setCooldownTime(60);
 
+      // แสดง Popup แจ้งเตือนความสำเร็จ (รูปแบบสลิปใบเสร็จ)
       Swal.fire({
         title: 'ส่งข้อมูลสำเร็จ!',
         html: `
           <div class="mt-1 text-sm text-gray-600">หมายเลขติดตามคำร้องของคุณคือ:</div>
-          <div class="mt-3 p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-2xl font-bold text-emerald-700 tracking-widest select-all cursor-text shadow-inner">
+          <div class="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-3xl font-extrabold text-emerald-600 tracking-widest select-all cursor-text shadow-inner">
             ${trackingCode}
           </div>
-          <div class="mt-4 flex flex-col items-center justify-center">
-            <span class="text-xs font-bold text-gray-800 mb-2 bg-gray-100 px-3 py-1 rounded-full">แคปหน้าจอนี้เก็บไว้</span>
-            <img src="${qrCodeImageUrl}" alt="QR Code" class="w-40 h-40 object-contain rounded-xl border border-gray-200 p-2 shadow-sm" />
-            <span class="text-[11px] text-gray-500 mt-2 leading-tight">
+          <div class="mt-5 flex flex-col items-center justify-center p-4 bg-gray-50 rounded-2xl border border-gray-100">
+            <span class="text-xs font-bold text-white bg-blue-500 px-4 py-1.5 rounded-full mb-3 shadow-md flex items-center gap-1">
+               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+               <span>ระบบบันทึกรูปนี้ลงเครื่องคุณแล้ว</span>
+            </span>
+            <img src="${qrCodeImageUrl}" alt="QR Code" class="w-44 h-44 object-contain rounded-xl bg-white border border-gray-200 p-2 shadow-sm" />
+            <span class="text-[11px] text-gray-500 mt-3 leading-relaxed">
               นำ QR Code นี้ให้ผู้นำชุมชน หรือ อสม.<br/>สแกนเพื่อตรวจสอบสถานะแทนคุณได้ทันที
             </span>
           </div>
@@ -419,6 +459,9 @@ export default function ReportPage() {
           setAiResult(null); 
         }
       });
+
+      // 🌟 สั่งถ่ายรูปหน้าจอ Popup แล้วดาวน์โหลดลงเครื่องทันที (สลิปธนาคารสไตล์)
+      downloadSlipImage(trackingCode);
 
     } catch (error: any) {
       console.error('Error:', error.message);
