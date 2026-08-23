@@ -304,7 +304,5 @@ export default function OpenDataPage() {
           </div>
 
         </div>
-      </main>
-    </div>
-  );
+     );
 }
