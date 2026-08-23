@@ -427,25 +427,54 @@ export default function ReportPage() {
       Swal.fire({
         title: 'ส่งข้อมูลสำเร็จ!',
         html: `
-          <div style="margin-top: 5px; font-size: 14px; color: #4b5563;">หมายเลขติดตามคำร้องของคุณคือ:</div>
-          <div style="margin-top: 15px; padding: 12px; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; font-size: 30px; font-weight: 800; color: #059669; letter-spacing: 0.1em; user-select: all; cursor: text;">
-            ${trackingCode}
-          </div>
-          <div style="margin-top: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; background-color: #f9fafb; border-radius: 16px; border: 1px solid #f3f4f6;">
-            <span style="font-size: 12px; font-weight: bold; color: #ffffff; background-color: #3b82f6; padding: 6px 16px; border-radius: 9999px; margin-bottom: 12px; display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-               <span>ระบบบันทึกรูปนี้ลงเครื่องคุณแล้ว</span>
-            </span>
-            <img src="${qrCodeImageUrl}" alt="QR Code" style="width: 176px; height: 176px; object-fit: contain; border-radius: 12px; background-color: #ffffff; border: 1px solid #e5e7eb; padding: 8px; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);" />
-            <span style="font-size: 11px; color: #6b7280; margin-top: 12px; line-height: 1.5;">
-              นำ QR Code นี้ให้ผู้นำชุมชน หรือ อสม.<br/>สแกนเพื่อตรวจสอบสถานะแทนคุณได้ทันที
-            </span>
+          <!-- โครงสร้าง E-Slip แบบทางการ -->
+          <div style="font-family: Arial, sans-serif; color: #1e293b; background: #ffffff; padding: 10px 0;">
+            
+            <!-- หัวสลิป -->
+            <div style="font-size: 13px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">
+              หมายเลขติดตามคำร้อง
+            </div>
+
+            <!-- กล่อง Tracking Code สีเข้ม -->
+            <div style="background-color: #059669; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(5, 150, 105, 0.3);">
+              <div style="font-size: 32px; font-weight: 900; color: #ffffff; letter-spacing: 2px;">
+                ${trackingCode}
+              </div>
+            </div>
+
+            <!-- ข้อมูล QR Code & คำแนะนำ -->
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; text-align: center;">
+              
+              <!-- ป้ายสถานะ -->
+              <div style="display: inline-block; background-color: #3b82f6; color: #ffffff; font-size: 13px; font-weight: bold; padding: 6px 16px; border-radius: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);">
+                ✅ ระบบบันทึกรูปนี้ลงเครื่องคุณแล้ว
+              </div>
+
+              <!-- กรอบ QR Code -->
+              <div style="background-color: #ffffff; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 10px; display: inline-block; margin-bottom: 15px;">
+                <img src="${qrCodeImageUrl}" alt="QR Code" style="width: 160px; height: 160px; object-fit: contain; display: block;" />
+              </div>
+
+              <!-- คำแนะนำ -->
+              <div style="font-size: 12px; color: #475569; line-height: 1.6; font-weight: 600;">
+                นำรูปนี้ให้ <span style="color: #0284c7;">ผู้นำชุมชน</span> หรือ <span style="color: #0284c7;">อสม.</span><br/>
+                สแกนเพื่อตรวจสอบสถานะแทนคุณได้ทันที
+              </div>
+
+            </div>
+            
+            <!-- ท้ายสลิป -->
+            <div style="margin-top: 15px; font-size: 10px; color: #94a3b8; text-align: center; border-top: 1px dashed #e2e8f0; padding-top: 10px;">
+              เทศบาลตำบลบ่อหลวง จ.เชียงใหม่
+            </div>
+
           </div>
         `,
         showDenyButton: true,
         confirmButtonText: 'กลับหน้าหลัก',
         denyButtonText: 'แจ้งข้อมูลเพิ่ม',
-        confirmButtonColor: '#3b82f6',
-        denyButtonColor: '#10b981',    
+        confirmButtonColor: '#2563eb', // สีน้ำเงินเข้มขึ้น
+        denyButtonColor: '#10b981',    // สีเขียวเข้มขึ้น
         reverseButtons: true            
       }).then((result) => {
         if (result.isConfirmed) {
