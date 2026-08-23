@@ -54,7 +54,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c; 
 };
 
-// 🛡️ API Resilience (มี Cache ป้องกันระบบล่ม)
+// 🛡️ API Resilience
 const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 5000) => {
   try {
     const controller = new AbortController();
@@ -92,7 +92,7 @@ const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { 
 const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.CircleMarker), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 
-// 🛡️ Data Honesty UI: แสดงสถานะการดึงข้อมูลอย่างโปร่งใส (แทรกป้าย Source แล้ว)
+// 🛡️ Data Honesty UI
 const CustomToggleBox = ({ label, source, active, onClick, dotColor = '#38bdf8', isRadio = false, apiStatus = '' }: any) => {
   const [localActive, setLocalActive] = useState(active);
   useEffect(() => { setLocalActive(active); }, [active]);
@@ -126,7 +126,6 @@ const CustomToggleBox = ({ label, source, active, onClick, dotColor = '#38bdf8',
                {!isRadio && <div className="w-2.5 h-2.5 rounded-[3px] shadow-sm flex-shrink-0" style={{ backgroundColor: dotColor }}></div>}
                <span className={`text-[13px] font-medium transition-colors truncate ${localActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>{label}</span>
             </div>
-            {/* 🛡️ สอดแทรกข้อความ Data Honesty (แหล่งที่มา) */}
             {source && <span className="text-[9px] text-gray-500 font-mono tracking-widest mt-0.5 ml-4">{source}</span>}
         </div>
         {renderStatusBadge()}
@@ -230,8 +229,8 @@ export default function BoLuangDashboard() {
   // ----------------------------------------
   const [satelliteLayer, setSatelliteLayer] = useState(true); 
   const [showBoluang, setShowBoluang] = useState(true); 
-  const [showBlock, setShowBlock] = useState(true);         
-  const [showParcel, setShowParcel] = useState(false);      
+  const [showBlock, setShowBlock] = useState(true);          
+  const [showParcel, setShowParcel] = useState(false);       
   const [citizenReport, setCitizenReport] = useState(false); 
   const [earthquakeLayer, setEarthquakeLayer] = useState(false);        
   const [hotspot, setHotspot] = useState(false);
@@ -458,12 +457,8 @@ export default function BoLuangDashboard() {
 
     loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang);
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
-    
-    // 🛑 ปิดการโหลดแปลงที่ดินชั่วคราว เพื่อเพิ่มความเร็วหน้า Landing
-    // loadGeoJSON(`/geojson/parcel.json?v=${ts}`, setGeoParcel);
   }, []);
 
-  // 💡 โค้ดชุดใหม่ 1: โหลดจุดความร้อน GISTDA ก็ต่อเมื่อกดเปิดสวิตช์ hotspot
   useEffect(() => {
     if (hotspot && !geoHotspot) {
       fetch(`https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=98.3744&lat=18.1633&disaster_type=hotspot&key=${GISTDA_API_KEY}`)
@@ -473,7 +468,6 @@ export default function BoLuangDashboard() {
     }
   }, [hotspot]);
 
-  // 💡 โค้ดชุดใหม่ 2: โหลดดินถล่ม ก็ต่อเมื่อกดเปิดสวิตช์ showLandslide
   useEffect(() => {
     if (showLandslide && !geoLandslide) {
       fetch(`/geojson/boluang_landslide_risk.json?v=${Date.now()}`)
@@ -483,7 +477,6 @@ export default function BoLuangDashboard() {
     }
   }, [showLandslide]);
 
-  // 💡 โค้ดชุดใหม่ 3: โหลดแผ่นดินไหว ก็ต่อเมื่อกดเปิดสวิตช์ earthquakeLayer
   useEffect(() => {
       if (earthquakeLayer && !geoEarthquake) {
         fetch(`/geojson/earthquake.geojson?v=${Date.now()}`)
@@ -764,19 +757,13 @@ export default function BoLuangDashboard() {
     return { radius, color, fillColor, fillOpacity: 0.5, weight: 2.5 };
   };
 
-  // 🚀 ตั้งค่าให้ Hover เฉพาะเส้นขอบเขต (Border)
   const styleBoluang = { color: '#0ea5e9', weight: 3, fill: false, interactive: true }; 
   const onEachBoluangFeature = (feature: any, layer: any) => {
-    
     layer.on({
       mouseover: (e: any) => {
         const target = e.target;
-        
-        // 1. เมื่อเมาส์แตะโดน "เส้นขอบ" ให้เส้นหนาและสว่างขึ้น
         target.setStyle({ weight: 5, color: '#38bdf8' });
         if (target.bringToFront) target.bringToFront();
-        
-        // 2. "เสก" ป้ายข้อความขึ้นมา ณ วินาทีนั้น และให้โผล่ตรงปลายเมาส์ (e.latlng)
         target.bindTooltip('เขตเทศบาลตำบลบ่อหลวง', { 
           sticky: true, 
           direction: 'auto', 
@@ -785,11 +772,7 @@ export default function BoLuangDashboard() {
       },
       mouseout: (e: any) => {
         const target = e.target;
-        
-        // 1. เมื่อเมาส์ขยับออกจากเส้น ให้เส้นกลับเป็นปกติ
         target.setStyle(styleBoluang);
-        
-        // 2. "ทำลาย" ป้ายทิ้งทันที เพื่อไม่ให้ไปกวนพื้นที่ด้านใน
         target.closeTooltip();
         target.unbindTooltip();
       }
@@ -874,10 +857,46 @@ export default function BoLuangDashboard() {
     };
   }, [L]);
 
-  const createReportIcon = useMemo(() => {
-    if (!L) return () => null;
-    return () => L.divIcon({ className: 'bg-transparent border-none', html: `<div class="relative flex items-center justify-center w-10 h-10"><div class="absolute inset-0 bg-[#ef4444] rounded-full blur-[8px] opacity-60 animate-pulse"></div><div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#ef4444] rounded-full shadow-[0_0_15px_rgba(239,68,68,0.9)] z-10"><span class="text-[#ef4444] text-[14px]">🚨</span></div></div>`, iconSize: [40, 40], iconAnchor: [20, 20] });
-  }, [L]);
+  // ---------------------------------------------------------
+  // 📌 4. ฟังก์ชันสร้างไอคอนจุดแจ้งเหตุจากประชาชน (ใส่ Animation กระพริบ)
+  // ---------------------------------------------------------
+  const getIncidentIcon = (incident: any) => {
+    if(!L) return null;
+    const isResolved = incident.status?.includes('เสร็จแล้ว') || incident.status?.includes('ปิดจ๊อบ');
+    const inProgress = incident.status?.includes('กำลัง') || incident.status?.includes('ระหว่าง');
+    
+    const bgColor = isResolved ? 'bg-emerald-500' : inProgress ? 'bg-orange-500' : 'bg-red-600';
+    const borderColor = isResolved ? 'border-emerald-300' : inProgress ? 'border-orange-300' : 'border-red-300';
+    const shadowColor = isResolved ? 'shadow-emerald-500/50' : inProgress ? 'shadow-orange-500/50' : 'shadow-red-500/70';
+    
+    const pulseAnimation = (!isResolved) 
+      ? `<div class="absolute inset-0 rounded-full ${bgColor} opacity-60 animate-ping" style="animation-duration: 2s;"></div>` 
+      : '';
+
+    return L.divIcon({
+      className: 'custom-incident-icon bg-transparent border-none',
+      html: `
+        <div class="relative flex items-center justify-center w-10 h-10">
+          ${pulseAnimation}
+          <div class="relative z-10 w-8 h-8 ${bgColor} rounded-full border-2 ${borderColor} shadow-lg ${shadowColor} flex items-center justify-center transform transition-transform hover:scale-110">
+            <span class="text-white text-sm" style="filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));">
+              ${isResolved ? '✅' : inProgress ? '🚧' : '🚨'}
+            </span>
+          </div>
+          <div class="absolute -bottom-1 w-4 h-1.5 bg-black/40 rounded-full blur-[2px]"></div>
+        </div>
+      `,
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
+      popupAnchor: [0, -15],
+    });
+  };
+
+  const getSeverityColor = (level: number) => {
+    if (level >= 4) return 'bg-red-500';
+    if (level === 3) return 'bg-orange-500';
+    return 'bg-emerald-500';
+  };
 
   const createHotspotIcon = useMemo(() => {
     if (!L) return () => null;
@@ -968,6 +987,13 @@ export default function BoLuangDashboard() {
         .popup-water .leaflet-popup-content { margin: 0 !important; width: 280px !important; }
         .popup-water .leaflet-popup-close-button { color: #0f172a !important; font-size: 18px !important; padding-top: 5px !important; padding-right: 10px !important; z-index: 50; }
         .popup-water .leaflet-popup-close-button:hover { color: #ffffff !important; background: transparent !important; }
+
+        /* Custom Leaflet Popup for Modern UI (Incident Reports) */
+        .custom-popup .leaflet-popup-content-wrapper { background: transparent; box-shadow: none; padding: 0; border-radius: 24px; }
+        .custom-popup .leaflet-popup-content { margin: 0; width: 100% !important; }
+        .custom-popup .leaflet-popup-tip-container { display: none; }
+        .custom-popup .leaflet-popup-close-button { color: white !important; font-weight: bold; font-size: 20px; top: 10px !important; right: 15px !important; z-index: 50; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .custom-popup .leaflet-popup-close-button:hover { background: transparent !important; color: #fbbf24 !important; }
 
         .leaflet-popup-close-button { color: #cbd5e1 !important; font-size: 16px !important; padding-top: 4px !important; padding-right: 8px !important; z-index: 50;}
         .leaflet-popup-close-button:hover { color: #ef4444 !important; background: transparent !important; }
@@ -1328,85 +1354,130 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {citizenReport && disasterReports.map((report) => (
-              <Marker 
-                key={`report-${report.id}`} 
-                position={[report.latitude, report.longitude]} 
-                icon={createReportIcon()}
-              >
-                <Popup className="popup-report">
-                  <div className="w-[320px]">
-                    <div className="bg-[#ef4444] px-5 py-3 font-bold text-white text-[15px] flex items-center shadow-sm">
-                      <span className="mr-2 text-[18px]">🚨</span> แจ้งเหตุ: {report.risk_type}
-                    </div>
-                    <div className="p-5 bg-[#0f172a]/95 backdrop-blur-sm">
+            {/* 🌟 แสดงหมุดแจ้งเหตุจากประชาชน (พร้อม Modern Popup) */}
+            {citizenReport && disasterReports.map((incident: any) => {
+              const severityColor = getSeverityColor(incident.severity_level);
+              
+              let statusColor = "bg-blue-100 text-blue-700 border-blue-200";
+              let statusText = incident.status || "รับเรื่องแล้ว";
+              
+              if (statusText.includes("เสร็จแล้ว") || statusText.includes("ปิดจ๊อบ")) {
+                statusColor = "bg-emerald-100 text-emerald-700 border-emerald-200";
+                statusText = "ดำเนินการเสร็จแล้ว";
+              } else if (statusText.includes("กำลัง") || statusText.includes("ระหว่าง")) {
+                statusColor = "bg-orange-100 text-orange-700 border-orange-200";
+                statusText = "อยู่ระหว่างดำเนินการ";
+              }
+
+              return (
+                <Marker key={`report-${incident.id}`} position={[incident.latitude, incident.longitude]} icon={getIncidentIcon(incident)}>
+                  <Popup className="custom-popup" minWidth={300} maxWidth={320}>
+                    <div className="bg-white/95 backdrop-blur-xl rounded-[24px] shadow-2xl border border-white/50 overflow-hidden flex flex-col -m-5">
                       
-                      <div className="text-[14px] text-gray-300 font-medium mb-4 flex items-center justify-between">
-                        <span>ความรุนแรง: <span className="bg-[#ef4444] text-white px-2 py-1 rounded text-[13px] font-bold ml-1">ระดับ {report.severity_level}</span></span>
-                        <span className="text-yellow-400 border border-yellow-400/50 bg-yellow-400/10 px-2 py-0.5 rounded text-[11px]">{report.status}</span>
-                      </div>
-                      
-                      <div className="border-t border-[#1e293b] py-3 text-[13px] text-gray-300 leading-relaxed font-semibold">
-                        📍 พื้นที่: <span className="text-white">{report.village_name}</span><br/>
-                        🎯 พิกัด (GPS): <span className="text-[#4ade80] font-mono select-all cursor-text">{report.latitude.toFixed(6)}, {report.longitude.toFixed(6)}</span><br/>
-                        📝 รายละเอียด: <span className="text-gray-400 font-normal">{report.description}</span><br/>
-                        👤 ผู้แจ้ง: <span className="text-[#38bdf8]">{report.reporter_name}</span> <span className="text-[11px] text-gray-500">({report.reporter_role})</span>
+                      <div className="bg-gradient-to-r from-slate-800 to-indigo-900 px-5 py-4 flex items-center justify-between shadow-md relative overflow-hidden shrink-0">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-xl -mr-10 -mt-10"></div>
+                        <div className="flex items-center space-x-3 relative z-10 w-full pr-6">
+                          <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/10 shadow-inner shrink-0">
+                            <span className="text-xl">🚨</span>
+                          </div>
+                          <h3 className="text-[15px] font-extrabold text-white leading-tight truncate">
+                            {incident.risk_type}
+                          </h3>
+                        </div>
                       </div>
 
-                      {report.image_url && (
-                        <div className="border-t border-[#1e293b] pt-3 mt-1">
-                          <div 
-                            className="relative group cursor-pointer overflow-hidden rounded-lg border border-[#1e293b] hover:border-[#38bdf8] transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation(); 
-                              handleViewImage(report.image_url);
-                            }}
-                          >
-                            <img 
-                              src={report.image_url} 
-                              alt="ภาพแจ้งเหตุ" 
-                              className="w-full h-[120px] object-cover group-hover:scale-105 transition-transform duration-500" 
-                            />
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                              <span className="text-white text-[12px] font-bold bg-[#0b132b]/80 border border-[#38bdf8] px-3 py-1.5 rounded-full shadow-lg flex items-center space-x-1.5 backdrop-blur-sm">
-                                <span>🔍</span> <span>คลิกดูรูปขยาย</span>
-                              </span>
+                      <div className="p-5 flex-1 overflow-y-auto space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">ความรุนแรง:</span>
+                            <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold text-white shadow-sm ${severityColor}`}>
+                              ระดับ {incident.severity_level}
+                            </span>
+                          </div>
+                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border shadow-sm ${statusColor}`}>
+                            {statusText}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2.5 text-[13px]">
+                          <div className="flex items-start">
+                            <span className="text-rose-500 mt-0.5 mr-2 w-4 text-center">📍</span>
+                            <div>
+                              <span className="text-slate-500 font-bold text-[11px] block">พื้นที่เกิดเหตุ</span>
+                              <span className="text-slate-800 font-extrabold">{incident.village_name}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-start bg-slate-50 p-2 rounded-lg border border-slate-100">
+                            <span className="text-indigo-500 mt-0.5 mr-2 w-4 text-center">📝</span>
+                            <div className="flex-1">
+                              <span className="text-slate-500 font-bold text-[11px] block">รายละเอียด</span>
+                              <p className="text-slate-700 leading-snug line-clamp-3 mt-0.5">{incident.description}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start">
+                            <span className="text-slate-400 mt-0.5 mr-2 w-4 text-center">👤</span>
+                            <div>
+                              <span className="text-slate-500 font-bold text-[11px] block">ผู้แจ้ง ({incident.reporter_role})</span>
+                              <span className="text-indigo-600 font-bold">{incident.reporter_name || 'ไม่ระบุชื่อ'}</span>
                             </div>
                           </div>
                         </div>
-                      )}
 
-                      {/* 🚀 ชุดปุ่ม นำทาง / Google Maps */}
-                      <div className="mt-4 pt-3 border-t border-[#1e293b] flex items-center justify-between">
-                        <div className="flex space-x-2 w-full">
-                          <a 
-                            href={`https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex-1 bg-[#003ea1] hover:bg-[#002f7a] text-white text-[12px] font-bold py-2 rounded-lg flex items-center justify-center transition-colors shadow-md"
+                        {incident.image_url && (
+                          <div 
+                            className="mt-4 rounded-xl overflow-hidden shadow-sm border border-slate-200 relative group cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewImage(incident.image_url);
+                            }}
                           >
-                            📍 เปิดใน Maps
+                            <img 
+                              src={incident.image_url} 
+                              alt="Incident" 
+                              className="w-full h-36 object-cover transform transition-transform duration-500 group-hover:scale-110"
+                              onError={(e: any) => { e.target.style.display = 'none'; }} 
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-2">
+                               <span className="text-white text-[10px] font-bold bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm">คลิกเพื่อดูรูปใหญ่</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-3 pt-4">
+                          <a 
+                            href={`https://maps.google.com/?q=${incident.latitude},${incident.longitude}`} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 py-2.5 rounded-xl font-bold text-[12px] flex justify-center items-center space-x-1.5 transition-all shadow-sm"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            <span>เปิดใน Maps</span>
                           </a>
                           <a 
-                            href={`https://www.google.com/maps/dir/?api=1&destination=${report.latitude},${report.longitude}`} 
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${incident.latitude},${incident.longitude}`} 
                             target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex-1 bg-[#f1f5f9] hover:bg-[#e2e8f0] text-gray-800 text-[12px] font-bold py-2 rounded-lg flex items-center justify-center transition-colors shadow-md"
+                            rel="noreferrer"
+                            className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white py-2.5 rounded-xl font-bold text-[12px] flex justify-center items-center space-x-1.5 shadow-[0_4px_10px_rgba(16,185,129,0.3)] transition-all transform hover:-translate-y-0.5"
                           >
-                            🚗 นำทาง
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                            <span>เริ่มนำทาง</span>
                           </a>
                         </div>
                       </div>
 
-                      <div className="pt-3 mt-2 text-[10px] text-gray-500 font-mono text-center">
-                        แหล่งที่มา: ประชาชนในพื้นที่<br/>แจ้งเมื่อ: {new Date(report.created_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })} น.
+                      <div className="bg-slate-50 border-t border-slate-100 py-2.5 px-5 text-center shrink-0">
+                        <p className="text-[10px] text-slate-400 font-medium">
+                          แจ้งเหตุเมื่อ: {new Date(incident.created_at).toLocaleString('th-TH')}
+                        </p>
                       </div>
 
                     </div>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+                  </Popup>
+                </Marker>
+              );
+            })}
 
             {hotspot && geoHotspot && geoHotspot.features && geoHotspot.features.map((feature: any, i: number) => {
               const geom = feature.geometry;
@@ -1562,15 +1633,15 @@ export default function BoLuangDashboard() {
                 {/* เส้นคั่นกลาง */}
                 <div className="w-[1px] h-5 bg-[#1e293b]"></div>
 
-                {/* ⏱️ ส่วนเวลาและวันที่ (เพิ่มวินาที และ ปี พ.ศ.) */}
+                {/* ⏱️ ส่วนเวลาและวันที่ */}
                 <div className="flex items-center space-x-3 whitespace-nowrap">
                   {mounted ? (
                     <>
-                      {/* เวลา (เพิ่ม second: '2-digit' ให้นาฬิกาเดิน) */}
+                      {/* เวลา */}
                       <span className="text-[#38bdf8] font-bold text-[14px] md:text-[15px] tracking-widest tabular-nums">
                          {currentTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} น.
                       </span>
-                      {/* วันที่ (เพิ่ม year: 'numeric' ให้แสดงปี พ.ศ.) */}
+                      {/* วันที่ */}
                       <span className="text-gray-400 text-[11px] md:text-[12px] font-medium border-l border-gray-700 pl-3">
                          {currentTime.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                       </span>
@@ -1820,16 +1891,15 @@ export default function BoLuangDashboard() {
                 </div>
               </div> 
               
-              {/* 📊 OPEN DATA DASHBOARD (ปรับปรุงใหม่ เพิ่มปุ่มดาวน์โหลด) */}
+              {/* 📊 OPEN DATA DASHBOARD */}
           <div className="mt-2 mb-4">
             <div className="flex items-center mb-3">
-              <svg className="w-3.5 h-3.5 text-[#38bdf8] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+              <svg className="w-3.5 h-3.5 text-[#38bdf8] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002-2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
               <span className="text-[10px] md:text-[11px] text-[#38bdf8] tracking-widest font-bold uppercase">ศูนย์ข้อมูลเปิด (OPEN DATA)</span>
               <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
             </div>
             
             <div className="flex flex-col space-y-2">
-              {/* ปุ่มที่ 1: สรุปสถิติ (เปิดแท็บใหม่ไปหน้า Dashboard เดิม) */}
               <button 
                 onClick={() => window.open('/admin/dashboard', '_blank')} 
                 className="w-full py-2.5 bg-[#0f172a] hover:bg-[#1e293b] border border-gray-700 rounded-xl text-[13px] font-bold text-gray-300 shadow-sm flex items-center justify-center space-x-2 transition-all cursor-pointer"
@@ -1838,7 +1908,6 @@ export default function BoLuangDashboard() {
                 <span>สรุปสถิติสถานการณ์ (Dashboard)</span>
               </button>
               
-              {/* 🌟 ปุ่มที่ 2: ดาวน์โหลดข้อมูลดิบ (ปุ่มสีน้ำเงินโดดเด่น เปิดไปหน้า Open Data) */}
               <button 
                 onClick={() => window.open('/admin/open-data', '_blank')} 
                 className="w-full py-2.5 bg-gradient-to-r from-[#0284c7] to-[#2563eb] hover:from-[#0369a1] hover:to-[#1d4ed8] border border-[#38bdf8]/50 rounded-xl text-[13px] font-bold text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)] flex items-center justify-center space-x-2 transition-transform hover:-translate-y-0.5 cursor-pointer"
