@@ -427,17 +427,16 @@ export default function ReportPage() {
       Swal.fire({
         title: 'ส่งข้อมูลสำเร็จ!',
         html: `
-          <div class="mt-1 text-sm text-gray-600">หมายเลขติดตามคำร้องของคุณคือ:</div>
-          <div class="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-3xl font-extrabold text-emerald-600 tracking-widest select-all cursor-text shadow-inner">
+          <div style="margin-top: 5px; font-size: 14px; color: #4b5563;">หมายเลขติดตามคำร้องของคุณคือ:</div>
+          <div style="margin-top: 15px; padding: 12px; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; font-size: 30px; font-weight: 800; color: #059669; letter-spacing: 0.1em; user-select: all; cursor: text;">
             ${trackingCode}
           </div>
-          <div class="mt-5 flex flex-col items-center justify-center p-4 bg-gray-50 rounded-2xl border border-gray-100">
-            <span class="text-xs font-bold text-white bg-blue-500 px-4 py-1.5 rounded-full mb-3 shadow-md flex items-center gap-1">
-               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+          <div style="margin-top: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; background-color: #f9fafb; border-radius: 16px; border: 1px solid #f3f4f6;">
+            <span style="font-size: 12px; font-weight: bold; color: #ffffff; background-color: #3b82f6; padding: 6px 16px; border-radius: 9999px; margin-bottom: 12px; display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
                <span>ระบบบันทึกรูปนี้ลงเครื่องคุณแล้ว</span>
             </span>
-            <img src="${qrCodeImageUrl}" alt="QR Code" class="w-44 h-44 object-contain rounded-xl bg-white border border-gray-200 p-2 shadow-sm" />
-            <span class="text-[11px] text-gray-500 mt-3 leading-relaxed">
+            <img src="${qrCodeImageUrl}" alt="QR Code" style="width: 176px; height: 176px; object-fit: contain; border-radius: 12px; background-color: #ffffff; border: 1px solid #e5e7eb; padding: 8px; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);" />
+            <span style="font-size: 11px; color: #6b7280; margin-top: 12px; line-height: 1.5;">
               นำ QR Code นี้ให้ผู้นำชุมชน หรือ อสม.<br/>สแกนเพื่อตรวจสอบสถานะแทนคุณได้ทันที
             </span>
           </div>
