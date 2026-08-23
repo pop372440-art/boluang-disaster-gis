@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2'; 
 import { useMapEvents } from 'react-leaflet';
 
-// 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables เท่านั้น ปลอดภัย 100%)
+// 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 if (!supabaseUrl || !supabaseAnonKey) {
@@ -175,13 +175,13 @@ export default function ReportPage() {
     className: 'bg-transparent border-none',
     html: `
       <div class="relative flex flex-col items-center">
-        <div class="w-8 h-8 bg-red-600 rounded-full border-2 border-white shadow-lg flex items-center justify-center z-10 animate-bounce">
-          <span class="text-white text-sm">🚨</span>
+        <div class="w-10 h-10 bg-rose-600 rounded-full border-2 border-white shadow-xl flex items-center justify-center z-10">
+          <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
         </div>
-        <div class="w-3 h-3 bg-black/40 rounded-full blur-[2px] -mt-1 z-0"></div>
+        <div class="w-3 h-3 bg-black/40 rounded-full blur-[2px] -mt-2 z-0"></div>
       </div>
     `,
-    iconSize: [32, 40], iconAnchor: [16, 36],
+    iconSize: [40, 48], iconAnchor: [20, 44],
   }) : null;
 
   const LocationMarker = () => {
@@ -319,26 +319,24 @@ export default function ReportPage() {
   };
 
   const handleSubmit = async (e: any) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!position) {
-    Swal.fire({ icon: 'warning', title: 'ลืมปักหมุด!', text: 'กรุณากดปุ่มดึงตำแหน่ง หรือคลิกบนแผนที่ครับ' });
-    return;
-  }
-  
-  if (!formData.description) {
-    Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบ', text: 'กรุณาระบุรายละเอียดของสถานการณ์' });
-    return;
-  }
+    if (!position) {
+      Swal.fire({ icon: 'warning', title: 'ลืมปักหมุด!', text: 'กรุณากดปุ่มดึงตำแหน่ง หรือคลิกบนแผนที่ครับ' });
+      return;
+    }
+    
+    if (!formData.description) {
+      Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบ', text: 'กรุณาระบุรายละเอียดของสถานการณ์' });
+      return;
+    }
 
-  // 👇 วางโค้ดใหม่ตรงนี้ 👇
-  if (!selectedFile) { 
-    Swal.fire({ icon: 'warning', title: 'ลืมแนบรูปภาพ!', text: 'กรุณาถ่ายภาพหรือแนบรูปสถานที่เกิดเหตุ เพื่อความรวดเร็วในการประเมินสถานการณ์ครับ' });
-    return;
-  }
+    if (!selectedFile) { 
+      Swal.fire({ icon: 'warning', title: 'ลืมแนบรูปภาพ!', text: 'กรุณาถ่ายภาพหรือแนบรูปสถานที่เกิดเหตุ เพื่อความรวดเร็วในการประเมินสถานการณ์ครับ' });
+      return;
+    }
 
-  setIsSubmitting(true);
-  // ... (โค้ดบันทึกข้อมูลทำงานต่อ) ...
+    setIsSubmitting(true);
 
     try {
       let imageUrl = null;
@@ -393,12 +391,12 @@ export default function ReportPage() {
         title: 'ส่งข้อมูลสำเร็จ!',
         html: `
           <div class="mt-1 text-sm text-gray-600">หมายเลขติดตามคำร้องของคุณคือ:</div>
-          <div class="mt-3 p-2 bg-green-50 border border-green-200 rounded-lg text-2xl font-bold text-green-700 tracking-widest select-all cursor-text">
+          <div class="mt-3 p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-2xl font-bold text-emerald-700 tracking-widest select-all cursor-text shadow-inner">
             ${trackingCode}
           </div>
           <div class="mt-4 flex flex-col items-center justify-center">
-            <span class="text-xs font-bold text-gray-800 mb-2 bg-gray-100 px-3 py-1 rounded-full">📷 แคปหน้าจอนี้เก็บไว้</span>
-            <img src="${qrCodeImageUrl}" alt="QR Code" class="w-40 h-40 object-contain rounded-lg border-2 border-dashed border-gray-300 p-2 shadow-sm" />
+            <span class="text-xs font-bold text-gray-800 mb-2 bg-gray-100 px-3 py-1 rounded-full">แคปหน้าจอนี้เก็บไว้</span>
+            <img src="${qrCodeImageUrl}" alt="QR Code" class="w-40 h-40 object-contain rounded-xl border border-gray-200 p-2 shadow-sm" />
             <span class="text-[11px] text-gray-500 mt-2 leading-tight">
               นำ QR Code นี้ให้ผู้นำชุมชน หรือ อสม.<br/>สแกนเพื่อตรวจสอบสถานะแทนคุณได้ทันที
             </span>
@@ -430,9 +428,13 @@ export default function ReportPage() {
     }
   };
 
-  if (!mounted) return <div className="h-screen w-screen bg-gray-100 flex items-center justify-center">Loading...</div>;
+  if (!mounted) return (
+    <div className="h-screen w-screen bg-slate-50 flex flex-col items-center justify-center space-y-4">
+      <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="text-slate-500 font-medium animate-pulse">กำลังโหลดระบบ...</div>
+    </div>
+  );
 
-  // 🌍 ปรับปรุงตัวเลือก: รวมภัยพิบัติเดิม + เพิ่มปัญหาสิ่งแวดล้อมเพื่อโกยคะแนน Smart Environment
   const riskTypes = [
     'ไฟป่า / หมอกควัน (PM 2.5)',
     'น้ำป่าไหลหลาก / น้ำท่วม',
@@ -445,198 +447,236 @@ export default function ReportPage() {
   ];
 
   return (
-    <div className="flex flex-col md:flex-row h-screen w-screen bg-white font-sans overflow-hidden">
+    <div className="flex flex-col md:flex-row h-[100dvh] w-screen bg-slate-50 font-sans overflow-hidden">
       
-      {/* 🗺️ แผนที่ Google ดาวเทียม + ขอบเขตหมู่บ้าน */}
-      <div className="order-1 md:order-2 w-full h-[40vh] md:h-full md:flex-1 relative bg-gray-900 z-0 flex-shrink-0">
+      {/* 🗺️ แผนที่ Google ดาวเทียม */}
+      <div className="order-1 md:order-2 w-full h-[45vh] md:h-full md:flex-1 relative z-0 flex-shrink-0 shadow-inner bg-slate-900">
         <MapContainer center={[18.1633, 98.3744]} zoom={13} maxZoom={20} className="w-full h-full cursor-crosshair" ref={setMapRef}>
           <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} attribution="&copy; Google Maps" />
           {geoBlock && <GeoJSON data={geoBlock} style={{ color: '#fde047', weight: 2.5, fillOpacity: 0, dashArray: '5, 5' }} interactive={false} />}
           <LocationMarker />
         </MapContainer>
+        
+        {/* Floating Badge แนะนำให้ปักหมุด */}
         {!position && (
           <div className="absolute top-4 md:top-6 left-1/2 transform -translate-x-1/2 z-[400] pointer-events-none w-[90%] md:w-auto flex justify-center">
-            <div className="bg-black/70 backdrop-blur-md text-white px-4 md:px-6 py-2 md:py-2.5 rounded-full shadow-2xl border border-gray-600 flex items-center space-x-2 animate-bounce">
-              <span className="text-base md:text-lg">👇</span>
-              <span className="text-[12px] md:text-sm font-medium tracking-wide">เลื่อนและคลิกเพื่อปักหมุดตำแหน่ง</span>
+            <div className="bg-white/90 backdrop-blur-md px-5 py-2.5 rounded-full shadow-lg border border-slate-100 flex items-center space-x-2 animate-bounce">
+              <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              <span className="text-sm font-bold text-slate-700 tracking-wide">เลื่อนแผนที่เพื่อปักหมุด</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* 🔴 ฟอร์มแจ้งข้อมูล (กลับมาใช้ตีมแดงฉุกเฉินตามชื่อโครงการเดิม แต่แฝง Smart Environment) */}
-      <div className="order-2 md:order-1 w-full md:w-[420px] h-[60vh] md:h-full bg-white shadow-[0_-10px_20px_rgba(0,0,0,0.15)] md:shadow-2xl z-10 flex flex-col relative flex-shrink-0">
+      {/* 📝 ฟอร์มแจ้งข้อมูล (Modern Slide Sheet UI) */}
+      <div className="order-2 md:order-1 w-full md:w-[460px] h-[55vh] md:h-full bg-white md:rounded-none rounded-t-[2.5rem] shadow-[0_-15px_40px_rgba(0,0,0,0.08)] md:shadow-2xl z-10 flex flex-col relative flex-shrink-0 -mt-6 md:mt-0">
         
-        {/* 📍 ปรับ Header ให้เป็นแนวนอนแบบกระชับ (Compact) เพื่อประหยัดพื้นที่จอ */}
-        <div className="bg-red-600 text-white p-3 shadow-md flex-shrink-0">
-          {/* ขีดเส้นสำหรับลากบนมือถือ (Drag Handle) */}
-          <div className="w-full flex justify-center pb-2 md:hidden">
-            <div className="w-10 h-1 bg-white/30 rounded-full"></div>
+        {/* ขีดตกแต่งด้านบน (Handle สำหรับมือถือ) */}
+        <div className="w-full flex justify-center pt-3 pb-1 shrink-0 md:hidden">
+          <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
+        </div>
+
+        {/* 👑 Header Section (Professional Style) */}
+        <div className="px-6 pb-4 pt-2 flex items-center justify-between border-b border-slate-100 shrink-0">
+          <div className="flex items-center space-x-3">
+            <div className="w-11 h-11 bg-gradient-to-br from-rose-500 to-red-600 rounded-2xl flex items-center justify-center shadow-lg shadow-red-500/20">
+              <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            </div>
+            <div>
+              <h1 className="text-[17px] font-extrabold text-slate-800 leading-tight">แจ้งเหตุสาธารณภัย</h1>
+              <p className="text-[11px] text-slate-500 font-medium">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</p>
+            </div>
           </div>
           
-          <div className="flex items-center justify-between">
-            {/* ส่วนไอคอนและชื่อโครงการ */}
-            <div className="flex items-center space-x-2 overflow-hidden">
-              <span className="text-2xl animate-pulse flex-shrink-0">🚨</span>
-              <div className="flex flex-col min-w-0">
-                <h1 className="text-[14px] md:text-[16px] font-bold truncate leading-tight">รายงานเหตุสาธารณภัย</h1>
-                <p className="text-[10px] md:text-[11px] text-red-200 truncate leading-tight">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</p>
-              </div>
-            </div>
-
-            {/* ส่วนปุ่มเมนู */}
-            <div className="flex space-x-1.5 flex-shrink-0 pl-2">
-              <a href="/" className="bg-white/20 hover:bg-white/30 px-2 py-1.5 rounded-md text-[10px] md:text-[11px] font-bold transition-colors shadow-sm flex items-center">
-                🏠 หน้าแรก
-              </a>
-              <a href="/status" className="bg-white/20 hover:bg-white/30 px-2 py-1.5 rounded-md text-[10px] md:text-[11px] font-bold transition-colors shadow-sm flex items-center">
-                🔍 สถานะ
-              </a>
-            </div>
+          <div className="flex items-center space-x-2">
+            <a href="/" className="p-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition shadow-sm bg-white" title="หน้าแรก">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+            </a>
+            <a href="/status" className="p-2 border border-slate-200 text-indigo-600 rounded-xl hover:bg-indigo-50 transition shadow-sm bg-white" title="ติดตามสถานะ">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            </a>
           </div>
         </div>
 
-        <div className="p-4 md:p-5 overflow-y-auto flex-1 custom-scrollbar">
+        {/* 📝 ฟอร์มกรอกข้อมูล */}
+        <div className="p-6 overflow-y-auto flex-1 scrollbar-hide space-y-6 pb-[120px]">
           
-          <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-6 shadow-sm">
-            <div className="flex items-start mb-3">
-              <span className="text-blue-600 text-lg mr-2">📍</span>
+          {/* 📍 1. Card ระบุตำแหน่ง (GPS) */}
+          <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-200/30 rounded-full blur-2xl -mr-10 -mt-10"></div>
+            <div className="flex items-start space-x-3 mb-4 relative z-10">
+              <div className="p-2 bg-white rounded-xl shadow-sm border border-indigo-100 text-indigo-600">
+                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              </div>
               <div>
-                <h3 className="text-[13px] font-bold text-blue-800">ระบุตำแหน่งของคุณ</h3>
-                <p className="text-[11px] text-blue-600/80 leading-relaxed mt-1">เพื่อความแม่นยำ กรุณาอนุญาตการเข้าถึง GPS หรือคลิกปักหมุดบนแผนที่ด้วยตนเอง</p>
+                <h3 className="text-sm font-bold text-slate-800">ระบุตำแหน่งเกิดเหตุ</h3>
+                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">กรุณาอนุญาตเข้าถึง GPS หรือปักหมุดบนแผนที่</p>
+                {position && <div className="mt-1 inline-block text-[10px] font-mono font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200">{position.lat.toFixed(5)}, {position.lng.toFixed(5)}</div>}
               </div>
             </div>
-            <button type="button" onClick={handleGetLocation} disabled={isFetchingGPS} className="w-full bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-bold py-2.5 rounded-lg transition-colors flex items-center justify-center space-x-2">
-              {isFetchingGPS ? <><span className="animate-spin">⏳</span><span>กำลังค้นหาตำแหน่ง...</span></> : <><span className="text-lg">🎯</span><span>ใช้ตำแหน่งปัจจุบันของฉัน</span></>}
+            <button type="button" onClick={handleGetLocation} disabled={isFetchingGPS} className="relative z-10 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center space-x-2">
+              {isFetchingGPS ? (
+                <><svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> <span>กำลังค้นหาตำแหน่ง...</span></>
+              ) : (
+                <><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg> <span>ใช้ตำแหน่งปัจจุบันของฉัน</span></>
+              )}
             </button>
           </div>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div className="flex items-center">
-              <div className="flex-1 border-t border-gray-200"></div><span className="px-3 text-xs font-bold text-gray-400">ข้อมูลการรายงาน</span><div className="flex-1 border-t border-gray-200"></div>
+          {/* Divider */}
+          <div className="flex items-center justify-center space-x-4">
+            <div className="h-px bg-slate-200 flex-1"></div>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">ข้อมูลการรายงาน</span>
+            <div className="h-px bg-slate-200 flex-1"></div>
+          </div>
+
+          {/* 📷 2. Upload Card (มี AI) */}
+          <div className="space-y-2">
+            <label className="text-[13px] font-bold text-slate-700 flex items-center">
+              <svg className="w-4 h-4 mr-1.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              แนบรูปภาพประกอบ <span className="text-rose-500 ml-1">*</span>
+            </label>
+            <div className="border-2 border-dashed border-slate-300 bg-slate-50/50 hover:bg-indigo-50 hover:border-indigo-300 transition-colors rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer group relative min-h-[140px]">
+              <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+              {selectedFile ? (
+                <div className="flex flex-col items-center">
+                  <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-2">
+                    <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                  </div>
+                  <span className="text-[13px] font-bold text-emerald-600">แนบรูปภาพสำเร็จ</span>
+                  <span className="text-[11px] text-slate-500 truncate max-w-[200px] mt-1">{selectedFile.name}</span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center border border-slate-200 group-hover:scale-110 group-hover:border-indigo-200 transition-all mb-3">
+                    <svg className="w-6 h-6 text-slate-400 group-hover:text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  </div>
+                  <span className="text-[13px] font-bold text-indigo-600">แตะเพื่อถ่ายรูป / เลือกไฟล์</span>
+                  <span className="text-[10px] text-slate-500 mt-1.5 flex items-center bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm">
+                    ✨ มีระบบ AI ช่วยประเมินข้อมูลทันที
+                  </span>
+                </div>
+              )}
             </div>
 
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">📎 1. แนบรูปภาพประกอบ (รองรับ AI วิเคราะห์) <span className="text-red-500">*</span></label>
-              <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer bg-white">
-                <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                <div className="flex flex-col items-center justify-center space-y-2 pointer-events-none">
-                  {selectedFile ? (
-                    <><span className="text-3xl">✅</span><span className="text-[13px] font-bold text-green-600">แนบรูปภาพแล้ว</span><span className="text-[11px] text-gray-500 truncate max-w-[200px]">{selectedFile.name}</span></>
-                  ) : (
-                    <><span className="text-3xl text-gray-400">📷</span><span className="text-[13px] font-bold text-gray-600 bg-gray-200 px-3 py-1 rounded-md">เลือกไฟล์ / ถ่ายรูป</span><span className="text-[11px] text-gray-400">AI จะช่วยคุณประเมินข้อมูลทันที</span></>
-                  )}
+            {/* AI Status */}
+            {isAnalyzingAI && (
+              <div className="mt-2 p-3 bg-indigo-50 border border-indigo-100 rounded-xl flex items-center space-x-3">
+                <svg className="animate-spin h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <span className="text-[12px] font-bold text-indigo-700">AI กำลังวิเคราะห์รูปภาพ...</span>
+              </div>
+            )}
+            {aiResult && !isAnalyzingAI && (
+              <div className="mt-2 p-3.5 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl shadow-sm">
+                <div className="flex items-center mb-2">
+                  <div className="w-5 h-5 bg-gradient-to-br from-indigo-500 to-purple-500 rounded flex items-center justify-center mr-2"><svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg></div>
+                  <span className="text-[12px] font-bold text-indigo-900">วิเคราะห์โดย Gemini AI</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="bg-white px-2.5 py-1 rounded-lg border border-indigo-100 text-[11px] text-slate-600 shadow-sm">ภัย: <span className="font-bold text-indigo-700">{aiResult.type}</span></span>
+                  <span className="bg-white px-2.5 py-1 rounded-lg border border-indigo-100 text-[11px] text-slate-600 shadow-sm">รุนแรง: <span className="font-bold text-rose-600">ระดับ {aiResult.severity}</span></span>
                 </div>
               </div>
-              
-              {isAnalyzingAI && (
-                <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg flex items-center space-x-3 transition-opacity">
-                   <span className="text-lg animate-spin">🪄</span>
-                   <span className="text-xs font-bold text-purple-700">AI กำลังวิเคราะห์รูปภาพ กรุณารอสักครู่...</span>
-                </div>
-              )}
-              {aiResult && !isAnalyzingAI && (
-                <div className="mt-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 border border-purple-200 rounded-lg shadow-sm transition-opacity">
-                   <div className="flex items-center mb-1">
-                      <span className="text-purple-600 mr-1.5">🤖</span>
-                      <span className="text-xs font-bold text-purple-800">วิเคราะห์โดย Gemini AI</span>
-                   </div>
-                   <div className="text-[11px] text-gray-600 flex items-center space-x-2 mt-1.5">
-                      <span className="bg-white px-2 py-0.5 rounded border border-purple-100">พยากรณ์: <b>{aiResult.type}</b></span>
-                      <span className="bg-white px-2 py-0.5 rounded border border-purple-100">รุนแรง: <b>ระดับ {aiResult.severity}</b></span>
-                   </div>
-                </div>
-              )}
-            </div>
+            )}
+          </div>
 
+          {/* 🏘️ 3. ข้อมูลพื้นฐาน */}
+          <div className="space-y-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">2. พื้นที่หมู่บ้านที่พบปัญหา</label>
-              <select name="village_name" value={formData.village_name} onChange={handleVillageChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white outline-none">
-                {villageList.length > 0 ? villageList.map((v: any) => <option key={v.name} value={v.name}>{v.name}</option>) : <option value="">กำลังโหลด...</option>}
+              <label className="text-[13px] font-bold text-slate-700 mb-1.5 block">พื้นที่หมู่บ้านที่พบปัญหา</label>
+              <select name="village_name" value={formData.village_name} onChange={handleVillageChange} className="w-full border-0 bg-white rounded-xl p-3.5 text-[13px] text-slate-700 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                {villageList.length > 0 ? villageList.map((v: any) => <option key={v.name} value={v.name}>{v.name}</option>) : <option value="">กำลังโหลดข้อมูล...</option>}
               </select>
             </div>
 
-            {/* 📍 ปรับ Label ให้ครอบคลุมทั้ง 2 ประเด็น */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">3. ประเภทสาธารณภัย / ปัญหาสิ่งแวดล้อม <span className="text-red-500">*</span></label>
-              <select name="risk_type" value={formData.risk_type} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white outline-none">
+              <label className="text-[13px] font-bold text-slate-700 mb-1.5 flex items-center">ประเภทสาธารณภัย <span className="text-rose-500 ml-1">*</span></label>
+              <select name="risk_type" value={formData.risk_type} onChange={handleInputChange} className="w-full border-0 bg-white rounded-xl p-3.5 text-[13px] text-slate-700 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
                 {riskTypes.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
-
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">4. ระดับความรุนแรง <span className="text-red-500">*</span></label>
-              <div className="flex justify-between space-x-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200">
-                {[1, 2, 3, 4, 5].map(level => (
-                  <button type="button" key={level} onClick={() => setSeverity(level)} 
-                    className={`flex-1 py-2 rounded-lg font-bold text-sm transition-all ${formData.severity_level === level ? (level >= 4 ? 'bg-red-600 text-white shadow-md' : level === 3 ? 'bg-orange-500 text-white shadow-md' : 'bg-yellow-400 text-white shadow-md') : 'bg-transparent text-gray-500 hover:bg-gray-200'}`}
-                  >{level}</button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">5. รายละเอียดและข้อเสนอแนะ <span className="text-red-500">*</span></label>
-              <textarea name="description" value={formData.description} onChange={handleInputChange} rows={3} placeholder="เช่น พบการลักลอบทิ้งขยะ หรือ ไฟป่ากำลังลุกลาม..." className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-red-500 focus:border-red-500 bg-white resize-none outline-none"></textarea>
-            </div>
-
-            <div className="flex items-center mt-6 mb-2">
-              <div className="flex-1 border-t border-gray-200"></div><span className="px-3 text-xs font-bold text-gray-400">ข้อมูลผู้แจ้ง</span><div className="flex-1 border-t border-gray-200"></div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 pb-4">
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">ชื่อผู้แจ้ง (ไม่บังคับ)</label>
-                <input type="text" name="reporter_name" value={formData.reporter_name} onChange={handleInputChange} placeholder="ระบุชื่อ..." className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] text-gray-700 bg-white outline-none focus:border-red-500" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">สถานะผู้แจ้ง</label>
-                <select name="reporter_role" value={formData.reporter_role} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg p-2.5 text-[13px] text-gray-700 bg-white outline-none focus:border-red-500">
-                  <option value="ประชาชนทั่วไป">ประชาชนทั่วไป</option>
-                  <option value="ผู้นำชุมชน/กำนัน/ผู้ใหญ่บ้าน">ผู้นำชุมชน</option>
-                  <option value="เจ้าหน้าที่รัฐ/อปท.">เจ้าหน้าที่รัฐ</option>
-                </select>
-              </div>
-            </div>
-
-            <div className={`mt-6 p-4 rounded-xl border transition-all ${pdpaConsent ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-300'}`}>
-              <label className="flex items-start space-x-3 cursor-pointer">
-                <div className="flex items-center h-5 mt-0.5"><input type="checkbox" checked={pdpaConsent} onChange={(e) => setPdpaConsent(e.target.checked)} className="w-5 h-5 text-green-600 bg-white border-gray-300 rounded focus:ring-green-500 cursor-pointer" /></div>
-                <div className="flex flex-col">
-                  <span className={`text-[13px] font-bold ${pdpaConsent ? 'text-green-800' : 'text-gray-700'}`}>ความยินยอมในการให้ข้อมูลส่วนบุคคล (PDPA) <span className="text-red-500">*</span></span>
-                  <span className={`text-[11px] mt-1 leading-relaxed ${pdpaConsent ? 'text-green-700/80' : 'text-gray-500'}`}>ข้าพเจ้ายินยอมให้ทางหน่วยงานเก็บรวบรวมและใช้ข้อมูลที่ระบุไว้ เพื่อตรวจสอบและประสานงาน ตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล</span>
-                </div>
-              </label>
-            </div>
-
-          </form>
-        </div>
-
-        <div className="p-4 md:p-5 border-t border-gray-200 bg-white flex-shrink-0 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
-          <div className="flex justify-between items-center mb-3">
-            <span className="text-[11px] font-bold text-gray-500">พิกัด (GPS):</span>
-            {position ? <span className="text-[11px] font-mono font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded border border-blue-200">{position.lat.toFixed(5)}, {position.lng.toFixed(5)}</span> : <span className="text-[11px] font-bold text-red-500 bg-red-50 px-2.5 py-1 rounded border border-red-100">ยังไม่ระบุพิกัด</span>}
           </div>
-          
+
+          {/* 🌡️ 4. ระดับความรุนแรง */}
+          <div>
+            <label className="text-[13px] font-bold text-slate-700 mb-2 flex items-center">ระดับความรุนแรง <span className="text-rose-500 ml-1">*</span></label>
+            <div className="flex justify-between space-x-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+              {[1, 2, 3, 4, 5].map(level => (
+                <button type="button" key={level} onClick={() => setSeverity(level)} 
+                  className={`flex-1 py-2.5 rounded-lg font-bold text-[13px] transition-all duration-200 ${formData.severity_level === level ? (level >= 4 ? 'bg-rose-500 text-white shadow-md scale-105' : level === 3 ? 'bg-amber-500 text-white shadow-md scale-105' : 'bg-emerald-500 text-white shadow-md scale-105') : 'bg-transparent text-slate-400 hover:bg-slate-200'}`}
+                >
+                  {level}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 📝 5. รายละเอียด */}
+          <div>
+            <label className="text-[13px] font-bold text-slate-700 mb-1.5 flex items-center">รายละเอียดเหตุการณ์ <span className="text-rose-500 ml-1">*</span></label>
+            <textarea name="description" value={formData.description} onChange={handleInputChange} rows={3} placeholder="อธิบายลักษณะเหตุการณ์เพิ่มเติม..." className="w-full border border-slate-200 bg-white rounded-xl p-3.5 text-[13px] text-slate-700 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all"></textarea>
+          </div>
+
+          {/* Divider */}
+          <div className="flex items-center justify-center space-x-4 pt-2">
+            <div className="h-px bg-slate-200 flex-1"></div>
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">ข้อมูลผู้แจ้ง</span>
+            <div className="h-px bg-slate-200 flex-1"></div>
+          </div>
+
+          {/* 👤 6. ข้อมูลผู้แจ้ง */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1.5">ชื่อ-สกุล (ไม่บังคับ)</label>
+              <input type="text" name="reporter_name" value={formData.reporter_name} onChange={handleInputChange} placeholder="ระบุชื่อ..." className="w-full border border-slate-200 bg-slate-50 rounded-xl p-3 text-[13px] text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1.5">สถานะผู้แจ้ง</label>
+              <select name="reporter_role" value={formData.reporter_role} onChange={handleInputChange} className="w-full border border-slate-200 bg-slate-50 rounded-xl p-3 text-[13px] text-slate-700 outline-none focus:border-indigo-400 focus:bg-white transition-all">
+                <option value="ประชาชนทั่วไป">ประชาชนทั่วไป</option>
+                <option value="ผู้นำชุมชน/กำนัน/ผู้ใหญ่บ้าน">ผู้นำชุมชน</option>
+                <option value="เจ้าหน้าที่รัฐ/อปท.">เจ้าหน้าที่รัฐ</option>
+              </select>
+            </div>
+          </div>
+
+          {/* ⚖️ PDPA Consent */}
+          <div className={`p-4 rounded-xl border transition-all duration-300 ${pdpaConsent ? 'bg-emerald-50 border-emerald-200 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
+            <label className="flex items-start space-x-3 cursor-pointer group">
+              <div className="flex items-center h-5 mt-0.5">
+                <input type="checkbox" checked={pdpaConsent} onChange={(e) => setPdpaConsent(e.target.checked)} className="w-5 h-5 text-emerald-500 bg-white border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" />
+              </div>
+              <div className="flex flex-col">
+                <span className={`text-[12px] font-bold transition-colors ${pdpaConsent ? 'text-emerald-800' : 'text-slate-700 group-hover:text-slate-900'}`}>ความยินยอมข้อมูลส่วนบุคคล (PDPA) <span className="text-rose-500">*</span></span>
+                <span className={`text-[10px] mt-1 leading-relaxed transition-colors ${pdpaConsent ? 'text-emerald-600' : 'text-slate-500'}`}>ข้าพเจ้ายินยอมให้ทางหน่วยงานเก็บรวบรวมและใช้ข้อมูล เพื่อตรวจสอบและประสานงาน ตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล</span>
+              </div>
+            </label>
+          </div>
+
+        </div>
+        
+        {/* 🚀 Fixed Bottom Submit Button */}
+        <div className="absolute bottom-0 left-0 right-0 p-5 bg-white/95 backdrop-blur-xl border-t border-slate-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-30 flex flex-col justify-center">
           <button 
             onClick={handleSubmit} 
             disabled={isSubmitting || !pdpaConsent || cooldownTime > 0} 
-            className={`w-full py-3.5 rounded-xl font-bold text-[15px] shadow-lg flex justify-center items-center space-x-2 transition-all 
+            className={`w-full py-4 rounded-2xl font-black text-[15px] shadow-lg flex justify-center items-center space-x-2 transition-all duration-300 transform 
               ${(isSubmitting || cooldownTime > 0) 
-                ? 'bg-gray-400 text-gray-100 cursor-not-allowed border-none' 
+                ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none' 
                 : !pdpaConsent 
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed border-none' 
-                  : 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 hover:shadow-xl active:scale-[0.98]'}`}
+                  ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none' 
+                  : 'bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-0.5 active:scale-95'}`}
           >
             {isSubmitting ? (
-              <span>กำลังส่งข้อมูล...</span>
+              <><svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> <span>กำลังอัปโหลดข้อมูล...</span></>
             ) : cooldownTime > 0 ? (
-              <span>⏳ กรุณารอ {cooldownTime} วินาที</span>
+              <><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> <span>รอ {cooldownTime} วินาที</span></>
             ) : (
-              <><span className="text-lg">✅</span> <span>ส่งข้อมูลรายงาน</span></>
+              <><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg> <span>ยืนยันการส่งรายงาน</span></>
             )}
           </button>
         </div>
+
       </div>
     </div>
   );
