@@ -400,9 +400,11 @@ export default function BoLuangDashboard() {
     const fetchLocalWeather = async () => {
       const lats = localAirStations.map(p => p.lat.toFixed(4)).join(',');
       const lngs = localAirStations.map(p => p.lng.toFixed(4)).join(',');
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weathercode&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Asia%2FBangkok`;
       
+      // 🌟 เปลี่ยน URL ไปหา Proxy เพื่อใช้ Caching ป้องกัน 429
+      const url = `/api/proxy?service=weather-tmd&lats=${lats}&lons=${lngs}`;
       const { data, status } = await fetchWithCache(url, 'tmd_weather_cache');
+      
       setApiStatus(prev => ({ ...prev, tmd: status }));
       
       if (data && Array.isArray(data)) {
@@ -432,8 +434,10 @@ export default function BoLuangDashboard() {
     const fetchLocalAir = async () => {
       const lats = localAirStations.map(s => s.lat.toFixed(4)).join(',');
       const lngs = localAirStations.map(s => s.lng.toFixed(4)).join(',');
-      const urlAqi = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lngs}&current=pm2_5,pm10,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=Asia%2FBangkok`;
-      const urlWx = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=weathercode&timezone=Asia%2FBangkok`;
+      
+      // 🌟 เปลี่ยน URL ไปหา Proxy
+      const urlAqi = `/api/proxy?service=air-quality&lats=${lats}&lons=${lngs}`;
+      const urlWx = `/api/proxy?service=weather-tmd&lats=${lats}&lons=${lngs}`;
       
       const [aqiResult, wxResult] = await Promise.all([
         fetchWithCache(urlAqi, 'pm25_aqi_cache'),
@@ -462,7 +466,6 @@ export default function BoLuangDashboard() {
     };
     fetchLocalAir();
   }, [pm25]);
-
   // 🌟 [BFF Pattern] 💧 ข้อมูลฝน ONWR ผ่าน Proxy เพื่อทำ Cache บน Vercel
   useEffect(() => {
     if (!onwrRain) { 
