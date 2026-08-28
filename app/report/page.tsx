@@ -233,6 +233,17 @@ export default function ReportPage() {
   
   // 🕒 State สำหรับจัดการ Cooldown Timer (ป้องกันสแปม)
   const [cooldownTime, setCooldownTime] = useState(0);
+
+  // 🛡️ SECURITY: เช็คเวลา Cooldown จาก LocalStorage ตอนโหลดหน้า เพื่อป้องกันการกด Refresh หนี Cooldown
+  useEffect(() => {
+    const lastSubmitTime = localStorage.getItem('bl_last_submit_time');
+    if (lastSubmitTime) {
+      const timePassed = Math.floor((Date.now() - parseInt(lastSubmitTime)) / 1000);
+      if (timePassed < 60) {
+        setCooldownTime(60 - timePassed);
+      }
+    }
+  }, []);
   
   // 🤖 State สำหรับ AI
   const [isAnalyzingAI, setIsAnalyzingAI] = useState(false);
@@ -564,8 +575,9 @@ export default function ReportPage() {
       const statusUrl = `${window.location.origin}/status?code=${trackingCode}`;
       const qrCodeImageUrl = `https://quickchart.io/qr?text=${encodeURIComponent(statusUrl)}&size=200`;
 
+      // 🛡️ SECURITY: บันทึกข้อมูลเพื่อเริ่มการนับ Cooldown 60 วินาที ทั้งใน State และ LocalStorage
       localStorage.setItem('bl_latest_tracking_code', trackingCode);
-      
+      localStorage.setItem('bl_last_submit_time', Date.now().toString());
       setCooldownTime(60);
 
       // แสดง Popup แจ้งเตือนความสำเร็จ (รูปแบบสลิปใบเสร็จ)
@@ -634,7 +646,7 @@ export default function ReportPage() {
       });
 
       // 🌟 สั่งถ่ายรูปหน้าจอ Popup แล้วดาวน์โหลดลงเครื่องทันที (สลิปธนาคารสไตล์)
-     downloadSlipImage(trackingCode, qrCodeImageUrl);
+      downloadSlipImage(trackingCode, qrCodeImageUrl);
 
     } catch (error: any) {
       console.error('Error:', error.message);
