@@ -14,9 +14,10 @@ const FAQ_CACHE: Record<string, string> = {
 
 // 🌟 [แก้ไข] รายชื่อ Model ปัจจุบันที่ Google รองรับ (เรียงตามลำดับ Fallback)
 const GEMINI_MODELS = [
-  'gemini-2.0-flash',        // ตัวหลัก: เสถียร เร็ว และคงที่
-  'gemini-2.5-flash',        // ตัวสำรอง 1
-  'gemini-2.0-flash-lite',   // ตัวสำรอง 2: เบาที่สุด
+  'Gemini 3.5 Flash',        // ตัวหลัก: เสถียร เร็ว และคงที่
+  'Gemini 3.5 Flash Lite',   // ตัวสำรอง 1
+  'Gemini 3.6 Flash',       // ตัวสำรอง 2: เบาที่สุด
+  'Gemini 3.7 Flash',       // ตัวสำรอง 3: เบาที่สุด
 ];
 
 export async function POST(req: NextRequest) {
