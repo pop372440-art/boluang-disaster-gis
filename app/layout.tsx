@@ -15,9 +15,36 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {appleWebApp: { title: 'BL GIS', statusBarStyle: 'black-translucent' },
-  icons: { apple: '/android-chrome-192x192.png' }, // 👈 เพิ่มบรรทัดนี้เข้าไปครับ
-}
+// 🌟 ตั้งค่า SEO และ Social Sharing (OG Image) + เก็บค่า PWA เดิมไว้
+export const metadata: Metadata = {
+  title: 'ระบบบริหารจัดการสาธารณภัย เทศบาลตำบลบ่อหลวง (Bo Luang Disaster GIS)',
+  description: 'แพลตฟอร์มแจ้งเหตุและเฝ้าระวังภัยพิบัติ (ไฟป่า, น้ำท่วม, ฝุ่น PM2.5) ตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่ ขับเคลื่อนเมืองน่าอยู่อัจฉริยะ Smart City',
+  keywords: ['บ่อหลวง', 'แจ้งเหตุ', 'ไฟป่า', 'น้ำท่วม', 'PM2.5', 'Smart City', 'เชียงใหม่', 'GIS'],
+  appleWebApp: { title: 'BL GIS', statusBarStyle: 'black-translucent' },
+  icons: { apple: '/android-chrome-192x192.png' },
+  openGraph: {
+    title: 'Bo Luang Disaster GIS - ระบบแจ้งเหตุสาธารณภัย',
+    description: 'ระบบเฝ้าระวังและรับแจ้งเหตุสาธารณภัย เทศบาลตำบลบ่อหลวง จ.เชียงใหม่',
+    url: 'https://boluang-disaster-gis.vercel.app',
+    siteName: 'Bo Luang Disaster GIS',
+    images: [
+      {
+        url: '/og-image.jpg', // อย่าลืมเอารูปไปใส่ในโฟลเดอร์ public นะครับ
+        width: 1200,
+        height: 630,
+        alt: 'Bo Luang Disaster GIS Preview',
+      },
+    ],
+    locale: 'th_TH',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Bo Luang Disaster GIS',
+    description: 'ระบบเฝ้าระวังและรับแจ้งเหตุสาธารณภัย เทศบาลตำบลบ่อหลวง จ.เชียงใหม่',
+    images: ['/og-image.jpg'],
+  },
+};
 
 export default function RootLayout({
   children,
@@ -25,15 +52,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="th" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         
         {/* เนื้อหาหลักของเว็บ */}
         {children}
-
+        
         {/* 🚨 2. วางแชทบอทไว้ก่อนปิด Body (ตัวบอทจะลอยอยู่มุมขวาล่างเสมอ) */}
         <SmartHelper />
         
