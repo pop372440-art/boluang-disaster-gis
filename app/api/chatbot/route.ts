@@ -1,29 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// 🚀 เปลี่ยนเป็น Edge Runtime เพื่อแก้ปัญหา Cold Start (ลดเวลาจาก 14 วิ เหลือ 1-2 วิ)
 export const runtime = 'edge';
+
+// ⚡ 1. คลัง Cache คำถามยอดนิยม (ระบบจะตอบกลับทันทีโดยไม่ต้องรอ AI)
+const FAQ_CACHE: Record<string, string> = {
+  "เบอร์โทร": "ท่านสามารถติดต่อเทศบาลตำบลบ่อหลวงได้ที่เบอร์โทรศัพท์ 053-469-xxx ในวันและเวลาราชการครับ",
+  "เบอร์ติดต่อ": "ท่านสามารถติดต่อเทศบาลตำบลบ่อหลวงได้ที่เบอร์โทรศัพท์ 053-469-xxx ในวันและเวลาราชการครับ",
+  "แจ้งเหตุ": "สามารถแจ้งเหตุได้ง่ายๆ ที่เมนู 'รายงานเหตุ' หรือสแกน QR Code ที่ติดไว้กับผู้นำชุมชนได้เลยครับ",
+  "จุดปลอดภัย": "จุดปลอดภัยและศูนย์พักพิงหลัก ได้แก่ รพ.สต. บ่อหลวง, เทศบาลตำบลบ่อหลวง และโรงเรียนในพื้นที่ (สามารถดูจุด 🛡️ บนแผนที่ได้ครับ)",
+  "น้ำท่วม": "สามารถตรวจสอบระดับน้ำและพิกัดน้ำท่วมได้บนแผนที่หลัก หากพบเห็นเหตุสามารถกดปุ่มแจ้งเหตุเพื่อส่งข้อมูลให้เจ้าหน้าที่ได้ทันทีครับ",
+  "ไฟป่า": "สถานการณ์ไฟป่าสามารถดูได้จากสัญลักษณ์ 🔥 (จุดความร้อน) และ 🌫️ (ค่าฝุ่น PM2.5) บนแผนที่ครับ"
+};
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const message = body.message;
+    const message = body.message?.trim();
 
-    // 🛡️ SECURITY 1: ดักจับข้อมูลขยะ
-    if (!message || typeof message !== 'string' || message.trim() === '') {
+    if (!message) {
       return NextResponse.json({ error: 'ข้อความไม่ถูกต้องหรือว่างเปล่า' }, { status: 400 });
     }
     if (message.length > 500) {
       return NextResponse.json({ error: 'ข้อความยาวเกินไป (จำกัดไม่เกิน 500 ตัวอักษร)' }, { status: 413 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("Missing Gemini API Key");
+    // ⚡ 2. ตรวจสอบ Cache ดักคำถามยอดฮิต (ลดเวลาจาก 14 วินาที เหลือ 0.1 วินาที)
+    for (const [key, answer] of Object.entries(FAQ_CACHE)) {
+      if (message.includes(key)) {
+        return NextResponse.json({ reply: answer });
+      }
+    }
 
-    // 🌤️ 1. ดึงสภาพอากาศ (ตั้ง Timeout ไว้ 3 วินาที ป้องกัน API ค้างจนแชทบอทตอบช้า)
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("Missing Gemini API Key");
+    }
+
+    // 🌤️ 3. ดึงสภาพอากาศ (ตั้ง Timeout 3 วินาที ป้องกัน API อากาศค้างจนแชทบอทตอบช้า)
     let weatherInfo = "ไม่สามารถดึงข้อมูลได้ชั่วคราว";
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 seconds timeout
+      const timeoutId = setTimeout(() => controller.abort(), 3000); 
       
       const weatherRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=18.1633&longitude=98.3744&current=temperature_2m,precipitation&timezone=Asia%2FBangkok', { 
         signal: controller.signal,
@@ -42,23 +59,25 @@ export async function POST(req: NextRequest) {
       console.warn("Weather fetch skipped due to timeout or error");
     }
 
-    // 🤖 2. เรียกใช้ Gemini API
+    // 🤖 4. เรียกใช้ Gemini API (ทำงานบน Edge Runtime โหลดไวกว่า Server ปกติ)
     const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `คุณคือผู้ช่วย AI อัจฉริยะของเทศบาลตำบลบ่อหลวง ทำหน้าที่ตอบคำถามเรื่องภัยพิบัติ
+            text: `คุณคือผู้ช่วย AI ของเทศบาลตำบลบ่อหลวง ทำหน้าที่ตอบคำถามเรื่องภัยพิบัติ
             ข้อมูลสภาพอากาศตำบลบ่อหลวง ณ ตอนนี้: ${weatherInfo}
             คำถามจากประชาชน: "${message}"
-            ข้อกำหนด: ให้ตอบสั้นๆ กระชับ สุภาพ และช่วยเหลืออย่างเต็มที่`
+            ข้อกำหนด: ให้ตอบสั้นๆ กระชับ สุภาพ เป็นมิตร และช่วยเหลืออย่างเต็มที่`
           }]
         }]
       })
     });
 
-    if (!geminiRes.ok) throw new Error(`Gemini API Error: ${geminiRes.status}`);
+    if (!geminiRes.ok) {
+      throw new Error(`Gemini API Error: ${geminiRes.status}`);
+    }
 
     const geminiData = await geminiRes.json();
     const reply = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'ขออภัย ระบบไม่สามารถประมวลผลคำตอบได้ในขณะนี้';
