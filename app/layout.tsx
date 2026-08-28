@@ -5,6 +5,9 @@ import "./globals.css";
 // 🚨 1. Import ผู้ช่วยบ่อหลวงเข้ามาใช้งาน
 import SmartHelper from '@/components/SmartHelper';
 
+// 📈 2. Import Vercel Analytics (เก็บสถิติผู้ใช้งาน)
+import { Analytics } from "@vercel/analytics/react";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -58,8 +61,11 @@ export default function RootLayout({
         {/* เนื้อหาหลักของเว็บ */}
         {children}
         
-        {/* 🚨 2. วางแชทบอทไว้ก่อนปิด Body (ตัวบอทจะลอยอยู่มุมขวาล่างเสมอ) */}
+        {/* 🚨 วางแชทบอทไว้ก่อนปิด Body (ตัวบอทจะลอยอยู่มุมขวาล่างเสมอ) */}
         <SmartHelper />
+        
+        {/* 📈 วาง Component Analytics ไว้ท้ายสุดเพื่อเก็บสถิติ */}
+        <Analytics />
         
       </body>
     </html>
