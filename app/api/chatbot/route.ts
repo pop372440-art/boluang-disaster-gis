@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'edge';
 
-// ⚡ 1. คลัง Cache คำถามยอดนิยม (ระบบจะตอบกลับทันทีโดยไม่ต้องรอ AI)
+// ⚡ 1. คลัง Cache คำถามยอดนิยม 
 const FAQ_CACHE: Record<string, string> = {
   "เบอร์โทร": "ท่านสามารถติดต่อเทศบาลตำบลบ่อหลวงได้ที่เบอร์โทรศัพท์ 053-469-xxx ในวันและเวลาราชการครับ",
   "เบอร์ติดต่อ": "ท่านสามารถติดต่อเทศบาลตำบลบ่อหลวงได้ที่เบอร์โทรศัพท์ 053-469-xxx ในวันและเวลาราชการครับ",
@@ -21,10 +21,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'ข้อความไม่ถูกต้องหรือว่างเปล่า' }, { status: 400 });
     }
     if (message.length > 500) {
-      return NextResponse.json({ error: 'ข้อความยาวเกินไป (จำกัดไม่เกิน 500 ตัวอักษร)' }, { status: 413 });
+      return NextResponse.json({ error: 'ข้อความยาวเกินไป' }, { status: 413 });
     }
 
-    // ⚡ 2. ตรวจสอบ Cache ดักคำถามยอดฮิต (ลดเวลาจาก 14 วินาที เหลือ 0.1 วินาที)
+    // ⚡ 2. ตรวจสอบ Cache ดักคำถามยอดฮิต 
     for (const [key, answer] of Object.entries(FAQ_CACHE)) {
       if (message.includes(key)) {
         return NextResponse.json({ reply: answer });
@@ -36,30 +36,28 @@ export async function POST(req: NextRequest) {
       throw new Error("Missing Gemini API Key");
     }
 
-    // 🌤️ 3. ดึงสภาพอากาศ (ตั้ง Timeout 3 วินาที ป้องกัน API อากาศค้างจนแชทบอทตอบช้า)
+    // 🌤️ 3. ดึงสภาพอากาศ (ถอด Timeout ออก เพื่อทดสอบความเสถียรบน Edge Runtime)
     let weatherInfo = "ไม่สามารถดึงข้อมูลได้ชั่วคราว";
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); 
-      
       const weatherRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=18.1633&longitude=98.3744&current=temperature_2m,precipitation&timezone=Asia%2FBangkok', { 
-        signal: controller.signal,
         next: { revalidate: 300 } 
       });
-      clearTimeout(timeoutId);
       
-      const weatherData = await weatherRes.json();
-      const temp = weatherData.current?.temperature_2m;
-      const rain = weatherData.current?.precipitation;
-      
-      if (temp !== undefined && rain !== undefined) {
-         weatherInfo = `อุณหภูมิปัจจุบัน ${temp}°C, ปริมาณฝน ${rain} มม.`;
+      if (weatherRes.ok) {
+        const weatherData = await weatherRes.json();
+        const temp = weatherData.current?.temperature_2m;
+        const rain = weatherData.current?.precipitation;
+        
+        if (temp !== undefined && rain !== undefined) {
+           weatherInfo = `อุณหภูมิปัจจุบัน ${temp}°C, ปริมาณฝน ${rain} มม.`;
+        }
       }
     } catch (weatherErr) {
-      console.warn("Weather fetch skipped due to timeout or error");
+      console.warn("Weather fetch error:", weatherErr);
+      // ไม่ต้อง Throw Error ให้ระบบไปต่อ
     }
 
-    // 🤖 4. เรียกใช้ Gemini API (ทำงานบน Edge Runtime โหลดไวกว่า Server ปกติ)
+    // 🤖 4. เรียกใช้ Gemini API 
     const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -76,7 +74,8 @@ export async function POST(req: NextRequest) {
     });
 
     if (!geminiRes.ok) {
-      throw new Error(`Gemini API Error: ${geminiRes.status}`);
+      const errorText = await geminiRes.text();
+      throw new Error(`Gemini API Error: ${geminiRes.status} - ${errorText}`);
     }
 
     const geminiData = await geminiRes.json();
@@ -86,6 +85,9 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error("Chatbot API Error:", error.message);
-    return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
+    // 🌟 ดัก Error ส่งกลับไปให้น้องต้นสนพูด เพื่อให้เรารู้สาเหตุที่แท้จริง
+    return NextResponse.json({ 
+        reply: `[แจ้งเตือนทีมพัฒนาระบบ] เกิดข้อผิดพลาดหลังบ้าน: ${error.message}` 
+    }, { status: 200 }); 
   }
 }
