@@ -57,8 +57,8 @@ export async function POST(req: NextRequest) {
       // ไม่ต้อง Throw Error ให้ระบบไปต่อ
     }
 
-    // 🤖 3. เรียกใช้ Gemini API (ปรับปรุง URL เป็นโมเดลเวอร์ชันปัจจุบันเรียบร้อยครับ)
-    const geminiRes = await fetch(`https://googleapis.com{apiKey}`, {
+    // 🤖 4. เรียกใช้ Gemini API 
+    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
