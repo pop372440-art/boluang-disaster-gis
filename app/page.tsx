@@ -52,32 +52,46 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 };
 
 // 🛡️ API Resilience
-const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 8000) => {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    
-    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-    const data = await res.json();
-    
+// 🌟 ฟังก์ชันดึงข้อมูลพร้อมระบบ Cache ที่ปรับปรุงใหม่ (ป้องกัน Storage Full)
+  const fetchWithCache = async (url: string, cacheKey: string, expiryMs = 15 * 60 * 1000) => {
     try {
-      sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
-    } catch (storageErr) {
-      console.warn('Storage full, skipping cache save.');
+      // 1. ลองเช็ค Cache จาก LocalStorage ก่อน
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < expiryMs) {
+          return { data, status: 'CACHED' };
+        }
+      }
+
+      // 2. ถ้าไม่มี Cache หรือ Cache หมดอายุ ให้ดึงจาก API
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('API Error');
+      const data = await res.json();
+
+      // 3. 🛡️ เซฟลง Cache (ใส่ try-catch ดักไว้ ป้องกัน Storage Full ทำเครื่องค้าง)
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
+      } catch (storageError) {
+        console.warn(`[Cache Warning] ไม่สามารถเซฟ ${cacheKey} ได้ (Storage อาจเต็ม) แต่ระบบยังทำงานปกติ`);
+        // ถ้า localStorage เต็ม ลองสลับไปใช้ sessionStorage แทน (พื้นที่แยกกันและถูกล้างเมื่อปิดแท็บ)
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
+        } catch (e) {
+          // ถ้ายังเต็มอีก ก็ปล่อยผ่าน ไม่ต้องแคช แค่คืนค่า Data ไปให้วาดแผนที่ก็พอ
+        }
+      }
+
+      return { data, status: 'LIVE' };
+    } catch (error) {
+      // 4. ถ้า API พัง (OFFLINE) ให้พยายามงัดเอา Cache เก่ามาใช้ (แม้จะหมดอายุแล้วก็ตาม)
+      const cached = localStorage.getItem(cacheKey) || sessionStorage.getItem(cacheKey);
+      if (cached) {
+        return { data: JSON.parse(cached).data, status: 'OFFLINE' };
+      }
+      return { data: null, status: 'ERROR' };
     }
-    
-    return { data, status: 'LIVE' };
-  } catch (error) {
-    console.warn(`[API Resilience] ${cacheKey} failed. Using cache. Error:`, error);
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      return { data: JSON.parse(cached).data, status: 'CACHED' };
-    }
-    return { data: null, status: 'OFFLINE' };
-  }
-};
+  };
 
 // ==========================================
 // 🗺️ 3. โหลด Leaflet และ Component
