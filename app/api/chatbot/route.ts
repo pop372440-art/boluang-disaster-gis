@@ -12,14 +12,6 @@ const FAQ_CACHE: Record<string, string> = {
   "ไฟป่า": "สถานการณ์ไฟป่าสามารถดูได้จากสัญลักษณ์ 🔥 (จุดความร้อน) และ 🌫️ (ค่าฝุ่น PM2.5) บนแผนที่ครับ"
 };
 
-// 🌟 [แก้ไข] รายชื่อ Model ปัจจุบันที่ Google รองรับ (เรียงตามลำดับ Fallback)
-const GEMINI_MODELS = [
-  'Gemini 3.5 Flash',        // ตัวหลัก: เสถียร เร็ว และคงที่
-  'Gemini 3.5 Flash Lite',   // ตัวสำรอง 1
-  'Gemini 3.6 Flash',       // ตัวสำรอง 2: เบาที่สุด
-  'Gemini 3.7 Flash',       // ตัวสำรอง 3: เบาที่สุด
-];
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -44,7 +36,7 @@ export async function POST(req: NextRequest) {
       throw new Error("Missing Gemini API Key");
     }
 
-    // 🌤️ 3. ดึงสภาพอากาศ 
+    // 🌤️ 3. ดึงสภาพอากาศ (ถอด Timeout ออก เพื่อทดสอบความเสถียรบน Edge Runtime)
     let weatherInfo = "ไม่สามารถดึงข้อมูลได้ชั่วคราว";
     try {
       const weatherRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=18.1633&longitude=98.3744&current=temperature_2m,precipitation&timezone=Asia%2FBangkok', { 
@@ -62,62 +54,38 @@ export async function POST(req: NextRequest) {
       }
     } catch (weatherErr) {
       console.warn("Weather fetch error:", weatherErr);
+      // ไม่ต้อง Throw Error ให้ระบบไปต่อ
     }
 
-    // 🤖 4. เรียกใช้ Gemini API พร้อมระบบ Fallback อัตโนมัติ
-    const prompt = `คุณคือผู้ช่วย AI ของเทศบาลตำบลบ่อหลวง ทำหน้าที่ตอบคำถามเรื่องภัยพิบัติ
-    ข้อมูลสภาพอากาศตำบลบ่อหลวง ณ ตอนนี้: ${weatherInfo}
-    คำถามจากประชาชน: "${message}"
-    ข้อกำหนด: ให้ตอบสั้นๆ กระชับ สุภาพ เป็นมิตร และช่วยเหลืออย่างเต็มที่`;
+    // 🤖 4. เรียกใช้ Gemini API 
+    coconst geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `คุณคือผู้ช่วย AI ของเทศบาลตำบลบ่อหลวง ทำหน้าที่ตอบคำถามเรื่องภัยพิบัติ
+            ข้อมูลสภาพอากาศตำบลบ่อหลวง ณ ตอนนี้: ${weatherInfo}
+            คำถามจากประชาชน: "${message}"
+            ข้อกำหนด: ให้ตอบสั้นๆ กระชับ สุภาพ เป็นมิตร และช่วยเหลืออย่างเต็มที่`
+          }]
+        }]
+      })
+    });
 
-    let reply: string | null = null;
-    let lastError = '';
-
-    // 🔄 วนลองทีละ Model ถ้าตัวไหนใช้ได้ ใช้ตัวนั้นทันที
-    for (const model of GEMINI_MODELS) {
-      try {
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{
-                parts: [{ text: prompt }]
-              }],
-              generationConfig: {
-                temperature: 0.7,
-                maxOutputTokens: 1024,
-              }
-            })
-          }
-        );
-
-        if (geminiRes.ok) {
-          const geminiData = await geminiRes.json();
-          const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (text) {
-            reply = text;
-            break; // ✅ สำเร็จ ออกจาก loop ทันที
-          }
-        } else {
-          lastError = `${model} → ${geminiRes.status}`;
-          console.warn(`⚠️ Gemini fallback: ${lastError}`);
-        }
-      } catch (modelErr: any) {
-        lastError = `${model} → ${modelErr.message}`;
-        console.warn(`⚠️ Gemini fallback error: ${lastError}`);
-      }
+    if (!geminiRes.ok) {
+      const errorText = await geminiRes.text();
+      throw new Error(`Gemini API Error: ${geminiRes.status} - ${errorText}`);
     }
 
-    if (!reply) {
-      throw new Error(`ทุกโมเดลใช้งานไม่ได้ (${lastError})`);
-    }
+    const geminiData = await geminiRes.json();
+    const reply = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'ขออภัย ระบบไม่สามารถประมวลผลคำตอบได้ในขณะนี้';
 
     return NextResponse.json({ reply });
 
   } catch (error: any) {
     console.error("Chatbot API Error:", error.message);
+    // 🌟 ดัก Error ส่งกลับไปให้น้องต้นสนพูด เพื่อให้เรารู้สาเหตุที่แท้จริง
     return NextResponse.json({ 
         reply: `[แจ้งเตือนทีมพัฒนาระบบ] เกิดข้อผิดพลาดหลังบ้าน: ${error.message}` 
     }, { status: 200 }); 
