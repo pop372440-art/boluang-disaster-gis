@@ -811,6 +811,11 @@ export default function BoLuangDashboard() {
         
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in-api { animation: fadeIn 0.3s ease-out forwards; }
+        
+        /* 🌟 CSS กลับสีแผนที่ OSM ให้เป็นโหมดกลางคืน (Dark Mode) */
+        .dark-map-filter {
+          filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+        }
       `}} />
 
       {isMobile && (isLeftPanelOpen || isRightPanelOpen) && (
@@ -892,7 +897,8 @@ export default function BoLuangDashboard() {
           ref={setMapRef}
           >
             {/* 🌟 [Architecture Fix] เปลี่ยนจาก Google Maps เป็น ESRI World Imagery เพื่อหลีกเลี่ยง ToS Violation */}
-            {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" maxZoom={20} />}
+            {/* 🌟 เปลี่ยนเป็น OpenStreetMap ฟรี 100% แล้วใช้ CSS กลับสีให้เป็น Dark Mode แทน */}
+            {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" maxZoom={19} className="dark-map-filter" />}
             {!windyLayer && satelliteLayer && <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={19} attribution="Tiles &copy; Esri" />}
             
             {userLocation && (
