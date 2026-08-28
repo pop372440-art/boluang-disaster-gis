@@ -1,41 +1,35 @@
-import withPWAInit from "@ducanh2912/next-pwa";
-
-// 🌟 ตั้งค่า PWA
-const withPWA = withPWAInit({
-  dest: "public",
-  disable: process.env.NODE_ENV === "development", 
-});
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 🚨 เพิ่มบรรทัดนี้เพื่อแก้ Error ระบบ Build ขัดแย้งกัน
-  turbopack: {},
-
-  // 1. ส่วนของ rewrites (ของเดิมที่มีอยู่แล้ว ห้ามลบ)
-  async rewrites() {
-    return [
-      {
-        source: '/api/onwr/:path*',
-        destination: 'https://api-v3.thaiwater.net/api/v1/thaiwater30/public/:path*',
-      },
-    ];
-  },
-
-  // 2. ส่วนของ headers (เพิ่มใหม่เพื่อแก้ CORS ของเดิม ห้ามลบ)
   async headers() {
     return [
       {
-        // ใช้กับทุกเส้นทาง (Route) ในเว็บของคุณ
+        // 1. นำไปใช้กับทุก Path ในเว็บไซต์
         source: '/(.*)',
         headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
+          // ป้องกัน Clickjacking (ไม่ให้เว็บอื่นดูดหน้าเว็บเราไปฝังใน iframe)
+          { key: 'X-Frame-Options', value: 'DENY' },
+          // ป้องกันเบราว์เซอร์เดาประเภทไฟล์ผิด
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          // Content-Security-Policy (CSP) ป้องกัน XSS และการแอบฝัง Script อันตราย
+          // *อนุญาตให้โหลดข้อมูล/รูปภาพเฉพาะจากโดเมนที่ปลอดภัย (https) เท่านั้น
+          { 
+            key: 'Content-Security-Policy', 
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https:;" 
+          }
         ],
       },
+      {
+        // 2. ล็อก CORS สำหรับ API ฝั่ง Backend ของเราเท่านั้น
+        source: '/api/:path*',
+        headers: [
+          // เปลี่ยนจาก * เป็นชื่อโดเมนจริงของเทศบาล ป้องกันคนอื่นขโมยยิง API
+          { key: 'Access-Control-Allow-Origin', value: 'https://boluang-disaster-gis.vercel.app' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
+        ],
+      }
     ];
   },
 };
 
-// นำตั้งค่า PWA มาครอบ nextConfig เดิม แล้ว Export ออกไป
-export default withPWA(nextConfig);
+export default nextConfig;
