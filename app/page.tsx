@@ -52,35 +52,30 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 };
 
 // 🛡️ API Resilience
-// 🌟 ฟังก์ชันดึงข้อมูลพร้อมระบบ Cache ที่ปรับปรุงใหม่ (ป้องกัน Storage Full)
-  const fetchWithCache = async (url: string, cacheKey: string, expiryMs = 15 * 60 * 1000) => {
+  const fetchWithCache = async (url: string, cacheKey: string) => {
     try {
-      // 1. ลองเช็ค Cache จาก LocalStorage ก่อน
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        const { data, timestamp } = JSON.parse(cached);
-        if (Date.now() - timestamp < expiryMs) {
-          return { data, status: 'CACHED' };
-        }
-      }
-
-      // 2. ถ้าไม่มี Cache หรือ Cache หมดอายุ ให้ดึงจาก API
       const res = await fetch(url);
-      if (!res.ok) throw new Error('API Error');
-      const data = await res.json();
 
-      // 3. 🛡️ เซฟลง Cache (ใส่ try-catch ดักไว้ ป้องกัน Storage Full ทำเครื่องค้าง)
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
-      } catch (storageError) {
-        console.warn(`[Cache Warning] ไม่สามารถเซฟ ${cacheKey} ได้ (Storage อาจเต็ม) แต่ระบบยังทำงานปกติ`);
-        // ถ้า localStorage เต็ม ลองสลับไปใช้ sessionStorage แทน (พื้นที่แยกกันและถูกล้างเมื่อปิดแท็บ)
-        try {
-          sessionStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
-        } catch (e) {
-          // ถ้ายังเต็มอีก ก็ปล่อยผ่าน ไม่ต้องแคช แค่คืนค่า Data ไปให้วาดแผนที่ก็พอ
-        }
+      // 🛡️ ดักจับ Error: ตรวจสอบว่า API ส่งข้อมูลกลับมาเป็น JSON จริงๆ หรือไม่
+      // ป้องกัน SyntaxError: Unexpected token '<' เวลา API ภายนอกล่มแล้วส่ง HTML กลับมา
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+         console.warn(`[API Warning] ข้อมูลจาก ${cacheKey} ไม่ใช่ JSON (API อาจขัดข้อง)`);
+         return { data: null, status: 'ERROR' };
       }
+
+      if (!res.ok) {
+        throw new Error(`API Error: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      return { data, status: 'LIVE' };
+      
+    } catch (error) {
+      console.warn(`[API Offline] ไม่สามารถดึงข้อมูล ${cacheKey} ได้`);
+      return { data: null, status: 'ERROR' };
+    }
+  };
 
       return { data, status: 'LIVE' };
     } catch (error) {
