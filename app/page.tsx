@@ -52,6 +52,8 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 };
 
 // 🛡️ API Resilience
+  // 🌟 ฟังก์ชันดึงข้อมูลแบบใหม่ (ลบ LocalStorage ออก แก้ปัญหาเว็บหน่วง/ค้าง)
+  // พึ่งพา Cache จากฝั่ง Server Proxy แทน ทำให้โหลดลื่นไหลและไม่กินสเปคเครื่องผู้ใช้
   const fetchWithCache = async (url: string, cacheKey: string) => {
     try {
       const res = await fetch(url);
@@ -73,17 +75,6 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
       
     } catch (error) {
       console.warn(`[API Offline] ไม่สามารถดึงข้อมูล ${cacheKey} ได้`);
-      return { data: null, status: 'ERROR' };
-    }
-  };
-
-      return { data, status: 'LIVE' };
-    } catch (error) {
-      // 4. ถ้า API พัง (OFFLINE) ให้พยายามงัดเอา Cache เก่ามาใช้ (แม้จะหมดอายุแล้วก็ตาม)
-      const cached = localStorage.getItem(cacheKey) || sessionStorage.getItem(cacheKey);
-      if (cached) {
-        return { data: JSON.parse(cached).data, status: 'OFFLINE' };
-      }
       return { data: null, status: 'ERROR' };
     }
   };
