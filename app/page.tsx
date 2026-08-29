@@ -234,6 +234,7 @@ export default function BoLuangDashboard() {
   const [geoLandslide, setGeoLandslide] = useState<any>(null); 
   const [hotspotData, setHotspotData] = useState<any>(null);
   const [mapRef, setMapRef] = useState<any>(null);
+  const [FaultLineData, setFaultLineData] = useState<any>(null);
 
   const [currentZoom, setCurrentZoom] = useState(9);
   const syncData = useRef({ lat: 18.1633, lng: 98.3744, zoom: 9 });
@@ -404,14 +405,46 @@ export default function BoLuangDashboard() {
     }
   }, [showLandslide]);
 
+  // 🟣 รอยเลื่อนแผ่นดินไหว
   useEffect(() => {
-      if (earthquakeLayer && !geoEarthquake) {
-        fetch(`/geojson/earthquake.geojson?v=${Date.now()}`)
-          .then(res => res.json())
-          .then(data => setGeoEarthquake(data))
-          .catch(e => console.error(e));
+    // 📍 1. แก้ไขคำว่า "faultLine" ให้ตรงกับชื่อ State สวิตช์เปิดปิดของคุณ
+    if (!faultLine) {
+      // 📍 2. แก้ไขคำว่า "setFaultLineData" ให้ตรงกับชื่อ State ที่ใช้เก็บข้อมูลของคุณ
+      setFaultLineData(null);
+      return;
+    }
+
+    const fetchFaultLine = async () => {
+      try {
+        // 📍 3. ตรวจสอบ URL นี้ให้ถูกต้องว่าไฟล์ GeoJSON ของรอยเลื่อนอยู่ที่ไหน
+        const response = await fetch('/geojson/fault_line.json'); 
+
+        // 🛡️ ดักจับ 404 ป้องกันแอปพัง
+        if (!response.ok) {
+          console.warn("[Fault Line] ไม่พบไฟล์ข้อมูลรอยเลื่อน (404)");
+          setFaultLineData(null);
+          return;
+        }
+
+        // 🛡️ ป้องกัน Error: Unexpected token '<' เวลา Vercel ส่งหน้า HTML กลับมา
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+           console.warn("[Fault Line] ข้อมูลที่ดึงมาไม่ใช่ JSON");
+           setFaultLineData(null);
+           return;
+        }
+
+        const data = await response.json();
+        setFaultLineData(data); // 📍 อย่าลืมแก้ชื่อตรงนี้ด้วย
+        
+      } catch (error) {
+        console.warn("[Fault Line Error] ดึงข้อมูลไม่สำเร็จ", error);
+        setFaultLineData(null);
       }
-  }, [earthquakeLayer]);
+    };
+
+    fetchFaultLine();
+  }, [faultLine]); // 📍 อย่าลืมแก้ชื่อตรงนี้ด้วย
 
   useEffect(() => {
     if (!mounted) return;
