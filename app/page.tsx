@@ -341,7 +341,7 @@ export default function BoLuangDashboard() {
 
   // 🔥 จุดความร้อน (GISTDA)
   useEffect(() => {
-    if (!gistdaHotspot) {
+    if (!Hotspot) {
       setHotspotData(null);
       return;
     }
@@ -355,9 +355,7 @@ export default function BoLuangDashboard() {
            setHotspotData(null);
            return;
         }
-
-        setApiStatus(prev => ({ ...prev, gistda: status }));
-        
+        setApiStatus(prev => ({ ...prev, gistda: status }));   
         // แปลงข้อมูลให้อยู่ในรูปแบบ GeoJSON 
         if (data?.data && Array.isArray(data.data)) {
            const geoJsonData = {
@@ -394,7 +392,7 @@ export default function BoLuangDashboard() {
       }
     };
     fetchHotspot();
-  }, [gistdaHotspot]);
+  }, [Hotspot]);
 
   useEffect(() => {
     if (showLandslide && !geoLandslide) {
