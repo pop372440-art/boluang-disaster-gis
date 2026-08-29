@@ -232,8 +232,9 @@ export default function BoLuangDashboard() {
   const [geoHotspot, setGeoHotspot] = useState<any>(null);
   const [geoEarthquake, setGeoEarthquake] = useState<any>(null);
   const [geoLandslide, setGeoLandslide] = useState<any>(null); 
-
+  const [hotspotData, setHotspotData] = useState<any>(null);
   const [mapRef, setMapRef] = useState<any>(null);
+
   const [currentZoom, setCurrentZoom] = useState(9);
   const syncData = useRef({ lat: 18.1633, lng: 98.3744, zoom: 9 });
 
