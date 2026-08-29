@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js'; 
 import Swal from 'sweetalert2';
-
 // ==========================================
 // 🌟 1. การตั้งค่าระบบ (Config)
 // ==========================================
@@ -82,7 +81,18 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 // ==========================================
 // 🗺️ 3. โหลด Leaflet และ Component
 // ==========================================
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
+const MapContainer = dynamic(
+  () => import('react-leaflet').then(mod => mod.MapContainer), 
+  { 
+    ssr: false,
+    // 🚀 เพิ่มบล็อก loading ตรงนี้ ให้โชว์กล่องสีเข้มตอนโหลด แทนที่จะเป็นจอขาว
+    loading: () => (
+      <div className="w-full h-screen bg-slate-900 flex items-center justify-center z-0">
+        <div className="animate-pulse text-slate-400 font-semibold">กำลังเตรียมแผนที่ GIS...</div>
+      </div>
+    )
+  }
+);
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
