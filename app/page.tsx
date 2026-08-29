@@ -341,7 +341,7 @@ export default function BoLuangDashboard() {
 
   // 🔥 จุดความร้อน (GISTDA)
   useEffect(() => {
-    if (!Hotspot) {
+    if (!hotspot) {
       setHotspotData(null);
       return;
     }
@@ -392,7 +392,7 @@ export default function BoLuangDashboard() {
       }
     };
     fetchHotspot();
-  }, [Hotspot]);
+  }, [hotspot]);
 
   useEffect(() => {
     if (showLandslide && !geoLandslide) {
