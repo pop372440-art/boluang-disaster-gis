@@ -339,17 +339,62 @@ export default function BoLuangDashboard() {
     loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
   }, []);
 
-  // 🌟 [BFF Pattern] ดึง Hotspot ผ่าน API Route ของเราเอง เพื่อซ่อน Key
+  // 🔥 จุดความร้อน (GISTDA)
   useEffect(() => {
-    if (hotspot && !geoHotspot) {
-      const fetchHotspot = async () => {
-        const { data, status } = await fetchWithCache(`/api/proxy?service=gistda-hotspot&lat=${BO_LUANG_LAT}&lon=${BO_LUANG_LNG}`, 'gistda_hotspot_cache');
-        setApiStatus(prev => ({ ...prev, gistda: status }));
-        if (data) setGeoHotspot(data);
-      };
-      fetchHotspot();
+    if (!gistdaHotspot) {
+      setHotspotData(null);
+      return;
     }
-  }, [hotspot]);
+    const fetchHotspot = async () => {
+      try {
+        const { data, status } = await fetchWithCache('/api/proxy?service=gistda-hotspot&lat=18.1633&lon=98.3744', 'gistda_hotspot_cache');
+        
+        // 🛡️ ถ้า Status กลับมาเป็น ERROR (เช่น ลืมใส่ API Key ใน Vercel) ให้หยุดทำงานเลย ไม่ต้องฝืนไปอ่านข้อมูล
+        if (status === 'ERROR' || !data) {
+           setApiStatus(prev => ({ ...prev, gistda: 'OFFLINE' }));
+           setHotspotData(null);
+           return;
+        }
+
+        setApiStatus(prev => ({ ...prev, gistda: status }));
+        
+        // แปลงข้อมูลให้อยู่ในรูปแบบ GeoJSON 
+        if (data?.data && Array.isArray(data.data)) {
+           const geoJsonData = {
+             type: 'FeatureCollection',
+             features: data.data.map((item: any) => ({
+               type: 'Feature',
+               geometry: {
+                 type: 'Point',
+                 // สลับเป็น [longitude, latitude] ตามมาตรฐาน GeoJSON
+                 coordinates: [
+                   parseFloat(item.longitude || item.lon || 0), 
+                   parseFloat(item.latitude || item.lat || 0)
+                 ]
+               },
+               properties: {
+                 ...item,
+                 title: 'จุดความร้อน (Hotspot)',
+                 source: 'GISTDA'
+               }
+             })).filter((feature: any) => 
+               // กรองข้อมูลที่พิกัดไม่ถูกต้องออกไป ป้องกันแผนที่พัง
+               feature.geometry.coordinates[0] !== 0 && 
+               feature.geometry.coordinates[1] !== 0
+             )
+           };
+           setHotspotData(geoJsonData);
+        } else {
+           setHotspotData(null);
+        }
+      } catch (error) {
+        console.warn("GISTDA Error handled silently");
+        setApiStatus(prev => ({ ...prev, gistda: 'OFFLINE' }));
+        setHotspotData(null);
+      }
+    };
+    fetchHotspot();
+  }, [gistdaHotspot]);
 
   useEffect(() => {
     if (showLandslide && !geoLandslide) {
