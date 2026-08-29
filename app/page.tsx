@@ -408,7 +408,7 @@ export default function BoLuangDashboard() {
   // 🟣 รอยเลื่อนแผ่นดินไหว
   useEffect(() => {
     // 📍 1. แก้ไขคำว่า "faultLine" ให้ตรงกับชื่อ State สวิตช์เปิดปิดของคุณ
-    if (!faultLine) {
+    if (!FaultLineData) {
       // 📍 2. แก้ไขคำว่า "setFaultLineData" ให้ตรงกับชื่อ State ที่ใช้เก็บข้อมูลของคุณ
       setFaultLineData(null);
       return;
@@ -444,7 +444,7 @@ export default function BoLuangDashboard() {
     };
 
     fetchFaultLine();
-  }, [faultLine]); // 📍 อย่าลืมแก้ชื่อตรงนี้ด้วย
+  }, [FaultLineData]); // 📍 อย่าลืมแก้ชื่อตรงนี้ด้วย
 
   useEffect(() => {
     if (!mounted) return;
