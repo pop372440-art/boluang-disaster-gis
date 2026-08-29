@@ -24,14 +24,22 @@ export async function GET() {
 
     if (error) throw error;
 
+    // 🌟 ขั้นตอนที่เพิ่มเข้ามา: ปัดเศษพิกัด GPS ให้เหลือ 4 ทศนิยมก่อนส่งออกไป
+    const formattedData = data.map((item: any) => ({
+      ...item,
+      // เช็คว่ามีค่าพิกัดหรือไม่ ถ้ามีให้แปลงเป็น Number -> ปัดเศษ 4 ตำแหน่ง -> คืนค่าเป็น Number
+      latitude: item.latitude ? Number(Number(item.latitude).toFixed(4)) : null,
+      longitude: item.longitude ? Number(Number(item.longitude).toFixed(4)) : null,
+    }));
+
     return NextResponse.json({
       metadata: {
         source: 'เทศบาลตำบลบ่อหลวง จ.เชียงใหม่',
         license: 'Open Data (Public Domain)',
-        total_returned: data.length,
+        total_returned: formattedData.length,
         timestamp: new Date().toISOString()
       },
-      data: data
+      data: formattedData // ส่งข้อมูลที่ปัดเศษพิกัดแล้วกลับไป
     }, {
       status: 200,
       headers: {
