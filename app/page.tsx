@@ -1483,7 +1483,7 @@ export default function BoLuangDashboard() {
               </div>
               <div className="block md:hidden">
                 <h1 className="text-[13px] sm:text-sm font-bold text-white tracking-wide leading-tight">
-                ระบบ BL·GIS
+                ระบบ BL · GIS
                 </h1>
               </div>
             </div>
