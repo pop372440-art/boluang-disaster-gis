@@ -56,6 +56,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+      <head>
+        {/* 🚀 เปิดท่อเชื่อมต่อล่วงหน้าสำหรับโหลดแผนที่ OSM และ Esri เพื่อลด LCP ลงให้ผ่านเกณฑ์ */}
+        <link rel="preconnect" href="https://tile.openstreetmap.org" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://server.arcgisonline.com" crossOrigin="anonymous" />
+      </head>
       <body className="min-h-full flex flex-col">
         
         {/* เนื้อหาหลักของเว็บ */}
