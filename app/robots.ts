@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: '*',
       allow: '/',
-      disallow: ['/admin/', '/api/'], // ซ่อนหน้า API และหน้า Admin จาก Google
+      disallow: ['/admin', '/api/'], // ซ่อนหน้า API และหน้า Admin จาก Google
     },
     sitemap: 'https://boluang-disaster-gis.vercel.app/sitemap.xml',
   }
