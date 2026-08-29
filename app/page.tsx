@@ -214,7 +214,7 @@ export default function BoLuangDashboard() {
   const [onwrRain, setOnwrRain] = useState(false);
   const [onwrWaterLevel, setOnwrWaterLevel] = useState(false);
 
-  const [satelliteLayer, setSatelliteLayer] = useState(true); 
+  const [satelliteLayer, setSatelliteLayer] = useState(false); 
   const [showBoluang, setShowBoluang] = useState(true); 
   const [showBlock, setShowBlock] = useState(true);          
   const [showParcel, setShowParcel] = useState(false);       
@@ -320,7 +320,7 @@ export default function BoLuangDashboard() {
       setIsMobile(mobile);
       if (mobile) { 
         setIsLeftPanelOpen(false); 
-        setIsRightPanelOpen(true); 
+        setIsRightPanelOpen(false); 
       } else { 
         setIsLeftPanelOpen(true); 
         setIsRightPanelOpen(true); 
