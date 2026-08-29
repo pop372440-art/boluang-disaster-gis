@@ -342,7 +342,7 @@ export default function BoLuangDashboard() {
   // 🔥 จุดความร้อน (GISTDA)
   useEffect(() => {
     if (!hotspot) {
-      setHotspot(null);
+      setHotspotData(null);
       return;
     }
     const fetchHotspot = async () => {
