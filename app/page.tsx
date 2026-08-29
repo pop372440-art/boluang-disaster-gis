@@ -334,8 +334,8 @@ export default function BoLuangDashboard() {
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') setQrUrl(window.location.origin + '/report');
-    
-    const ts = Date.now(); 
+
+    const ts = Date.now();
     const loadGeoJSON = async (url: string, setter: any) => {
       try {
         const res = await fetch(url);
@@ -347,8 +347,14 @@ export default function BoLuangDashboard() {
       } catch (e) { console.error('Failed to load layer:', url, e); }
     };
 
-    loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang);
-    loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock); 
+    // 🚀 แก้ไขตรงนี้: ครอบด้วย setTimeout เพื่อหน่วงเวลาโหลด 1.5 วินาที
+    const timer = setTimeout(() => {
+      loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang);
+      loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock);
+    }, 1500);
+
+    // ล้างเคลียร์ Timer ออกเมื่อปิดหน้าเว็บ
+    return () => clearTimeout(timer);
   }, []);
 
   // 🔥 จุดความร้อน (GISTDA)
