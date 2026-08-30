@@ -229,31 +229,34 @@ export default function ExecutiveDashboard() {
     );
   };
 
-  // 🗺️ แผนที่ตำบลบ่อหลวงแบบ Real GeoJSON Projection
+  // 🗺️ แผนที่ตำบลบ่อหลวงแบบ Real GeoJSON Projection (อัปเกรด: โซน 13 หมู่บ้าน)
   const BoLuangMap = () => {
     const isAlert = data?.soilMoisture > 70 || data?.liveRainIntensity > 15;
-    const [geoBoundary, setGeoBoundary] = useState<any>(null);
+    const [geoBoundary, setGeoBoundary] = useState<any>(null); // ขอบเขตตำบล
+    const [geoVillages, setGeoVillages] = useState<any>(null); // ขอบเขต 13 หมู่บ้าน
 
-    // โหลดไฟล์ GeoJSON ทันทีที่เรนเดอร์ Component นี้
+    // โหลดไฟล์ GeoJSON ทั้งตำบล และ ระดับหมู่บ้าน พร้อมกัน
     useEffect(() => {
-      fetch('/geojson/boluang.json')
-        .then(r => r.json())
-        .then(data => setGeoBoundary(data))
-        .catch(e => console.log('No Custom GeoJSON found, using fallback.'));
+      Promise.all([
+        fetch('/geojson/boluang.json').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/geojson/block.json').then(r => r.ok ? r.json() : null).catch(() => null)
+      ]).then(([boundaryData, villageData]) => {
+        if (boundaryData) setGeoBoundary(boundaryData);
+        if (villageData) setGeoVillages(villageData);
+      });
     }, []);
 
     const renderGeoJsonMap = () => {
-        // หากไม่มีไฟล์ GeoJSON ให้โชว์แผนที่จำลอง (Fallback)
+        // หากไม่มีไฟล์หลัก ให้ใช้ Mock fallback
         if (!geoBoundary || !geoBoundary.features) {
             return (
                 <g opacity="0.15" fill="none" stroke="#0ea5e9" strokeWidth="0.8">
                     <path d="M 80 150 C 120 50, 350 80, 420 180 C 450 280, 300 330, 150 280 C 50 240, 60 180, 80 150 Z" strokeDasharray="4 6" strokeWidth="1.5" />
-                    <circle cx="250" cy="180" r="40" stroke="#0ea5e9" strokeDasharray="2 4"/>
                 </g>
             );
         }
 
-        // 1. คำนวณขอบเขตพิกัด (Bounding Box) ของบ่อหลวงจากไฟล์จริง
+        // 1. คำนวณขอบเขต (Bounding Box) จากระดับตำบลเป็นหลัก
         let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
         const findBounds = (coords: any[]) => {
             if (typeof coords[0] === 'number') {
@@ -265,11 +268,9 @@ export default function ExecutiveDashboard() {
         };
         geoBoundary.features.forEach((f: any) => findBounds(f.geometry.coordinates));
 
-        // 2. ตั้งค่าขนาดและสเกลแผนที่ให้พอดีกับจอ SVG
-        const W = 500, H = 350, P = 30; // Width, Height, Padding
-        const w = W - P * 2;
-        const h = H - P * 2;
-        
+        // 2. Projection Engine
+        const W = 500, H = 350, P = 30; 
+        const w = W - P * 2, h = H - P * 2;
         const lngDiff = maxLng - minLng;
         const latDiff = maxLat - minLat;
 
@@ -280,43 +281,60 @@ export default function ExecutiveDashboard() {
         const xOffset = P + (w - lngDiff * scale) / 2;
         const yOffset = P + (h - latDiff * scale) / 2;
 
-        // อัลกอริทึมแปลง Lat/Lng เป็น X/Y บนหน้าจอ
         const project = (lng: number, lat: number) => {
-            const x = xOffset + (lng - minLng) * scale;
-            const y = yOffset + (latDiff - (lat - minLat)) * scale; // กลับแกน Y
-            return { x, y };
+            return {
+                x: xOffset + (lng - minLng) * scale,
+                y: yOffset + (latDiff - (lat - minLat)) * scale
+            };
         };
 
-        // 3. วาดเส้นขอบเขตตำบล (Polygons)
-        const paths = geoBoundary.features.map((f: any, i: number) => {
-            const makePath = (coords: any[], type: string) => {
-                 if (type === 'Polygon') {
-                     return coords.map(ring => "M " + ring.map((c: any) => { const p = project(c[0], c[1]); return `${p.x},${p.y}`; }).join(" L ") + " Z").join(" ");
-                 } else if (type === 'MultiPolygon') {
-                     return coords.map(poly => poly.map((ring: any) => "M " + ring.map((c: any) => { const p = project(c[0], c[1]); return `${p.x},${p.y}`; }).join(" L ") + " Z").join(" ")).join(" ");
-                 }
-                 return "";
-            };
-            return (
-               <path key={i} d={makePath(f.geometry.coordinates, f.geometry.type)}
-                     fill={isAlert ? 'rgba(225,29,72,0.08)' : 'rgba(14,165,233,0.08)'}
-                     stroke={isAlert ? '#e11d48' : '#0ea5e9'}
-                     strokeWidth="1.5"
-                     className="transition-all duration-1000"
-                     strokeOpacity="0.8"
-                     strokeDasharray="4 4" />
-            );
-        });
+        // ฟังก์ชันช่วยวาด Path
+        const generatePathD = (feature: any) => {
+            const coords = feature.geometry.coordinates;
+            const type = feature.geometry.type;
+            if (type === 'Polygon') {
+                return coords.map((ring: any) => "M " + ring.map((c: any) => { const p = project(c[0], c[1]); return `${p.x},${p.y}`; }).join(" L ") + " Z").join(" ");
+            } else if (type === 'MultiPolygon') {
+                return coords.map((poly: any) => poly.map((ring: any) => "M " + ring.map((c: any) => { const p = project(c[0], c[1]); return `${p.x},${p.y}`; }).join(" L ") + " Z").join(" ")).join(" ");
+            }
+            return "";
+        };
 
-        // 4. คำนวณจุดศูนย์กลางของศูนย์ EOC (อ้างอิงจาก BO_LUANG_LAT/LNG)
+        // 3. วาดเส้นขอบเขต 13 หมู่บ้าน (Layer ล่างสุด)
+        const villagePaths = geoVillages && geoVillages.features ? geoVillages.features.map((f: any, i: number) => {
+            // สุ่มความทึบแสงเล็กน้อยให้เห็นความแตกต่างของแต่ละโซน
+            const opacityLevel = 0.02 + (i % 3) * 0.02; 
+            return (
+               <path key={`village-${i}`} d={generatePathD(f)}
+                     fill={isAlert ? `rgba(225,29,72,${opacityLevel})` : `rgba(14,165,233,${opacityLevel})`}
+                     stroke={isAlert ? 'rgba(244,63,94,0.3)' : 'rgba(56,189,248,0.3)'}
+                     strokeWidth="0.8"
+                     strokeDasharray="2 3"
+                     className="transition-all duration-1000 hover:fill-[#0ea5e9]/20 cursor-crosshair" />
+            );
+        }) : null;
+
+        // 4. วาดเส้นขอบเขตตำบลหลัก (Layer ทับด้านบน)
+        const boundaryPaths = geoBoundary.features.map((f: any, i: number) => (
+            <path key={`bound-${i}`} d={generatePathD(f)}
+                  fill="none"
+                  stroke={isAlert ? '#e11d48' : '#0ea5e9'}
+                  strokeWidth="1.5"
+                  className="transition-all duration-1000"
+                  strokeOpacity="0.8"
+                  strokeDasharray="4 4" />
+        ));
+
         const eocProj = project(BO_LUANG_LNG, BO_LUANG_LAT);
 
         return (
             <g>
-               {/* เส้นรูปร่างตำบลจาก GeoJSON */}
-               {paths}
+               {/* 🗺️ โซน 13 หมู่บ้าน (Tactical Zones) */}
+               {villagePaths}
                
-               {/* รัศมีอันตราย (Heatmap) อิงพิกัดจริง */}
+               {/* 🗺️ ขอบเขตตำบลหลัก */}
+               {boundaryPaths}
+               
                {isAlert && <circle cx={eocProj.x} cy={eocProj.y} r="80" fill="url(#alertHeat)" />}
                
                {/* 📍 หมุดศูนย์บัญชาการ EOC */}
@@ -328,7 +346,7 @@ export default function ExecutiveDashboard() {
                     <text x="18" y="3" fill="#f8fafc" fontSize="11" fontWeight="bold">บ่อหลวง <tspan fill={isAlert ? '#f43f5e' : '#38bdf8'} fontSize="9">(ศูนย์ EOC)</tspan></text>
                 </g>
 
-               {/* หมู่บ้านเครือข่าย (ปักไว้เป็นตัวอย่างแบบ Offset จาก EOC) */}
+               {/* ตัวอย่างจุดหมู่บ้านอ้างอิง */}
                <g transform={`translate(${eocProj.x - 40}, ${eocProj.y - 50})`}>
                  <circle cx="0" cy="0" r="3" fill="#64748b" />
                  <text x="8" y="3" fill="#cbd5e1" fontSize="9">บ้านแม่หืด</text>
@@ -352,7 +370,6 @@ export default function ExecutiveDashboard() {
     return (
       <div className="relative w-full h-full min-h-[350px] rounded-2xl bg-[#020617] border border-slate-800 shadow-inner overflow-hidden flex items-center justify-center">
         
-        {/* CSS Animations เฉพาะแผนที่ */}
         <style dangerouslySetInnerHTML={{__html: `
           @keyframes radar-scan { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
           @keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 0.5; } 100% { transform: scale(2.5); opacity: 0; } }
@@ -360,7 +377,6 @@ export default function ExecutiveDashboard() {
           .animate-pulse-ring { animation: pulse-ring 2.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; transform-origin: center; }
         `}} />
         
-        {/* Tactical Grid Background */}
         <div className="absolute inset-0" style={{ 
             backgroundImage: 'linear-gradient(rgba(14, 165, 233, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(14, 165, 233, 0.05) 1px, transparent 1px)', 
             backgroundSize: '30px 30px' 
@@ -379,10 +395,8 @@ export default function ExecutiveDashboard() {
             </filter>
           </defs>
 
-          {/* เรนเดอร์ GeoJSON จริง */}
           {renderGeoJsonMap()}
 
-          {/* Corner Decorations */}
           <path d="M 10 30 L 10 10 L 30 10" fill="none" stroke="#334155" strokeWidth="2" />
           <path d="M 490 30 L 490 10 L 470 10" fill="none" stroke="#334155" strokeWidth="2" />
           <path d="M 10 320 L 10 340 L 30 340" fill="none" stroke="#334155" strokeWidth="2" />
@@ -392,20 +406,25 @@ export default function ExecutiveDashboard() {
           <text x="415" y="335" fill="#475569" fontSize="8" fontFamily="monospace">LNG: 98.3744° E</text>
         </svg>
 
-        <div className="absolute top-4 left-4 bg-slate-950/80 border border-slate-800 backdrop-blur-md px-3 py-2 rounded-lg shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
-          <div className="text-[9px] text-slate-500 font-mono uppercase tracking-widest mb-1 flex justify-between">
+        <div className="absolute top-4 left-4 bg-slate-950/80 border border-slate-800 backdrop-blur-md p-2 rounded-lg shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+          <div className="text-[9px] text-slate-500 font-mono uppercase tracking-widest mb-1.5 flex justify-between gap-4">
             <span>Spatial Risk Map</span>
-            <span className="text-[#0ea5e9]">v2.0</span>
+            <span className="text-[#0ea5e9]">v2.1</span>
           </div>
-          <div className="text-xs font-bold text-white flex items-center">
-            <span className={`w-2.5 h-2.5 rounded-full mr-2 ${isAlert ? 'bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(225,29,72,0.8)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]'}`}></span>
-            แผนที่เขตตำบลบ่อหลวง
+          <div className="flex flex-col gap-1.5">
+            <div className="text-xs font-bold text-white flex items-center">
+                <span className={`w-2 h-2 rounded-full mr-2 ${isAlert ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`}></span>
+                ขอบเขตตำบลบ่อหลวง
+            </div>
+            <div className="text-[10px] font-bold text-slate-300 flex items-center pl-1">
+                <span className="w-1.5 h-1.5 border border-slate-500 mr-2 rounded-sm bg-slate-800/50"></span>
+                โซนเฝ้าระวัง 13 หมู่บ้าน
+            </div>
           </div>
         </div>
       </div>
     );
   };
-
   return (
     <div className="min-h-screen bg-[#020617] p-4 md:p-6 lg:p-8 font-sans text-slate-200 overflow-x-hidden selection:bg-[#0ea5e9] selection:text-white">
       
