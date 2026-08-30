@@ -229,65 +229,128 @@ export default function ExecutiveDashboard() {
     );
   };
 
-  // 🗺️ แผนที่ตำบลบ่อหลวง (Spatial Risk Map)
+  // 🗺️ แผนที่ยุทธศาสตร์ตำบลบ่อหลวง (Tactical Topography Map)
   const BoLuangMap = () => {
     const isAlert = data?.soilMoisture > 70 || data?.liveRainIntensity > 15;
+    
     return (
-      <div className="relative w-full h-full min-h-[280px] rounded-2xl bg-[#030712] border border-slate-800 shadow-inner overflow-hidden flex items-center justify-center">
-        <style dangerouslySetInnerHTML={{__html: `@keyframes ping-slow { 75%, 100% { transform: scale(2); opacity: 0; } } .animate-ping-slow { animation: ping-slow 3s cubic-bezier(0, 0, 0.2, 1) infinite; }`}} />
+      <div className="relative w-full h-full min-h-[350px] rounded-2xl bg-[#020617] border border-slate-800 shadow-inner overflow-hidden flex items-center justify-center">
         
-        {/* Grid Background */}
-        <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(#0f172a 1px, transparent 1px), linear-gradient(90deg, #0f172a 1px, transparent 1px)', backgroundSize: '40px 40px', opacity: 0.5 }}></div>
+        {/* CSS Animations เฉพาะแผนที่ */}
+        <style dangerouslySetInnerHTML={{__html: `
+          @keyframes radar-scan { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+          @keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 0.5; } 100% { transform: scale(2.5); opacity: 0; } }
+          .animate-radar { animation: radar-scan 6s linear infinite; transform-origin: center; }
+          .animate-pulse-ring { animation: pulse-ring 2.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; transform-origin: center; }
+        `}} />
         
-        <svg viewBox="0 0 400 300" className="w-full h-full relative z-10">
-          {/* ขอบเขตตำบลจำลอง */}
-          <path d="M 50 150 Q 100 50 200 80 T 350 150 Q 300 250 200 280 T 50 150 Z" fill={isAlert ? 'rgba(225,29,72,0.05)' : 'rgba(14,165,233,0.02)'} stroke={isAlert ? '#e11d48' : '#0ea5e9'} strokeWidth="1.5" strokeOpacity="0.3" strokeDasharray="5 5" />
-          
-          {/* รัศมีอันตราย (Heatmap) */}
-          {isAlert && <circle cx="200" cy="150" r="60" fill="url(#alertGlow)" opacity="0.6" />}
-          
-          {/* เส้นถนนสายหลัก (108) */}
-          <path d="M 0 250 Q 150 200 200 150 T 400 50" fill="none" stroke="#334155" strokeWidth="3" />
-          <path d="M 0 250 Q 150 200 200 150 T 400 50" fill="none" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 4" />
-
-          {/* จุดหมู่บ้านต่างๆ */}
-          <g>
-            <circle cx="200" cy="150" r="5" fill={isAlert ? '#f43f5e' : '#0ea5e9'} />
-            {isAlert && <circle cx="200" cy="150" r="5" fill={isAlert ? '#f43f5e' : '#0ea5e9'} className="animate-ping-slow origin-[200px_150px]" />}
-            <text x="210" y="154" fill="#f1f5f9" fontSize="12" fontWeight="bold">บ่อหลวง (ศูนย์ EOC)</text>
-          </g>
-          
-          <g transform="translate(150, 100)">
-            <circle cx="0" cy="0" r="4" fill="#64748b" />
-            <text x="8" y="4" fill="#94a3b8" fontSize="10">บ้านแม่หืด</text>
-          </g>
-          <g transform="translate(260, 120)">
-            <circle cx="0" cy="0" r="4" fill="#64748b" />
-            <text x="8" y="4" fill="#94a3b8" fontSize="10">บ้านขุน</text>
-          </g>
-          <g transform="translate(220, 210)">
-            <circle cx="0" cy="0" r="4" fill="#64748b" />
-            <text x="-50" y="4" fill="#94a3b8" fontSize="10">บ้านกิ่วป่าซี</text>
-          </g>
-          <g transform="translate(110, 190)">
-            <circle cx="0" cy="0" r="4" fill="#64748b" />
-            <text x="8" y="4" fill="#94a3b8" fontSize="10">บ้านเตียนอาง</text>
-          </g>
-
+        {/* Tactical Grid Background */}
+        <div className="absolute inset-0" style={{ 
+            backgroundImage: 'linear-gradient(rgba(14, 165, 233, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(14, 165, 233, 0.05) 1px, transparent 1px)', 
+            backgroundSize: '30px 30px' 
+        }}></div>
+        
+        <svg viewBox="0 0 500 350" className="w-full h-full relative z-10">
           <defs>
-            <radialGradient id="alertGlow">
-              <stop offset="0%" stopColor="#e11d48" stopOpacity="1" />
+            {/* Gradients & Glows */}
+            <radialGradient id="alertHeat" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#e11d48" stopOpacity="0.4" />
+              <stop offset="50%" stopColor="#e11d48" stopOpacity="0.1" />
               <stop offset="100%" stopColor="#e11d48" stopOpacity="0" />
             </radialGradient>
+            <linearGradient id="roadGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#334155" />
+              <stop offset="50%" stopColor="#94a3b8" />
+              <stop offset="100%" stopColor="#334155" />
+            </linearGradient>
+            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
           </defs>
+
+          {/* Topographic Contour Lines (เส้นชั้นความสูงจำลอง) */}
+          <g opacity="0.15" fill="none" stroke="#0ea5e9" strokeWidth="0.8">
+             <path d="M -50 50 Q 150 -20 250 100 T 550 50" />
+             <path d="M -20 120 Q 200 80 250 180 T 550 150" />
+             <path d="M 50 200 Q 250 250 300 250 T 550 220" />
+             <path d="M 0 300 Q 200 350 400 320 T 550 350" />
+             {/* ขอบเขตตำบลจำลอง */}
+             <path d="M 80 150 C 120 50, 350 80, 420 180 C 450 280, 300 330, 150 280 C 50 240, 60 180, 80 150 Z" strokeDasharray="4 6" strokeWidth="1.5" />
+          </g>
+          
+          {/* รัศมีอันตราย (Heatmap) หากมีภัย */}
+          {isAlert && <circle cx="250" cy="180" r="120" fill="url(#alertHeat)" />}
+          
+          {/* Highway 108 (Data Stream Line) */}
+          <path d="M -20 280 Q 180 250 250 180 T 520 80" fill="none" stroke="url(#roadGlow)" strokeWidth="4" opacity="0.3" />
+          <path d="M -20 280 Q 180 250 250 180 T 520 80" fill="none" stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="8 6" />
+
+          {/* Tactical Crosshair ที่จุดศูนย์กลาง EOC */}
+          <g transform="translate(250, 180)" opacity="0.3">
+            <line x1="-30" y1="0" x2="30" y2="0" stroke="#0ea5e9" strokeWidth="0.5" />
+            <line x1="0" y1="-30" x2="0" y2="30" stroke="#0ea5e9" strokeWidth="0.5" />
+            <circle cx="0" cy="0" r="20" fill="none" stroke="#0ea5e9" strokeWidth="0.5" />
+          </g>
+
+          {/* 📍 Tactical Nodes (หมู่บ้านต่างๆ) */}
+          {/* 1. ศูนย์ EOC (บ่อหลวง) */}
+          <g transform="translate(250, 180)">
+            {isAlert && <circle cx="0" cy="0" r="8" fill="#f43f5e" className="animate-pulse-ring" />}
+            <circle cx="0" cy="0" r="6" fill={isAlert ? '#f43f5e' : '#38bdf8'} filter="url(#glow)" />
+            <circle cx="0" cy="0" r="3" fill="#020617" />
+            <rect x="12" y="-12" width="125" height="24" rx="4" fill="#0f172a" fillOpacity="0.8" stroke={isAlert ? '#f43f5e' : '#38bdf8'} strokeWidth="1" />
+            <text x="18" y="3" fill="#f8fafc" fontSize="11" fontWeight="bold">บ่อหลวง <tspan fill={isAlert ? '#f43f5e' : '#38bdf8'} fontSize="9">(ศูนย์ EOC)</tspan></text>
+          </g>
+          
+          {/* 2. บ้านแม่หืด */}
+          <g transform="translate(160, 110)">
+            <circle cx="0" cy="0" r="4" fill="#64748b" />
+            <line x1="0" y1="0" x2="12" y2="-12" stroke="#475569" strokeWidth="1" />
+            <text x="15" y="-15" fill="#cbd5e1" fontSize="10">บ้านแม่หืด</text>
+          </g>
+
+          {/* 3. บ้านขุน */}
+          <g transform="translate(340, 140)">
+            <circle cx="0" cy="0" r="4" fill="#64748b" />
+            <line x1="0" y1="0" x2="-12" y2="-12" stroke="#475569" strokeWidth="1" />
+            <text x="-55" y="-15" fill="#cbd5e1" fontSize="10">บ้านขุน</text>
+          </g>
+
+          {/* 4. บ้านกิ่วป่าซี */}
+          <g transform="translate(310, 240)">
+            <circle cx="0" cy="0" r="4" fill="#64748b" />
+            <line x1="0" y1="0" x2="12" y2="12" stroke="#475569" strokeWidth="1" />
+            <text x="15" y="16" fill="#cbd5e1" fontSize="10">บ้านกิ่วป่าซี</text>
+          </g>
+
+          {/* 5. บ้านเตียนอาง */}
+          <g transform="translate(130, 220)">
+            <circle cx="0" cy="0" r="4" fill="#64748b" />
+            <line x1="0" y1="0" x2="-12" y2="-12" stroke="#475569" strokeWidth="1" />
+            <text x="-65" y="-15" fill="#cbd5e1" fontSize="10">บ้านเตียนอาง</text>
+          </g>
+
+          {/* Corner Decorations (เพิ่มความเป็น Sci-Fi Dashboard) */}
+          <path d="M 10 30 L 10 10 L 30 10" fill="none" stroke="#334155" strokeWidth="2" />
+          <path d="M 490 30 L 490 10 L 470 10" fill="none" stroke="#334155" strokeWidth="2" />
+          <path d="M 10 320 L 10 340 L 30 340" fill="none" stroke="#334155" strokeWidth="2" />
+          <path d="M 490 320 L 490 340 L 470 340" fill="none" stroke="#334155" strokeWidth="2" />
+          
+          {/* Coordinates Overlay */}
+          <text x="15" y="335" fill="#475569" fontSize="8" fontFamily="monospace">LAT: 18.1633° N</text>
+          <text x="415" y="335" fill="#475569" fontSize="8" fontFamily="monospace">LNG: 98.3744° E</text>
         </svg>
 
         {/* ป้ายกำกับบนแผนที่ */}
-        <div className="absolute top-4 left-4 bg-slate-900/80 border border-slate-700 backdrop-blur-sm px-3 py-1.5 rounded-lg">
-          <div className="text-[10px] text-slate-400 font-mono uppercase tracking-widest mb-0.5">Spatial Risk Map</div>
+        <div className="absolute top-4 left-4 bg-slate-950/80 border border-slate-800 backdrop-blur-md px-3 py-2 rounded-lg shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+          <div className="text-[9px] text-slate-500 font-mono uppercase tracking-widest mb-1 flex justify-between">
+            <span>Spatial Risk Map</span>
+            <span className="text-[#0ea5e9]">v2.0</span>
+          </div>
           <div className="text-xs font-bold text-white flex items-center">
-            <span className={`w-2 h-2 rounded-full mr-2 ${isAlert ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`}></span>
-            แผนที่ติดตามพื้นที่เสี่ยงภัย
+            <span className={`w-2.5 h-2.5 rounded-full mr-2 ${isAlert ? 'bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(225,29,72,0.8)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]'}`}></span>
+            แผนที่ยุทธศาสตร์ตำบลบ่อหลวง
           </div>
         </div>
       </div>
@@ -470,57 +533,115 @@ export default function ExecutiveDashboard() {
             </div>
 
             {/* 🔮 กราฟพยากรณ์ */}
-            <div className="bg-[#0b1120] border border-slate-800 rounded-[2rem] p-6 md:p-8 shadow-xl flex-1 flex flex-col min-h-[350px]">
-              <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-slate-800 pb-4">
+            <div className="bg-[#0b1120] border border-slate-800 rounded-[2rem] p-6 md:p-8 shadow-xl flex-1 flex flex-col min-h-[350px] relative overflow-hidden">
+              {/* แสงเรืองแสงจางๆ เป็นพื้นหลังของกล่องกราฟ */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -z-10"></div>
+              
+              <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-slate-800/80 pb-4">
                 <div>
                     <h3 className="text-xl md:text-2xl font-black text-white flex items-center tracking-tight">
                         <span className="text-3xl mr-3">📊</span> ประเมินปริมาณฝนล่วงหน้า
                     </h3>
-                    <p className="text-[10px] md:text-xs text-slate-500 mt-2 tracking-wide font-mono uppercase">AI ENSEMBLE MODEL (ความละเอียดระดับตำบล)</p>
+                    <p className="text-[10px] md:text-xs text-slate-500 mt-2 tracking-wide font-mono uppercase">AI PROBABILISTIC RANGE (พยากรณ์ล่วงหน้า 7 วัน)</p>
                 </div>
-                <div className="mt-3 sm:mt-0 text-[10px] md:text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 px-3 py-1.5 rounded-lg font-bold">
-                    AI CONSENSUS ALGORITHM
+                <div className="mt-3 sm:mt-0 flex flex-col items-end gap-2">
+                    <div className="text-[10px] md:text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 px-3 py-1.5 rounded-lg font-bold shadow-[0_0_10px_rgba(99,102,241,0.1)]">
+                        AI CONSENSUS ALGORITHM
+                    </div>
+                    {/* Legend (คำอธิบายสัญลักษณ์) */}
+                    <div className="flex gap-3 text-[9px] font-mono text-slate-500">
+                        <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-[#0ea5e9]"></div> ค่ากลาง (Median)</span>
+                        <span className="flex items-center gap-1"><div className="w-3 h-[1px] bg-slate-500 dashed"></div> ค่าสูงสุด (Max)</span>
+                    </div>
                 </div>
               </div>
               
-              {/* 📊 Graph Container */}
-              <div className="flex-1 flex items-end justify-between gap-1 sm:gap-2 md:gap-3 h-full pb-2 mt-4 relative">
+              {/* 📊 Advanced Graph Container */}
+              <div className="flex-1 flex items-end justify-between gap-2 sm:gap-4 h-full pb-2 mt-2 relative">
                   
-                  {/* Threshold Guide Lines */}
-                  <div className="absolute w-full h-[1px] bg-amber-500/20 bottom-[40%] border-t border-dashed border-amber-500/30 -z-10"></div>
-                  <div className="absolute w-full h-[1px] bg-rose-500/20 bottom-[80%] border-t border-dashed border-rose-500/30 -z-10"></div>
+                  {/* Threshold Guide Lines (เส้นกะระยะ) */}
+                  <div className="absolute w-full h-[1px] bg-amber-500/10 bottom-[40%] border-t border-dashed border-amber-500/20 -z-10">
+                     <span className="absolute -top-4 right-0 text-[8px] font-mono text-amber-500/50">50 mm (เฝ้าระวัง)</span>
+                  </div>
+                  <div className="absolute w-full h-[1px] bg-rose-500/10 bottom-[80%] border-t border-dashed border-rose-500/20 -z-10">
+                     <span className="absolute -top-4 right-0 text-[8px] font-mono text-rose-500/50">90 mm (วิกฤต)</span>
+                  </div>
                   
                   {data?.stats?.slice(0, 7).map((s: any, idx: number) => {
                       const date = new Date(s.date);
                       const dayName = date.toLocaleDateString('th-TH', { weekday: 'short' });
                       const dateNum = date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
                       
-                      const maxVal = Math.max(...data.stats.slice(0, 7).map((x: any) => x.rainMedian), 80); 
-                      const heightPct = Math.max((s.rainMedian / maxVal) * 100, 2); 
+                      // หาค่า Max ของ 7 วัน เพื่อเป็นตัวเทียบสเกลความสูง (ให้กราฟไม่ล้นกรอบ)
+                      const overallMax = Math.max(...data.stats.slice(0, 7).map((x: any) => Math.max(x.rainMax, x.rainMedian, 10)), 100); 
                       
-                      // สีตามระดับความเสี่ยง
-                      const barColor = s.pRain50 >= 50 ? 'bg-gradient-to-t from-rose-600 to-rose-400' : 
-                                       s.pRain50 >= 25 ? 'bg-gradient-to-t from-amber-600 to-amber-400' : 
-                                       'bg-gradient-to-t from-[#0ea5e9] to-[#38bdf8]';
+                      const heightMedPct = Math.max((s.rainMedian / overallMax) * 100, 2); 
+                      const heightMaxPct = Math.max((s.rainMax / overallMax) * 100, heightMedPct);
+                      
+                      // สีตามระดับความเสี่ยง (ใช้กับค่า Median)
+                      const isDanger = s.pRain50 >= 50;
+                      const isWarning = s.pRain50 >= 25 && !isDanger;
+                      
+                      const barColor = isDanger ? 'from-rose-600 to-rose-400' : 
+                                       isWarning ? 'from-amber-600 to-amber-400' : 
+                                       'from-[#0ea5e9] to-[#38bdf8]';
+                      
+                      const dotColor = isDanger ? 'bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]' : 
+                                       isWarning ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]' : 
+                                       'bg-[#38bdf8] shadow-[0_0_8px_rgba(56,189,248,0.8)]';
 
                       return (
                           <div key={idx} className="flex flex-col items-center flex-1 h-full justify-end group">
-                              <div className={`text-[10px] md:text-sm font-bold mb-2 transition-colors ${s.rainMedian > 0 ? 'text-white' : 'text-slate-600'}`}>
-                                  {s.rainMedian > 0 ? s.rainMedian.toFixed(0) : ''}
+                              {/* ตัวเลขบอกค่า */}
+                              <div className="flex flex-col items-center mb-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                                  {/* โชว์ค่า Max เป็นเลขเล็กๆ ด้านบน */}
+                                  {s.rainMax > s.rainMedian && s.rainMax > 0 && (
+                                    <span className="text-[8px] md:text-[9px] font-mono text-slate-500 mb-0.5">
+                                        Max: {s.rainMax.toFixed(0)}
+                                    </span>
+                                  )}
+                                  <span className={`text-[11px] md:text-sm font-bold ${s.rainMedian > 0 ? 'text-white' : 'text-slate-600'}`}>
+                                      {s.rainMedian > 0 ? s.rainMedian.toFixed(0) : ''}
+                                  </span>
                               </div>
+
+                              {/* กราฟแท่ง (Probability Range) */}
                               <div className="w-full h-full flex items-end justify-center relative">
-                                  <div className={`w-full max-w-[28px] sm:max-w-[40px] rounded-t-sm md:rounded-t-md ${barColor} shadow-md transition-all duration-700 ease-out opacity-80 group-hover:opacity-100`} 
-                                       style={{ height: `${heightPct}%` }}></div>
+                                  {/* เส้นกะทะ (Base line) */}
+                                  <div className="absolute w-full h-[1px] bg-slate-800 bottom-0 -z-10"></div>
+                                  
+                                  {/* เส้นแสดงค่า Worst-case (Max) - เรืองแสงจางๆ */}
+                                  {s.rainMax > 0 && (
+                                    <div 
+                                        className="absolute w-[2px] bg-slate-600/30 group-hover:bg-slate-500/50 transition-colors bottom-0 rounded-t-full"
+                                        style={{ height: `${heightMaxPct}%` }}
+                                    >
+                                        <div className="absolute -top-[1px] left-[-4px] w-2.5 h-[2px] bg-slate-500 rounded-full"></div>
+                                    </div>
+                                  )}
+
+                                  {/* แท่งแสดงค่ากลาง (Median Capsule) */}
+                                  <div 
+                                    className={`relative w-full max-w-[14px] sm:max-w-[20px] md:max-w-[28px] rounded-full bg-gradient-to-t ${barColor} shadow-lg transition-all duration-700 ease-out opacity-75 group-hover:opacity-100 group-hover:-translate-y-1 group-hover:shadow-[0_0_15px_currentColor]`} 
+                                    style={{ height: `${heightMedPct}%`, minHeight: '8px' }}
+                                  >
+                                     {/* จุดเรืองแสงบอกค่า Median */}
+                                     {s.rainMedian > 0 && (
+                                        <div className={`absolute top-[2px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${dotColor}`}></div>
+                                     )}
+                                  </div>
                               </div>
-                              <div className="mt-3 text-center">
-                                  <div className="text-[10px] md:text-[13px] font-bold text-slate-300">{dayName}</div>
-                                  <div className="text-[8px] md:text-[10px] text-slate-500 mt-1 uppercase hidden sm:block">{dateNum}</div>
+                              
+                              {/* วันที่ด้านล่าง */}
+                              <div className="mt-4 text-center">
+                                  <div className="text-[10px] md:text-[13px] font-bold text-slate-300 group-hover:text-white transition-colors">{dayName}</div>
+                                  <div className="text-[8px] md:text-[10px] text-slate-500 mt-1 uppercase hidden sm:block font-mono">{dateNum}</div>
                               </div>
                           </div>
                       );
                   })}
               </div>
-            </div>
+            </div> 
         </div>
       </div>
     </div>
