@@ -192,7 +192,7 @@ export default function ExecutiveDashboard() {
         const rainKeys = Object.keys(daily).filter(k => k.startsWith('precipitation_sum') && k !== 'precipitation_sum');
         const memberCount = rainKeys.length > 0 ? rainKeys.length : 1;
 
-        let stats = [];
+        let stats: Array<{ date: string; rainMedian: number; rainMax: number; pRain50: number; }> = [];
         if (N > 0) {
             stats = Array.from({ length: N }, (_, d) => {
                 const rains = rainKeys.map(k => daily[k]?.[d]).filter((v: any) => isFinite(v));
