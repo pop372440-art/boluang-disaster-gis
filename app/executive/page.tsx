@@ -47,7 +47,7 @@ const probExceed = (arr: number[], threshold: number) => {
 };
 
 // ==========================================
-// 🇹🇭 2. TMD Weather API (ผ่าน Backend Proxy)
+// 🇹🇭 2. TMD Weather API
 // ==========================================
 const fetchTmdData = async () => {
   try {
@@ -229,13 +229,12 @@ export default function ExecutiveDashboard() {
     );
   };
 
-  // 🗺️ แผนที่ตำบลบ่อหลวงแบบ Real GeoJSON Projection (อัปเกรด: โซน 13 หมู่บ้าน)
+  // 🗺️ แผนที่ตำบลบ่อหลวงแบบ Real GeoJSON Projection
   const BoLuangMap = () => {
     const isAlert = data?.soilMoisture > 70 || data?.liveRainIntensity > 15;
-    const [geoBoundary, setGeoBoundary] = useState<any>(null); // ขอบเขตตำบล
-    const [geoVillages, setGeoVillages] = useState<any>(null); // ขอบเขต 13 หมู่บ้าน
+    const [geoBoundary, setGeoBoundary] = useState<any>(null);
+    const [geoVillages, setGeoVillages] = useState<any>(null);
 
-    // โหลดไฟล์ GeoJSON ทั้งตำบล และ ระดับหมู่บ้าน พร้อมกัน
     useEffect(() => {
       Promise.all([
         fetch('/geojson/boluang.json').then(r => r.ok ? r.json() : null).catch(() => null),
@@ -247,7 +246,6 @@ export default function ExecutiveDashboard() {
     }, []);
 
     const renderGeoJsonMap = () => {
-        // หากไม่มีไฟล์หลัก ให้ใช้ Mock fallback
         if (!geoBoundary || !geoBoundary.features) {
             return (
                 <g opacity="0.15" fill="none" stroke="#0ea5e9" strokeWidth="0.8">
@@ -256,7 +254,6 @@ export default function ExecutiveDashboard() {
             );
         }
 
-        // 1. คำนวณขอบเขต (Bounding Box) จากระดับตำบลเป็นหลัก
         let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
         const findBounds = (coords: any[]) => {
             if (typeof coords[0] === 'number') {
@@ -268,7 +265,6 @@ export default function ExecutiveDashboard() {
         };
         geoBoundary.features.forEach((f: any) => findBounds(f.geometry.coordinates));
 
-        // 2. Projection Engine
         const W = 500, H = 350, P = 30; 
         const w = W - P * 2, h = H - P * 2;
         const lngDiff = maxLng - minLng;
@@ -288,7 +284,6 @@ export default function ExecutiveDashboard() {
             };
         };
 
-        // ฟังก์ชันช่วยวาด Path
         const generatePathD = (feature: any) => {
             const coords = feature.geometry.coordinates;
             const type = feature.geometry.type;
@@ -300,44 +295,66 @@ export default function ExecutiveDashboard() {
             return "";
         };
 
-        // 3. วาดเส้นขอบเขต 13 หมู่บ้าน (Layer ล่างสุด)
+        // 🎨 Tactical Colors สำหรับ 13 หมู่บ้าน (เฉดสี Cyber/Intelligence)
+        const tacticalColors = ['#0284c7', '#0891b2', '#0d9488', '#4f46e5', '#2563eb', '#0369a1', '#0e7490', '#0f766e', '#4338ca', '#1d4ed8', '#075985', '#155e75', '#115e59'];
+
+        // 🗺️ 1. วาดโซน 13 หมู่บ้านพร้อมการเติมสี (Color Fill)
         const villagePaths = geoVillages && geoVillages.features ? geoVillages.features.map((f: any, i: number) => {
-            // สุ่มความทึบแสงเล็กน้อยให้เห็นความแตกต่างของแต่ละโซน
-            const opacityLevel = 0.02 + (i % 3) * 0.02; 
+            const baseColor = tacticalColors[i % tacticalColors.length];
+            const activeColor = isAlert ? '#e11d48' : baseColor; // ถ้า Alert เปลี่ยนเป็นเฉดแดง
+            const villageName = f.properties?.NAME || f.properties?.name || f.properties?.name_th || f.properties?.VILLAGE || `โซนที่ ${i+1}`;
+            
             return (
-               <path key={`village-${i}`} d={generatePathD(f)}
-                     fill={isAlert ? `rgba(225,29,72,${opacityLevel})` : `rgba(14,165,233,${opacityLevel})`}
-                     stroke={isAlert ? 'rgba(244,63,94,0.3)' : 'rgba(56,189,248,0.3)'}
-                     strokeWidth="0.8"
-                     strokeDasharray="2 3"
-                     className="transition-all duration-1000 hover:fill-[#0ea5e9]/20 cursor-crosshair" />
+               <g key={`village-${i}`}>
+                 {/* เติมสีลงในโซน โชว์สีเข้มขึ้นตอน Hover */}
+                 <path d={generatePathD(f)}
+                       fill={activeColor}
+                       stroke={activeColor}
+                       strokeWidth="1.5"
+                       className="opacity-20 hover:opacity-60 transition-opacity duration-300 cursor-crosshair" />
+                 {/* Tooltip พื้นฐานเมื่อชี้ที่ตัว Polygon */}
+                 <title>{villageName}</title>
+               </g>
             );
         }) : null;
 
-        // 4. วาดเส้นขอบเขตตำบลหลัก (Layer ทับด้านบน)
+        // 🗺️ 2. วาดเส้นขอบเขตตำบลหลักทับ
         const boundaryPaths = geoBoundary.features.map((f: any, i: number) => (
             <path key={`bound-${i}`} d={generatePathD(f)}
                   fill="none"
-                  stroke={isAlert ? '#e11d48' : '#0ea5e9'}
-                  strokeWidth="1.5"
+                  stroke={isAlert ? '#f43f5e' : '#38bdf8'}
+                  strokeWidth="2"
                   className="transition-all duration-1000"
-                  strokeOpacity="0.8"
+                  strokeOpacity="0.7"
                   strokeDasharray="4 4" />
         ));
 
         const eocProj = project(BO_LUANG_LNG, BO_LUANG_LAT);
 
+        // 📍 ฟังก์ชันสร้างหมุดหมู่บ้านพร้อม Hover Tooltip
+        const renderVillageNode = (xOffset: number, yOffset: number, name: string, boxWidth: number = 75) => (
+            <g transform={`translate(${eocProj.x + xOffset}, ${eocProj.y + yOffset})`} className="group cursor-pointer">
+               {/* Hitbox วงกลมใส เพื่อให้จับการชี้เมาส์ได้ง่ายขึ้น */}
+               <circle cx="0" cy="0" r="15" fill="transparent" />
+               {/* จุดหมู่บ้านปกติสีเทา จะสว่างเป็นสีฟ้าตอน Hover */}
+               <circle cx="0" cy="0" r="3.5" fill="#94a3b8" className="group-hover:fill-[#38bdf8] group-hover:r-[5px] transition-all duration-300 shadow-lg" />
+               
+               {/* กล่อง Tooltip (ซ่อนอยู่ จะโชว์เฉพาะตอน Hover) */}
+               <g className="opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:translate-x-1 pointer-events-none">
+                   <rect x="8" y="-12" width={boxWidth} height="24" rx="4" fill="#020617" fillOpacity="0.9" stroke="#38bdf8" strokeWidth="1" />
+                   <text x="16" y="4" fill="#f8fafc" fontSize="11" fontWeight="bold">{name}</text>
+               </g>
+            </g>
+        );
+
         return (
             <g>
-               {/* 🗺️ โซน 13 หมู่บ้าน (Tactical Zones) */}
                {villagePaths}
-               
-               {/* 🗺️ ขอบเขตตำบลหลัก */}
                {boundaryPaths}
                
                {isAlert && <circle cx={eocProj.x} cy={eocProj.y} r="80" fill="url(#alertHeat)" />}
                
-               {/* 📍 หมุดศูนย์บัญชาการ EOC */}
+               {/* 📍 หมุดศูนย์บัญชาการ EOC (บ่อหลวง) - ติดป้ายชื่อตลอดเวลา */}
                <g transform={`translate(${eocProj.x}, ${eocProj.y})`}>
                     {isAlert && <circle cx="0" cy="0" r="8" fill="#f43f5e" className="animate-pulse-ring" />}
                     <circle cx="0" cy="0" r="5" fill={isAlert ? '#f43f5e' : '#38bdf8'} filter="url(#glow)" />
@@ -346,23 +363,11 @@ export default function ExecutiveDashboard() {
                     <text x="18" y="3" fill="#f8fafc" fontSize="11" fontWeight="bold">บ่อหลวง <tspan fill={isAlert ? '#f43f5e' : '#38bdf8'} fontSize="9">(ศูนย์ EOC)</tspan></text>
                 </g>
 
-               {/* ตัวอย่างจุดหมู่บ้านอ้างอิง */}
-               <g transform={`translate(${eocProj.x - 40}, ${eocProj.y - 50})`}>
-                 <circle cx="0" cy="0" r="3" fill="#64748b" />
-                 <text x="8" y="3" fill="#cbd5e1" fontSize="9">บ้านแม่หืด</text>
-               </g>
-               <g transform={`translate(${eocProj.x + 60}, ${eocProj.y - 15})`}>
-                 <circle cx="0" cy="0" r="3" fill="#64748b" />
-                 <text x="8" y="3" fill="#cbd5e1" fontSize="9">บ้านขุน</text>
-               </g>
-               <g transform={`translate(${eocProj.x + 30}, ${eocProj.y + 60})`}>
-                 <circle cx="0" cy="0" r="3" fill="#64748b" />
-                 <text x="8" y="3" fill="#cbd5e1" fontSize="9">บ้านกิ่วป่าซี</text>
-               </g>
-               <g transform={`translate(${eocProj.x - 60}, ${eocProj.y + 40})`}>
-                 <circle cx="0" cy="0" r="3" fill="#64748b" />
-                 <text x="-55" y="3" fill="#cbd5e1" fontSize="9">บ้านเตียนอาง</text>
-               </g>
+               {/* จุดหมู่บ้านอื่นๆ (จะแสดงชื่อเมื่อ Hover เท่านั้น) */}
+               {renderVillageNode(-40, -50, "บ้านแม่หืด", 75)}
+               {renderVillageNode(60, -15, "บ้านขุน", 60)}
+               {renderVillageNode(30, 60, "บ้านกิ่วป่าซี", 80)}
+               {renderVillageNode(-60, 40, "บ้านเตียนอาง", 85)}
             </g>
         );
     };
@@ -409,7 +414,7 @@ export default function ExecutiveDashboard() {
         <div className="absolute top-4 left-4 bg-slate-950/80 border border-slate-800 backdrop-blur-md p-2 rounded-lg shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
           <div className="text-[9px] text-slate-500 font-mono uppercase tracking-widest mb-1.5 flex justify-between gap-4">
             <span>Spatial Risk Map</span>
-            <span className="text-[#0ea5e9]">v2.1</span>
+            <span className="text-[#0ea5e9]">v2.2</span>
           </div>
           <div className="flex flex-col gap-1.5">
             <div className="text-xs font-bold text-white flex items-center">
@@ -418,13 +423,14 @@ export default function ExecutiveDashboard() {
             </div>
             <div className="text-[10px] font-bold text-slate-300 flex items-center pl-1">
                 <span className="w-1.5 h-1.5 border border-slate-500 mr-2 rounded-sm bg-slate-800/50"></span>
-                โซนเฝ้าระวัง 13 หมู่บ้าน
+                โซนเฝ้าระวัง 13 หมู่บ้าน (Interactive)
             </div>
           </div>
         </div>
       </div>
     );
   };
+
   return (
     <div className="min-h-screen bg-[#020617] p-4 md:p-6 lg:p-8 font-sans text-slate-200 overflow-x-hidden selection:bg-[#0ea5e9] selection:text-white">
       
@@ -580,7 +586,7 @@ export default function ExecutiveDashboard() {
         {/* 📊 ฝั่งขวา: Maps & Graphs */}
         <div className="xl:col-span-7 flex flex-col gap-6">
             
-            {/* 🗺️ แผนที่ตำบลบ่อหลวง (GeoJSON Projector) */}
+            {/* 🗺️ แผนที่ตำบลบ่อหลวง */}
             <div className="bg-[#0b1120] border border-slate-800 rounded-[2rem] p-6 md:p-8 shadow-xl flex flex-col min-h-[350px]">
               <div className="flex justify-between items-start mb-5 gap-4">
                 <div>
@@ -615,7 +621,7 @@ export default function ExecutiveDashboard() {
                 </div>
               </div>
               
-              <div className="flex-1 flex items-end justify-between gap-2 sm:gap-4 h-full pb-2 mt-2 relative">
+              <div className="flex-1 flex items-end justify-between gap-1 sm:gap-2 md:gap-3 h-full pb-2 mt-2 relative">
                   <div className="absolute w-full h-[1px] bg-amber-500/10 bottom-[40%] border-t border-dashed border-amber-500/20 -z-10">
                      <span className="absolute -top-4 right-0 text-[8px] font-mono text-amber-500/50">50 mm (เฝ้าระวัง)</span>
                   </div>
