@@ -35,7 +35,6 @@ const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 8000) =
   }
 };
 
-// 🧮 Math Helpers สำหรับ AI Ensemble
 const median = (arr: number[]) => {
   const s = arr.filter(v => isFinite(v)).sort((a, b) => a - b);
   if (!s.length) return 0;
@@ -68,7 +67,6 @@ export default function ExecutiveDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 📡 1. ดึงข้อมูลจริง (Ground Truth + Deterministic)
         const [onwrRes, forecastRes] = await Promise.all([
           fetchWithCache('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h', 'exec_onwr_rain'),
           fetchWithCache(
@@ -78,14 +76,13 @@ export default function ExecutiveDashboard() {
             'exec_ecmwf_det'),
         ]);
 
-        // 🧠 2. ดึงข้อมูล AI Ensemble (Google WeatherNext 15D - โมเดล AI ที่แม่นยำที่สุด)
+        // 🌟 แก้ไข: ใช้ model icon_seamless แทน เพื่อแก้บั๊ก 400 Bad Request
         const ensUrl = `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}` +
-          `&daily=precipitation_sum,wind_gusts_10m_max&timezone=Asia%2FBangkok&forecast_days=15&models=google_weathernext_15days_ensemble`;
-        const aiRes = await fetchWithCache(ensUrl, 'exec_ai_gwn15');
+          `&daily=precipitation_sum,wind_gusts_10m_max&timezone=Asia%2FBangkok&forecast_days=15&models=icon_seamless`;
+        const aiRes = await fetchWithCache(ensUrl, 'exec_ai_icon15');
 
         setApiHealth({ onwr: onwrRes.status, ecmwf: forecastRes.status, ai_ensemble: aiRes.status });
 
-        // 🔄 Transform: ONWR Ground Truth
         let actualRain24h = 0;
         if (onwrRes.data) {
             let arrData = onwrRes.data?.data?.data || onwrRes.data?.data || [];
@@ -111,23 +108,16 @@ export default function ExecutiveDashboard() {
             const currentWind = forecast.current.wind_speed_10m;
             const liveRainIntensity = forecast.current.precipitation || 0;
             
-            // ดัชนีดินอุ้มน้ำ (จากฝนจริง 24 ชม. + สด)
             let soilMoisture = Math.min(100, ((actualRain24h / 80) * 100) + (liveRainIntensity > 0 ? 30 : 0));
             
-            // 🧠 =======================================
-            // 🧠 THE AI ENSEMBLE ENGINE (Data Fusion 2.0)
-            // 🧠 =======================================
             const daily = aiData.daily;
             const N = Math.min(daily.time.length, 15);
-            // หาสมาชิก AI (Members) ที่ส่งค่าฝนมา
             const rainKeys = Object.keys(daily).filter(k => k.startsWith('precipitation_sum') && k !== 'precipitation_sum');
             const memberCount = rainKeys.length > 0 ? rainKeys.length : 1;
 
-            // ประมวลผลทางสถิติ (Statistics) 15 วัน
             const stats = Array.from({ length: N }, (_, d) => {
                 const rains = rainKeys.map(k => daily[k]?.[d]).filter((v: any) => isFinite(v));
                 
-                // หาค่ามัธยฐาน (ความน่าจะเป็นตรงกลาง) และโอกาสเกิดฝนตกหนักเกิน 50 มม.
                 const rainMedian = rains.length ? median(rains) : (forecast.daily.precipitation_sum?.[d] || 0);
                 const pRain50 = rains.length ? probExceed(rains, 50) : 0;
                 
@@ -139,24 +129,19 @@ export default function ExecutiveDashboard() {
                 };
             });
 
-            // หาจุดพีคที่สุดใน 15 วัน
             const peakRainDay = stats.reduce((a, b) => (b.rainMedian > a.rainMedian ? b : a), stats[0]);
             const maxRain15Days = peakRainDay.rainMedian;
             const criticalDate = new Date(peakRainDay.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-            
-            // หาเปอร์เซ็นต์ความมั่นใจ (Consensus)
             const confidence = peakRainDay.pRain50 > 0 ? Math.round(peakRainDay.pRain50) : 100;
 
-            // 🎯 Action-Driven Logic Tiers (อิงตาม P% ของ AI)
             let status = 'NORMAL';
             let tmdInsight = liveRainIntensity > 0 
                 ? `เรดาร์ดาวเทียมตรวจพบกลุ่มฝนตกในพื้นที่ (${liveRainIntensity.toFixed(1)} มม./ชม.) ดินเริ่มอุ้มน้ำ`
-                : `ข้อมูลตรวจวัดจริงจากกรมอุตุฯ และสทนช. ยืนยันสภาพอากาศปลอดภัย ไร้การก่อตัวของกลุ่มฝน`;
+                : `ข้อมูลตรวจวัดจริงจาก สทนช. ยืนยันสภาพอากาศปลอดภัย ไร้การก่อตัวของกลุ่มฝน`;
             
             let aiInsight = '';
             let actions = ['ตรวจสอบระบบเซิร์ฟเวอร์แจ้งเตือน', 'อัปเดตข้อมูลสถานการณ์ปกติให้ประชาชนทราบ'];
 
-            // Trigger Logic (Cross-Validation: Ground vs AI)
             if (actualRain24h > 90 || soilMoisture > 80) {
                 status = 'CRITICAL';
                 tmdInsight = `🚨 ตรวจสอบไขว้พบฝนสะสมทะลุพิกัด! ดินอุ้มน้ำระดับวิกฤต (${Math.round(soilMoisture)}%) เสี่ยงดินถล่มฉับพลัน!`;
@@ -168,7 +153,7 @@ export default function ExecutiveDashboard() {
                 actions = ['🚨 ออกประกาศเตือนภัยพายุระดับพื้นที่ล่วงหน้า', 'สั่งการอพยพประชาชนในโซนเชิงเขาล่วงหน้า 24 ชม.', 'ตั้งศูนย์ EOC และจัดเตรียมศูนย์พักพิง'];
             } else if (maxRain15Days > 30 || peakRainDay.pRain50 >= 30) {
                 status = 'WARNING';
-                aiInsight = `⚠️ AI (Google WeatherNext) ประเมินพบร่องมรสุมพาดผ่าน พีคสูงสุดวันที่ ${criticalDate} โอกาสเกิดฝนตกหนักระดับกลางอยู่ที่ ${confidence}%`;
+                aiInsight = `⚠️ AI Ensemble ประเมินพบร่องมรสุมพาดผ่าน พีคสูงสุดวันที่ ${criticalDate} โอกาสเกิดฝนตกหนักระดับกลางอยู่ที่ ${confidence}%`;
                 actions = ['ประกาศเสียงตามสายแจ้งเตือนพื้นที่เสี่ยง', 'ส่งหน่วยลาดตระเวนเช็คระดับน้ำลำห้วย', 'ทดสอบระบบเครื่องสูบน้ำ'];
             } else {
                 aiInsight = `โครงสร้างชั้นบรรยากาศโลก (Global Atmospheric Patterns) 15 วันล่วงหน้า ไม่พบสัญญาณกลุ่มเมฆหรือร่องมรสุมรุนแรงก่อตัว`;
@@ -197,8 +182,19 @@ export default function ExecutiveDashboard() {
     <div className="flex h-screen items-center justify-center bg-[#0a1112] text-white">
         <div className="flex flex-col items-center">
             <div className="w-16 h-16 border-4 border-[#2dd4bf] border-t-transparent rounded-full animate-spin mb-6 shadow-[0_0_15px_#2dd4bf]"></div>
-            <span className="font-mono text-[#2dd4bf] text-lg tracking-widest animate-pulse">Initializing SIAHRA Protocol...</span>
+            <span className="font-mono text-[#2dd4bf] text-lg tracking-widest animate-pulse">Initializing Data Fusion...</span>
         </div>
+    </div>
+  );
+
+  // 🌟 แก้ไข: ดักจับ Error กันเว็บพังกรณีที่ API ล่มแล้วค่า data เป็น null
+  if (!data) return (
+    <div className="flex h-screen items-center justify-center bg-[#0a1112] text-white">
+      <div className="text-center border border-red-500/40 bg-red-950/20 rounded-3xl p-10 max-w-lg shadow-[0_0_30px_rgba(239,68,68,0.1)]">
+        <div className="text-6xl mb-4">📡</div>
+        <h2 className="text-red-400 font-black text-2xl mb-3 tracking-widest">CONNECTION FAILED</h2>
+        <p className="text-gray-400 text-sm leading-relaxed">ไม่สามารถเชื่อมต่อ Data Nodes หลักได้ ระบบจะทำการ Re-establish อัตโนมัติในภายหลัง</p>
+      </div>
     </div>
   );
 
@@ -224,6 +220,13 @@ export default function ExecutiveDashboard() {
   return (
     <div className="min-h-screen bg-[#0a1112] p-4 md:p-8 font-sans text-gray-100 flex flex-col overflow-x-hidden">
       
+      {/* CSS Animation */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes scroll-up { 0% { transform: translateY(0); } 100% { transform: translateY(-120%); } }
+        .ticker-container { animation: scroll-up 20s linear infinite; }
+        .ticker-container:hover { animation-play-state: paused; }
+      `}} />
+
       {/* 🖥️ Top Bar */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end mb-6 pb-4 border-b border-gray-800 gap-4">
         <div className="w-full lg:w-auto">
@@ -247,7 +250,7 @@ export default function ExecutiveDashboard() {
             <div className="flex flex-wrap gap-2 text-[9px] font-mono font-bold tracking-wider w-full lg:justify-end">
                 <HealthBadge label="ONWR (GROUND)" status={apiHealth.onwr} />
                 <HealthBadge label="ECMWF (RADAR)" status={apiHealth.ecmwf} />
-                <HealthBadge label="AI (WEATHERNEXT)" status={apiHealth.ai_ensemble} />
+                <HealthBadge label="AI (ENSEMBLE)" status={apiHealth.ai_ensemble} />
             </div>
         </div>
       </div>
@@ -315,7 +318,7 @@ export default function ExecutiveDashboard() {
                 </div>
                 <div className="flex-1 text-sm md:text-base text-gray-300 leading-relaxed space-y-4">
                    <p><span className="text-[#2dd4bf] font-bold">🇹🇭 ข้อมูลสถานการณ์ปัจจุบัน:</span> {data.ai.tmdInsight}</p>
-                   <p className="border-l-2 border-purple-500/50 pl-4 py-1 bg-purple-900/10 rounded-r-md"><span className="text-purple-400 font-bold">🔮 ข้อมูล Google DeepMind:</span> {data.ai.aiInsight}</p>
+                   <p className="border-l-2 border-purple-500/50 pl-4 py-1 bg-purple-900/10 rounded-r-md"><span className="text-purple-400 font-bold">🔮 ข้อมูล AI Ensemble:</span> {data.ai.aiInsight}</p>
                 </div>
             </div>
 
@@ -341,7 +344,7 @@ export default function ExecutiveDashboard() {
                 <div className="mb-6 md:mb-8">
                     <div className="bg-[#0a1112] p-4 md:p-5 rounded-2xl border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.05)] mb-5 md:mb-6 flex items-center justify-between">
                         <h4 className="text-xs md:text-sm text-purple-400 font-bold uppercase tracking-widest flex items-center">
-                            <span className="text-lg md:text-xl mr-2">🔮</span> GOOGLE WEATHERNEXT-15D ENSEMBLE
+                            <span className="text-lg md:text-xl mr-2">🔮</span> AI 15-DAY PREDICTIVE VISION
                         </h4>
                         <span className="text-[9px] bg-purple-500/20 text-purple-400 px-2 py-1 rounded border border-purple-500/30">{data.memberCount} MEMBERS</span>
                     </div>
@@ -366,7 +369,6 @@ export default function ExecutiveDashboard() {
                         const maxVal = Math.max(...data.stats.map((x: any) => x.rainMedian), 10); 
                         const heightPct = Math.max((s.rainMedian / maxVal) * 100, 4); 
                         
-                        // ถ้าน่าจะเป็น (pRain50) เกิน 50% กราฟเปลี่ยนเป็นสีเตือนภัย
                         const barColor = s.pRain50 >= 50 ? 'bg-gradient-to-t from-[#9f1239] to-[#fb7185]' : 
                                          s.pRain50 >= 20 ? 'bg-gradient-to-t from-[#ca8a04] to-[#fde047]' : 
                                          'bg-gradient-to-t from-[#0f766e] to-[#2dd4bf]';
