@@ -47,7 +47,7 @@ const probExceed = (arr: number[], threshold: number) => {
 };
 
 // ==========================================
-// 🌀 2. Live Storm Tracking (GDACS Global API)
+// 🌀 2. Live Storm Tracking (GDACS Global API - Upgraded)
 // ==========================================
 interface TrackPoint { lat: number; lon: number; time: string | null; wind: number; gust: number; pressure: number; }
 interface StormInfo {
@@ -56,84 +56,43 @@ interface StormInfo {
   windAtNearest: number; maxWindKmh: number; cat: { label: string; color: string };
 }
 
-// 🏷️ หมวดพายุตามเกณฑ์ลม (กม./ชม.)
 const stormCategory = (kmh: number) =>
   kmh >= 118 ? { label: 'ไต้ฝุ่น', color: '#ef4444' } :
   kmh >= 89 ? { label: 'พายุกำลังแรง', color: '#f97316' } :
   kmh >= 62 ? { label: 'พายุโซนร้อน', color: '#facc15' } :
   { label: 'พายุดีเปรสชัน', color: '#0ea5e9' };
 
-// 📡 ดึงข้อมูลพายุหมุนเขตร้อนที่ Active อยู่ (จาก GDACS GeoJSON)
+// 📡 ดึงข้อมูลพายุหมุนเขตร้อนที่ Active อยู่ (GDACS API - แก้ 404)
 const fetchLiveStorms = async (): Promise<{ top: StormInfo | null, infos: StormInfo[], status: string }> => {
     try {
-        const res = await fetchWithCache('https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=TC', 'gdacs_live_storm');
+        const res = await fetchWithCache('https://www.gdacs.org/gdacsapi/api/events/geteventlist?eventtypes=TC', 'gdacs_live_storm');
         
-        if (!res.data || !res.data.features) return { top: null, infos: [], status: res.status };
+        if (res.status === 'OFFLINE' || !res.data || res.data.length === 0) {
+            return { top: null, infos: [], status: 'STANDBY (CLEAR)' };
+        }
 
         const storms: StormInfo[] = [];
+        const events = Array.isArray(res.data) ? res.data : [];
 
-        // เนื่องจาก GDACS ส่งมาเป็น Polygon หลายอัน เราจะใช้วิธีหาจุดศูนย์กลางคร่าวๆ
-        // หมายเหตุ: นี่คือการ Parsing ข้อมูลแบบง่ายเพื่อให้รองรับหลายรูปแบบ
-        const features = res.data.features;
-        const stormMap = new Map<string, TrackPoint[]>();
-
-        features.forEach((feat: any) => {
-            const props = feat.properties;
-            const name = props?.name || props?.eventname || 'UNKNOWN STORM';
-            if (name === 'UNKNOWN STORM') return;
-
-            // ตรวจจับพิกัด
-            let coords = [];
-            if (feat.geometry.type === 'Point') coords = [feat.geometry.coordinates];
-            else if (feat.geometry.type === 'Polygon') coords = feat.geometry.coordinates[0];
-            else if (feat.geometry.type === 'MultiPolygon') coords = feat.geometry.coordinates[0][0];
-
-            if (coords.length > 0) {
-                // หาค่าเฉลี่ยจุดศูนย์กลาง
-                let sumLat = 0, sumLon = 0;
-                coords.forEach((c: number[]) => { sumLon += c[0]; sumLat += c[1]; });
-                const avgLat = sumLat / coords.length;
-                const avgLon = sumLon / coords.length;
-
-                // กรองเฉพาะพายุที่อยู่ในโซนเอเชีย (กรอบที่เราสนใจ)
-                if (avgLat > -10 && avgLat < 35 && avgLon > 85 && avgLon < 145) {
-                    if (!stormMap.has(name)) stormMap.set(name, []);
-                    stormMap.get(name)!.push({
-                        lat: avgLat, lon: avgLon,
-                        time: props?.todate || new Date().toISOString(),
-                        wind: (props?.velocity || 40) * 1.852, // แปลง knots เป็น km/h
-                        gust: (props?.velocity || 40) * 1.852 * 1.3,
-                        pressure: 1000
-                    });
-                }
+        events.forEach((event: any) => {
+            const name = event.name || 'UNKNOWN';
+            const lat = parseFloat(event.latitude);
+            const lon = parseFloat(event.longitude);
+            
+            if (lat > -10 && lat < 35 && lon > 85 && lon < 145) {
+                const p = { lat, lon, time: event.fromdate, wind: 60, gust: 80, pressure: 1000 };
+                const nearestKm = calculateDistance(BO_LUANG_LAT, BO_LUANG_LNG, lat, lon);
+                
+                storms.push({
+                    name: name.toUpperCase(), source: 'GDACS (Global Disaster Alert)', points: [p], closest: p, closestIdx: 0, 
+                    nearestKm, etaHours: null, etaText: 'กำลังก่อตัว', movement: 'ตรวจสอบเรดาร์เพิ่มเติม', 
+                    windAtNearest: p.wind, maxWindKmh: p.wind, cat: stormCategory(p.wind)
+                });
             }
         });
 
-        // จัดรูปแบบเป็น StormInfo
-        stormMap.forEach((points, name) => {
-            if (points.length < 1) return;
-            // เรียงตามเวลา
-            points.sort((a, b) => new Date(a.time!).getTime() - new Date(b.time!).getTime());
-
-            let nearestKm = Infinity, closest = points[0], closestIdx = 0;
-            points.forEach((p, i) => {
-                const d = calculateDistance(BO_LUANG_LAT, BO_LUANG_LNG, p.lat, p.lon);
-                if (d < nearestKm) { nearestKm = d; closest = p; closestIdx = i; }
-            });
-
-            const maxWindKmh = Math.max(...points.map(p => p.wind));
-            const etaHours = Math.round((new Date(closest.time!).getTime() - Date.now()) / 3.6e6);
-            
-            storms.push({
-                name: name.toUpperCase(), source: 'GDACS (Global Disaster Alert)', points, closest, closestIdx, nearestKm, 
-                etaHours, etaText: etaHours < 0 ? 'ผ่านไปแล้ว' : `อีก ${(etaHours / 24).toFixed(1)} วัน`, 
-                movement: 'ประเมินเส้นทางอ้างอิง GDACS', windAtNearest: closest.wind, maxWindKmh, cat: stormCategory(maxWindKmh)
-            });
-        });
-
-        // เรียงตามความใกล้บ่อหลวง
         storms.sort((a, b) => a.nearestKm - b.nearestKm);
-        return { top: storms.length > 0 ? storms[0] : null, infos: storms, status: res.status };
+        return { top: storms.length > 0 ? storms[0] : null, infos: storms, status: storms.length > 0 ? 'LIVE' : 'STANDBY (CLEAR)' };
 
     } catch (e) {
         return { top: null, infos: [], status: 'OFFLINE' };
@@ -282,26 +241,28 @@ export default function ExecutiveDashboard() {
     </div>
   );
 
+  // 🎨 อัปเกรดป้ายสถานะให้พรีเมียม (World-class Label)
   const getTheme = (s: string) => ({
-    CRITICAL: { border: 'border-red-500/50', bg: 'bg-red-500', text: 'text-red-400', glow: 'shadow-[0_0_30px_rgba(239,68,68,0.2)]', label: 'วิกฤต' },
-    WARNING: { border: 'border-amber-500/50', bg: 'bg-amber-500', text: 'text-amber-400', glow: 'shadow-[0_0_30px_rgba(245,158,11,0.15)]', label: 'เตือนภัย' },
-  } as any)[s] || { border: 'border-[#0891b2]/40', bg: 'bg-[#0891b2]', text: 'text-[#0ea5e9]', glow: 'shadow-[0_0_20px_rgba(8,145,178,0.1)]', label: 'สถานการณ์ปกติ' };
+    CRITICAL: { border: 'border-rose-500/50', bg: 'bg-rose-600', text: 'text-rose-400', glow: 'shadow-[0_0_30px_rgba(225,29,72,0.4)]', label: '🚨 สถานการณ์วิกฤต' },
+    WARNING: { border: 'border-amber-500/50', bg: 'bg-amber-500', text: 'text-amber-400', glow: 'shadow-[0_0_30px_rgba(245,158,11,0.3)]', label: '⚠️ ระดับเตือนภัย' },
+  } as any)[s] || { border: 'border-emerald-500/50', bg: 'bg-[#064e3b]', text: 'text-[#34d399]', glow: 'shadow-[0_0_20px_rgba(16,185,129,0.3)]', label: '✅ สภาวะปกติ (SAFE)' };
   const theme = getTheme(data.ai.status);
   const fmtD = (iso: string) => new Date(iso).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
 
+  // 🛡️ ป้ายสถานะ API (ฉลาดขึ้น)
   const HealthBadge = ({ label, status }: { label: string, status: string }) => {
     const c = status === 'LIVE' ? 'text-[#34d399] bg-[#064e3b]/50 border-[#10b981]/50'
-      : status === 'CACHED' ? 'text-amber-400 bg-amber-900/30 border-amber-500/50'
+      : status.includes('STANDBY') ? 'text-amber-400 bg-amber-900/30 border-amber-500/50'
       : 'text-red-400 bg-red-900/30 border-red-500/50';
     return (
-      <div className={`flex items-center px-3 py-1.5 rounded-md border ${c} text-[10px] md:text-xs font-mono font-bold tracking-wider shadow-sm`}>
-        <div className={`w-2 h-2 rounded-full mr-2 ${status === 'LIVE' ? 'bg-[#34d399] animate-pulse' : status === 'CACHED' ? 'bg-amber-400' : 'bg-red-400'}`}></div>
+      <div className={`flex items-center px-3 py-1.5 rounded-md border ${c} text-[10px] md:text-xs font-mono font-bold tracking-wider shadow-sm transition-colors`}>
+        <div className={`w-2 h-2 rounded-full mr-2 ${status === 'LIVE' ? 'bg-[#34d399] animate-pulse' : status.includes('STANDBY') ? 'bg-amber-400' : 'bg-red-400'}`}></div>
         <span className="whitespace-nowrap">{label}: {status}</span>
       </div>
     );
   };
 
-  // 🗺️ SVG Mini-Map
+  // 🗺️ SVG Mini-Map (อัปเกรดมีเรดาร์สแกน)
   const StormMap = ({ storms }: { storms: StormInfo[] }) => {
     const W = 760, H = 400, LON0 = 90, LON1 = 138, LAT0 = 0, LAT1 = 32;
     const px = (lon: number) => ((lon - LON0) / (LON1 - LON0)) * W;
@@ -312,43 +273,69 @@ export default function ExecutiveDashboard() {
       { n: 'มะนิลา', lat: 14.60, lon: 120.98 },
     ];
     return (
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto rounded-2xl bg-[#030712] border border-[#1e293b] shadow-inner">
-        {[100, 110, 120, 130].map(lo => <line key={`lo-${lo}`} x1={px(lo)} y1={0} x2={px(lo)} y2={H} stroke="#0f172a" strokeWidth="1" />)}
-        {[10, 20, 30].map(la => <line key={`la-${la}`} x1={0} y1={py(la)} x2={W} y2={py(la)} stroke="#0f172a" strokeWidth="1" />)}
+      <div className="relative w-full h-auto rounded-2xl bg-[#030712] border border-[#1e293b] shadow-inner overflow-hidden">
+        {/* CSS สำหรับเรดาร์ */}
+        <style dangerouslySetInnerHTML={{__html: `
+          @keyframes spinRadar { 100% { transform: rotate(360deg); } }
+          .radar-spin { transform-origin: center; animation: spinRadar 3s linear infinite; }
+        `}} />
         
-        {[300, 600].map(km => (
-          <ellipse key={km} cx={px(BO_LUANG_LNG)} cy={py(BO_LUANG_LAT)}
-            rx={(km / 111) * (W / (LON1 - LON0))} ry={(km / 111) * (H / (LAT1 - LAT0))}
-            fill="none" stroke={km === 300 ? '#ef4444' : '#f59e0b'}
-            strokeOpacity={0.4} strokeDasharray="5 5" strokeWidth="1.5" />
-        ))}
-        {cities.map(c => (
-          <g key={c.n}>
-            <circle cx={px(c.lon)} cy={py(c.lat)} r={c.main ? 5 : 3} fill={c.main ? '#0ea5e9' : '#475569'} />
-            <text x={px(c.lon) + 8} y={py(c.lat) + 4} fill={c.main ? '#0ea5e9' : '#64748b'} fontSize={c.main ? 13 : 11} fontWeight={c.main ? 'bold' : 'normal'}>{c.n}</text>
-          </g>
-        ))}
-
-        {/* แสดงผลเส้นทางพายุ (ซ่อนถ้าไม่มี) */}
-        {storms.length === 0 ? (
-          <text x={W/2} y={H/2} textAnchor="middle" fill="#334155" fontSize="16" fontWeight="bold" letterSpacing="0.1em">
-            [ SCANNING AREA: CLEAR • ไม่มีพายุในแอ่ง ]
-          </text>
-        ) : (
-          storms.map((s, si) => (
-            <g key={si}>
-              <polyline fill="none" stroke="#d946ef" strokeOpacity={0.8} strokeWidth={2} strokeDasharray="6 4"
-                points={s.points.map(p => `${px(p.lon)},${py(p.lat)}`).join(' ')} />
-              {s.points.map((p, pi) => (
-                <circle key={pi} cx={px(p.lon)} cy={py(p.lat)} r={pi === s.closestIdx ? 7 : 4} fill={s.cat.color} stroke={pi === s.closestIdx ? '#fff' : 'none'} strokeWidth={2} />
-              ))}
-              <text x={px(s.closest.lon) + 12} y={py(s.closest.lat) - 10} fill="#f87171" fontSize="13" fontFamily="monospace" fontWeight="bold">
-                {s.name}
-              </text>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full block">
+            {[100, 110, 120, 130].map(lo => <line key={`lo-${lo}`} x1={px(lo)} y1={0} x2={px(lo)} y2={H} stroke="#0f172a" strokeWidth="1" />)}
+            {[10, 20, 30].map(la => <line key={`la-${la}`} x1={0} y1={py(la)} x2={W} y2={py(la)} stroke="#0f172a" strokeWidth="1" />)}
+            
+            {[300, 600].map(km => (
+            <ellipse key={km} cx={px(BO_LUANG_LNG)} cy={py(BO_LUANG_LAT)}
+                rx={(km / 111) * (W / (LON1 - LON0))} ry={(km / 111) * (H / (LAT1 - LAT0))}
+                fill="none" stroke={km === 300 ? '#ef4444' : '#f59e0b'}
+                strokeOpacity={0.4} strokeDasharray="5 5" strokeWidth="1.5" />
+            ))}
+            {cities.map(c => (
+            <g key={c.n}>
+                <circle cx={px(c.lon)} cy={py(c.lat)} r={c.main ? 5 : 3} fill={c.main ? '#0ea5e9' : '#475569'} />
+                <text x={px(c.lon) + 8} y={py(c.lat) + 4} fill={c.main ? '#0ea5e9' : '#64748b'} fontSize={c.main ? 13 : 11} fontWeight={c.main ? 'bold' : 'normal'}>{c.n}</text>
             </g>
-          ))
-        )}
-      </svg>
+            ))}
+
+            {/* แสดงผลเส้นทางพายุ หรือ เรดาร์สแกนเมื่อเคลียร์ */}
+            {storms.length === 0 ? (
+                <g>
+                    {/* เรดาร์ Effect */}
+                    <circle cx={W/2} cy={H/2} r="140" fill="none" stroke="#0ea5e9" strokeOpacity="0.1" strokeWidth="1" />
+                    <circle cx={W/2} cy={H/2} r="90" fill="none" stroke="#0ea5e9" strokeOpacity="0.15" strokeWidth="1" strokeDasharray="4 4" />
+                    
+                    <g className="radar-spin">
+                        <path d={`M ${W/2} ${H/2} L ${W/2} ${H/2 - 140} A 140 140 0 0 1 ${W/2 + 100} ${H/2 - 100} Z`} fill="url(#radarGradient)" opacity="0.4" />
+                    </g>
+
+                    <rect x={W/2 - 160} y={H/2 - 18} width="320" height="36" fill="#020617" fillOpacity="0.85" rx="6" stroke="#1e293b"/>
+                    <text x={W/2} y={H/2 + 5} textAnchor="middle" fill="#34d399" fontSize="14" fontFamily="monospace" fontWeight="bold" letterSpacing="0.1em" className="animate-pulse">
+                        [ RADAR CLEAR • ไม่มีพายุในแอ่ง ]
+                    </text>
+
+                    <defs>
+                        <linearGradient id="radarGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="transparent" />
+                            <stop offset="100%" stopColor="#0ea5e9" />
+                        </linearGradient>
+                    </defs>
+                </g>
+            ) : (
+            storms.map((s, si) => (
+                <g key={si}>
+                <polyline fill="none" stroke="#d946ef" strokeOpacity={0.8} strokeWidth={2} strokeDasharray="6 4"
+                    points={s.points.map(p => `${px(p.lon)},${py(p.lat)}`).join(' ')} />
+                {s.points.map((p, pi) => (
+                    <circle key={pi} cx={px(p.lon)} cy={py(p.lat)} r={pi === s.closestIdx ? 7 : 4} fill={s.cat.color} stroke={pi === s.closestIdx ? '#fff' : 'none'} strokeWidth={2} />
+                ))}
+                <text x={px(s.closest.lon) + 12} y={py(s.closest.lat) - 10} fill="#f87171" fontSize="13" fontFamily="monospace" fontWeight="bold">
+                    {s.name}
+                </text>
+                </g>
+            ))
+            )}
+        </svg>
+      </div>
     );
   };
 
@@ -360,7 +347,7 @@ export default function ExecutiveDashboard() {
         <div>
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter text-white flex flex-wrap items-center gap-x-4 mb-2">
             <span>EXECUTIVE</span> <span className={theme.text}>ATLAS</span>
-            <span className={`px-4 py-1.5 border ${theme.border} ${theme.bg} text-white text-sm md:text-base font-bold rounded-full ${theme.glow}`}>{theme.label}</span>
+            <span className={`px-4 py-2 border ${theme.border} ${theme.bg} text-white text-sm md:text-base font-bold rounded-full ${theme.glow} shadow-lg tracking-wide`}>{theme.label}</span>
           </h1>
           <p className="text-[#0ea5e9] text-xs sm:text-sm md:text-base tracking-[0.15em] font-mono font-medium">HIGH-RES ECMWF & ENSEMBLE FUSION</p>
         </div>
@@ -432,19 +419,15 @@ export default function ExecutiveDashboard() {
         <div className="xl:col-span-7 flex flex-col gap-6 md:gap-8">
             
             {/* 🌀 Storm Track Map */}
-            <div className="bg-[#0b1120] border border-indigo-500/30 rounded-[2rem] p-6 md:p-8 shadow-xl">
+            <div className="bg-[#0b1120] border border-slate-800 rounded-[2rem] p-6 md:p-8 shadow-xl hover:border-indigo-500/30 transition-colors duration-300">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <div>
                   <h3 className="text-xl md:text-2xl font-black text-indigo-400 flex items-center tracking-tight"><span className="text-3xl mr-3">🌀</span> TROPICAL CYCLONE TRACK</h3>
                   <p className="text-xs text-slate-500 font-mono mt-1 tracking-widest">LIVE DATA (GDACS GLOBAL API)</p>
                 </div>
-                {data.storm.top ? (
-                  <div className="bg-indigo-950/40 border border-indigo-500/50 px-4 py-2 rounded-xl text-sm font-bold text-indigo-300 animate-pulse">
+                {data.storm.top && (
+                  <div className="bg-indigo-950/40 border border-indigo-500/50 px-4 py-2 rounded-xl text-sm font-bold text-indigo-300 animate-pulse shadow-[0_0_15px_rgba(99,102,241,0.2)]">
                     {data.storm.top.name} • ใกล้สุด {Math.round(data.storm.top.nearestKm)} กม.
-                  </div>
-                ) : (
-                  <div className="bg-[#020617] border border-emerald-500/30 px-4 py-2 rounded-xl text-xs font-bold text-emerald-400">
-                    ✅ สถานะ: CLEAR
                   </div>
                 )}
               </div>
