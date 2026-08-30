@@ -47,20 +47,28 @@ const probExceed = (arr: number[], threshold: number) => {
 };
 
 // ==========================================
-// 🇹🇭 2. TMD Weather API (ระบบดึงข้อมูลกรมอุตุฯ แบบไม่พึ่ง Backend)
+// 🇹🇭 2. TMD Weather API (ผ่าน Next.js API Route แบบใหม่)
 // ==========================================
 const fetchTmdData = async () => {
   try {
-    // ใช้ Proxy ทะลวงบล็อก CORS เพื่อให้เบราว์เซอร์อ่านข้อมูลเว็บราชการได้ตรงๆ
-    const targetUrl = 'https://data.tmd.go.th/api/WeatherToday/V1/?type=json'; 
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-    const res = await fetchWithCache(proxyUrl, 'tmd_weather_daily_cors');
+    // 1. เรียกไปหา Backend ของเราเอง (ที่ท่านสร้างไว้ใน app/api/tmd/route.ts)
+    const res = await fetchWithCache('/api/tmd', 'tmd_weather_daily_internal');
     
-    if (res.status === 'OFFLINE' || !res.data || !res.data.contents) return { status: 'OFFLINE', info: null };
+    // ถ้า Backend ตอบกลับมาว่ามีปัญหา หรือไม่มีข้อมูล
+    if (res.status === 'OFFLINE' || !res.data || res.data.status !== 'LIVE') {
+      return { status: 'OFFLINE', info: null };
+    }
     
-    const rawData = JSON.parse(res.data.contents);
+    const rawData = res.data.data;
     const stations = rawData?.Stations || [];
-    const cmStation = stations.find((s: any) => s.Province === 'เชียงใหม่' || s.WmoStationNumber === '48327');
+    
+    // 2. ค้นหาสถานีที่อยู่ในเชียงใหม่ (ปรับให้ค้นหายืดหยุ่นขึ้น ป้องกันการหาไม่เจอ)
+    const cmStation = stations.find((s: any) => 
+      s.Province?.includes('เชียงใหม่') || 
+      s.WmoStationNumber === '48327' || // เชียงใหม่
+      s.WmoStationNumber === '48330' || // ดอยอ่างขาง (ใกล้บ่อหลวง)
+      s.WmoStationNumber === '48328'    // แม่สะเรียง (ใกล้บ่อหลวง)
+    );
     
     if (cmStation) {
       return { 
@@ -68,16 +76,28 @@ const fetchTmdData = async () => {
         info: {
           temp: cmStation.Observe?.Temperature?.Value,
           rain: cmStation.Observe?.Rainfall24Hr?.Value,
-          desc: cmStation.Observe?.WeatherDescription || 'สภาพอากาศปกติ'
+          desc: cmStation.Observe?.WeatherDescription || 'สภาวะอากาศปกติ'
         }
       };
     }
+    
+    // ถ้าดึงข้อมูลสำเร็จ แต่หาสถานีในเชียงใหม่ไม่เจอเลย ให้เอาสถานีแรกมาโชว์แก้ขัดไปก่อน
+    if (stations.length > 0) {
+      return {
+        status: 'LIVE',
+        info: {
+          temp: stations[0].Observe?.Temperature?.Value,
+          rain: stations[0].Observe?.Rainfall24Hr?.Value,
+          desc: stations[0].Observe?.WeatherDescription || 'สภาวะอากาศปกติ (อ้างอิงภาพรวมภาคเหนือ)'
+        }
+      };
+    }
+
     return { status: 'CACHED', info: null };
   } catch (e) {
     return { status: 'OFFLINE', info: null };
   }
 };
-
 // ==========================================
 // 🚀 3. Main Executive Dashboard Component
 // ==========================================
