@@ -61,18 +61,19 @@ const stormCategory = (kmh: number) =>
   kmh >= 89 ? { label: 'พายุกำลังแรง', color: '#f97316' } :
   kmh >= 62 ? { label: 'พายุโซนร้อน', color: '#facc15' } :
   { label: 'พายุดีเปรสชัน', color: '#0ea5e9' };
-
-// 📡 ดึงข้อมูลพายุหมุนเขตร้อนที่ Active อยู่ (GDACS API - แก้ 404)
+// 📡 ดึงข้อมูลพายุหมุนเขตร้อน (ผ่าน Backend Proxy เพื่อซ่อน Error 404)
 const fetchLiveStorms = async (): Promise<{ top: StormInfo | null, infos: StormInfo[], status: string }> => {
     try {
-        const res = await fetchWithCache('https://www.gdacs.org/gdacsapi/api/events/geteventlist?eventtypes=TC', 'gdacs_live_storm');
+        // ยิงไปหา API Proxy ในเซิร์ฟเวอร์ตัวเองแทน
+        const res = await fetchWithCache('/api/gdacs', 'gdacs_proxy_storm');
         
-        if (res.status === 'OFFLINE' || !res.data || res.data.length === 0) {
+        // ถ้า Proxy บอกว่า CLEAR (ไม่มีพายุ) หรือเน็ตหลุด
+        if (res.status === 'OFFLINE' || !res.data || res.data.status !== 'LIVE' || !res.data.data || res.data.data.length === 0) {
             return { top: null, infos: [], status: 'STANDBY (CLEAR)' };
         }
 
         const storms: StormInfo[] = [];
-        const events = Array.isArray(res.data) ? res.data : [];
+        const events = Array.isArray(res.data.data) ? res.data.data : [];
 
         events.forEach((event: any) => {
             const name = event.name || 'UNKNOWN';
@@ -84,7 +85,7 @@ const fetchLiveStorms = async (): Promise<{ top: StormInfo | null, infos: StormI
                 const nearestKm = calculateDistance(BO_LUANG_LAT, BO_LUANG_LNG, lat, lon);
                 
                 storms.push({
-                    name: name.toUpperCase(), source: 'GDACS (Global Disaster Alert)', points: [p], closest: p, closestIdx: 0, 
+                    name: name.toUpperCase(), source: 'GDACS', points: [p], closest: p, closestIdx: 0, 
                     nearestKm, etaHours: null, etaText: 'กำลังก่อตัว', movement: 'ตรวจสอบเรดาร์เพิ่มเติม', 
                     windAtNearest: p.wind, maxWindKmh: p.wind, cat: stormCategory(p.wind)
                 });
@@ -98,7 +99,6 @@ const fetchLiveStorms = async (): Promise<{ top: StormInfo | null, infos: StormI
         return { top: null, infos: [], status: 'OFFLINE' };
     }
 }
-
 // ==========================================
 // 🚀 3. Main Executive Dashboard
 // ==========================================
