@@ -14,7 +14,8 @@ const nextConfig = {
           // *อนุญาตให้โหลดข้อมูล/รูปภาพเฉพาะจากโดเมนที่ปลอดภัย (https) เท่านั้น
           { 
             key: 'Content-Security-Policy', 
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https:;" 
+            // 🚀 เพิ่ม frame-src ต่อท้ายสุด เพื่อปลดล็อก iframe ของ Windy และ Google Maps
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https:; frame-src 'self' https://embed.windy.com https://www.windy.com https://www.google.com;" 
           }
         ],
       },
