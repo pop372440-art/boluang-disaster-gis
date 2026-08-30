@@ -47,20 +47,19 @@ const probExceed = (arr: number[], threshold: number) => {
 };
 
 // ==========================================
-// 🇹🇭 2. TMD Weather API (กรมอุตุนิยมวิทยา)
+// 🇹🇭 2. TMD Weather API (อัปเกรดทะลวงบล็อก CORS)
 // ==========================================
-// ดึงข้อมูลสภาพอากาศของภาคเหนือตอนบน (เน้นเชียงใหม่/ใกล้เคียง) เพื่อใช้เป็น Baseline อ้างอิง
 const fetchTmdData = async () => {
   try {
-    // ใช้ API สาธารณะของ TMD (ไม่ต้องใช้ Key สำหรับดึงสถานะพื้นฐาน)
-    // หากมี API Key ของ data.tmd.go.th สามารถเปลี่ยน URL ตรงนี้ได้
-    const url = 'https://data.tmd.go.th/api/WeatherToday/V1/?type=json'; 
-    const res = await fetchWithCache(url, 'tmd_weather_daily');
+    // ใช้ CORS Proxy ฟรี (allorigins) เพื่อแก้ปัญหาเว็บเบราว์เซอร์บล็อกการดึงข้อมูลจากเว็บราชการไทย
+    const targetUrl = 'https://data.tmd.go.th/api/WeatherToday/V1/?type=json'; 
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+    const res = await fetchWithCache(proxyUrl, 'tmd_weather_daily_cors');
     
-    if (res.status === 'OFFLINE' || !res.data) return { status: 'OFFLINE', info: null };
+    if (res.status === 'OFFLINE' || !res.data || !res.data.contents) return { status: 'OFFLINE', info: null };
     
-    // ค้นหาข้อมูลสถานีเชียงใหม่ (หรือดอยอินทนนท์ที่ใกล้เคียงที่สุดถ้ามี)
-    const stations = res.data?.Stations || [];
+    const rawData = JSON.parse(res.data.contents);
+    const stations = rawData?.Stations || [];
     const cmStation = stations.find((s: any) => s.Province === 'เชียงใหม่' || s.WmoStationNumber === '48327');
     
     if (cmStation) {
@@ -140,7 +139,6 @@ export default function ExecutiveDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   
-  // 🛡️ เพิ่ม TMD เข้าไปในระบบตรวจเช็ค
   const [apiHealth, setApiHealth] = useState({ onwr: 'LOAD', tmd: 'LOAD', ecmwf: 'LOAD', deepmind: 'LOAD', storm: 'LOAD' });
 
   useEffect(() => {
@@ -152,7 +150,7 @@ export default function ExecutiveDashboard() {
     const fetchData = async () => {
       try {
         const stormRes = await fetchLiveStorms();
-        const tmdRes = await fetchTmdData(); // 🇹🇭 ดึงข้อมูลกรมอุตุฯ
+        const tmdRes = await fetchTmdData();
 
         const [onwrRes, forecastRes] = await Promise.all([
           fetchWithCache('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h', 'exec_onwr_rain'),
@@ -167,7 +165,6 @@ export default function ExecutiveDashboard() {
           `&daily=precipitation_sum,wind_gusts_10m_max,wind_speed_10m_max&timezone=Asia%2FBangkok&forecast_days=15&models=icon_seamless`;
         const ensRes = await fetchWithCache(ensUrl, 'exec_ens_stable');
 
-        // อัปเดตสถานะของทุกระบบ
         setApiHealth({ onwr: onwrRes.status, tmd: tmdRes.status, ecmwf: forecastRes.status, deepmind: ensRes.status, storm: stormRes.status });
 
         let actualRain24h = 0;
@@ -218,15 +215,10 @@ export default function ExecutiveDashboard() {
           const w2Max = stats.length > 7 ? Math.max(...stats.slice(7).map(s => s.rainMedian)) : 0;
           const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
 
-          const spread = peakRainDay.rainMax - peakRainDay.rainMin;
-          const confidence = peakRainDay.rainMax > 0 ? Math.max(0, Math.round((1 - spread / peakRainDay.rainMax) * 100)) : 100;
-
-          // 🧠 Data Fusion Logic: ผสมข้อมูลราชการ (TMD) เข้ากับสากล (ECMWF)
           let status = 'NORMAL', tier = 'ปกติ';
           let aiInsight = `ระบบ Data Fusion ทำงานสมบูรณ์: สภาพอากาศทรงตัว ปลอดภัย`;
           let actions = ['อัปเดตสถานการณ์ปกติให้ประชาชนทราบ', 'บำรุงรักษาระบบระบายน้ำตามแผนประจำ'];
 
-          // สร้างข้อความอธิบายแบบ Hybrid
           if (tmdRes.info) {
              aiInsight = `ระบบ Data Fusion ยืนยันข้อมูลไขว้: กรมอุตุนิยมวิทยาประเมิน "${tmdRes.info.desc}" สอดคล้องกับโมเดล ECMWF (ความละเอียด 9กม.) สภาพอากาศโดยรวมทรงตัว`;
           }
@@ -247,9 +239,8 @@ export default function ExecutiveDashboard() {
           setData({
             actualRain24h, currentTemp, currentWind, liveRainIntensity, soilMoisture,
             stats, peakSignalDay, peakRainDay, peakGust, w1Max, w2Max,
-            memberCount: rKeys.length || 1, confidence, stormCount: stormRes.infos.length,
             storm: { infos: stormRes.infos, top: stormRes.top },
-            tmdInfo: tmdRes.info, // ส่งข้อมูล TMD ไปโชว์หน้า UI
+            tmdInfo: tmdRes.info,
             ai: { status, tier, aiInsight, actions },
           });
         }
@@ -290,7 +281,6 @@ export default function ExecutiveDashboard() {
   const theme = getTheme(data.ai.status);
   const fmtD = (iso: string) => new Date(iso).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
 
-  // 🛡️ ป้ายสถานะ API (ภาษาไทย/อังกฤษ)
   const HealthBadge = ({ label, status }: { label: string, status: string }) => {
     const c = status === 'LIVE' ? 'text-[#34d399] bg-[#064e3b]/50 border-[#10b981]/50'
       : status.includes('STANDBY') ? 'text-amber-400 bg-amber-900/30 border-amber-500/50'
@@ -303,7 +293,6 @@ export default function ExecutiveDashboard() {
     );
   };
 
-  // 🗺️ SVG Mini-Map
   const StormMap = ({ storms }: { storms: StormInfo[] }) => {
     const W = 760, H = 400, LON0 = 90, LON1 = 138, LAT0 = 0, LAT1 = 32;
     const px = (lon: number) => ((lon - LON0) / (LON1 - LON0)) * W;
@@ -380,11 +369,17 @@ export default function ExecutiveDashboard() {
       {/* ===== 🖥️ Header Section ===== */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end mb-8 pb-6 border-b border-slate-800/80 gap-6">
         <div>
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter text-white flex flex-wrap items-center gap-x-4 mb-2">
-            <span>EXECUTIVE</span> <span className={theme.text}>ATLAS</span>
-            <span className={`px-4 py-2 border ${theme.border} ${theme.bg} text-white text-sm md:text-base font-bold rounded-full ${theme.glow} shadow-lg tracking-wide`}>{theme.label}</span>
-          </h1>
-          <p className="text-[#0ea5e9] text-xs sm:text-sm md:text-base tracking-[0.15em] font-mono font-medium">HIGH-RES ECMWF & TMD OFFICIAL FUSION</p>
+          <div className="flex flex-wrap items-center gap-x-4 mb-2">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter text-white flex items-center">
+              <span>ศูนย์บัญชาการ</span> <span className={`ml-2 sm:ml-3 ${theme.text}`}>อัจฉริยะ</span>
+            </h1>
+            <span className={`px-4 py-1.5 border ${theme.border} ${theme.bg} text-white text-sm md:text-base font-bold rounded-full ${theme.glow} shadow-lg tracking-wide mt-2 sm:mt-0`}>
+              {theme.label}
+            </span>
+          </div>
+          <p className="text-[#0ea5e9] text-[10px] sm:text-xs md:text-sm tracking-[0.1em] sm:tracking-[0.15em] font-mono font-medium uppercase mt-2">
+            EXECUTIVE ATLAS • HIGH-RES ECMWF & TMD OFFICIAL FUSION
+          </p>
         </div>
         <div className="flex flex-col items-start lg:items-end w-full lg:w-auto">
           <div className="text-4xl sm:text-5xl font-mono font-bold text-white tracking-widest drop-shadow-md">
@@ -413,7 +408,6 @@ export default function ExecutiveDashboard() {
               <span className={`text-5xl md:text-6xl font-black ${k.color} ${k.alert ? 'animate-pulse' : ''}`}>{k.val}</span>
               <span className="text-sm md:text-base text-slate-500 font-bold">{k.unit}</span>
             </div>
-            {/* Sparkline แนวโน้ม (Visual element) */}
             <div className="mt-4 h-1 w-full bg-slate-800 rounded-full overflow-hidden">
                 <div className={`h-full ${k.alert ? 'bg-rose-500 w-[85%]' : k.val === '0.0' ? 'bg-[#0ea5e9] w-[5%]' : 'bg-[#34d399] w-[35%]'} opacity-70`}></div>
             </div>
@@ -441,7 +435,6 @@ export default function ExecutiveDashboard() {
                     {data.ai.aiInsight}
                   </p>
                 </div>
-                {/* 🛡️ กล่องข้อมูลดิบจาก TMD */}
                 {data.tmdInfo && (
                   <div className="mt-6 bg-[#020617] border border-slate-800 p-4 rounded-xl flex items-center justify-between opacity-80 hover:opacity-100 transition-opacity">
                     <div>
@@ -473,7 +466,6 @@ export default function ExecutiveDashboard() {
         {/* 📊 ฝั่งขวา: Graphs & Storms */}
         <div className="xl:col-span-7 flex flex-col gap-6 md:gap-8">
             
-            {/* 🌀 Storm Track Map */}
             <div className="bg-[#0b1120] border border-slate-800 rounded-[2rem] p-6 md:p-8 shadow-xl hover:border-indigo-500/30 transition-colors duration-300">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <div>
@@ -489,7 +481,6 @@ export default function ExecutiveDashboard() {
               <StormMap storms={data.storm.infos} />
             </div>
 
-            {/* 🔮 15-Day Chart */}
             <div className="bg-[#0b1120] border border-slate-800 rounded-[2rem] p-6 md:p-8 shadow-xl flex-1 flex flex-col min-h-[350px]">
               <div className="mb-6">
                 <h3 className="text-xl md:text-2xl font-black text-white flex items-center tracking-tight"><span className="text-3xl mr-3">🔮</span> ECMWF 15-DAY PREDICTIVE VISION</h3>
