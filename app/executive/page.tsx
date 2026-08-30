@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 
 // ==========================================
-// 🛠️ 1. Architecture & Algorithm Utilities
+// 🛠️ 1. Core Utilities & Math
 // ==========================================
 
 const BO_LUANG_LAT = 18.1633;
@@ -12,19 +12,17 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   const R = 6371; 
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; 
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-// 🛡️ API Resilience
 const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 8000) => {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
-    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     try { sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data })); } catch (e) {}
     return { data, status: 'LIVE' };
@@ -49,7 +47,38 @@ const probExceed = (arr: number[], threshold: number) => {
 };
 
 // ==========================================
-// 🚀 2. Main Executive Dashboard Component
+// 🇹🇭 2. TMD Weather API (กรมอุตุนิยมวิทยา - ผ่าน Proxy)
+// ==========================================
+const fetchTmdData = async () => {
+  try {
+    const targetUrl = 'https://data.tmd.go.th/api/WeatherToday/V1/?type=json'; 
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+    const res = await fetchWithCache(proxyUrl, 'tmd_weather_daily_cors');
+    
+    if (res.status === 'OFFLINE' || !res.data || !res.data.contents) return { status: 'OFFLINE', info: null };
+    
+    const rawData = JSON.parse(res.data.contents);
+    const stations = rawData?.Stations || [];
+    const cmStation = stations.find((s: any) => s.Province === 'เชียงใหม่' || s.WmoStationNumber === '48327');
+    
+    if (cmStation) {
+      return { 
+        status: 'LIVE', 
+        info: {
+          temp: cmStation.Observe?.Temperature?.Value,
+          rain: cmStation.Observe?.Rainfall24Hr?.Value,
+          desc: cmStation.Observe?.WeatherDescription || 'สภาพอากาศปกติ'
+        }
+      };
+    }
+    return { status: 'CACHED', info: null };
+  } catch (e) {
+    return { status: 'OFFLINE', info: null };
+  }
+};
+
+// ==========================================
+// 🚀 3. Main Executive Dashboard Component
 // ==========================================
 
 export default function ExecutiveDashboard() {
@@ -57,7 +86,8 @@ export default function ExecutiveDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   
-  const [apiHealth, setApiHealth] = useState({ onwr: 'LOAD', ecmwf: 'LOAD', ai_ensemble: 'LOAD' });
+  // เพิ่ม tmd เข้าไปใน state
+  const [apiHealth, setApiHealth] = useState({ onwr: 'LOAD', tmd: 'LOAD', ecmwf: 'LOAD', ai_ensemble: 'LOAD' });
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -67,7 +97,9 @@ export default function ExecutiveDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 📡 1. ดึงข้อมูลจริง (Ground Truth + Deterministic)
+        const tmdRes = await fetchTmdData();
+
+        // 📡 1. ดึงข้อมูลจริง (Ground Truth + Deterministic ECMWF)
         const [onwrRes, forecastRes] = await Promise.all([
           fetchWithCache('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h', 'exec_onwr_rain'),
           fetchWithCache(
@@ -77,12 +109,26 @@ export default function ExecutiveDashboard() {
             'exec_ecmwf_det'),
         ]);
 
-        // 🧠 2. ดึงข้อมูล Ensemble 15D (เปลี่ยนใช้รุ่น icon_seamless ที่เสถียรที่สุดเพื่อแก้ Error 400 Bad Request)
-        const ensUrl = `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}` +
-          `&daily=precipitation_sum,wind_gusts_10m_max&timezone=Asia%2FBangkok&forecast_days=15&models=icon_seamless`;
-        const aiRes = await fetchWithCache(ensUrl, 'exec_ai_gwn15');
+        // 🧠 2. ดึงข้อมูล AI Ensemble (Google WeatherNext 15D พร้อมระบบ Fallback หากล่ม)
+        let aiRes = await fetchWithCache(
+            `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}` +
+            `&daily=precipitation_sum,wind_gusts_10m_max&timezone=Asia%2FBangkok&forecast_days=15&models=google_weathernext_15days_ensemble`, 
+            'exec_ai_gwn15'
+        );
+        
+        let ensembleModelUsed = 'Google WeatherNext 15D';
+        
+        // ถ้าระบบ WeatherNext ล่ม (เช่น คืนค่า 400) ให้สลับไปใช้รุ่นเสถียร (icon_seamless) อัตโนมัติทันที
+        if (aiRes.status === 'OFFLINE' || (aiRes.data && aiRes.data.error)) {
+             aiRes = await fetchWithCache(
+                `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}` +
+                `&daily=precipitation_sum,wind_gusts_10m_max&timezone=Asia%2FBangkok&forecast_days=15&models=icon_seamless`, 
+                'exec_ai_icon'
+            );
+            ensembleModelUsed = 'ICON-Seamless Ensemble';
+        }
 
-        setApiHealth({ onwr: onwrRes.status, ecmwf: forecastRes.status, ai_ensemble: aiRes.status });
+        setApiHealth({ onwr: onwrRes.status, tmd: tmdRes.status, ecmwf: forecastRes.status, ai_ensemble: aiRes.status });
 
         // 🔄 Transform: ONWR Ground Truth
         let actualRain24h = 0;
@@ -120,7 +166,6 @@ export default function ExecutiveDashboard() {
         const rainKeys = Object.keys(daily).filter(k => k.startsWith('precipitation_sum') && k !== 'precipitation_sum');
         const memberCount = rainKeys.length > 0 ? rainKeys.length : 1;
 
-        // ประกาศ Type ให้ชัดเจน
         let stats: Array<{ date: string; rainMedian: number; rainMax: number; pRain50: number; }> = [];
         
         if (N > 0) {
@@ -140,11 +185,14 @@ export default function ExecutiveDashboard() {
         const criticalDate = new Date(peakRainDay.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
         const confidence = peakRainDay.pRain50 > 0 ? Math.round(peakRainDay.pRain50) : 100;
 
-        // 🎯 Action-Driven Logic Tiers
+        // 🎯 Action-Driven Logic Tiers (Cross-Validation: Ground + TMD vs AI)
         let status = 'NORMAL';
+        
+        // ดึงข้อความจาก TMD ถ้ามี ไม่งั้นใช้ค่า Default
+        const tmdDesc = tmdRes.info?.desc || 'ไม่มีประกาศเตือนภัยจากกรมอุตุฯ';
         let tmdInsight = liveRainIntensity > 0 
             ? `⚠️ เรดาร์ดาวเทียมตรวจพบกลุ่มฝนตกในพื้นที่ (${liveRainIntensity.toFixed(1)} มม./ชม.) ดินเริ่มอุ้มน้ำ`
-            : `ข้อมูลตรวจวัดจริงจากสทนช. ยืนยันสภาพอากาศปลอดภัย ไร้การก่อตัวของกลุ่มฝน`;
+            : `ข้อมูลตรวจวัดจริงจาก สทนช. ยืนยันสภาพอากาศปลอดภัย ไร้การก่อตัวของกลุ่มฝน (อ้างอิงสถานี TMD: ${tmdDesc})`;
         
         let aiInsight = '';
         let actions = ['ตรวจสอบสถานะเซิร์ฟเวอร์แจ้งเตือน', 'อัปเดตข้อมูลสถานการณ์ปกติให้ประชาชนทราบ'];
@@ -152,7 +200,7 @@ export default function ExecutiveDashboard() {
         if (actualRain24h > 90 || soilMoisture > 80) {
             status = 'CRITICAL';
             tmdInsight = `🚨 การตรวจสอบไขว้พบฝนตกหนักต่อเนื่อง! ดินอุ้มน้ำระดับวิกฤต (${Math.round(soilMoisture)}%) เสี่ยงดินถล่มฉับพลัน!`;
-            aiInsight = `ระบบพยากรณ์ถูกสั่ง OVERRIDE ด้วยข้อมูลสถานการณ์วิกฤตหน้างานจริง!`;
+            aiInsight = `AI ถูกสั่ง OVERRIDE ด้วยข้อมูลสถานการณ์วิกฤตหน้างานจริง!`;
             actions = ['🚨 อ้างอิงประกาศเพื่อเบิกงบฉุกเฉิน เปิดศูนย์ EOC ทันที', 'สั่งการอพยพประชาชนในโซนเชิงเขา', 'ประสานเครื่องจักรกลหนักแสตนด์บาย'];
         } else if (liveRainIntensity > 15 || peakRainDay.pRain50 >= 60) {
             status = 'CRITICAL';
@@ -168,7 +216,8 @@ export default function ExecutiveDashboard() {
 
         setData({
             actualRain24h, currentTemp, currentWind, liveRainIntensity, soilMoisture,
-            stats, peakRainDay, memberCount, confidence,
+            stats, peakRainDay, memberCount, confidence, ensembleModelUsed,
+            tmdInfo: tmdRes.info,
             ai: { status, tmdInsight, aiInsight, actions }
         });
 
@@ -216,6 +265,7 @@ export default function ExecutiveDashboard() {
   return (
     <div className="min-h-screen bg-[#0a1112] p-4 md:p-8 font-sans text-gray-100 flex flex-col overflow-x-hidden">
       
+      {/* CSS Animation */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes scroll-up { 0% { transform: translateY(0); } 100% { transform: translateY(-120%); } }
         .ticker-container { animation: scroll-up 20s linear infinite; }
@@ -244,7 +294,8 @@ export default function ExecutiveDashboard() {
             </div>
             <div className="flex flex-wrap gap-2 text-[9px] font-mono font-bold tracking-wider w-full lg:justify-end">
                 <HealthBadge label="ONWR (GROUND)" status={apiHealth.onwr} />
-                <HealthBadge label="RADAR (SAT)" status={apiHealth.ecmwf} />
+                <HealthBadge label="TMD (กรมอุตุฯ)" status={apiHealth.tmd} />
+                <HealthBadge label="ECMWF (RADAR)" status={apiHealth.ecmwf} />
                 <HealthBadge label="AI (DEEPMIND)" status={apiHealth.ai_ensemble} />
             </div>
         </div>
@@ -360,23 +411,26 @@ export default function ExecutiveDashboard() {
             <div className="flex-1 bg-[#111a1c] border border-gray-800 rounded-3xl p-6 md:p-8 shadow-xl flex flex-col min-h-[450px]">
                 
                 <div className="mb-6 md:mb-8">
-                    <div className="bg-[#0a1112] p-4 md:p-5 rounded-2xl border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.05)] mb-5 md:mb-6 flex items-center justify-between">
-                        <div className="relative group flex items-center cursor-help">
-                            <h4 className="text-xs md:text-sm text-purple-400 font-bold uppercase tracking-widest flex items-center">
-                                <span className="text-lg md:text-xl mr-2">🔮</span> DEEPMIND 15-DAY PREDICTIVE VISION
-                            </h4>
-                            <span className="ml-2 text-purple-400 text-xs md:text-sm animate-pulse border border-purple-500/50 rounded-full w-4 h-4 flex items-center justify-center shrink-0">i</span>
-                            
-                            <div className="absolute top-full -left-2 sm:left-auto sm:right-0 mt-3 w-[280px] sm:w-80 max-w-[90vw] p-4 bg-[#0a1112] border border-purple-500/50 rounded-2xl shadow-[0_0_25px_rgba(168,85,247,0.2)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[100]">
-                                <h4 className="text-purple-400 text-sm font-bold mb-2 flex items-center">
-                                    <span className="mr-2">💡</span> AI & Global Atmospheric Patterns
+                    <div className="bg-[#0a1112] p-4 md:p-5 rounded-2xl border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.05)] mb-5 md:mb-6 flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                            <div className="relative group flex items-center cursor-help">
+                                <h4 className="text-xs md:text-sm text-purple-400 font-bold uppercase tracking-widest flex items-center">
+                                    <span className="text-lg md:text-xl mr-2">🔮</span> DEEPMIND 15-DAY PREDICTIVE VISION
                                 </h4>
-                                <p className="text-[11px] md:text-[12px] text-gray-300 leading-relaxed font-mono">
-                                    แบบจำลอง AI วิเคราะห์จาก <b>โครงสร้างชั้นบรรยากาศโลก</b> เพื่อประเมินความน่าจะเป็น (Probability) ในการเกิดพายุและฝนตกหนักล่วงหน้า 15 วัน
-                                </p>
+                                <span className="ml-2 text-purple-400 text-xs md:text-sm animate-pulse border border-purple-500/50 rounded-full w-4 h-4 flex items-center justify-center shrink-0">i</span>
+                                
+                                <div className="absolute top-full -left-2 sm:left-auto sm:right-0 mt-3 w-[280px] sm:w-80 max-w-[90vw] p-4 bg-[#0a1112] border border-purple-500/50 rounded-2xl shadow-[0_0_25px_rgba(168,85,247,0.2)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[100]">
+                                    <h4 className="text-purple-400 text-sm font-bold mb-2 flex items-center">
+                                        <span className="mr-2">💡</span> AI & Global Atmospheric Patterns
+                                    </h4>
+                                    <p className="text-[11px] md:text-[12px] text-gray-300 leading-relaxed font-mono">
+                                        แบบจำลอง AI วิเคราะห์จาก <b>โครงสร้างชั้นบรรยากาศโลก</b> เพื่อประเมินความน่าจะเป็น (Probability) ในการเกิดพายุและฝนตกหนักล่วงหน้า 15 วัน
+                                    </p>
+                                </div>
                             </div>
+                            <span className="text-[9px] bg-purple-500/20 text-purple-400 px-2 py-1 rounded border border-purple-500/30 hidden sm:block">แบบจำลอง AI (ไม่ใช่ข้อมูลเกิดจริง)</span>
                         </div>
-                        <span className="text-[9px] bg-purple-500/20 text-purple-400 px-2 py-1 rounded border border-purple-500/30 hidden sm:block">แบบจำลอง AI (ไม่ใช่ข้อมูลเกิดจริง)</span>
+                        <div className="text-[10px] md:text-xs text-gray-400 font-mono">MODEL USED: {data?.ensembleModelUsed?.toUpperCase() || 'LOADING...'} ({data?.memberCount || 0} MEMBERS)</div>
                     </div>
 
                     <p className="text-sm md:text-base text-gray-200 leading-relaxed font-medium mb-5">
