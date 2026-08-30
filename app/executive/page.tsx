@@ -77,9 +77,9 @@ export default function ExecutiveDashboard() {
             'exec_ecmwf_det'),
         ]);
 
-        // 🧠 2. ดึงข้อมูล AI Ensemble (Google WeatherNext 15D - โมเดล AI ที่แม่นยำที่สุด)
+        // 🧠 2. ดึงข้อมูล Ensemble 15D (เปลี่ยนใช้รุ่น icon_seamless ที่เสถียรที่สุดเพื่อแก้ Error 400 Bad Request)
         const ensUrl = `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}` +
-          `&daily=precipitation_sum,wind_gusts_10m_max&timezone=Asia%2FBangkok&forecast_days=15&models=google_weathernext_15days_ensemble`;
+          `&daily=precipitation_sum,wind_gusts_10m_max&timezone=Asia%2FBangkok&forecast_days=15&models=icon_seamless`;
         const aiRes = await fetchWithCache(ensUrl, 'exec_ai_gwn15');
 
         setApiHealth({ onwr: onwrRes.status, ecmwf: forecastRes.status, ai_ensemble: aiRes.status });
@@ -120,7 +120,7 @@ export default function ExecutiveDashboard() {
         const rainKeys = Object.keys(daily).filter(k => k.startsWith('precipitation_sum') && k !== 'precipitation_sum');
         const memberCount = rainKeys.length > 0 ? rainKeys.length : 1;
 
-        // แก้บั๊ก Type Check ด้วยการประกาศ Type ให้ชัดเจน
+        // ประกาศ Type ให้ชัดเจน
         let stats: Array<{ date: string; rainMedian: number; rainMax: number; pRain50: number; }> = [];
         
         if (N > 0) {
@@ -152,15 +152,15 @@ export default function ExecutiveDashboard() {
         if (actualRain24h > 90 || soilMoisture > 80) {
             status = 'CRITICAL';
             tmdInsight = `🚨 การตรวจสอบไขว้พบฝนตกหนักต่อเนื่อง! ดินอุ้มน้ำระดับวิกฤต (${Math.round(soilMoisture)}%) เสี่ยงดินถล่มฉับพลัน!`;
-            aiInsight = `AI ถูกสั่ง OVERRIDE ด้วยข้อมูลสถานการณ์วิกฤตหน้างานจริง!`;
+            aiInsight = `ระบบพยากรณ์ถูกสั่ง OVERRIDE ด้วยข้อมูลสถานการณ์วิกฤตหน้างานจริง!`;
             actions = ['🚨 อ้างอิงประกาศเพื่อเบิกงบฉุกเฉิน เปิดศูนย์ EOC ทันที', 'สั่งการอพยพประชาชนในโซนเชิงเขา', 'ประสานเครื่องจักรกลหนักแสตนด์บาย'];
         } else if (liveRainIntensity > 15 || peakRainDay.pRain50 >= 60) {
             status = 'CRITICAL';
-            aiInsight = `🚨 AI Ensemble (Consensus ${confidence}%) ฟันธงพายุฝนรุนแรงเข้าปะทะพื้นที่ช่วงวันที่ ${criticalDate} (คาดการณ์ฝนสูงสุด ${peakRainDay.rainMax.toFixed(0)} มม.)`;
+            aiInsight = `🚨 แบบจำลอง Ensemble (Consensus ${confidence}%) ฟันธงพายุฝนรุนแรงเข้าปะทะพื้นที่ช่วงวันที่ ${criticalDate} (คาดการณ์ฝนสูงสุด ${peakRainDay.rainMax.toFixed(0)} มม.)`;
             actions = ['🚨 ออกประกาศเตือนภัยพายุระดับพื้นที่ล่วงหน้า', 'สั่งการเตรียมพร้อมอพยพประชาชนล่วงหน้า 24 ชม.', 'ตั้งศูนย์ EOC และจัดเตรียมศูนย์พักพิง'];
         } else if (maxRain15Days > 30 || peakRainDay.pRain50 >= 30) {
             status = 'WARNING';
-            aiInsight = `⚠️ AI ประเมินพบร่องมรสุมพาดผ่าน พีคสูงสุดวันที่ ${criticalDate} โอกาสเกิดฝนตกหนักระดับกลางอยู่ที่ ${confidence}%`;
+            aiInsight = `⚠️ ระบบแบบจำลองอัจฉริยะ ประเมินพบร่องมรสุมพาดผ่าน พีคสูงสุดวันที่ ${criticalDate} โอกาสเกิดฝนตกหนักระดับกลางอยู่ที่ ${confidence}%`;
             actions = ['ประกาศเสียงตามสายแจ้งเตือนพื้นที่เสี่ยง', 'ส่งหน่วยลาดตระเวนเช็คระดับน้ำลำห้วย', 'ทดสอบระบบเครื่องสูบน้ำ'];
         } else {
             aiInsight = `โครงสร้างชั้นบรรยากาศโลก (Global Atmospheric Patterns) 15 วันล่วงหน้า ไม่พบสัญญาณภัยพิบัติรุนแรงก่อตัว`;
@@ -216,7 +216,6 @@ export default function ExecutiveDashboard() {
   return (
     <div className="min-h-screen bg-[#0a1112] p-4 md:p-8 font-sans text-gray-100 flex flex-col overflow-x-hidden">
       
-      {/* CSS Animation */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes scroll-up { 0% { transform: translateY(0); } 100% { transform: translateY(-120%); } }
         .ticker-container { animation: scroll-up 20s linear infinite; }
@@ -402,7 +401,6 @@ export default function ExecutiveDashboard() {
                         const maxVal = Math.max(...data.stats.slice(0, 7).map((x: any) => x.rainMedian), 10); 
                         const heightPct = Math.max((s.rainMedian / maxVal) * 100, 4); 
                         
-                        // สีฟ้าคลาสสิกตามดีไซน์เดิม (ปรับสีถ้า AI เตือนภัย)
                         const barColor = s.pRain50 >= 50 ? 'bg-gradient-to-t from-[#9f1239] to-[#fb7185]' : 
                                          'bg-gradient-to-t from-[#0f766e] to-[#2dd4bf]';
 
