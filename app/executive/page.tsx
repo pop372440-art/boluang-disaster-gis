@@ -47,17 +47,18 @@ const probExceed = (arr: number[], threshold: number) => {
 };
 
 // ==========================================
-// 🇹🇭 2. TMD Weather API (กรมอุตุนิยมวิทยา - ผ่าน Proxy)
+// 🇹🇭 2. TMD Weather API (ผ่าน Next.js API Route)
 // ==========================================
 const fetchTmdData = async () => {
   try {
-    const targetUrl = 'https://data.tmd.go.th/api/WeatherToday/V1/?type=json'; 
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-    const res = await fetchWithCache(proxyUrl, 'tmd_weather_daily_cors');
+    // ยิงผ่าน Backend ของเราเอง หมดปัญหา CORS Error และ OFFLINE
+    const res = await fetchWithCache('/api/tmd', 'tmd_weather_daily_internal');
     
-    if (res.status === 'OFFLINE' || !res.data || !res.data.contents) return { status: 'OFFLINE', info: null };
+    if (res.status === 'OFFLINE' || !res.data || res.data.status !== 'LIVE') {
+      return { status: 'OFFLINE', info: null };
+    }
     
-    const rawData = JSON.parse(res.data.contents);
+    const rawData = res.data.data;
     const stations = rawData?.Stations || [];
     const cmStation = stations.find((s: any) => s.Province === 'เชียงใหม่' || s.WmoStationNumber === '48327');
     
@@ -86,7 +87,6 @@ export default function ExecutiveDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   
-  // เพิ่ม tmd เข้าไปใน state
   const [apiHealth, setApiHealth] = useState({ onwr: 'LOAD', tmd: 'LOAD', ecmwf: 'LOAD', ai_ensemble: 'LOAD' });
 
   useEffect(() => {
@@ -109,24 +109,12 @@ export default function ExecutiveDashboard() {
             'exec_ecmwf_det'),
         ]);
 
-        // 🧠 2. ดึงข้อมูล AI Ensemble (Google WeatherNext 15D พร้อมระบบ Fallback หากล่ม)
-        let aiRes = await fetchWithCache(
-            `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}` +
-            `&daily=precipitation_sum,wind_gusts_10m_max&timezone=Asia%2FBangkok&forecast_days=15&models=google_weathernext_15days_ensemble`, 
-            'exec_ai_gwn15'
-        );
+        // 🧠 2. ดึงข้อมูล AI Ensemble (เปลี่ยนมาใช้ icon_seamless ตัดปัญหา 400 Bad Request ถาวร)
+        const ensUrl = `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}` +
+          `&daily=precipitation_sum,wind_gusts_10m_max&timezone=Asia%2FBangkok&forecast_days=15&models=icon_seamless`;
         
-        let ensembleModelUsed = 'Google WeatherNext 15D';
-        
-        // ถ้าระบบ WeatherNext ล่ม (เช่น คืนค่า 400) ให้สลับไปใช้รุ่นเสถียร (icon_seamless) อัตโนมัติทันที
-        if (aiRes.status === 'OFFLINE' || (aiRes.data && aiRes.data.error)) {
-             aiRes = await fetchWithCache(
-                `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${BO_LUANG_LAT}&longitude=${BO_LUANG_LNG}` +
-                `&daily=precipitation_sum,wind_gusts_10m_max&timezone=Asia%2FBangkok&forecast_days=15&models=icon_seamless`, 
-                'exec_ai_icon'
-            );
-            ensembleModelUsed = 'ICON-Seamless Ensemble';
-        }
+        const aiRes = await fetchWithCache(ensUrl, 'exec_ai_icon');
+        const ensembleModelUsed = 'ICON-SEAMLESS (AI ENSEMBLE)';
 
         setApiHealth({ onwr: onwrRes.status, tmd: tmdRes.status, ecmwf: forecastRes.status, ai_ensemble: aiRes.status });
 
@@ -151,7 +139,6 @@ export default function ExecutiveDashboard() {
         const forecast = forecastRes.data && !forecastRes.data.error ? forecastRes.data : null;
         const aiData = aiRes.data && !aiRes.data.error ? aiRes.data : null;
 
-        // 🛡️ ป้องกันบั๊ก Cannot read properties
         const currentTemp = forecast?.current?.temperature_2m ?? '—';
         const currentWind = forecast?.current?.wind_speed_10m ?? '—';
         const liveRainIntensity = forecast?.current?.precipitation ?? 0;
@@ -185,10 +172,8 @@ export default function ExecutiveDashboard() {
         const criticalDate = new Date(peakRainDay.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
         const confidence = peakRainDay.pRain50 > 0 ? Math.round(peakRainDay.pRain50) : 100;
 
-        // 🎯 Action-Driven Logic Tiers (Cross-Validation: Ground + TMD vs AI)
+        // 🎯 Action-Driven Logic Tiers
         let status = 'NORMAL';
-        
-        // ดึงข้อความจาก TMD ถ้ามี ไม่งั้นใช้ค่า Default
         const tmdDesc = tmdRes.info?.desc || 'ไม่มีประกาศเตือนภัยจากกรมอุตุฯ';
         let tmdInsight = liveRainIntensity > 0 
             ? `⚠️ เรดาร์ดาวเทียมตรวจพบกลุ่มฝนตกในพื้นที่ (${liveRainIntensity.toFixed(1)} มม./ชม.) ดินเริ่มอุ้มน้ำ`
@@ -265,7 +250,6 @@ export default function ExecutiveDashboard() {
   return (
     <div className="min-h-screen bg-[#0a1112] p-4 md:p-8 font-sans text-gray-100 flex flex-col overflow-x-hidden">
       
-      {/* CSS Animation */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes scroll-up { 0% { transform: translateY(0); } 100% { transform: translateY(-120%); } }
         .ticker-container { animation: scroll-up 20s linear infinite; }
