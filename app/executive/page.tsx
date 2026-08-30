@@ -47,7 +47,7 @@ const probExceed = (arr: number[], threshold: number) => {
 };
 
 // ==========================================
-// 🌀 2. Mock Storm Data
+// 🌀 2. Live Storm Tracking (GDACS Global API)
 // ==========================================
 interface TrackPoint { lat: number; lon: number; time: string | null; wind: number; gust: number; pressure: number; }
 interface StormInfo {
@@ -56,27 +56,89 @@ interface StormInfo {
   windAtNearest: number; maxWindKmh: number; cat: { label: string; color: string };
 }
 
-const getMockStorm = (): StormInfo | null => {
-  const pts: TrackPoint[] = [
-    { lat: 14.0, lon: 112.0, time: new Date(Date.now() - 86400000).toISOString(), wind: 50, gust: 70, pressure: 995 },
-    { lat: 15.5, lon: 109.5, time: new Date(Date.now()).toISOString(), wind: 75, gust: 95, pressure: 985 },
-    { lat: 16.8, lon: 105.0, time: new Date(Date.now() + 86400000).toISOString(), wind: 65, gust: 85, pressure: 990 }, 
-    { lat: 18.2, lon: 101.5, time: new Date(Date.now() + 172800000).toISOString(), wind: 40, gust: 60, pressure: 1000 },
-  ];
-  let nearestKm = Infinity, closest = pts[0], closestIdx = 0;
-  pts.forEach((p, i) => {
-    const d = calculateDistance(BO_LUANG_LAT, BO_LUANG_LNG, p.lat, p.lon);
-    if (d < nearestKm) { nearestKm = d; closest = p; closestIdx = i; }
-  });
-  const etaHours = Math.round((new Date(closest.time!).getTime() - Date.now()) / 3.6e6);
-  const maxWindKmh = 75;
-  return {
-    name: 'MOCK-STORM', source: 'Simulated', points: pts, closest, closestIdx,
-    nearestKm, etaHours, etaText: `อีก ${(etaHours / 24).toFixed(1)} วัน`, movement: 'กำลังเคลื่อนเข้าใกล้พื้นที่ (จำลอง)',
-    windAtNearest: closest.wind, maxWindKmh,
-    cat: { label: 'พายุโซนร้อน', color: '#facc15' }
-  };
-};
+// 🏷️ หมวดพายุตามเกณฑ์ลม (กม./ชม.)
+const stormCategory = (kmh: number) =>
+  kmh >= 118 ? { label: 'ไต้ฝุ่น', color: '#ef4444' } :
+  kmh >= 89 ? { label: 'พายุกำลังแรง', color: '#f97316' } :
+  kmh >= 62 ? { label: 'พายุโซนร้อน', color: '#facc15' } :
+  { label: 'พายุดีเปรสชัน', color: '#0ea5e9' };
+
+// 📡 ดึงข้อมูลพายุหมุนเขตร้อนที่ Active อยู่ (จาก GDACS GeoJSON)
+const fetchLiveStorms = async (): Promise<{ top: StormInfo | null, infos: StormInfo[], status: string }> => {
+    try {
+        const res = await fetchWithCache('https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=TC', 'gdacs_live_storm');
+        
+        if (!res.data || !res.data.features) return { top: null, infos: [], status: res.status };
+
+        const storms: StormInfo[] = [];
+
+        // เนื่องจาก GDACS ส่งมาเป็น Polygon หลายอัน เราจะใช้วิธีหาจุดศูนย์กลางคร่าวๆ
+        // หมายเหตุ: นี่คือการ Parsing ข้อมูลแบบง่ายเพื่อให้รองรับหลายรูปแบบ
+        const features = res.data.features;
+        const stormMap = new Map<string, TrackPoint[]>();
+
+        features.forEach((feat: any) => {
+            const props = feat.properties;
+            const name = props?.name || props?.eventname || 'UNKNOWN STORM';
+            if (name === 'UNKNOWN STORM') return;
+
+            // ตรวจจับพิกัด
+            let coords = [];
+            if (feat.geometry.type === 'Point') coords = [feat.geometry.coordinates];
+            else if (feat.geometry.type === 'Polygon') coords = feat.geometry.coordinates[0];
+            else if (feat.geometry.type === 'MultiPolygon') coords = feat.geometry.coordinates[0][0];
+
+            if (coords.length > 0) {
+                // หาค่าเฉลี่ยจุดศูนย์กลาง
+                let sumLat = 0, sumLon = 0;
+                coords.forEach((c: number[]) => { sumLon += c[0]; sumLat += c[1]; });
+                const avgLat = sumLat / coords.length;
+                const avgLon = sumLon / coords.length;
+
+                // กรองเฉพาะพายุที่อยู่ในโซนเอเชีย (กรอบที่เราสนใจ)
+                if (avgLat > -10 && avgLat < 35 && avgLon > 85 && avgLon < 145) {
+                    if (!stormMap.has(name)) stormMap.set(name, []);
+                    stormMap.get(name)!.push({
+                        lat: avgLat, lon: avgLon,
+                        time: props?.todate || new Date().toISOString(),
+                        wind: (props?.velocity || 40) * 1.852, // แปลง knots เป็น km/h
+                        gust: (props?.velocity || 40) * 1.852 * 1.3,
+                        pressure: 1000
+                    });
+                }
+            }
+        });
+
+        // จัดรูปแบบเป็น StormInfo
+        stormMap.forEach((points, name) => {
+            if (points.length < 1) return;
+            // เรียงตามเวลา
+            points.sort((a, b) => new Date(a.time!).getTime() - new Date(b.time!).getTime());
+
+            let nearestKm = Infinity, closest = points[0], closestIdx = 0;
+            points.forEach((p, i) => {
+                const d = calculateDistance(BO_LUANG_LAT, BO_LUANG_LNG, p.lat, p.lon);
+                if (d < nearestKm) { nearestKm = d; closest = p; closestIdx = i; }
+            });
+
+            const maxWindKmh = Math.max(...points.map(p => p.wind));
+            const etaHours = Math.round((new Date(closest.time!).getTime() - Date.now()) / 3.6e6);
+            
+            storms.push({
+                name: name.toUpperCase(), source: 'GDACS (Global Disaster Alert)', points, closest, closestIdx, nearestKm, 
+                etaHours, etaText: etaHours < 0 ? 'ผ่านไปแล้ว' : `อีก ${(etaHours / 24).toFixed(1)} วัน`, 
+                movement: 'ประเมินเส้นทางอ้างอิง GDACS', windAtNearest: closest.wind, maxWindKmh, cat: stormCategory(maxWindKmh)
+            });
+        });
+
+        // เรียงตามความใกล้บ่อหลวง
+        storms.sort((a, b) => a.nearestKm - b.nearestKm);
+        return { top: storms.length > 0 ? storms[0] : null, infos: storms, status: res.status };
+
+    } catch (e) {
+        return { top: null, infos: [], status: 'OFFLINE' };
+    }
+}
 
 // ==========================================
 // 🚀 3. Main Executive Dashboard
@@ -87,7 +149,7 @@ export default function ExecutiveDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   
-  const [apiHealth, setApiHealth] = useState({ onwr: 'LOAD', ecmwf: 'LOAD', deepmind: 'LOAD', storm: 'MOCK' });
+  const [apiHealth, setApiHealth] = useState({ onwr: 'LOAD', ecmwf: 'LOAD', deepmind: 'LOAD', storm: 'LOAD' });
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -97,7 +159,8 @@ export default function ExecutiveDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 📡 เปลี่ยนไปดึงโมเดล ECMWF ความละเอียดสูง 9km (มาตรฐานเดียวกับ Windy)
+        const stormRes = await fetchLiveStorms();
+
         const [onwrRes, forecastRes] = await Promise.all([
           fetchWithCache('https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h', 'exec_onwr_rain'),
           fetchWithCache(
@@ -111,10 +174,7 @@ export default function ExecutiveDashboard() {
           `&daily=precipitation_sum,wind_gusts_10m_max,wind_speed_10m_max&timezone=Asia%2FBangkok&forecast_days=15&models=icon_seamless`;
         const ensRes = await fetchWithCache(ensUrl, 'exec_ens_stable');
 
-        const stormTop = getMockStorm();
-        const stormInfos = [stormTop];
-
-        setApiHealth({ onwr: onwrRes.status, ecmwf: forecastRes.status, deepmind: ensRes.status, storm: 'MOCK' });
+        setApiHealth({ onwr: onwrRes.status, ecmwf: forecastRes.status, deepmind: ensRes.status, storm: stormRes.status });
 
         let actualRain24h = 0;
         if (onwrRes.data) {
@@ -149,7 +209,6 @@ export default function ExecutiveDashboard() {
             const gusts = gKeys.map(k => daily[k]?.[d]).filter((v: any) => isFinite(v));
             return {
               date: daily.time[d],
-              // ใช้ข้อมูลจาก ECMWF (ที่แม่นยำกว่า) เป็นตัวหลักสำหรับ rainMedian
               rainMedian: forecast.daily?.precipitation_sum?.[d] || (rains.length ? median(rains) : 0),
               rainMin: rains.length ? Math.min(...rains) : 0, 
               rainMax: rains.length ? Math.max(...rains) : (forecast.daily?.precipitation_sum?.[d] || 0),
@@ -165,12 +224,11 @@ export default function ExecutiveDashboard() {
           const w2Max = stats.length > 7 ? Math.max(...stats.slice(7).map(s => s.rainMedian)) : 0;
           const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
 
-          const maxRain7Days = Math.max(...(forecast.daily?.precipitation_sum?.slice(0, 7) || [0]));
           const spread = peakRainDay.rainMax - peakRainDay.rainMin;
           const confidence = peakRainDay.rainMax > 0 ? Math.max(0, Math.round((1 - spread / peakRainDay.rainMax) * 100)) : 100;
 
           let status = 'NORMAL', tier = 'ปกติ';
-          let aiInsight = `ระบบ Data Fusion เชื่อมโยงโมเดล ECMWF (ยุโรป) ความละเอียด 9 กม. เข้ากับ AI Ensemble: ไม่พบสัญญาณพายุรุนแรงใน 15 วัน`;
+          let aiInsight = `ระบบ Data Fusion เชื่อมโยงโมเดล ECMWF ความละเอียด 9 กม. เข้ากับ AI Ensemble: สภาพอากาศทรงตัว ปลอดภัย`;
           let actions = ['อัปเดตสถานการณ์ปกติให้ประชาชนทราบ', 'บำรุงรักษาระบบระบายน้ำตามแผนประจำ'];
 
           const groundOverride = actualRain24h > 90 || liveRainIntensity > 10 || soilMoisture > 85;
@@ -189,8 +247,8 @@ export default function ExecutiveDashboard() {
           setData({
             actualRain24h, currentTemp, currentWind, liveRainIntensity, soilMoisture,
             stats, peakSignalDay, peakRainDay, peakGust, w1Max, w2Max,
-            memberCount: rKeys.length || 1, confidence, stormCount: stormInfos.length,
-            storm: { infos: stormInfos, top: stormTop },
+            memberCount: rKeys.length || 1, confidence, stormCount: stormRes.infos.length,
+            storm: { infos: stormRes.infos, top: stormRes.top },
             ai: { status, tier, aiInsight, actions },
           });
         }
@@ -233,11 +291,11 @@ export default function ExecutiveDashboard() {
 
   const HealthBadge = ({ label, status }: { label: string, status: string }) => {
     const c = status === 'LIVE' ? 'text-[#34d399] bg-[#064e3b]/50 border-[#10b981]/50'
-      : status === 'MOCK' ? 'text-amber-400 bg-amber-900/30 border-amber-500/50'
+      : status === 'CACHED' ? 'text-amber-400 bg-amber-900/30 border-amber-500/50'
       : 'text-red-400 bg-red-900/30 border-red-500/50';
     return (
       <div className={`flex items-center px-3 py-1.5 rounded-md border ${c} text-[10px] md:text-xs font-mono font-bold tracking-wider shadow-sm`}>
-        <div className={`w-2 h-2 rounded-full mr-2 ${status === 'LIVE' ? 'bg-[#34d399] animate-pulse' : status === 'MOCK' ? 'bg-amber-400' : 'bg-red-400'}`}></div>
+        <div className={`w-2 h-2 rounded-full mr-2 ${status === 'LIVE' ? 'bg-[#34d399] animate-pulse' : status === 'CACHED' ? 'bg-amber-400' : 'bg-red-400'}`}></div>
         <span className="whitespace-nowrap">{label}: {status}</span>
       </div>
     );
@@ -270,18 +328,26 @@ export default function ExecutiveDashboard() {
             <text x={px(c.lon) + 8} y={py(c.lat) + 4} fill={c.main ? '#0ea5e9' : '#64748b'} fontSize={c.main ? 13 : 11} fontWeight={c.main ? 'bold' : 'normal'}>{c.n}</text>
           </g>
         ))}
-        {storms.map((s, si) => (
-          <g key={si}>
-            <polyline fill="none" stroke="#d946ef" strokeOpacity={0.8} strokeWidth={2} strokeDasharray="6 4"
-              points={s.points.map(p => `${px(p.lon)},${py(p.lat)}`).join(' ')} />
-            {s.points.map((p, pi) => (
-              <circle key={pi} cx={px(p.lon)} cy={py(p.lat)} r={pi === s.closestIdx ? 7 : 4} fill={s.cat.color} stroke={pi === s.closestIdx ? '#fff' : 'none'} strokeWidth={2} />
-            ))}
-            <text x={px(s.closest.lon) + 12} y={py(s.closest.lat) - 10} fill="#f87171" fontSize="13" fontFamily="monospace" fontWeight="bold">
-              {s.name}
-            </text>
-          </g>
-        ))}
+
+        {/* แสดงผลเส้นทางพายุ (ซ่อนถ้าไม่มี) */}
+        {storms.length === 0 ? (
+          <text x={W/2} y={H/2} textAnchor="middle" fill="#334155" fontSize="16" fontWeight="bold" letterSpacing="0.1em">
+            [ SCANNING AREA: CLEAR • ไม่มีพายุในแอ่ง ]
+          </text>
+        ) : (
+          storms.map((s, si) => (
+            <g key={si}>
+              <polyline fill="none" stroke="#d946ef" strokeOpacity={0.8} strokeWidth={2} strokeDasharray="6 4"
+                points={s.points.map(p => `${px(p.lon)},${py(p.lat)}`).join(' ')} />
+              {s.points.map((p, pi) => (
+                <circle key={pi} cx={px(p.lon)} cy={py(p.lat)} r={pi === s.closestIdx ? 7 : 4} fill={s.cat.color} stroke={pi === s.closestIdx ? '#fff' : 'none'} strokeWidth={2} />
+              ))}
+              <text x={px(s.closest.lon) + 12} y={py(s.closest.lat) - 10} fill="#f87171" fontSize="13" fontFamily="monospace" fontWeight="bold">
+                {s.name}
+              </text>
+            </g>
+          ))
+        )}
       </svg>
     );
   };
@@ -307,7 +373,7 @@ export default function ExecutiveDashboard() {
             <HealthBadge label="ONWR (GROUND)" status={apiHealth.onwr} />
             <HealthBadge label="ECMWF-9KM (GLOBAL)" status={apiHealth.ecmwf} />
             <HealthBadge label="DEEPMIND (AI)" status={apiHealth.deepmind} />
-            <HealthBadge label="STORM TRACK" status={apiHealth.storm} />
+            <HealthBadge label="GDACS (TC TRACK)" status={apiHealth.storm} />
           </div>
         </div>
       </div>
@@ -370,11 +436,15 @@ export default function ExecutiveDashboard() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <div>
                   <h3 className="text-xl md:text-2xl font-black text-indigo-400 flex items-center tracking-tight"><span className="text-3xl mr-3">🌀</span> TROPICAL CYCLONE TRACK</h3>
-                  <p className="text-xs text-slate-500 font-mono mt-1 tracking-widest">MOCK DATA (SIMULATION MODE)</p>
+                  <p className="text-xs text-slate-500 font-mono mt-1 tracking-widest">LIVE DATA (GDACS GLOBAL API)</p>
                 </div>
-                {data.storm.top && (
-                  <div className="bg-indigo-950/40 border border-indigo-500/50 px-4 py-2 rounded-xl text-sm font-bold text-indigo-300">
+                {data.storm.top ? (
+                  <div className="bg-indigo-950/40 border border-indigo-500/50 px-4 py-2 rounded-xl text-sm font-bold text-indigo-300 animate-pulse">
                     {data.storm.top.name} • ใกล้สุด {Math.round(data.storm.top.nearestKm)} กม.
+                  </div>
+                ) : (
+                  <div className="bg-[#020617] border border-emerald-500/30 px-4 py-2 rounded-xl text-xs font-bold text-emerald-400">
+                    ✅ สถานะ: CLEAR
                   </div>
                 )}
               </div>
