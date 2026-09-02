@@ -5,14 +5,13 @@ import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js'; 
 import Swal from 'sweetalert2';
+
 // ==========================================
 // 🌟 1. การตั้งค่าระบบ (Config)
 // ==========================================
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// 🛑 นำ GISTDA_API_KEY ออกจาก Client (ย้ายไปไว้ที่ .env.local และ Backend แล้ว)
 
 const BO_LUANG_LAT = 18.1633;
 const BO_LUANG_LNG = 98.3744;
@@ -51,14 +50,10 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 };
 
 // 🛡️ API Resilience
-  // 🌟 ฟังก์ชันดึงข้อมูลแบบใหม่ (ลบ LocalStorage ออก แก้ปัญหาเว็บหน่วง/ค้าง)
-  // พึ่งพา Cache จากฝั่ง Server Proxy แทน ทำให้โหลดลื่นไหลและไม่กินสเปคเครื่องผู้ใช้
   const fetchWithCache = async (url: string, cacheKey: string) => {
     try {
       const res = await fetch(url);
 
-      // 🛡️ ดักจับ Error: ตรวจสอบว่า API ส่งข้อมูลกลับมาเป็น JSON จริงๆ หรือไม่
-      // ป้องกัน SyntaxError: Unexpected token '<' เวลา API ภายนอกล่มแล้วส่ง HTML กลับมา
       const contentType = res.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
          console.warn(`[API Warning] ข้อมูลจาก ${cacheKey} ไม่ใช่ JSON (API อาจขัดข้อง)`);
@@ -85,7 +80,6 @@ const MapContainer = dynamic(
   () => import('react-leaflet').then(mod => mod.MapContainer), 
   { 
     ssr: false,
-    // 🚀 เพิ่มบล็อก loading ตรงนี้ ให้โชว์กล่องสีเข้มตอนโหลด แทนที่จะเป็นจอขาว
     loading: () => (
       <div className="w-full h-screen bg-slate-900 flex items-center justify-center z-0">
         <div className="animate-pulse text-slate-400 font-semibold">กำลังเตรียมแผนที่ GIS...</div>
@@ -248,6 +242,9 @@ export default function BoLuangDashboard() {
 
   const [currentZoom, setCurrentZoom] = useState(9);
   const syncData = useRef({ lat: 18.1633, lng: 98.3744, zoom: 9 });
+  
+  // 🌟 เพิ่ม State เพื่อจดจำโซนหมู่บ้านที่ Active ล่าสุด
+  const [activeVillageIndex, setActiveVillageIndex] = useState<number | null>(null);
 
   const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, showSafeZone].filter(Boolean).length;
   
@@ -347,17 +344,14 @@ export default function BoLuangDashboard() {
       } catch (e) { console.error('Failed to load layer:', url, e); }
     };
 
-    // 🚀 แก้ไขตรงนี้: ครอบด้วย setTimeout เพื่อหน่วงเวลาโหลด 1.5 วินาที
     const timer = setTimeout(() => {
       loadGeoJSON(`/geojson/boluang.json?v=${ts}`, setGeoBoluang);
       loadGeoJSON(`/geojson/block.json?v=${ts}`, setGeoBlock);
     }, 1500);
 
-    // ล้างเคลียร์ Timer ออกเมื่อปิดหน้าเว็บ
     return () => clearTimeout(timer);
   }, []);
 
-  // 🔥 จุดความร้อน (GISTDA)
   useEffect(() => {
     if (!hotspot) {
       setHotspotData(null);
@@ -367,14 +361,12 @@ export default function BoLuangDashboard() {
       try {
         const { data, status } = await fetchWithCache('/api/proxy?service=gistda-hotspot&lat=18.1633&lon=98.3744', 'gistda_hotspot_cache');
         
-        // 🛡️ ถ้า Status กลับมาเป็น ERROR (เช่น ลืมใส่ API Key ใน Vercel) ให้หยุดทำงานเลย ไม่ต้องฝืนไปอ่านข้อมูล
         if (status === 'ERROR' || !data) {
            setApiStatus(prev => ({ ...prev, gistda: 'OFFLINE' }));
            setHotspotData(null);
            return;
         }
         setApiStatus(prev => ({ ...prev, gistda: status }));   
-        // แปลงข้อมูลให้อยู่ในรูปแบบ GeoJSON 
         if (data?.data && Array.isArray(data.data)) {
            const geoJsonData = {
              type: 'FeatureCollection',
@@ -382,7 +374,6 @@ export default function BoLuangDashboard() {
                type: 'Feature',
                geometry: {
                  type: 'Point',
-                 // สลับเป็น [longitude, latitude] ตามมาตรฐาน GeoJSON
                  coordinates: [
                    parseFloat(item.longitude || item.lon || 0), 
                    parseFloat(item.latitude || item.lat || 0)
@@ -394,7 +385,6 @@ export default function BoLuangDashboard() {
                  source: 'GISTDA'
                }
              })).filter((feature: any) => 
-               // กรองข้อมูลที่พิกัดไม่ถูกต้องออกไป ป้องกันแผนที่พัง
                feature.geometry.coordinates[0] !== 0 && 
                feature.geometry.coordinates[1] !== 0
              )
@@ -421,28 +411,22 @@ export default function BoLuangDashboard() {
     }
   }, [showLandslide]);
 
-  // 🟣 รอยเลื่อนแผ่นดินไหว
   useEffect(() => {
-    // 📍 1. แก้ไขคำว่า "faultLine" ให้ตรงกับชื่อ State สวิตช์เปิดปิดของคุณ
-    if (!FaultLineData) {
-      // 📍 2. แก้ไขคำว่า "setFaultLineData" ให้ตรงกับชื่อ State ที่ใช้เก็บข้อมูลของคุณ
+    if (!earthquakeLayer) {
       setFaultLineData(null);
       return;
     }
 
     const fetchFaultLine = async () => {
       try {
-        // 📍 3. ตรวจสอบ URL นี้ให้ถูกต้องว่าไฟล์ GeoJSON ของรอยเลื่อนอยู่ที่ไหน
         const response = await fetch('/geojson/fault_line.json'); 
 
-        // 🛡️ ดักจับ 404 ป้องกันแอปพัง
         if (!response.ok) {
           console.warn("[Fault Line] ไม่พบไฟล์ข้อมูลรอยเลื่อน (404)");
           setFaultLineData(null);
           return;
         }
 
-        // 🛡️ ป้องกัน Error: Unexpected token '<' เวลา Vercel ส่งหน้า HTML กลับมา
         const contentType = response.headers.get("content-type");
         if (!contentType || !contentType.includes("application/json")) {
            console.warn("[Fault Line] ข้อมูลที่ดึงมาไม่ใช่ JSON");
@@ -451,7 +435,7 @@ export default function BoLuangDashboard() {
         }
 
         const data = await response.json();
-        setFaultLineData(data); // 📍 อย่าลืมแก้ชื่อตรงนี้ด้วย
+        setFaultLineData(data); 
         
       } catch (error) {
         console.warn("[Fault Line Error] ดึงข้อมูลไม่สำเร็จ", error);
@@ -460,7 +444,7 @@ export default function BoLuangDashboard() {
     };
 
     fetchFaultLine();
-  }, [FaultLineData]); // 📍 อย่าลืมแก้ชื่อตรงนี้ด้วย
+  }, [earthquakeLayer]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -484,7 +468,6 @@ export default function BoLuangDashboard() {
     handleVisitorCount();
   }, [mounted]);
 
-  // พยากรณ์อากาศ (TMD / Open-Meteo)
   useEffect(() => {
     if (!tmdWeather && !tmdRain) { 
       setLocalWeatherData([]); 
@@ -494,7 +477,6 @@ export default function BoLuangDashboard() {
       const lats = localAirStations.map(p => p.lat.toFixed(4)).join(',');
       const lngs = localAirStations.map(p => p.lng.toFixed(4)).join(',');
       
-      // 🌟 เปลี่ยน URL ไปหา Proxy เพื่อใช้ Caching ป้องกัน 429
       const url = `/api/proxy?service=weather-tmd&lats=${lats}&lons=${lngs}`;
       const { data, status } = await fetchWithCache(url, 'tmd_weather_cache');
       
@@ -518,7 +500,6 @@ export default function BoLuangDashboard() {
     fetchLocalWeather();
   }, [tmdWeather, tmdRain]);
 
-  // ฝุ่น PM2.5 
   useEffect(() => {
     if (!pm25) { 
       setLocalAirData([]); 
@@ -528,7 +509,6 @@ export default function BoLuangDashboard() {
       const lats = localAirStations.map(s => s.lat.toFixed(4)).join(',');
       const lngs = localAirStations.map(s => s.lng.toFixed(4)).join(',');
       
-      // 🌟 เปลี่ยน URL ไปหา Proxy
       const urlAqi = `/api/proxy?service=air-quality&lats=${lats}&lons=${lngs}`;
       const urlWx = `/api/proxy?service=weather-tmd&lats=${lats}&lons=${lngs}`;
       
@@ -559,7 +539,7 @@ export default function BoLuangDashboard() {
     };
     fetchLocalAir();
   }, [pm25]);
-  // 🌟 [BFF Pattern] 💧 ข้อมูลฝน ONWR ผ่าน Proxy เพื่อทำ Cache บน Vercel
+
   useEffect(() => {
     if (!onwrRain) { 
       setOnwrRainData([]); 
@@ -587,7 +567,6 @@ export default function BoLuangDashboard() {
     fetchOnwrRain();
   }, [onwrRain]);
 
-  // 🌟 [BFF Pattern] 💧 ข้อมูลระดับน้ำ ONWR ผ่าน Proxy
   useEffect(() => {
     if (!onwrWaterLevel) { 
       setOnwrWaterLevelData([]); 
@@ -678,24 +657,34 @@ export default function BoLuangDashboard() {
     return cName;
   };
 
-  const getBlockStyle = (feature: any) => ({ fillColor: getVillageColor(feature), weight: 1.5, color: 'rgba(255, 255, 255, 0.3)', fillOpacity: 0.12, dashArray: '3, 3' });
+  const getBlockStyle = (feature: any) => {
+    const defaultColor = getVillageColor(feature);
+    // 🌟 เช็คว่าหมู่บ้านนี้ตรงกับ Index ที่ถูกชี้อยู่หรือไม่
+    const isHovered = activeVillageIndex === feature.properties?.indexId;
+    
+    return { 
+        fillColor: defaultColor, 
+        weight: isHovered ? 3 : 1.5, 
+        color: isHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.3)', 
+        fillOpacity: isHovered ? 0.7 : 0.12, 
+        dashArray: isHovered ? '' : '3, 3' 
+    };
+  };
+
   const onEachBlockFeature = (feature: any, layer: any) => {
     const props = feature?.properties || {};
     const rawName = props.own_villag || props.name_th || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || ''}`;
     const villageName = formatVillageName(rawName);
-    const defaultColor = getVillageColor(feature);
 
     layer.bindTooltip(villageName, { sticky: true, direction: 'auto', className: 'village-hover-tooltip', permanent: false });
+    
     layer.on({
       mouseover: (e: any) => {
-        const targetLayer = e.target;
-        targetLayer.setStyle({ weight: 3, color: '#ffffff', fillColor: defaultColor, fillOpacity: 0.7, dashArray: '' });
-        if (targetLayer.bringToFront) targetLayer.bringToFront();
-      },
-      mouseout: (e: any) => {
-        const targetLayer = e.target;
-        targetLayer.setStyle({ weight: 1.5, color: 'rgba(255, 255, 255, 0.3)', fillOpacity: 0.12, dashArray: '3, 3' });
+        // 🌟 อัปเดต State ให้จำว่ากำลังชี้ที่หมู่บ้านไหน
+        setActiveVillageIndex(props.indexId);
+        if (e.target.bringToFront) e.target.bringToFront();
       }
+      // 🌟 นำ mouseout ออก หรือไม่ให้ทำอะไร เพื่อให้สีค้างไว้จนกว่าจะไปชี้อันใหม่
     });
   };
 
@@ -837,6 +826,21 @@ export default function BoLuangDashboard() {
     return () => L.divIcon({ className: 'bg-transparent border-none', html: `<div class="relative flex items-center justify-center w-10 h-10"><div class="absolute inset-0 bg-[#10b981] rounded-full blur-[8px] opacity-40"></div><div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#10b981] rounded-full shadow-[0_0_15px_rgba(16,185,129,0.9)] z-10"><span class="text-[#10b981] text-[13px]">🛡️</span></div></div>`, iconSize: [40, 40], iconAnchor: [20, 20] });
   }, [L]);
 
+  // 🌟 เพิ่มฟังก์ชันเพื่อกำหนด properties indexId ให้ geoBlock ตอนรับข้อมูลมา เพื่อใช้จำค่า State
+  const geoBlockWithIndex = useMemo(() => {
+    if (!geoBlock || !geoBlock.features) return null;
+    return {
+      ...geoBlock,
+      features: geoBlock.features.map((feature: any, index: number) => ({
+        ...feature,
+        properties: {
+          ...feature.properties,
+          indexId: index
+        }
+      }))
+    };
+  }, [geoBlock]);
+
   return (
     <main className="relative w-screen h-screen bg-[#0b132b] font-sans text-white overflow-hidden">
       <style dangerouslySetInnerHTML={{__html: `
@@ -946,7 +950,8 @@ export default function BoLuangDashboard() {
 
       {/* 🗺️ ระบบแผนที่หลัก */}
       <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">        
-        <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>         
+        {/* 🌟 คลิกพื้นหลังเพื่อล้างค่า Active (เอาสี Highlight ออก) */}
+        <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }} onClick={() => setActiveVillageIndex(null)}>         
           <div 
             className={`absolute top-[110px] z-[1000] flex flex-col space-y-2 transition-all duration-500 ease-in-out pointer-events-auto ${
               isLeftPanelOpen ? 'left-[315px] md:left-[390px]' : 'left-[15px] md:left-[50px]'   
@@ -992,8 +997,6 @@ export default function BoLuangDashboard() {
           className="w-full h-full z-0" 
           ref={setMapRef}
           >
-            {/* 🌟 [Architecture Fix] เปลี่ยนจาก Google Maps เป็น ESRI World Imagery เพื่อหลีกเลี่ยง ToS Violation */}
-            {/* 🌟 เปลี่ยนเป็น OpenStreetMap ฟรี 100% แล้วใช้ CSS กลับสีให้เป็น Dark Mode แทน */}
             {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" maxZoom={19} className="dark-map-filter" />}
             {!windyLayer && satelliteLayer && <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={19} attribution="Tiles &copy; Esri" />}
             
@@ -1026,7 +1029,7 @@ export default function BoLuangDashboard() {
             ))}
 
             {showBoluang && geoBoluang && <GeoJSON key="boluang-layer" data={geoBoluang} style={styleBoluang} onEachFeature={onEachBoluangFeature} />}
-            {showBlock && geoBlock && <GeoJSON key="block-layer" data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
+            {showBlock && geoBlockWithIndex && <GeoJSON key="block-layer" data={geoBlockWithIndex} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
             {showParcel && geoParcel && <GeoJSON key="parcel-layer" data={geoParcel} style={styleParcel} />}
             
             {showLandslide && geoLandslide && (
@@ -1414,7 +1417,7 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {earthquakeLayer && geoEarthquake && geoEarthquake.features && geoEarthquake.features.map((feature: any, i: number) => {
+            {earthquakeLayer && FaultLineData && FaultLineData.features && FaultLineData.features.map((feature: any, i: number) => {
               const geom = feature.geometry;
               if (!geom || geom.type !== 'Point') return null;
               const lng = geom.coordinates[0]; const lat = geom.coordinates[1];
@@ -1835,7 +1838,6 @@ export default function BoLuangDashboard() {
                 </div>
                 <div className="space-y-1">
                   <CustomToggleBox label="จุดปลอดภัย / ศูนย์พักพิง" source="พิกัดศูนย์: เทศบาลบ่อหลวง" active={showSafeZone} onClick={() => setShowSafeZone(!showSafeZone)} dotColor="#10b981" />
-                  {/* 🌟 ปรับปรุงชื่อให้สอดคล้องกับ Esri */}
                   <CustomToggleBox label="แผนที่ดาวเทียม" source="Esri World Imagery" active={satelliteLayer} onClick={() => setSatelliteLayer(!satelliteLayer)} dotColor="#10b981" />
                   <CustomToggleBox label="ขอบเขตตำบลบ่อหลวง" active={showBoluang} onClick={() => setShowBoluang(!showBoluang)} dotColor="#38bdf8" />
                   <CustomToggleBox label="โซน 13 หมู่บ้าน" active={showBlock} onClick={() => setShowBlock(!showBlock)} dotColor="#fcd34d" />
