@@ -1,15 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2'; 
 import { useMapEvents } from 'react-leaflet';
-// 🌟 สำคัญ: อย่าลืม Import html2canvas ไว้ด้านบนสุดของไฟล์
 import html2canvas from 'html2canvas';
 
-// 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables)
+// 🌟 ตั้งค่า Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 if (!supabaseUrl || !supabaseAnonKey) {
@@ -22,7 +21,6 @@ const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLaye
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
 const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
 
-// 🚀 ฟังก์ชันช่วย: เช็คว่าพิกัดตกอยู่ในขอบเขต Polygon หรือไม่
 const isPointInPolygon = (point: number[], polygon: number[][]) => {
   let x = point[0], y = point[1];
   let inside = false;
@@ -49,10 +47,8 @@ const checkPointInFeature = (lng: number, lat: number, feature: any) => {
   return false;
 };
 
-// 🌟 ฟังก์ชันสร้างรูปภาพและเรียกหน้าต่างแชร์ (Share Sheet)
 const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
   try {
-    // 1. สร้างภาพ QR Code ให้พร้อมใช้งานก่อน
     const qrImage = new Image();
     qrImage.crossOrigin = "Anonymous"; 
     qrImage.src = qrUrlStr;
@@ -65,7 +61,6 @@ const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
       };
     });
 
-    // 2. เตรียม Canvas (เหมือนกระดาษวาดรูป) ความละเอียด 2 เท่า (Retina)
     const canvas = document.createElement('canvas');
     const scale = 2;
     const width = 400;
@@ -76,39 +71,26 @@ const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // ตั้งค่าสเกล
     ctx.scale(scale, scale);
-
-    // 3. วาดพื้นหลังสลิป (สีขาว)
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, width, height);
-
-    // 4. วาดหัวสลิป
     ctx.fillStyle = '#64748b';
     ctx.font = 'bold 16px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('หมายเลขติดตามคำร้องของคุณ', width / 2, 60);
-
-    // 5. วาดกล่องเขียว
     ctx.fillStyle = '#059669';
     roundRect(ctx, 40, 80, width - 80, 80, 16);
     ctx.fill();
-
-    // 6. วาดรหัส Tracking (สีขาว บนกล่องเขียว)
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 38px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(trackingCode, width / 2, 133);
-
-    // 7. วาดกล่องเทาด้านล่าง
     ctx.fillStyle = '#f8fafc';
     ctx.strokeStyle = '#e2e8f0';
     ctx.lineWidth = 2;
     roundRect(ctx, 40, 180, width - 80, 310, 16);
     ctx.fill();
     ctx.stroke();
-
-    // 8. วาดป้ายสีน้ำเงิน "ข้อมูลบันทึกเข้าระบบแล้ว"
     ctx.fillStyle = '#3b82f6';
     roundRect(ctx, 80, 205, width - 160, 35, 18);
     ctx.fill();
@@ -116,49 +98,35 @@ const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
     ctx.font = 'bold 14px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('✅ ข้อมูลบันทึกเข้าระบบแล้ว', width / 2, 227);
-
-    // 9. วาดกรอบสำหรับ QR
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#cbd5e1';
     ctx.lineWidth = 2;
-    ctx.setLineDash([6, 6]); // เส้นประ
+    ctx.setLineDash([6, 6]);
     roundRect(ctx, 110, 260, 180, 180, 12);
     ctx.fill();
     ctx.stroke();
-    ctx.setLineDash([]); // คืนค่าเส้นทึบ
-
-    // 10. แปะรูป QR (ถ้ามี)
+    ctx.setLineDash([]);
     if (qrImage.complete && qrImage.naturalWidth > 0) {
       ctx.drawImage(qrImage, 120, 270, 160, 160);
     }
-
-    // 11. วาดคำแนะนำด้านล่าง
     ctx.fillStyle = '#475569';
     ctx.font = 'bold 13px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('นำรูปนี้ให้ผู้นำชุมชน หรือ อสม.', width / 2, 465);
     ctx.fillText('สแกนเพื่อตรวจสอบสถานะแทนคุณได้ทันที', width / 2, 485);
-
-    // 12. วาดท้ายสลิป
     ctx.fillStyle = '#94a3b8';
     ctx.font = '12px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(`เทศบาลตำบลบ่อหลวง จ.เชียงใหม่ • ${new Date().toLocaleDateString('th-TH')}`, width / 2, 530);
 
-    // 13. แปลงร่าง Canvas เป็นไฟล์ภาพ
     canvas.toBlob(async (blob) => {
       if (!blob) return;
       const file = new File([blob], `Slip_BL_${trackingCode}.png`, { type: 'image/png' });
       const imageURL = URL.createObjectURL(blob);
-
-      // เช็คว่าเป็นมือถือหรือไม่ (Mobile / Tablet)
       const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      // เช็คว่าเบราว์เซอร์รองรับการ Share ไฟล์ภาพหรือไม่
       const isShareSupported = navigator.canShare && navigator.canShare({ files: [new File([], '')] });
 
-      // 🌟 แก้ไขเงื่อนไข: บังคับให้หน้าต่างแชร์เด้ง "เฉพาะบนมือถือ" เท่านั้น
       if (isMobileDevice && isShareSupported) {
-        // มือถือ: เปิดหน้าต่างแชร์
         try {
           await navigator.share({
             title: 'หลักฐานการแจ้งเหตุ (เทศบาลตำบลบ่อหลวง)',
@@ -167,23 +135,18 @@ const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
           });
         } catch (shareError: any) {
           if (shareError.name !== 'AbortError') {
-             // ถ้าแชร์ไม่ได้ ให้โชว์รูปให้แตะค้าง
              showFallbackImage(imageURL);
           }
         }
       } else if (isMobileDevice && !isShareSupported) {
-        // มือถือรุ่นเก่า (ที่ไม่รองรับ Share): โชว์รูปให้แตะค้าง
         showFallbackImage(imageURL);
       } else {
-        // 💻 คอมพิวเตอร์ (PC): บังคับดาวน์โหลดลงเครื่องทันที! (ข้ามระบบ Share ของ Windows/Mac ไปเลย)
         const link = document.createElement('a');
         link.download = `Slip_แจ้งเหตุ_${trackingCode}.png`;
         link.href = imageURL;
-        document.body.appendChild(link); // จำเป็นสำหรับบางเบราว์เซอร์บน PC
+        document.body.appendChild(link); 
         link.click();
         document.body.removeChild(link);
-        
-        // คืนหน่วยความจำ
         setTimeout(() => URL.revokeObjectURL(imageURL), 100);
       }
     }, 'image/png');
@@ -193,7 +156,6 @@ const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
   }
 };
 
-// ฟังก์ชันช่วยวาดกล่องขอบมนใน Canvas
 const roundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) => {
   ctx.beginPath();
   ctx.moveTo(x + radius, y);
@@ -208,7 +170,6 @@ const roundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, width: n
   ctx.closePath();
 }
 
-// ฟังก์ชันโชว์รูปภาพให้แตะค้าง (Fallback สำหรับมือถือ)
 const showFallbackImage = (imageURL: string) => {
   const imageContainer = document.getElementById('slip-image-result');
   const originalContent = document.getElementById('slip-original-html');
@@ -231,10 +192,11 @@ export default function ReportPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingGPS, setIsFetchingGPS] = useState(false);
   
-  // 🕒 State สำหรับจัดการ Cooldown Timer (ป้องกันสแปม)
   const [cooldownTime, setCooldownTime] = useState(0);
 
-  // 🛡️ SECURITY: เช็คเวลา Cooldown จาก LocalStorage ตอนโหลดหน้า เพื่อป้องกันการกด Refresh หนี Cooldown
+  // 🌟 เพิ่ม State สำหรับ Bottom Sheet
+  const [isExpanded, setIsExpanded] = useState(true);
+  
   useEffect(() => {
     const lastSubmitTime = localStorage.getItem('bl_last_submit_time');
     if (lastSubmitTime) {
@@ -245,7 +207,6 @@ export default function ReportPage() {
     }
   }, []);
   
-  // 🤖 State สำหรับ AI
   const [isAnalyzingAI, setIsAnalyzingAI] = useState(false);
   const [aiResult, setAiResult] = useState<{ type: string, severity: number, description: string } | null>(null);
   
@@ -264,7 +225,6 @@ export default function ReportPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [pdpaConsent, setPdpaConsent] = useState(false);
 
-  // 🛡️ ระบบนับถอยหลัง (Timer)
   useEffect(() => {
     if (cooldownTime > 0) {
       const timer = setTimeout(() => {
@@ -507,9 +467,6 @@ export default function ReportPage() {
     }
   };
 
-  // ===============================================
-  // 🚀 ฟังก์ชัน Submit ที่เพิ่มระบบ Auto-Save Slip
-  // ===============================================
   const handleSubmit = async (e: any) => {
     e.preventDefault();
 
@@ -575,63 +532,45 @@ export default function ReportPage() {
       const statusUrl = `${window.location.origin}/status?code=${trackingCode}`;
       const qrCodeImageUrl = `https://quickchart.io/qr?text=${encodeURIComponent(statusUrl)}&size=200`;
 
-      // 🛡️ SECURITY: บันทึกข้อมูลเพื่อเริ่มการนับ Cooldown 60 วินาที ทั้งใน State และ LocalStorage
       localStorage.setItem('bl_latest_tracking_code', trackingCode);
       localStorage.setItem('bl_last_submit_time', Date.now().toString());
       setCooldownTime(60);
 
-      // แสดง Popup แจ้งเตือนความสำเร็จ (รูปแบบสลิปใบเสร็จ)
       Swal.fire({
         title: 'ส่งข้อมูลสำเร็จ!',
         html: `
-          <!-- โครงสร้าง E-Slip แบบทางการ -->
           <div style="font-family: Arial, sans-serif; color: #1e293b; background: #ffffff; padding: 10px 0;">
-            
-            <!-- หัวสลิป -->
             <div style="font-size: 13px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">
               หมายเลขติดตามคำร้อง
             </div>
-
-            <!-- กล่อง Tracking Code สีเข้ม -->
             <div style="background-color: #059669; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(5, 150, 105, 0.3);">
               <div style="font-size: 32px; font-weight: 900; color: #ffffff; letter-spacing: 2px;">
                 ${trackingCode}
               </div>
             </div>
-
-            <!-- ข้อมูล QR Code & คำแนะนำ -->
-            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; text-align: center;">
-              
-              <!-- ป้ายสถานะ -->
+            <div id="slip-original-html" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; text-align: center;">
               <div style="display: inline-block; background-color: #3b82f6; color: #ffffff; font-size: 13px; font-weight: bold; padding: 6px 16px; border-radius: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);">
                 ✅ ระบบบันทึกรูปนี้ลงเครื่องคุณแล้ว
               </div>
-
-              <!-- กรอบ QR Code -->
               <div style="background-color: #ffffff; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 10px; display: inline-block; margin-bottom: 15px;">
                 <img src="${qrCodeImageUrl}" alt="QR Code" style="width: 160px; height: 160px; object-fit: contain; display: block;" />
               </div>
-
-              <!-- คำแนะนำ -->
               <div style="font-size: 12px; color: #475569; line-height: 1.6; font-weight: 600;">
                 นำรูปนี้ให้ <span style="color: #0284c7;">ผู้นำชุมชน</span> หรือ <span style="color: #0284c7;">อสม.</span><br/>
                 สแกนเพื่อตรวจสอบสถานะแทนคุณได้ทันที
               </div>
-
             </div>
-            
-            <!-- ท้ายสลิป -->
+            <div id="slip-image-result"></div>
             <div style="margin-top: 15px; font-size: 10px; color: #94a3b8; text-align: center; border-top: 1px dashed #e2e8f0; padding-top: 10px;">
               เทศบาลตำบลบ่อหลวง จ.เชียงใหม่
             </div>
-
           </div>
         `,
         showDenyButton: true,
         confirmButtonText: 'กลับหน้าหลัก',
         denyButtonText: 'แจ้งข้อมูลเพิ่ม',
-        confirmButtonColor: '#2563eb', // สีน้ำเงินเข้มขึ้น
-        denyButtonColor: '#10b981',    // สีเขียวเข้มขึ้น
+        confirmButtonColor: '#2563eb', 
+        denyButtonColor: '#10b981',    
         reverseButtons: true            
       }).then((result) => {
         if (result.isConfirmed) {
@@ -645,7 +584,6 @@ export default function ReportPage() {
         }
       });
 
-      // 🌟 สั่งถ่ายรูปหน้าจอ Popup แล้วดาวน์โหลดลงเครื่องทันที (สลิปธนาคารสไตล์)
       downloadSlipImage(trackingCode, qrCodeImageUrl);
 
     } catch (error: any) {
@@ -677,7 +615,7 @@ export default function ReportPage() {
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] w-screen bg-slate-50 font-sans overflow-hidden">
       
-      {/* 🗺️ แผนที่ Google ดาวเทียม */}
+      {/* 🗺️ แผนที่ Google ดาวเทียม (จะเต็มจอบนมือถือเมื่อพับ Bottom Sheet) */}
       <div className="order-1 md:order-2 w-full h-[45vh] md:h-full md:flex-1 relative z-0 flex-shrink-0 shadow-inner bg-slate-900">
         <MapContainer center={[18.1633, 98.3744]} zoom={13} maxZoom={20} className="w-full h-full cursor-crosshair" ref={setMapRef}>
           <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} attribution="&copy; Google Maps" />
@@ -685,7 +623,6 @@ export default function ReportPage() {
           <LocationMarker />
         </MapContainer>
         
-        {/* Floating Badge แนะนำให้ปักหมุด */}
         {!position && (
           <div className="absolute top-4 md:top-6 left-1/2 transform -translate-x-1/2 z-[400] pointer-events-none w-[90%] md:w-auto flex justify-center">
             <div className="bg-white/90 backdrop-blur-md px-5 py-2.5 rounded-full shadow-lg border border-slate-100 flex items-center space-x-2 animate-bounce">
@@ -697,15 +634,23 @@ export default function ReportPage() {
       </div>
 
       {/* 📝 ฟอร์มแจ้งข้อมูล (Modern Slide Sheet UI) */}
-      <div className="order-2 md:order-1 w-full md:w-[460px] h-[55vh] md:h-full bg-white md:rounded-none rounded-t-[2.5rem] shadow-[0_-15px_40px_rgba(0,0,0,0.08)] md:shadow-2xl z-10 flex flex-col relative flex-shrink-0 -mt-6 md:mt-0">
+      <div 
+        className={`order-2 md:order-1 w-full md:w-[460px] bg-white md:rounded-none rounded-t-[2.5rem] shadow-[0_-15px_40px_rgba(0,0,0,0.08)] md:shadow-2xl z-10 flex flex-col relative flex-shrink-0 -mt-6 md:mt-0 transition-all duration-500 ease-in-out ${isExpanded ? 'h-[65vh] md:h-full' : 'h-[110px] md:h-full translate-y-2'}`}
+      >
         
-        {/* ขีดตกแต่งด้านบน (Handle สำหรับมือถือ) */}
-        <div className="w-full flex justify-center pt-3 pb-1 shrink-0 md:hidden">
-          <div className="w-12 h-1.5 bg-slate-200 rounded-full"></div>
+        {/* 👆 แถบ Drag Handle สำหรับย่อ-ขยายบนมือถือ */}
+        <div 
+           className="w-full flex flex-col items-center justify-center pt-3 pb-2 shrink-0 md:hidden cursor-pointer"
+           onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="w-12 h-1.5 bg-slate-300 rounded-full mb-1"></div>
         </div>
 
-        {/* 👑 Header Section (Professional Style) */}
-        <div className="px-6 pb-4 pt-2 flex items-center justify-between border-b border-slate-100 shrink-0">
+        {/* 👑 Header Section (คลิกได้บนมือถือ) */}
+        <div 
+           className={`px-6 pb-4 md:pt-2 flex items-center justify-between border-b border-slate-100 shrink-0 ${!isExpanded ? 'cursor-pointer' : ''}`}
+           onClick={() => { if(!isExpanded) setIsExpanded(true); }}
+        >
           <div className="flex items-center space-x-3">
             <div className="w-11 h-11 bg-gradient-to-br from-rose-500 to-red-600 rounded-2xl flex items-center justify-center shadow-lg shadow-red-500/20">
               <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
@@ -726,8 +671,8 @@ export default function ReportPage() {
           </div>
         </div>
 
-        {/* 📝 ฟอร์มกรอกข้อมูล */}
-        <div className="p-6 overflow-y-auto flex-1 scrollbar-hide space-y-6 pb-[120px]">
+        {/* 📝 ฟอร์มกรอกข้อมูล (จะถูกซ่อนถ้า isExpanded = false) */}
+        <div className={`p-6 overflow-y-auto flex-1 scrollbar-hide space-y-6 pb-[120px] transition-opacity duration-300 ${isExpanded ? 'opacity-100 block' : 'opacity-0 hidden md:block md:opacity-100'}`}>
           
           {/* 📍 1. Card ระบุตำแหน่ง (GPS) */}
           <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-5 shadow-sm relative overflow-hidden">
@@ -884,7 +829,7 @@ export default function ReportPage() {
         </div>
         
         {/* 🚀 Fixed Bottom Submit Button */}
-        <div className="absolute bottom-0 left-0 right-0 p-5 bg-white/95 backdrop-blur-xl border-t border-slate-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-30 flex flex-col justify-center">
+        <div className={`absolute bottom-0 left-0 right-0 p-5 bg-white/95 backdrop-blur-xl border-t border-slate-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-30 flex flex-col justify-center transition-all duration-300 ${isExpanded ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-full pointer-events-none md:opacity-100 md:translate-y-0 md:pointer-events-auto'}`}>
           <button 
             onClick={handleSubmit} 
             disabled={isSubmitting || !pdpaConsent || cooldownTime > 0} 
