@@ -98,7 +98,11 @@ export default function FloodWatchDashboard() {
   const [windyZoom, setWindyZoom] = useState(5); 
   const [apiStatus, setApiStatus] = useState({ water: 'กำลังเชื่อมต่อ...', rain: 'กำลังเชื่อมต่อ...', tmd: 'กำลังเชื่อมต่อ...' });
 
+  // ตัวแปรเก็บชื่อสถานที่ที่ถูกต้อง
+  const [locationName, setLocationName] = useState('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
+
   const mapRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
 
   useEffect(() => {
@@ -273,16 +277,54 @@ export default function FloodWatchDashboard() {
     });
   }, [L]);
 
+  const fetchLocationName = async (lat: number, lng: number) => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&accept-language=th`);
+      const data = await res.json();
+      if (data && data.display_name) {
+        const parts = data.display_name.split(',').slice(0, 3).reverse().map((s: string) => s.trim()).join(' • ');
+        setLocationName(parts || data.display_name);
+      }
+    } catch (error) {
+      console.error('Reverse geocoding failed', error);
+    }
+  };
+
+  const handleMarkerDragEnd = () => {
+    const marker = markerRef.current;
+    if (marker != null) {
+      const latlng = marker.getLatLng();
+      setPosition({ lat: latlng.lat, lng: latlng.lng });
+      fetchLocationName(latlng.lat, latlng.lng);
+    }
+  };
+
   const handleSetChiangMai = () => { setFilterProv('เชียงใหม่'); setFilterAmp('ทุกอำเภอ'); setUseRadius(false); };
   const handleSetHod = () => { setFilterProv('เชียงใหม่'); setFilterAmp('ฮอด'); setUseRadius(false); };
   const handleSetRadius = () => { setFilterProv('ทุกจังหวัด'); setFilterAmp('ทุกอำเภอ'); setUseRadius(true); setRadiusKm(50); };
   const handleReset = () => { 
     setSearchQuery(''); setFilterProv('ทุกจังหวัด'); setFilterAmp('ทุกอำเภอ'); setFilterRisk('ทุกระดับความเสี่ยง'); setUseRadius(false); setPosition({lat: INITIAL_LAT, lng: INITIAL_LNG});
+    setLocationName('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
     if(mapRef.current) mapRef.current.flyTo([INITIAL_LAT, INITIAL_LNG], 10);
   };
+
   const handleCurrentLocation = () => {
     Swal.fire({ title: 'ดึงพิกัด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    setTimeout(() => { setPosition({ lat: INITIAL_LAT, lng: INITIAL_LNG }); if (mapRef.current) mapRef.current.flyTo([INITIAL_LAT, INITIAL_LNG], 12); Swal.close(); }, 800);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setPosition({ lat: latitude, lng: longitude });
+        fetchLocationName(latitude, longitude);
+        if (mapRef.current) mapRef.current.flyTo([latitude, longitude], 12); 
+        Swal.close(); 
+      },
+      () => {
+        setPosition({ lat: INITIAL_LAT, lng: INITIAL_LNG });
+        if (mapRef.current) mapRef.current.flyTo([INITIAL_LAT, INITIAL_LNG], 12);
+        Swal.close();
+      },
+      { enableHighAccuracy: true, timeout: 5000 }
+    );
   };
 
   const uniqueProvs = Array.from(new Set(['เชียงใหม่', 'แม่ฮ่องสอน', 'ลำพูน', 'เชียงราย', ...stations.map(s => s.prov).filter(Boolean)])).sort();
@@ -322,7 +364,7 @@ export default function FloodWatchDashboard() {
   // 🎨 แถบอธิบายสี (Horizontal Custom Legend - Solid Blocks)
   // ==========================================
   const renderWindyLegend = () => {
-    // โครงสร้างสำหรับแถบสีแบบทึบ (Solid Blocks) แบ่งเป็นช่องๆ ชัดเจน
+    // โครงสร้างสำหรับแถบสีแบบทึบ (Solid Blocks)
     const LegendBarSolid = ({ title, unit, stops }: {title: string, unit: string, stops: any[]}) => (
       <div className="bg-[#111827]/95 backdrop-blur-md border-t border-[#1e293b] p-3 md:p-4 shadow-[0_-5px_15px_rgba(0,0,0,0.3)] w-full flex flex-col flex-shrink-0 z-[1000] relative">
         <div className="text-gray-100 text-[12px] md:text-sm font-bold mb-3 flex justify-center items-center px-1">
@@ -351,7 +393,6 @@ export default function FloodWatchDashboard() {
       </div>
     );
 
-    // เลือกวาดแถบสีตาม Layer ที่ถูกกด
     if (windyLayer === 'pm2p5') {
       return <LegendBarSolid 
         title="😷 ระดับค่าฝุ่น PM2.5 / มลพิษ" unit="µg/m³"
@@ -669,8 +710,8 @@ export default function FloodWatchDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={topRainStations} layout="vertical" margin={{ top: 0, right: 30, left: 60, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
-                  <XAxis type="number" hide={false} axisLine={false} tickLine={false} tick={{fontSize: 13, fill: '#64748b'}} unit=" มม." />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fontSize: 13, fill: '#475569'}} width={150} />
+                  <XAxis type="number" hide={false} axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} unit=" มม." />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#475569'}} width={150} />
                   
                   <RechartsTooltip 
                     cursor={{fill: '#f1f5f9'}} 
@@ -711,7 +752,7 @@ export default function FloodWatchDashboard() {
               <span className="text-2xl md:text-3xl">🛰️</span>
               <div className="flex flex-col">
                 <span className="text-[#0f4a8a] font-extrabold text-[18px] md:text-[20px] leading-tight">แผนที่อากาศเรียลไทม์ (Windy)</span>
-                <span className="text-gray-500 font-medium text-[11px] md:text-sm mt-0.5 pr-2 truncate max-w-[250px] md:max-w-none">เรดาร์ฝน ลม เมฆ • {Location}</span>
+                <span className="text-gray-500 font-medium text-[11px] md:text-sm mt-0.5 pr-2 truncate max-w-[250px] md:max-w-none">เรดาร์ฝน ลม เมฆ • {locationName}</span>
               </div>
             </div>
             
