@@ -711,7 +711,7 @@ export default function FloodWatchDashboard() {
               <span className="text-2xl md:text-3xl">🛰️</span>
               <div className="flex flex-col">
                 <span className="text-[#0f4a8a] font-extrabold text-[18px] md:text-[20px] leading-tight">แผนที่อากาศเรียลไทม์ (Windy)</span>
-                <span className="text-gray-500 font-medium text-[11px] md:text-sm mt-0.5 pr-2 truncate max-w-[250px] md:max-w-none">เรดาร์ฝน ลม เมฆ • {location}</span>
+                <span className="text-gray-500 font-medium text-[11px] md:text-sm mt-0.5 pr-2 truncate max-w-[250px] md:max-w-none">เรดาร์ฝน ลม เมฆ • {locationname}</span>
               </div>
             </div>
             
