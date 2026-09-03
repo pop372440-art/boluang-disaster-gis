@@ -245,7 +245,6 @@ export default function BoLuangDashboard() {
 
   const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, showSafeZone].filter(Boolean).length;
 
-  // 🌟 ฟังก์ชันจัดการแสดงรูปภาพ
   const handleViewImage = (imageUrl: string) => {
     Swal.fire({
       imageUrl: imageUrl,
@@ -609,6 +608,7 @@ export default function BoLuangDashboard() {
     };
   };
 
+  // 🌟 เพิ่มการรองรับ Touch Events สำหรับมือถือโดยตรง
   const onEachBlockFeature = (feature: any, layer: any) => {
     const props = feature?.properties || {};
     const rawName = props.own_villag || props.name_th || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || ''}`;
@@ -618,10 +618,16 @@ export default function BoLuangDashboard() {
     
     layer.on({
       mouseover: (e: any) => {
-        setActiveVillageIndex(props.indexId);
+        if (!isMobile) {
+          setActiveVillageIndex(props.indexId);
+          if (e.target.bringToFront) e.target.bringToFront();
+        }
+      },
+      mousedown: (e: any) => {
+        setActiveVillageIndex((prev) => prev === props.indexId ? null : props.indexId);
         if (e.target.bringToFront) e.target.bringToFront();
       },
-      click: (e: any) => {
+      touchstart: (e: any) => {
         setActiveVillageIndex((prev) => prev === props.indexId ? null : props.indexId);
         if (e.target.bringToFront) e.target.bringToFront();
       }
