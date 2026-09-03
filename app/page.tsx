@@ -1,27 +1,17 @@
-'use client';
+'use client'; 
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
-import { createClient } from '@supabase/supabase-js';
-import Swal from 'sweetalert2'; 
-import { useMapEvents } from 'react-leaflet';
-import html2canvas from 'html2canvas';
+import { createClient } from '@supabase/supabase-js'; 
+import Swal from 'sweetalert2';
 
-// 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Supabase Error: Missing environment variables.");
-}
-const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
-
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
-const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
-const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.CircleMarker), { ssr: false });
-const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
+// ==========================================
+// 🌟 1. การตั้งค่าระบบ (Config)
+// ==========================================
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const BO_LUANG_LAT = 18.1633;
 const BO_LUANG_LNG = 98.3744;
@@ -47,6 +37,9 @@ const safeZonesData = [
   { id: 17, name: 'คริสจักรเจริญธรรมห้วยบง (จุดอพยพรวมพล)', lat: 18.01215, lng: 98.43016, type: 'church' },
 ];
 
+// ==========================================
+// 🛠️ 2. ฟังก์ชันเสริม (Utils)
+// ==========================================
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371; 
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -56,24 +49,49 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c; 
 };
 
-const fetchWithCache = async (url: string, cacheKey: string) => {
-  try {
-    const res = await fetch(url);
-    const contentType = res.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-       console.warn(`[API Warning] ข้อมูลจาก ${cacheKey} ไม่ใช่ JSON (API อาจขัดข้อง)`);
-       return { data: null, status: 'ERROR' };
+// 🛡️ API Resilience
+  const fetchWithCache = async (url: string, cacheKey: string) => {
+    try {
+      const res = await fetch(url);
+
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+         console.warn(`[API Warning] ข้อมูลจาก ${cacheKey} ไม่ใช่ JSON (API อาจขัดข้อง)`);
+         return { data: null, status: 'ERROR' };
+      }
+
+      if (!res.ok) {
+        throw new Error(`API Error: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      return { data, status: 'LIVE' };
+      
+    } catch (error) {
+      console.warn(`[API Offline] ไม่สามารถดึงข้อมูล ${cacheKey} ได้`);
+      return { data: null, status: 'ERROR' };
     }
-    if (!res.ok) {
-      throw new Error(`API Error: ${res.status}`);
-    }
-    const data = await res.json();
-    return { data, status: 'LIVE' };
-  } catch (error) {
-    console.warn(`[API Offline] ไม่สามารถดึงข้อมูล ${cacheKey} ได้`);
-    return { data: null, status: 'ERROR' };
+  };
+
+// ==========================================
+// 🗺️ 3. โหลด Leaflet และ Component
+// ==========================================
+const MapContainer = dynamic(
+  () => import('react-leaflet').then(mod => mod.MapContainer), 
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-screen bg-slate-900 flex items-center justify-center z-0">
+        <div className="animate-pulse text-slate-400 font-semibold">กำลังเตรียมแผนที่ GIS...</div>
+      </div>
+    )
   }
-};
+);
+const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
+const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
+const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
+const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.CircleMarker), { ssr: false });
+const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 
 const CustomToggleBox = ({ label, source, active, onClick, dotColor = '#38bdf8', isRadio = false, apiStatus = '' }: any) => {
   const [localActive, setLocalActive] = useState(active);
@@ -223,10 +241,27 @@ export default function BoLuangDashboard() {
   const [currentZoom, setCurrentZoom] = useState(9);
   const syncData = useRef({ lat: 18.1633, lng: 98.3744, zoom: 9 });
   
-  // 🌟 [แก้ปัญหาเมาส์ชี้แล้วหาย] ใช้ State หลักอันเดียวจดจำ Village Index 
   const [activeVillageIndex, setActiveVillageIndex] = useState<number | null>(null);
 
   const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, showSafeZone].filter(Boolean).length;
+
+  // 🌟 ฟังก์ชันจัดการแสดงรูปภาพ (ที่หายไป)
+  const handleViewImage = (imageUrl: string) => {
+    Swal.fire({
+      imageUrl: imageUrl,
+      imageAlt: 'ภาพแจ้งเหตุจากประชาชน',
+      showConfirmButton: false,
+      showCloseButton: true,
+      width: 'auto',
+      padding: '1em',
+      background: '#0f172a',
+      backdrop: 'rgba(0,0,0,0.85)',
+      customClass: {
+        popup: 'border border-gray-700 rounded-2xl shadow-2xl',
+        image: 'rounded-lg max-h-[80vh] object-contain'
+      }
+    });
+  };
 
   const handleLocateMe = () => {
     if (!navigator.geolocation) {
@@ -527,10 +562,16 @@ export default function BoLuangDashboard() {
     }
   }, [showBoluang, showBlock, mapRef]);
 
+  // ฟังก์ชันล้างไฮไลท์แผนที่
+  const clearSelection = () => {
+    setActiveVillageIndex(null);
+  };
+
   // ==========================================
   // 🎨 การตกแต่งและสร้าง Style (GeoJSON)
   // ==========================================
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
+  
   const getVillageColor = (feature: any) => {
     const props = feature?.properties || {};
     if (props.fill) return props.fill;
@@ -554,7 +595,6 @@ export default function BoLuangDashboard() {
     return cName;
   };
 
-  // 🌟 [สำคัญ] เราสร้างฟังก์ชัน Style ให้คำนวณแบบ Dynamic ตามค่า activeVillageIndex
   const getBlockStyle = (feature: any) => {
     const defaultColor = getVillageColor(feature);
     const isHovered = activeVillageIndex === feature.properties?.indexId;
@@ -574,23 +614,16 @@ export default function BoLuangDashboard() {
 
     layer.bindTooltip(villageName, { sticky: true, direction: 'auto', className: 'village-hover-tooltip', permanent: false });
     
-    // 🌟 ดักเหตุการณ์ทั้งการเอาเมาส์ชี้ และการใช้นิ้วแตะ
     layer.on({
       mouseover: (e: any) => {
         setActiveVillageIndex(props.indexId);
         if (e.target.bringToFront) e.target.bringToFront();
       },
       click: (e: any) => {
-        // สำหรับมือถือ ถ้าย้ำที่เดิมให้เอาสีออก ถ้าจิ้มที่ใหม่ให้เปลี่ยนสี
         setActiveVillageIndex((prev) => prev === props.indexId ? null : props.indexId);
         if (e.target.bringToFront) e.target.bringToFront();
       }
     });
-  };
-
-  // 🌟 ฟังก์ชันคลาย Highlight หากคลิกที่ว่างในแผนที่
-  const clearSelection = () => {
-    setActiveVillageIndex(null);
   };
 
   const getRainCircleStyle = (rainSum: number) => {
@@ -646,7 +679,7 @@ export default function BoLuangDashboard() {
     mapRef.on('moveend', updateSyncData); 
     mapRef.on('zoomend', updateSyncData); 
     mapRef.on('mousemove', onMouseMove); 
-    mapRef.on('click', clearSelection); // 🌟 ล้างสีเมื่อคลิกแผนที่
+    mapRef.on('click', clearSelection);
 
     return () => { 
       mapRef.off('moveend', updateSyncData); 
@@ -733,7 +766,6 @@ export default function BoLuangDashboard() {
     return () => L.divIcon({ className: 'bg-transparent border-none', html: `<div class="relative flex items-center justify-center w-10 h-10"><div class="absolute inset-0 bg-[#10b981] rounded-full blur-[8px] opacity-40"></div><div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#10b981] rounded-full shadow-[0_0_15px_rgba(16,185,129,0.9)] z-10"><span class="text-[#10b981] text-[13px]">🛡️</span></div></div>`, iconSize: [40, 40], iconAnchor: [20, 20] });
   }, [L]);
 
-  // 🌟 เพิ่ม property 'indexId' ลงใน GeoJSON เพื่อให้สามารถใช้ State ได้
   const geoBlockWithIndex = useMemo(() => {
     if (!geoBlock || !geoBlock.features) return null;
     return {
@@ -819,7 +851,10 @@ export default function BoLuangDashboard() {
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in-api { animation: fadeIn 0.3s ease-out forwards; }
         
-        .dark-map-filter { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
+        /* 🌟 CSS กลับสีแผนที่ OSM ให้เป็นโหมดกลางคืน (Dark Mode) */
+        .dark-map-filter {
+          filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+        }
       `}} />
 
       {isMobile && (isLeftPanelOpen || isRightPanelOpen) && (
