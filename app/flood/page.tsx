@@ -6,11 +6,11 @@ import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import Swal from 'sweetalert2';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 
 // ==========================================
-// 🗺️ โหลด Leaflet แบบ Dynamic
+// 🗺️ 1. โหลด Leaflet แบบ Dynamic
 // ==========================================
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
@@ -19,8 +19,8 @@ const Circle = dynamic(() => import('react-leaflet').then(mod => mod.Circle), { 
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
 
-const INITIAL_LAT = 18.147234;
-const INITIAL_LNG = 98.348720;
+const INITIAL_LAT = 18.1633;
+const INITIAL_LNG = 98.3744;
 const MAX_DISTANCE_KM = 50;
 
 // 🎯 กำหนดจุดดึงข้อมูล TMD API เพิ่มเติม (Virtual Stations)
@@ -74,7 +74,10 @@ const WINDY_LAYERS = [
   { id: 'rain', icon: '🌧️', label: 'ฝน' },
   { id: 'radar', icon: '📡', label: 'เรดาร์ฝน' },
   { id: 'temp', icon: '🌡️', label: 'อุณหภูมิ' },
-  { id: 'clouds', icon: '☁️', label: 'เมฆ' }
+  { id: 'clouds', icon: '☁️', label: 'เมฆ' },
+  { id: 'pressure', icon: '⏲️', label: 'ความกดอากาศ' },
+  { id: 'thunder', icon: '⚡', label: 'ฟ้าผ่า' },
+  { id: 'pm2p5', icon: '😷', label: 'PM2.5 / มลพิษ' }
 ];
 
 export default function FloodWatchDashboard() {
@@ -194,7 +197,7 @@ export default function FloodWatchDashboard() {
           rStations.forEach((s: any) => { const st = parseStation(s, 'rain'); if (st) merged.push(st); });
         }
 
-        // 3. ดึงปริมาณฝน TMD (เสริมทัพให้กราฟ) - Data Honesty: ทำเครื่องหมาย Virtual Station อย่างชัดเจน
+        // 3. ดึงปริมาณฝน TMD (เสริมทัพให้กราฟ)
         const lats = LOCAL_TMD_STATIONS.map(p => p.lat.toFixed(4)).join(',');
         const lngs = LOCAL_TMD_STATIONS.map(p => p.lng.toFixed(4)).join(',');
         const tmdUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&daily=precipitation_sum&timezone=Asia%2FBangkok`;
@@ -218,7 +221,7 @@ export default function FloodWatchDashboard() {
               risk: getRisk(rainVal, 'rain'),
               trend: 'steady',
               time: new Date().toISOString(),
-              source: 'TMD' // 🌟 Source Tag สำหรับ Data Honesty
+              source: 'TMD' 
             });
           });
         }
@@ -302,7 +305,7 @@ export default function FloodWatchDashboard() {
     maxRainData = { val: maxS.val, amp: maxS.name || maxS.amp || 'ไม่ระบุ' };
   }
 
-  // 📊 เตรียมข้อมูลกราฟแท่ง (Data Honesty: แยกสีหรือทำเครื่องหมายให้ TMD)
+  // 📊 เตรียมข้อมูลกราฟแท่ง
   const topRainStations = [...rainStations]
     .filter(s => s.val > 0)
     .sort((a, b) => b.val - a.val)
@@ -316,104 +319,108 @@ export default function FloodWatchDashboard() {
   const waterStationsTable = [...filteredStations].filter(s => s.type === 'water').sort((a, b) => (a.distance || 0) - (b.distance || 0)).slice(0, 15);
 
   // ==========================================
-  // 🎨 ฟังก์ชันช่วยวาดแถบสีและคำอธิบาย (ภาษาชาวบ้าน) สำหรับ Windy Map
+  // 🎨 แถบอธิบายสี (Horizontal Custom Legend - Solid Blocks)
   // ==========================================
   const renderWindyLegend = () => {
-    if (windyLayer === 'rain') {
-      return (
-        <div className="bg-[#0f172a]/95 backdrop-blur-md border-t border-[#1e293b] p-3 md:p-4 shadow-lg absolute bottom-0 left-0 right-0 z-[1000] flex flex-col items-center justify-center">
-          <div className="text-white text-xs md:text-sm font-bold mb-2 flex items-center">
-            <span className="text-[#38bdf8] mr-2 text-lg">🌧️</span> ความรุนแรงของฝน (ดูตามสีบนแผนที่)
-          </div>
-          <div className="flex w-full max-w-3xl rounded-full overflow-hidden h-3 md:h-4 shadow-inner">
-            <div className="flex-1 bg-gradient-to-r from-transparent to-[#3b82f6]"></div>
-            <div className="flex-1 bg-gradient-to-r from-[#3b82f6] to-[#10b981]"></div>
-            <div className="flex-1 bg-gradient-to-r from-[#10b981] to-[#facc15]"></div>
-            <div className="flex-1 bg-gradient-to-r from-[#facc15] to-[#ef4444]"></div>
-            <div className="flex-1 bg-gradient-to-r from-[#ef4444] to-[#a855f7]"></div>
-          </div>
-          <div className="flex w-full max-w-3xl justify-between text-[10px] md:text-xs text-slate-300 font-medium mt-1.5 px-2">
-            <span>ฝนละออง</span>
-            <span>ฝนเบาบาง</span>
-            <span>ฝนปานกลาง</span>
-            <span className="text-amber-400 font-bold">ฝนหนัก</span>
-            <span className="text-rose-400 font-bold">พายุรุนแรง</span>
-          </div>
+    // โครงสร้างสำหรับแถบสีแบบทึบ (Solid Blocks) แบ่งเป็นช่องๆ ชัดเจน
+    const LegendBarSolid = ({ title, unit, stops }: {title: string, unit: string, stops: any[]}) => (
+      <div className="bg-[#111827]/95 backdrop-blur-md border-t border-[#1e293b] p-3 md:p-4 shadow-[0_-5px_15px_rgba(0,0,0,0.3)] w-full flex flex-col flex-shrink-0 z-[1000] relative">
+        <div className="text-gray-100 text-[12px] md:text-sm font-bold mb-3 flex justify-center items-center px-1">
+          <span className="flex items-center tracking-wide">{title}</span>
         </div>
-      );
+        
+        {/* แถบสีแบบแบ่งช่องทึบ (Solid Blocks) */}
+        <div className="relative w-full h-3 md:h-4 rounded-full overflow-hidden shadow-inner flex border border-[#334155]/50">
+          {stops.map((s, i) => (
+            <div 
+              key={i} 
+              className="flex-1 h-full" 
+              style={{ backgroundColor: s.color }}
+            ></div>
+          ))}
+        </div>
+        
+        {/* ข้อความกำกับใต้แต่ละช่วงสี */}
+        <div className="flex w-full text-[10px] md:text-[11px] font-bold mt-2 relative">
+          {stops.map((s, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center justify-start text-center px-0.5">
+              <span style={{ color: s.textColor || '#94a3b8' }} className="leading-tight">{s.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+
+    // เลือกวาดแถบสีตาม Layer ที่ถูกกด
+    if (windyLayer === 'pm2p5') {
+      return <LegendBarSolid 
+        title="😷 ระดับค่าฝุ่น PM2.5 / มลพิษ" unit="µg/m³"
+        stops={[
+          { label: 'ดีมาก', color: '#10b981', textColor: '#6ee7b7' },
+          { label: 'ดี', color: '#84cc16', textColor: '#bef264' },
+          { label: 'ปานกลาง', color: '#facc15', textColor: '#fde047' },
+          { label: 'เริ่มมีผลกระทบ', color: '#f97316', textColor: '#fdba74' },
+          { label: 'มีผลกระทบ', color: '#ef4444', textColor: '#fca5a5' },
+          { label: 'อันตราย', color: '#9f1239', textColor: '#fda4af' }
+        ]}
+      />;
+    }
+    
+    if (windyLayer === 'rain') {
+      return <LegendBarSolid 
+        title="🌧️ ปริมาณฝนสะสม (Rain accumulation)" unit="มม."
+        stops={[
+          { label: 'ไม่มีฝน', color: '#0f172a', textColor: '#64748b' },
+          { label: 'ฝนละออง', color: '#bae6fd', textColor: '#94a3b8' },
+          { label: 'เบาบาง', color: '#38bdf8', textColor: '#7dd3fc' },
+          { label: 'ปานกลาง', color: '#10b981', textColor: '#6ee7b7' },
+          { label: 'ฝนหนัก', color: '#facc15', textColor: '#fde047' },
+          { label: 'พายุรุนแรง', color: '#ef4444', textColor: '#fca5a5' }
+        ]}
+      />;
     }
 
     if (windyLayer === 'radar') {
-      return (
-        <div className="bg-[#0f172a]/95 backdrop-blur-md border-t border-[#1e293b] p-3 md:p-4 shadow-lg absolute bottom-0 left-0 right-0 z-[1000] flex flex-col items-center justify-center">
-          <div className="text-white text-xs md:text-sm font-bold mb-2 flex items-center">
-            <span className="text-[#8b5cf6] mr-2 text-lg">📡</span> เรดาร์ตรวจกลุ่มฝนแบบเรียลไทม์
-          </div>
-          <div className="flex w-full max-w-3xl rounded-full overflow-hidden h-3 md:h-4 shadow-inner">
-            <div className="flex-1 bg-[#10b981]/50"></div>
-            <div className="flex-1 bg-[#facc15]"></div>
-            <div className="flex-1 bg-[#f97316]"></div>
-            <div className="flex-1 bg-[#ef4444]"></div>
-            <div className="flex-1 bg-[#be123c]"></div>
-          </div>
-          <div className="flex w-full max-w-3xl justify-between text-[10px] md:text-xs text-slate-300 font-medium mt-1.5 px-2">
-            <span>กลุ่มฝนอ่อนๆ</span>
-            <span>กลุ่มฝนปานกลาง</span>
-            <span className="text-amber-400 font-bold">กลุ่มฝนหนัก</span>
-            <span className="text-rose-400 font-bold">ฝนตกหนักมาก</span>
-            <span className="text-rose-500 font-black">อันตราย</span>
-          </div>
-        </div>
-      );
+      return <LegendBarSolid 
+        title="📡 เรดาร์ตรวจกลุ่มฝนแบบเรียลไทม์" unit="dBZ"
+        stops={[
+          { label: 'กลุ่มฝนอ่อนๆ', color: '#059669', textColor: '#94a3b8' },
+          { label: 'กลุ่มฝนปานกลาง', color: '#facc15', textColor: '#94a3b8' },
+          { label: 'กลุ่มฝนหนัก', color: '#f97316', textColor: '#facc15' },
+          { label: 'ฝนตกหนักมาก', color: '#ef4444', textColor: '#f87171' },
+          { label: 'อันตราย', color: '#be123c', textColor: '#e11d48' }
+        ]}
+      />;
     }
 
     if (windyLayer === 'wind') {
-      return (
-        <div className="bg-[#0f172a]/95 backdrop-blur-md border-t border-[#1e293b] p-3 md:p-4 shadow-lg absolute bottom-0 left-0 right-0 z-[1000] flex flex-col items-center justify-center">
-          <div className="text-white text-xs md:text-sm font-bold mb-2 flex items-center">
-            <span className="text-[#a8a29e] mr-2 text-lg">💨</span> ความแรงลมและทิศทางลม
-          </div>
-          <div className="flex w-full max-w-3xl rounded-full overflow-hidden h-3 md:h-4 shadow-inner">
-            <div className="flex-1 bg-gradient-to-r from-transparent to-[#3b82f6]"></div>
-            <div className="flex-1 bg-gradient-to-r from-[#3b82f6] to-[#8b5cf6]"></div>
-            <div className="flex-1 bg-gradient-to-r from-[#8b5cf6] to-[#ec4899]"></div>
-            <div className="flex-1 bg-gradient-to-r from-[#ec4899] to-[#ef4444]"></div>
-          </div>
-          <div className="flex w-full max-w-3xl justify-between text-[10px] md:text-xs text-slate-300 font-medium mt-1.5 px-2">
-            <span>ลมอ่อน</span>
-            <span>ลมพัดเย็นสบาย</span>
-            <span className="text-pink-400 font-bold">ลมแรง/พายุพัด</span>
-            <span className="text-rose-500 font-black">พายุหมุนรุนแรง</span>
-          </div>
-        </div>
-      );
+      return <LegendBarSolid 
+        title="💨 ความแรงลมและทิศทางลม" unit="กม./ชม."
+        stops={[
+          { label: 'ลมอ่อน', color: '#1e3a8a', textColor: '#64748b' },
+          { label: 'เย็นสบาย', color: '#38bdf8', textColor: '#94a3b8' },
+          { label: 'ลมแรง', color: '#8b5cf6', textColor: '#c4b5fd' },
+          { label: 'พายุพัดแรง', color: '#ec4899', textColor: '#f9a8d4' },
+          { label: 'พายุหมุนรุนแรง', color: '#ef4444', textColor: '#fca5a5' }
+        ]}
+      />;
     }
 
     if (windyLayer === 'temp') {
-      return (
-        <div className="bg-[#0f172a]/95 backdrop-blur-md border-t border-[#1e293b] p-3 md:p-4 shadow-lg absolute bottom-0 left-0 right-0 z-[1000] flex flex-col items-center justify-center">
-          <div className="text-white text-xs md:text-sm font-bold mb-2 flex items-center">
-            <span className="text-[#ef4444] mr-2 text-lg">🌡️</span> อุณหภูมิและความร้อน
-          </div>
-          <div className="flex w-full max-w-3xl rounded-full overflow-hidden h-3 md:h-4 shadow-inner">
-            <div className="flex-1 bg-gradient-to-r from-[#3b82f6] to-[#2dd4bf]"></div>
-            <div className="flex-1 bg-gradient-to-r from-[#2dd4bf] to-[#facc15]"></div>
-            <div className="flex-1 bg-gradient-to-r from-[#facc15] to-[#f97316]"></div>
-            <div className="flex-1 bg-gradient-to-r from-[#f97316] to-[#ef4444]"></div>
-            <div className="flex-1 bg-gradient-to-r from-[#ef4444] to-[#7f1d1d]"></div>
-          </div>
-          <div className="flex w-full max-w-3xl justify-between text-[10px] md:text-xs text-slate-300 font-medium mt-1.5 px-2">
-            <span className="text-blue-400 font-bold">หนาวจัด (10°C)</span>
-            <span>อากาศเย็น</span>
-            <span>อบอุ่นกำลังดี</span>
-            <span className="text-amber-500 font-bold">ร้อน (35°C)</span>
-            <span className="text-rose-500 font-black">ร้อนจัดอันตราย</span>
-          </div>
-        </div>
-      );
+      return <LegendBarSolid 
+        title="🌡️ อุณหภูมิและความร้อน" unit="°C"
+        stops={[
+          { label: 'หนาวจัด', color: '#1e3a8a', textColor: '#93c5fd' },
+          { label: 'เย็นสบาย', color: '#2dd4bf', textColor: '#99f6e4' },
+          { label: 'อบอุ่น', color: '#10b981', textColor: '#6ee7b7' },
+          { label: 'ร้อน', color: '#facc15', textColor: '#fde047' },
+          { label: 'ร้อนจัด', color: '#f97316', textColor: '#fdba74' },
+          { label: 'อันตราย', color: '#ef4444', textColor: '#fca5a5' }
+        ]}
+      />;
     }
     
-    return null; // ซ่อนถ้าเป็นเมฆหรืออื่นๆ
+    return null; 
   };
 
   return (
@@ -695,43 +702,79 @@ export default function FloodWatchDashboard() {
           </div>
         </div>
 
-        {/* 🛰️ Card 5: แผนที่ Windy พร้อม Custom Legend ด้านล่าง */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-[600px] md:h-[800px] mt-6 relative">
-          <div className="px-5 md:px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-white z-10">
-            <div>
-               <h3 className="text-[#0f4a8a] text-[18px] md:text-[20px] font-extrabold flex items-center"><span className="mr-2 text-xl md:text-2xl">🛰️</span> แผนที่สภาพอากาศเรียลไทม์ (Windy)</h3>
-               <p className="text-[12px] md:text-[14px] text-gray-500 mt-1">จุดรายละเอียด: ตำแหน่งของฉัน ({position.lat.toFixed(3)}, {position.lng.toFixed(3)})</p>
-             </div>
-             <button onClick={handleCurrentLocation} className="bg-[#0f172a] text-white px-4 py-2 rounded-full text-[12px] md:text-[13px] font-bold shadow-sm flex items-center hover:bg-gray-800 transition">
-               <span className="mr-2 text-red-500 text-sm md:text-base">📍</span> ตำแหน่งของฉัน
-             </button>
+        {/* 🛰️ Card 5: แผนที่ Windy Interactive (พร้อม Custom Legend แนวใหม่) */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-md flex flex-col mt-6 h-[650px] md:h-[800px] relative overflow-hidden">
+          
+          {/* Header ของแผงควบคุม Windy */}
+          <div className="px-5 md:px-6 py-4 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center bg-white z-10 w-full shrink-0">
+            <div className="flex items-center space-x-3 w-full md:w-auto mb-4 md:mb-0">
+              <span className="text-2xl md:text-3xl">🛰️</span>
+              <div className="flex flex-col">
+                <span className="text-[#0f4a8a] font-extrabold text-[18px] md:text-[20px] leading-tight">แผนที่อากาศเรียลไทม์ (Windy)</span>
+                <span className="text-gray-500 font-medium text-[11px] md:text-sm mt-0.5 pr-2 truncate max-w-[250px] md:max-w-none">เรดาร์ฝน ลม เมฆ • {locationName}</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-2 md:space-x-3 w-full md:w-auto">
+               <button onClick={handleCurrentLocation} className="flex-1 md:flex-none justify-center bg-[#0f172a] text-white px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold shadow-sm flex items-center hover:bg-gray-800 transition">
+                 <span className="mr-1.5 text-red-500 text-sm md:text-base">📍</span> ตำแหน่งของฉัน
+               </button>
+               <div className="flex flex-1 md:flex-none justify-between md:justify-center items-center space-x-2 bg-gray-100 rounded-xl px-2 md:px-3 py-1.5 md:py-1.5 border border-gray-200">
+                  <button onClick={() => setWindyZoom(Math.max(1, windyZoom - 1))} className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-white text-[#0ea5e9] hover:bg-sky-50 flex items-center justify-center font-bold shadow-sm transition-colors text-base md:text-lg">-</button>
+                  <span className="text-xs md:text-sm font-mono text-gray-700 font-bold px-1 md:px-2">z{windyZoom}</span>
+                  <button onClick={() => setWindyZoom(Math.min(20, windyZoom + 1))} className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-white text-[#0ea5e9] hover:bg-sky-50 flex items-center justify-center font-bold shadow-sm transition-colors text-base md:text-lg">+</button>
+               </div>
+            </div>
           </div>
 
-          <div className="flex space-x-3 px-5 md:px-6 py-3 bg-white border-b border-gray-200 z-10 overflow-x-auto custom-scrollbar">
+          {/* แถบปุ่ม Layer ของ Windy */}
+          <div className="flex space-x-2.5 py-4 overflow-x-auto scrollbar-hide w-full px-5 md:px-6 bg-white z-10 shrink-0">
             {WINDY_LAYERS.map((layer) => (
               <button 
-                key={layer.id} onClick={() => setWindyLayer(layer.id)}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-md text-[13px] md:text-[15px] font-bold whitespace-nowrap transition-all border
-                  ${windyLayer === layer.id ? 'bg-[#0f4a8a] text-white border-[#0f4a8a]' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                key={layer.id}
+                onClick={() => setWindyLayer(layer.id)}
+                className={`flex items-center space-x-1.5 md:space-x-2 px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-[11px] md:text-sm font-bold whitespace-nowrap transition-all duration-300 flex-shrink-0 border
+                  ${windyLayer === layer.id 
+                    ? 'bg-[#0f4a8a] text-white border-[#0f4a8a] shadow-md transform md:scale-105' 
+                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 shadow-sm'
+                  }`}
               >
-                <span className="text-base">{layer.icon}</span><span>{layer.label}</span>
+                <span className="text-sm md:text-base">{layer.icon}</span><span>{layer.label}</span>
               </button>
             ))}
           </div>
 
-          <div className="w-full flex-1 relative z-0 pb-[80px]"> {/* 🌟 เว้นระยะ 80px ให้ Custom Legend ลอยอยู่ด้านล่าง */}
-            {/* 🌟 1. ล็อกภาษาไทยด้วย &lang=th */}
-            <iframe 
+          {/* Iframe ของ Windy และ Custom Legend แนวขวาง */}
+          <div className="w-full flex-1 relative z-0 flex flex-col bg-slate-100">
+            
+            {/* ตัวแผนที่ */}
+            <div className="w-full flex-1 relative z-0">
+              <iframe 
                 width="100%" height="100%" frameBorder="0" allow="geolocation"
                 src={`https://embed.windy.com/embed2.html?lat=${position.lat}&lon=${position.lng}&detailLat=${position.lat}&detailLon=${position.lng}&zoom=${windyZoom}&level=surface&overlay=${windyLayer}&product=ecmwf&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1&lang=th`}
                 className="absolute inset-0 w-full h-full border-none pointer-events-auto"
                 title="Windy Map"
                 loading="lazy"
               ></iframe>
+            </div>
+            
+            {/* 🌟 แสดงแถบสีด้านล่างสุดของกรอบ Iframe แบบ Block แยกช่อง */}
+            {renderWindyLegend()}
           </div>
 
-          {/* 🌟 2. เพิ่ม Custom Legend (คำอธิบายสีภาษาชาวบ้าน) ลอยอยู่ด้านล่างสุดของกรอบ Windy */}
-          {renderWindyLegend()}
+          {/* Footer ของแผงควบคุม Windy */}
+          <div className="flex flex-col md:flex-row items-center justify-between py-3 px-5 md:px-6 text-[10px] md:text-xs text-gray-500 font-bold bg-white shrink-0">
+             <div className="flex items-center text-center md:text-left mb-3 md:mb-0">
+               <span className="mr-1.5 text-orange-500 text-sm md:text-base">💡</span> เลื่อนแถบเวลาด้านล่างแผนที่เพื่อดูพยากรณ์อากาศล่วงหน้า
+             </div>
+             <a 
+               href={`https://www.windy.com/?${position.lat},${position.lng},${windyZoom}`} 
+               target="_blank" rel="noopener noreferrer" 
+               className="w-full md:w-auto text-[#0ea5e9] hover:text-[#0284c7] font-bold flex items-center justify-center bg-sky-50 px-4 py-2 rounded-xl transition-colors border border-sky-200"
+             >
+               เปิดหน้าจอเต็มในแอป Windy ↗
+             </a>
+          </div>
 
         </div>
 
@@ -811,6 +854,8 @@ export default function FloodWatchDashboard() {
         .custom-pro-popup .leaflet-popup-close-button { color: #9ca3af !important; top: 10px !important; right: 10px !important; }
         .custom-scrollbar::-webkit-scrollbar { height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       `}} />
     </div>
   );
