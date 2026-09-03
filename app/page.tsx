@@ -1409,7 +1409,7 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {hotspot && geoHotspot && geoHotspot.features && geoHotspot.features.map((feature: any, i: number) => {
+            {hotspot && hotspotData && hotspotData.features && hotspotData.features.map((feature: any, i: number) => {
               const geom = feature.geometry;
               if (!geom || geom.type !== 'Point') return null;
               const lng = geom.coordinates[0]; const lat = geom.coordinates[1];
