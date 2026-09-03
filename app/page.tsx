@@ -245,7 +245,7 @@ export default function BoLuangDashboard() {
 
   const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, showSafeZone].filter(Boolean).length;
 
-  // 🌟 ฟังก์ชันจัดการแสดงรูปภาพ (ที่หายไป)
+  // 🌟 ฟังก์ชันจัดการแสดงรูปภาพ
   const handleViewImage = (imageUrl: string) => {
     Swal.fire({
       imageUrl: imageUrl,
@@ -388,12 +388,14 @@ export default function BoLuangDashboard() {
   }, [hotspot]);
 
   useEffect(() => {
-    if (showLandslide && !geoLandslide) {
-      fetch(`/geojson/boluang_landslide_risk.json?v=${Date.now()}`)
-        .then(res => res.json())
-        .then(data => setGeoLandslide(data))
-        .catch(e => console.error(e));
+    if (!showLandslide) {
+      setGeoLandslide(null);
+      return;
     }
+    fetch(`/geojson/boluang_landslide_risk.json?v=${Date.now()}`)
+      .then(res => res.json())
+      .then(data => setGeoLandslide(data))
+      .catch(e => console.error(e));
   }, [showLandslide]);
 
   useEffect(() => {
@@ -1321,7 +1323,7 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {hotspot && geoHotspot && geoHotspot.features && geoHotspot.features.map((feature: any, i: number) => {
+            {hotspot && hotspotData && hotspotData.features && hotspotData.features.map((feature: any, i: number) => {
               const geom = feature.geometry;
               if (!geom || geom.type !== 'Point') return null;
               const lng = geom.coordinates[0]; const lat = geom.coordinates[1];
