@@ -1,17 +1,27 @@
-'use client'; 
+'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
-import { createClient } from '@supabase/supabase-js'; 
-import Swal from 'sweetalert2';
+import { createClient } from '@supabase/supabase-js';
+import Swal from 'sweetalert2'; 
+import { useMapEvents } from 'react-leaflet';
+import html2canvas from 'html2canvas';
 
-// ==========================================
-// 🌟 1. การตั้งค่าระบบ (Config)
-// ==========================================
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error("Supabase Error: Missing environment variables.");
+}
+const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+
+const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
+const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
+const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
+const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.CircleMarker), { ssr: false });
+const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
 
 const BO_LUANG_LAT = 18.1633;
 const BO_LUANG_LNG = 98.3744;
@@ -37,9 +47,6 @@ const safeZonesData = [
   { id: 17, name: 'คริสจักรเจริญธรรมห้วยบง (จุดอพยพรวมพล)', lat: 18.01215, lng: 98.43016, type: 'church' },
 ];
 
-// ==========================================
-// 🛠️ 2. ฟังก์ชันเสริม (Utils)
-// ==========================================
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371; 
   const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -49,49 +56,24 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c; 
 };
 
-// 🛡️ API Resilience
-  const fetchWithCache = async (url: string, cacheKey: string) => {
-    try {
-      const res = await fetch(url);
-
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-         console.warn(`[API Warning] ข้อมูลจาก ${cacheKey} ไม่ใช่ JSON (API อาจขัดข้อง)`);
-         return { data: null, status: 'ERROR' };
-      }
-
-      if (!res.ok) {
-        throw new Error(`API Error: ${res.status}`);
-      }
-      
-      const data = await res.json();
-      return { data, status: 'LIVE' };
-      
-    } catch (error) {
-      console.warn(`[API Offline] ไม่สามารถดึงข้อมูล ${cacheKey} ได้`);
-      return { data: null, status: 'ERROR' };
+const fetchWithCache = async (url: string, cacheKey: string) => {
+  try {
+    const res = await fetch(url);
+    const contentType = res.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+       console.warn(`[API Warning] ข้อมูลจาก ${cacheKey} ไม่ใช่ JSON (API อาจขัดข้อง)`);
+       return { data: null, status: 'ERROR' };
     }
-  };
-
-// ==========================================
-// 🗺️ 3. โหลด Leaflet และ Component
-// ==========================================
-const MapContainer = dynamic(
-  () => import('react-leaflet').then(mod => mod.MapContainer), 
-  { 
-    ssr: false,
-    loading: () => (
-      <div className="w-full h-screen bg-slate-900 flex items-center justify-center z-0">
-        <div className="animate-pulse text-slate-400 font-semibold">กำลังเตรียมแผนที่ GIS...</div>
-      </div>
-    )
+    if (!res.ok) {
+      throw new Error(`API Error: ${res.status}`);
+    }
+    const data = await res.json();
+    return { data, status: 'LIVE' };
+  } catch (error) {
+    console.warn(`[API Offline] ไม่สามารถดึงข้อมูล ${cacheKey} ได้`);
+    return { data: null, status: 'ERROR' };
   }
-);
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
-const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
-const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.CircleMarker), { ssr: false });
-const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
+};
 
 const CustomToggleBox = ({ label, source, active, onClick, dotColor = '#38bdf8', isRadio = false, apiStatus = '' }: any) => {
   const [localActive, setLocalActive] = useState(active);
@@ -233,8 +215,6 @@ export default function BoLuangDashboard() {
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
   const [geoParcel, setGeoParcel] = useState<any>(null);
-  const [geoHotspot, setGeoHotspot] = useState<any>(null);
-  const [geoEarthquake, setGeoEarthquake] = useState<any>(null);
   const [geoLandslide, setGeoLandslide] = useState<any>(null); 
   const [hotspotData, setHotspotData] = useState<any>(null);
   const [mapRef, setMapRef] = useState<any>(null);
@@ -243,27 +223,10 @@ export default function BoLuangDashboard() {
   const [currentZoom, setCurrentZoom] = useState(9);
   const syncData = useRef({ lat: 18.1633, lng: 98.3744, zoom: 9 });
   
-  // 🌟 เพิ่ม State เพื่อจดจำโซนหมู่บ้านที่ Active ล่าสุด
+  // 🌟 [แก้ปัญหาเมาส์ชี้แล้วหาย] ใช้ State หลักอันเดียวจดจำ Village Index 
   const [activeVillageIndex, setActiveVillageIndex] = useState<number | null>(null);
 
   const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, showSafeZone].filter(Boolean).length;
-  
-  const handleViewImage = (imageUrl: string) => {
-    Swal.fire({
-      imageUrl: imageUrl,
-      imageAlt: 'ภาพแจ้งเหตุจากประชาชน',
-      showConfirmButton: false,
-      showCloseButton: true,
-      width: 'auto',
-      padding: '1em',
-      background: '#0f172a',
-      backdrop: 'rgba(0,0,0,0.85)',
-      customClass: {
-        popup: 'border border-gray-700 rounded-2xl shadow-2xl',
-        image: 'rounded-lg max-h-[80vh] object-contain'
-      }
-    });
-  };
 
   const handleLocateMe = () => {
     if (!navigator.geolocation) {
@@ -276,7 +239,6 @@ export default function BoLuangDashboard() {
       (position) => {
         const { latitude, longitude } = position.coords;
         setUserLocation({ lat: latitude, lng: longitude });
-        
         if (mapRef) {
           mapRef.flyTo([latitude, longitude], 15, { duration: 1.5 });
         }
@@ -298,7 +260,7 @@ export default function BoLuangDashboard() {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery + ' เชียงใหม่')}&limit=1`);
       const data = await res.json();
       if (data && data.length > 0) {
-        const { lat, lon, display_name } = data[0];
+        const { lat, lon } = data[0];
         if (mapRef) {
           mapRef.flyTo([parseFloat(lat), parseFloat(lon)], 14, { duration: 2 });
         }
@@ -360,7 +322,6 @@ export default function BoLuangDashboard() {
     const fetchHotspot = async () => {
       try {
         const { data, status } = await fetchWithCache('/api/proxy?service=gistda-hotspot&lat=18.1633&lon=98.3744', 'gistda_hotspot_cache');
-        
         if (status === 'ERROR' || !data) {
            setApiStatus(prev => ({ ...prev, gistda: 'OFFLINE' }));
            setHotspotData(null);
@@ -374,27 +335,16 @@ export default function BoLuangDashboard() {
                type: 'Feature',
                geometry: {
                  type: 'Point',
-                 coordinates: [
-                   parseFloat(item.longitude || item.lon || 0), 
-                   parseFloat(item.latitude || item.lat || 0)
-                 ]
+                 coordinates: [parseFloat(item.longitude || item.lon || 0), parseFloat(item.latitude || item.lat || 0)]
                },
-               properties: {
-                 ...item,
-                 title: 'จุดความร้อน (Hotspot)',
-                 source: 'GISTDA'
-               }
-             })).filter((feature: any) => 
-               feature.geometry.coordinates[0] !== 0 && 
-               feature.geometry.coordinates[1] !== 0
-             )
+               properties: { ...item, title: 'จุดความร้อน (Hotspot)', source: 'GISTDA' }
+             })).filter((feature: any) => feature.geometry.coordinates[0] !== 0 && feature.geometry.coordinates[1] !== 0)
            };
            setHotspotData(geoJsonData);
         } else {
            setHotspotData(null);
         }
       } catch (error) {
-        console.warn("GISTDA Error handled silently");
         setApiStatus(prev => ({ ...prev, gistda: 'OFFLINE' }));
         setHotspotData(null);
       }
@@ -416,33 +366,18 @@ export default function BoLuangDashboard() {
       setFaultLineData(null);
       return;
     }
-
     const fetchFaultLine = async () => {
       try {
         const response = await fetch('/geojson/fault_line.json'); 
-
-        if (!response.ok) {
-          console.warn("[Fault Line] ไม่พบไฟล์ข้อมูลรอยเลื่อน (404)");
-          setFaultLineData(null);
-          return;
-        }
-
+        if (!response.ok) { setFaultLineData(null); return; }
         const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-           console.warn("[Fault Line] ข้อมูลที่ดึงมาไม่ใช่ JSON");
-           setFaultLineData(null);
-           return;
-        }
-
+        if (!contentType || !contentType.includes("application/json")) { setFaultLineData(null); return; }
         const data = await response.json();
         setFaultLineData(data); 
-        
       } catch (error) {
-        console.warn("[Fault Line Error] ดึงข้อมูลไม่สำเร็จ", error);
         setFaultLineData(null);
       }
     };
-
     fetchFaultLine();
   }, [earthquakeLayer]);
 
@@ -461,9 +396,7 @@ export default function BoLuangDashboard() {
         today.setHours(0, 0, 0, 0); 
         const { count: todayCount } = await supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('visited_at', today.toISOString());
         setVisitStats({ today: todayCount || 0, total: totalCount || 0 });
-      } catch (error) { 
-        console.error('Error fetching visitor stats:', error); 
-      }
+      } catch (error) { console.error('Error fetching visitor stats:', error); }
     };
     handleVisitorCount();
   }, [mounted]);
@@ -476,10 +409,8 @@ export default function BoLuangDashboard() {
     const fetchLocalWeather = async () => {
       const lats = localAirStations.map(p => p.lat.toFixed(4)).join(',');
       const lngs = localAirStations.map(p => p.lng.toFixed(4)).join(',');
-      
       const url = `/api/proxy?service=weather-tmd&lats=${lats}&lons=${lngs}`;
       const { data, status } = await fetchWithCache(url, 'tmd_weather_cache');
-      
       setApiStatus(prev => ({ ...prev, tmd: status }));
       
       if (data && Array.isArray(data)) {
@@ -508,20 +439,14 @@ export default function BoLuangDashboard() {
     const fetchLocalAir = async () => {
       const lats = localAirStations.map(s => s.lat.toFixed(4)).join(',');
       const lngs = localAirStations.map(s => s.lng.toFixed(4)).join(',');
-      
       const urlAqi = `/api/proxy?service=air-quality&lats=${lats}&lons=${lngs}`;
       const urlWx = `/api/proxy?service=weather-tmd&lats=${lats}&lons=${lngs}`;
       
-      const [aqiResult, wxResult] = await Promise.all([
-        fetchWithCache(urlAqi, 'pm25_aqi_cache'),
-        fetchWithCache(urlWx, 'pm25_wx_cache')
-      ]);
-      
+      const [aqiResult, wxResult] = await Promise.all([ fetchWithCache(urlAqi, 'pm25_aqi_cache'), fetchWithCache(urlWx, 'pm25_wx_cache') ]);
       setApiStatus(prev => ({ ...prev, pm25: aqiResult.status === 'LIVE' && wxResult.status === 'LIVE' ? 'LIVE' : (aqiResult.status === 'OFFLINE' ? 'OFFLINE' : 'CACHED') }));
 
       const aqiData = aqiResult.data; 
       const wxData = wxResult.data;
-
       if (Array.isArray(aqiData) && Array.isArray(wxData)) {
         const formatted = localAirStations.map((station, i) => ({
           ...station, 
@@ -541,20 +466,14 @@ export default function BoLuangDashboard() {
   }, [pm25]);
 
   useEffect(() => {
-    if (!onwrRain) { 
-      setOnwrRainData([]); 
-      return; 
-    }
+    if (!onwrRain) { setOnwrRainData([]); return; }
     const fetchOnwrRain = async () => {
       const { data: json, status } = await fetchWithCache('/api/proxy?service=onwr-rain', 'onwr_rain_cache');
       setApiStatus(prev => ({ ...prev, onwrRain: status }));
       
       let arrData = [];
-      if (json && Array.isArray(json.data)) {
-        arrData = json.data;
-      } else if (json && json.data && Array.isArray(json.data.data)) {
-        arrData = json.data.data;
-      }
+      if (json && Array.isArray(json.data)) arrData = json.data;
+      else if (json && json.data && Array.isArray(json.data.data)) arrData = json.data.data;
       
       const filteredData = arrData.filter((station: any) => {
         const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat;
@@ -568,36 +487,16 @@ export default function BoLuangDashboard() {
   }, [onwrRain]);
 
   useEffect(() => {
-    if (!onwrWaterLevel) { 
-      setOnwrWaterLevelData([]); 
-      return; 
-    }
+    if (!onwrWaterLevel) { setOnwrWaterLevelData([]); return; }
     const fetchOnwrWaterLevel = async () => {
       const { data: json, status } = await fetchWithCache('/api/proxy?service=onwr-waterlevel', 'onwr_water_cache');
       setApiStatus(prev => ({ ...prev, onwrWater: status }));
       
       let arrData: any[] = [];
-      if (Array.isArray(json)) {
-        arrData = json;
-      } else if (json?.data && Array.isArray(json.data)) {
-        arrData = json.data;
-      } else if (json?.data?.waterlevel_data?.data && Array.isArray(json.data.waterlevel_data.data)) {
-        arrData = json.data.waterlevel_data.data;
-      } else if (json?.waterlevel_data?.data && Array.isArray(json.waterlevel_data.data)) {
-        arrData = json.waterlevel_data.data;
-      } else {
-        const findArray = (obj: any): any[] | null => {
-          for (let key in obj) {
-            if (Array.isArray(obj[key])) return obj[key];
-            if (typeof obj[key] === 'object' && obj[key] !== null) {
-              const found = findArray(obj[key]); 
-              if (found) return found;
-            }
-          } 
-          return null;
-        };
-        arrData = findArray(json) || [];
-      }
+      if (Array.isArray(json)) arrData = json;
+      else if (json?.data && Array.isArray(json.data)) arrData = json.data;
+      else if (json?.data?.waterlevel_data?.data && Array.isArray(json.data.waterlevel_data.data)) arrData = json.data.waterlevel_data.data;
+      else if (json?.waterlevel_data?.data && Array.isArray(json.waterlevel_data.data)) arrData = json.waterlevel_data.data;
       
       const filteredData = arrData.filter((station: any) => {
         const latStr = station?.station?.tele_station_lat || station?.tele_station_lat || station?.lat;
@@ -617,9 +516,7 @@ export default function BoLuangDashboard() {
         const { data, error } = await supabase.from('boluang_disaster_reports').select('*').neq('status', 'ดำเนินการเสร็จแล้ว').order('created_at', { ascending: false }); 
         if (error) throw error;
         if (data) setDisasterReports(data);
-      } catch (error) { 
-        console.error('Error fetching disaster reports:', error); 
-      }
+      } catch (error) { console.error('Error fetching disaster reports:', error); }
     };
     fetchReports();
   }, [citizenReport]);
@@ -657,11 +554,10 @@ export default function BoLuangDashboard() {
     return cName;
   };
 
+  // 🌟 [สำคัญ] เราสร้างฟังก์ชัน Style ให้คำนวณแบบ Dynamic ตามค่า activeVillageIndex
   const getBlockStyle = (feature: any) => {
     const defaultColor = getVillageColor(feature);
-    // 🌟 เช็คว่าหมู่บ้านนี้ตรงกับ Index ที่ถูกชี้อยู่หรือไม่
     const isHovered = activeVillageIndex === feature.properties?.indexId;
-    
     return { 
         fillColor: defaultColor, 
         weight: isHovered ? 3 : 1.5, 
@@ -678,14 +574,23 @@ export default function BoLuangDashboard() {
 
     layer.bindTooltip(villageName, { sticky: true, direction: 'auto', className: 'village-hover-tooltip', permanent: false });
     
+    // 🌟 ดักเหตุการณ์ทั้งการเอาเมาส์ชี้ และการใช้นิ้วแตะ
     layer.on({
       mouseover: (e: any) => {
-        // 🌟 อัปเดต State ให้จำว่ากำลังชี้ที่หมู่บ้านไหน
         setActiveVillageIndex(props.indexId);
         if (e.target.bringToFront) e.target.bringToFront();
+      },
+      click: (e: any) => {
+        // สำหรับมือถือ ถ้าย้ำที่เดิมให้เอาสีออก ถ้าจิ้มที่ใหม่ให้เปลี่ยนสี
+        setActiveVillageIndex((prev) => prev === props.indexId ? null : props.indexId);
+        if (e.target.bringToFront) e.target.bringToFront();
       }
-      // 🌟 นำ mouseout ออก หรือไม่ให้ทำอะไร เพื่อให้สีค้างไว้จนกว่าจะไปชี้อันใหม่
     });
+  };
+
+  // 🌟 ฟังก์ชันคลาย Highlight หากคลิกที่ว่างในแผนที่
+  const clearSelection = () => {
+    setActiveVillageIndex(null);
   };
 
   const getRainCircleStyle = (rainSum: number) => {
@@ -741,11 +646,13 @@ export default function BoLuangDashboard() {
     mapRef.on('moveend', updateSyncData); 
     mapRef.on('zoomend', updateSyncData); 
     mapRef.on('mousemove', onMouseMove); 
+    mapRef.on('click', clearSelection); // 🌟 ล้างสีเมื่อคลิกแผนที่
 
     return () => { 
       mapRef.off('moveend', updateSyncData); 
       mapRef.off('zoomend', updateSyncData); 
       mapRef.off('mousemove', onMouseMove); 
+      mapRef.off('click', clearSelection);
     };
   }, [mapRef]);
 
@@ -826,7 +733,7 @@ export default function BoLuangDashboard() {
     return () => L.divIcon({ className: 'bg-transparent border-none', html: `<div class="relative flex items-center justify-center w-10 h-10"><div class="absolute inset-0 bg-[#10b981] rounded-full blur-[8px] opacity-40"></div><div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#10b981] rounded-full shadow-[0_0_15px_rgba(16,185,129,0.9)] z-10"><span class="text-[#10b981] text-[13px]">🛡️</span></div></div>`, iconSize: [40, 40], iconAnchor: [20, 20] });
   }, [L]);
 
-  // 🌟 เพิ่มฟังก์ชันเพื่อกำหนด properties indexId ให้ geoBlock ตอนรับข้อมูลมา เพื่อใช้จำค่า State
+  // 🌟 เพิ่ม property 'indexId' ลงใน GeoJSON เพื่อให้สามารถใช้ State ได้
   const geoBlockWithIndex = useMemo(() => {
     if (!geoBlock || !geoBlock.features) return null;
     return {
@@ -912,10 +819,7 @@ export default function BoLuangDashboard() {
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in-api { animation: fadeIn 0.3s ease-out forwards; }
         
-        /* 🌟 CSS กลับสีแผนที่ OSM ให้เป็นโหมดกลางคืน (Dark Mode) */
-        .dark-map-filter {
-          filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
-        }
+        .dark-map-filter { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
       `}} />
 
       {isMobile && (isLeftPanelOpen || isRightPanelOpen) && (
@@ -950,8 +854,7 @@ export default function BoLuangDashboard() {
 
       {/* 🗺️ ระบบแผนที่หลัก */}
       <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">        
-        {/* 🌟 คลิกพื้นหลังเพื่อล้างค่า Active (เอาสี Highlight ออก) */}
-        <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }} onClick={() => setActiveVillageIndex(null)}>         
+        <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>         
           <div 
             className={`absolute top-[110px] z-[1000] flex flex-col space-y-2 transition-all duration-500 ease-in-out pointer-events-auto ${
               isLeftPanelOpen ? 'left-[315px] md:left-[390px]' : 'left-[15px] md:left-[50px]'   
@@ -1785,7 +1688,7 @@ export default function BoLuangDashboard() {
               
           <div className="mt-2 mb-4">
             <div className="flex items-center mb-3">
-              <svg className="w-3.5 h-3.5 text-[#38bdf8] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+              <svg className="w-3.5 h-3.5 text-[#38bdf8] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2-2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
               <span className="text-[10px] md:text-[11px] text-[#38bdf8] tracking-widest font-bold uppercase">ศูนย์ข้อมูลเปิด (OPEN DATA)</span>
               <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
             </div>
