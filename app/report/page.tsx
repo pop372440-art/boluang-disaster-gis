@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js';
@@ -8,7 +8,7 @@ import Swal from 'sweetalert2';
 import { useMapEvents } from 'react-leaflet';
 import html2canvas from 'html2canvas';
 
-// 🌟 ตั้งค่า Supabase
+// 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 if (!supabaseUrl || !supabaseAnonKey) {
@@ -21,6 +21,7 @@ const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLaye
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
 const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), { ssr: false });
 
+// 🚀 ฟังก์ชันช่วย: เช็คว่าพิกัดตกอยู่ในขอบเขต Polygon หรือไม่
 const isPointInPolygon = (point: number[], polygon: number[][]) => {
   let x = point[0], y = point[1];
   let inside = false;
@@ -47,6 +48,7 @@ const checkPointInFeature = (lng: number, lat: number, feature: any) => {
   return false;
 };
 
+// 🌟 ฟังก์ชันสร้างรูปภาพและเรียกหน้าต่างแชร์ (Share Sheet)
 const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
   try {
     const qrImage = new Image();
@@ -72,25 +74,31 @@ const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
     if (!ctx) return;
     
     ctx.scale(scale, scale);
+
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, width, height);
+
     ctx.fillStyle = '#64748b';
     ctx.font = 'bold 16px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('หมายเลขติดตามคำร้องของคุณ', width / 2, 60);
+
     ctx.fillStyle = '#059669';
     roundRect(ctx, 40, 80, width - 80, 80, 16);
     ctx.fill();
+
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 38px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(trackingCode, width / 2, 133);
+
     ctx.fillStyle = '#f8fafc';
     ctx.strokeStyle = '#e2e8f0';
     ctx.lineWidth = 2;
     roundRect(ctx, 40, 180, width - 80, 310, 16);
     ctx.fill();
     ctx.stroke();
+
     ctx.fillStyle = '#3b82f6';
     roundRect(ctx, 80, 205, width - 160, 35, 18);
     ctx.fill();
@@ -98,22 +106,26 @@ const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
     ctx.font = 'bold 14px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('✅ ข้อมูลบันทึกเข้าระบบแล้ว', width / 2, 227);
+
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = '#cbd5e1';
     ctx.lineWidth = 2;
-    ctx.setLineDash([6, 6]);
+    ctx.setLineDash([6, 6]); 
     roundRect(ctx, 110, 260, 180, 180, 12);
     ctx.fill();
     ctx.stroke();
-    ctx.setLineDash([]);
+    ctx.setLineDash([]); 
+
     if (qrImage.complete && qrImage.naturalWidth > 0) {
       ctx.drawImage(qrImage, 120, 270, 160, 160);
     }
+
     ctx.fillStyle = '#475569';
     ctx.font = 'bold 13px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('นำรูปนี้ให้ผู้นำชุมชน หรือ อสม.', width / 2, 465);
     ctx.fillText('สแกนเพื่อตรวจสอบสถานะแทนคุณได้ทันที', width / 2, 485);
+
     ctx.fillStyle = '#94a3b8';
     ctx.font = '12px Arial, sans-serif';
     ctx.textAlign = 'center';
@@ -123,6 +135,7 @@ const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
       if (!blob) return;
       const file = new File([blob], `Slip_BL_${trackingCode}.png`, { type: 'image/png' });
       const imageURL = URL.createObjectURL(blob);
+
       const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       const isShareSupported = navigator.canShare && navigator.canShare({ files: [new File([], '')] });
 
@@ -194,9 +207,9 @@ export default function ReportPage() {
   
   const [cooldownTime, setCooldownTime] = useState(0);
 
-  // 🌟 เพิ่ม State สำหรับ Bottom Sheet
+  // 🌟 State สำหรับพับ/ขยาย Bottom Sheet บนมือถือ
   const [isExpanded, setIsExpanded] = useState(true);
-  
+
   useEffect(() => {
     const lastSubmitTime = localStorage.getItem('bl_last_submit_time');
     if (lastSubmitTime) {
@@ -613,18 +626,19 @@ export default function ReportPage() {
   ];
 
   return (
-    <div className="flex flex-col md:flex-row h-[100dvh] w-screen bg-slate-50 font-sans overflow-hidden">
+    <div className="flex h-[100dvh] w-screen bg-slate-50 font-sans overflow-hidden relative">
       
-      {/* 🗺️ แผนที่ Google ดาวเทียม (จะเต็มจอบนมือถือเมื่อพับ Bottom Sheet) */}
-      <div className="order-1 md:order-2 w-full h-[45vh] md:h-full md:flex-1 relative z-0 flex-shrink-0 shadow-inner bg-slate-900">
+      {/* 🗺️ แผนที่ Google ดาวเทียม (กางเต็มจอ 100% บนมือถือเป็นฉากหลัง) */}
+      <div className="z-0 bg-slate-900 absolute inset-0 md:relative md:flex-1 md:order-2 w-full h-full flex-shrink-0">
         <MapContainer center={[18.1633, 98.3744]} zoom={13} maxZoom={20} className="w-full h-full cursor-crosshair" ref={setMapRef}>
           <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} attribution="&copy; Google Maps" />
           {geoBlock && <GeoJSON data={geoBlock} style={{ color: '#fde047', weight: 2.5, fillOpacity: 0, dashArray: '5, 5' }} interactive={false} />}
           <LocationMarker />
         </MapContainer>
         
+        {/* Floating Badge แนะนำให้ปักหมุด */}
         {!position && (
-          <div className="absolute top-4 md:top-6 left-1/2 transform -translate-x-1/2 z-[400] pointer-events-none w-[90%] md:w-auto flex justify-center">
+          <div className="absolute top-6 md:top-6 left-1/2 transform -translate-x-1/2 z-[400] pointer-events-none w-[90%] md:w-auto flex justify-center">
             <div className="bg-white/90 backdrop-blur-md px-5 py-2.5 rounded-full shadow-lg border border-slate-100 flex items-center space-x-2 animate-bounce">
               <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
               <span className="text-sm font-bold text-slate-700 tracking-wide">เลื่อนแผนที่เพื่อปักหมุด</span>
@@ -633,12 +647,18 @@ export default function ReportPage() {
         )}
       </div>
 
-      {/* 📝 ฟอร์มแจ้งข้อมูล (Modern Slide Sheet UI) */}
+      {/* 📝 ฟอร์มแจ้งข้อมูล (Mobile Bottom Sheet / Desktop Sidebar) */}
       <div 
-        className={`order-2 md:order-1 w-full md:w-[460px] bg-white md:rounded-none rounded-t-[2.5rem] shadow-[0_-15px_40px_rgba(0,0,0,0.08)] md:shadow-2xl z-10 flex flex-col relative flex-shrink-0 -mt-6 md:mt-0 transition-all duration-500 ease-in-out ${isExpanded ? 'h-[65vh] md:h-full' : 'h-[110px] md:h-full translate-y-2'}`}
+        className={`
+          z-20 flex flex-col flex-shrink-0 bg-white
+          md:relative md:w-[460px] md:h-full md:rounded-none md:shadow-2xl md:translate-y-0 md:order-1
+          absolute bottom-0 left-0 w-full h-[75vh] rounded-t-[2.5rem] shadow-[0_-15px_40px_rgba(0,0,0,0.12)]
+          transition-transform duration-500 ease-in-out
+          ${isExpanded ? 'translate-y-0' : 'translate-y-[calc(100%-105px)]'}
+        `}
       >
         
-        {/* 👆 แถบ Drag Handle สำหรับย่อ-ขยายบนมือถือ */}
+        {/* 👆 แถบ Drag Handle สำหรับย่อ-ขยายบนมือถือ (กดแล้วสลับสถานะ) */}
         <div 
            className="w-full flex flex-col items-center justify-center pt-3 pb-2 shrink-0 md:hidden cursor-pointer"
            onClick={() => setIsExpanded(!isExpanded)}
@@ -646,9 +666,9 @@ export default function ReportPage() {
           <div className="w-12 h-1.5 bg-slate-300 rounded-full mb-1"></div>
         </div>
 
-        {/* 👑 Header Section (คลิกได้บนมือถือ) */}
+        {/* 👑 Header Section (คลิกได้บนมือถือเพื่อขยายกลับขึ้นมา) */}
         <div 
-           className={`px-6 pb-4 md:pt-2 flex items-center justify-between border-b border-slate-100 shrink-0 ${!isExpanded ? 'cursor-pointer' : ''}`}
+           className={`px-6 pb-4 md:pt-4 flex items-center justify-between border-b border-slate-100 shrink-0 ${!isExpanded ? 'cursor-pointer' : 'md:cursor-default'}`}
            onClick={() => { if(!isExpanded) setIsExpanded(true); }}
         >
           <div className="flex items-center space-x-3">
@@ -671,8 +691,8 @@ export default function ReportPage() {
           </div>
         </div>
 
-        {/* 📝 ฟอร์มกรอกข้อมูล (จะถูกซ่อนถ้า isExpanded = false) */}
-        <div className={`p-6 overflow-y-auto flex-1 scrollbar-hide space-y-6 pb-[120px] transition-opacity duration-300 ${isExpanded ? 'opacity-100 block' : 'opacity-0 hidden md:block md:opacity-100'}`}>
+        {/* 📝 ส่วนเนื้อหาฟอร์มกรอกข้อมูล */}
+        <div className="p-6 overflow-y-auto flex-1 scrollbar-hide space-y-6 pb-[120px]">
           
           {/* 📍 1. Card ระบุตำแหน่ง (GPS) */}
           <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-5 shadow-sm relative overflow-hidden">
@@ -828,8 +848,8 @@ export default function ReportPage() {
 
         </div>
         
-        {/* 🚀 Fixed Bottom Submit Button */}
-        <div className={`absolute bottom-0 left-0 right-0 p-5 bg-white/95 backdrop-blur-xl border-t border-slate-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-30 flex flex-col justify-center transition-all duration-300 ${isExpanded ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-full pointer-events-none md:opacity-100 md:translate-y-0 md:pointer-events-auto'}`}>
+        {/* 🚀 Fixed Bottom Submit Button (ลอยติดอยู่ด้านล่างเสมอ) */}
+        <div className={`absolute bottom-0 left-0 right-0 p-5 bg-white/95 backdrop-blur-xl border-t border-slate-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-30 flex flex-col justify-center transition-all duration-300 ${isExpanded ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto'}`}>
           <button 
             onClick={handleSubmit} 
             disabled={isSubmitting || !pdpaConsent || cooldownTime > 0} 
