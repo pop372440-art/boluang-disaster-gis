@@ -628,7 +628,7 @@ export default function ReportPage() {
   return (
     <div className="flex h-[100dvh] w-screen bg-slate-50 font-sans overflow-hidden relative">
       
-      {/* 🗺️ แผนที่ Google ดาวเทียม (กางเต็มจอ 100% บนมือถือเป็นฉากหลัง) */}
+      {/* 🗺️ แผนที่ Google ดาวเทียม */}
       <div className="z-0 bg-slate-900 absolute inset-0 md:relative md:flex-1 md:order-2 w-full h-full flex-shrink-0">
         <MapContainer center={[18.1633, 98.3744]} zoom={13} maxZoom={20} className="w-full h-full cursor-crosshair" ref={setMapRef}>
           <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" maxZoom={20} attribution="&copy; Google Maps" />
@@ -650,7 +650,7 @@ export default function ReportPage() {
       {/* 📝 ฟอร์มแจ้งข้อมูล (Mobile Bottom Sheet / Desktop Sidebar) */}
       <div 
         className={`
-          z-20 flex flex-col flex-shrink-0 bg-white
+          z-[99999] flex flex-col flex-shrink-0 bg-white
           md:relative md:w-[460px] md:h-full md:rounded-none md:shadow-2xl md:translate-y-0 md:order-1
           absolute bottom-0 left-0 w-full h-[75vh] rounded-t-[2.5rem] shadow-[0_-15px_40px_rgba(0,0,0,0.12)]
           transition-transform duration-500 ease-in-out
@@ -658,7 +658,7 @@ export default function ReportPage() {
         `}
       >
         
-        {/* 👆 แถบ Drag Handle สำหรับย่อ-ขยายบนมือถือ (กดแล้วสลับสถานะ) */}
+        {/* 👆 แถบ Drag Handle สำหรับย่อ-ขยายบนมือถือ */}
         <div 
            className="w-full flex flex-col items-center justify-center pt-3 pb-2 shrink-0 md:hidden cursor-pointer"
            onClick={() => setIsExpanded(!isExpanded)}
@@ -666,7 +666,7 @@ export default function ReportPage() {
           <div className="w-12 h-1.5 bg-slate-300 rounded-full mb-1"></div>
         </div>
 
-        {/* 👑 Header Section (คลิกได้บนมือถือเพื่อขยายกลับขึ้นมา) */}
+        {/* 👑 Header Section */}
         <div 
            className={`px-6 pb-4 md:pt-4 flex items-center justify-between border-b border-slate-100 shrink-0 ${!isExpanded ? 'cursor-pointer' : 'md:cursor-default'}`}
            onClick={() => { if(!isExpanded) setIsExpanded(true); }}
@@ -692,7 +692,7 @@ export default function ReportPage() {
         </div>
 
         {/* 📝 ส่วนเนื้อหาฟอร์มกรอกข้อมูล */}
-        <div className="p-6 overflow-y-auto flex-1 scrollbar-hide space-y-6 pb-[120px]">
+        <div className="p-6 overflow-y-auto flex-1 scrollbar-hide space-y-6 pb-[140px]">
           
           {/* 📍 1. Card ระบุตำแหน่ง (GPS) */}
           <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-5 shadow-sm relative overflow-hidden">
@@ -723,16 +723,19 @@ export default function ReportPage() {
             <div className="h-px bg-slate-200 flex-1"></div>
           </div>
 
-          {/* 📷 2. Upload Card (มี AI) */}
+          {/* 📷 2. Upload Card (มี AI แบบ 2 ปุ่มแยกชัดเจน) */}
           <div className="space-y-2">
             <label className="text-[13px] font-bold text-slate-700 flex items-center">
               <svg className="w-4 h-4 mr-1.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               แนบรูปภาพประกอบ <span className="text-rose-500 ml-1">*</span>
             </label>
-            <div className="border-2 border-dashed border-slate-300 bg-slate-50/50 hover:bg-indigo-50 hover:border-indigo-300 transition-colors rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer group relative min-h-[140px]">
-              <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+            
+            <div className="border-2 border-dashed border-slate-300 bg-slate-50/50 rounded-2xl p-4 flex flex-col items-center justify-center relative min-h-[140px]">
               {selectedFile ? (
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center relative w-full">
+                  <button type="button" onClick={() => { setSelectedFile(null); setAiResult(null); }} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1.5 shadow-md hover:bg-rose-600 z-20 transition-colors">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
                   <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-2">
                     <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                   </div>
@@ -740,12 +743,27 @@ export default function ReportPage() {
                   <span className="text-[11px] text-slate-500 truncate max-w-[200px] mt-1">{selectedFile.name}</span>
                 </div>
               ) : (
-                <div className="flex flex-col items-center">
-                  <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center border border-slate-200 group-hover:scale-110 group-hover:border-indigo-200 transition-all mb-3">
-                    <svg className="w-6 h-6 text-slate-400 group-hover:text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <div className="flex flex-col items-center w-full">
+                  <div className="flex space-x-3 w-full">
+                    {/* ปุ่มถ่ายรูปใหม่ (บังคับเปิดกล้อง) */}
+                    <label className="flex-1 flex flex-col items-center justify-center p-4 bg-white border border-slate-200 rounded-xl hover:bg-indigo-50 hover:border-indigo-300 cursor-pointer transition-all shadow-sm group">
+                      <div className="w-10 h-10 bg-indigo-50 text-indigo-500 group-hover:bg-indigo-100 rounded-full flex items-center justify-center mb-2 transition-colors">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      </div>
+                      <span className="text-[12px] font-bold text-slate-700 group-hover:text-indigo-600">ถ่ายรูปใหม่</span>
+                      <input type="file" accept="image/*" capture="environment" onChange={handleFileChange} className="hidden" />
+                    </label>
+
+                    {/* ปุ่มเลือกจากคลัง */}
+                    <label className="flex-1 flex flex-col items-center justify-center p-4 bg-white border border-slate-200 rounded-xl hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all shadow-sm group">
+                      <div className="w-10 h-10 bg-blue-50 text-blue-500 group-hover:bg-blue-100 rounded-full flex items-center justify-center mb-2 transition-colors">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                      </div>
+                      <span className="text-[12px] font-bold text-slate-700 group-hover:text-blue-600">เลือกจากคลัง</span>
+                      <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                    </label>
                   </div>
-                  <span className="text-[13px] font-bold text-indigo-600">แตะเพื่อถ่ายรูป / เลือกไฟล์</span>
-                  <span className="text-[11px] text-slate-500 mt-1.5 flex items-center bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm">
+                  <span className="text-[10px] text-slate-500 mt-3 flex items-center bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm">
                     ✨ มีระบบ AI ช่วยประเมินข้อมูลทันที
                   </span>
                 </div>
@@ -848,8 +866,8 @@ export default function ReportPage() {
 
         </div>
         
-        {/* 🚀 Fixed Bottom Submit Button (ลอยติดอยู่ด้านล่างเสมอ) */}
-        <div className={`absolute bottom-0 left-0 right-0 p-5 bg-white/95 backdrop-blur-xl border-t border-slate-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-30 flex flex-col justify-center transition-all duration-300 ${isExpanded ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto'}`}>
+        {/* 🚀 Fixed Bottom Submit Button (ลอยติดอยู่ด้านล่างเสมอ z-[100000] ป้องกันโดนบัง) */}
+        <div className={`absolute bottom-0 left-0 right-0 p-5 bg-white/95 backdrop-blur-xl border-t border-slate-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-[100000] flex flex-col justify-center transition-all duration-300 ${isExpanded ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto'}`}>
           <button 
             onClick={handleSubmit} 
             disabled={isSubmitting || !pdpaConsent || cooldownTime > 0} 
