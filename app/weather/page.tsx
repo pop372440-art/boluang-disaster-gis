@@ -214,12 +214,14 @@ export default function WeatherDashboard() {
   // 🎨 แถบอธิบายสี (Horizontal Custom Legend - Solid Blocks)
   // ==========================================
   const renderWindyLegend = () => {
+    // โครงสร้างสำหรับแถบสีแบบทึบ (Solid Blocks) แบ่งเป็นช่องๆ ชัดเจน
     const LegendBarSolid = ({ title, unit, stops }: {title: string, unit: string, stops: any[]}) => (
       <div className="bg-[#111827]/95 backdrop-blur-md border-t border-[#1e293b] p-3 md:p-4 shadow-[0_-5px_15px_rgba(0,0,0,0.3)] w-full flex flex-col flex-shrink-0 z-[1000] relative">
         <div className="text-gray-100 text-[12px] md:text-sm font-bold mb-3 flex justify-center items-center px-1">
           <span className="flex items-center tracking-wide">{title}</span>
         </div>
         
+        {/* แถบสีแบบแบ่งช่องทึบ (Solid Blocks) */}
         <div className="relative w-full h-3 md:h-4 rounded-full overflow-hidden shadow-inner flex border border-[#334155]/50">
           {stops.map((s, i) => (
             <div 
@@ -230,6 +232,7 @@ export default function WeatherDashboard() {
           ))}
         </div>
         
+        {/* ข้อความกำกับใต้แต่ละช่วงสี */}
         <div className="flex w-full text-[10px] md:text-[11px] font-bold mt-2 relative">
           {stops.map((s, i) => (
             <div key={i} className="flex-1 flex flex-col items-center justify-start text-center px-0.5">
@@ -240,6 +243,7 @@ export default function WeatherDashboard() {
       </div>
     );
 
+    // เลือกวาดแถบสีตาม Layer ที่ถูกกด
     if (windyLayer === 'pm2p5') {
       return <LegendBarSolid 
         title="😷 ระดับค่าฝุ่น PM2.5 / มลพิษ" unit="µg/m³"
@@ -540,8 +544,8 @@ export default function WeatherDashboard() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                  <XAxis dataKey="day" stroke="#64748b" fontSize={11} md:fontSize={13} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#64748b" fontSize={11} md:fontSize={13} tickLine={false} axisLine={false} domain={['dataMin - 2', 'dataMax + 2']} />
+                  <XAxis dataKey="day" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} domain={['dataMin - 2', 'dataMax + 2']} />
                   <RechartsTooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#cbd5e1', borderRadius: '12px', color: '#1e293b', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} itemStyle={{ fontWeight: 'bold' }} />
                   <Area type="monotone" name="อุณหภูมิสูงสุด" dataKey="maxTemp" stroke="#f87171" strokeWidth={3} fillOpacity={1} fill="url(#colorMax)" />
                   <Area type="monotone" name="อุณหภูมิต่ำสุด" dataKey="minTemp" stroke="#38bdf8" strokeWidth={3} fillOpacity={1} fill="url(#colorMin)" />
@@ -560,8 +564,8 @@ export default function WeatherDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={staticForecast} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                  <XAxis dataKey="day" stroke="#64748b" fontSize={11} md:fontSize={13} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#64748b" fontSize={11} md:fontSize={13} tickLine={false} axisLine={false} />
+                  <XAxis dataKey="day" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                   <RechartsTooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ backgroundColor: '#ffffff', borderColor: '#0ea5e9', borderRadius: '12px', color: '#1e293b', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
                   <Bar name="ปริมาณฝนสะสม" dataKey="rain" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
                 </BarChart>
