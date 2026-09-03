@@ -233,8 +233,6 @@ export default function BoLuangDashboard() {
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
   const [geoParcel, setGeoParcel] = useState<any>(null);
-  const [geoHotspot, setGeoHotspot] = useState<any>(null);
-  const [geoEarthquake, setGeoEarthquake] = useState<any>(null);
   const [geoLandslide, setGeoLandslide] = useState<any>(null); 
   const [hotspotData, setHotspotData] = useState<any>(null);
   const [mapRef, setMapRef] = useState<any>(null);
@@ -242,9 +240,9 @@ export default function BoLuangDashboard() {
 
   const [currentZoom, setCurrentZoom] = useState(9);
   const syncData = useRef({ lat: 18.1633, lng: 98.3744, zoom: 9 });
-  
-  // 🌟 เพิ่ม State เพื่อจดจำโซนหมู่บ้านที่ Active ล่าสุด
-  const [activeVillageIndex, setActiveVillageIndex] = useState<number | null>(null);
+
+  // 🌟 ตัวแปรเก็บสถานะการชี้ (Hover) / แตะ (Touch) ในแผนที่ (สำหรับมือถือ)
+  const activeBlockRef = useRef<any>(null);
 
   const activeLayersCount = [satelliteLayer, showBoluang, showBlock, showParcel, citizenReport, earthquakeLayer, hotspot, showLandslide, onwrRain, onwrWaterLevel, showSafeZone].filter(Boolean).length;
   
@@ -298,7 +296,7 @@ export default function BoLuangDashboard() {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery + ' เชียงใหม่')}&limit=1`);
       const data = await res.json();
       if (data && data.length > 0) {
-        const { lat, lon, display_name } = data[0];
+        const { lat, lon } = data[0];
         if (mapRef) {
           mapRef.flyTo([parseFloat(lat), parseFloat(lon)], 14, { duration: 2 });
         }
@@ -630,10 +628,31 @@ export default function BoLuangDashboard() {
     }
   }, [showBoluang, showBlock, mapRef]);
 
+  // 🌟 ฟังก์ชันล้างไฮไลท์แผนที่เวลากดที่ว่าง
+  useEffect(() => {
+    if (!mapRef) return;
+    const onMapClick = () => {
+      if (activeBlockRef.current) {
+        const prevFeature = activeBlockRef.current.feature;
+        activeBlockRef.current.setStyle({
+          weight: 1.5,
+          color: 'rgba(255, 255, 255, 0.3)',
+          fillColor: getVillageColor(prevFeature),
+          fillOpacity: 0.12,
+          dashArray: '3, 3'
+        });
+        activeBlockRef.current = null;
+      }
+    };
+    mapRef.on('click', onMapClick);
+    return () => { mapRef.off('click', onMapClick); };
+  }, [mapRef]);
+
   // ==========================================
   // 🎨 การตกแต่งและสร้าง Style (GeoJSON)
   // ==========================================
   const BLOCK_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#14b8a6', '#0ea5e9'];
+  
   const getVillageColor = (feature: any) => {
     const props = feature?.properties || {};
     if (props.fill) return props.fill;
@@ -657,34 +676,57 @@ export default function BoLuangDashboard() {
     return cName;
   };
 
-  const getBlockStyle = (feature: any) => {
-    const defaultColor = getVillageColor(feature);
-    // 🌟 เช็คว่าหมู่บ้านนี้ตรงกับ Index ที่ถูกชี้อยู่หรือไม่
-    const isHovered = activeVillageIndex === feature.properties?.indexId;
-    
-    return { 
-        fillColor: defaultColor, 
-        weight: isHovered ? 3 : 1.5, 
-        color: isHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.3)', 
-        fillOpacity: isHovered ? 0.7 : 0.12, 
-        dashArray: isHovered ? '' : '3, 3' 
-    };
-  };
+  const getBlockStyle = (feature: any) => ({ 
+    fillColor: getVillageColor(feature), 
+    weight: 1.5, 
+    color: 'rgba(255, 255, 255, 0.3)', 
+    fillOpacity: 0.12, 
+    dashArray: '3, 3' 
+  });
 
+  // 🌟 อัปเกรดระบบ Hover/Touch บนมือถือ
   const onEachBlockFeature = (feature: any, layer: any) => {
     const props = feature?.properties || {};
     const rawName = props.own_villag || props.name_th || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || ''}`;
     const villageName = formatVillageName(rawName);
+    const defaultColor = getVillageColor(feature);
 
     layer.bindTooltip(villageName, { sticky: true, direction: 'auto', className: 'village-hover-tooltip', permanent: false });
     
-    layer.on({
-      mouseover: (e: any) => {
-        // 🌟 อัปเดต State ให้จำว่ากำลังชี้ที่หมู่บ้านไหน
-        setActiveVillageIndex(props.indexId);
-        if (e.target.bringToFront) e.target.bringToFront();
+    const handleHighlight = (e: any) => {
+      const targetLayer = e.target;
+      
+      // ถ้าจิ้มที่เดิม ให้ปล่อยไว้
+      if (activeBlockRef.current === targetLayer) return;
+
+      // ล้างสีหมู่บ้านเดิมที่เคยจิ้ม
+      if (activeBlockRef.current) {
+        const prevFeature = activeBlockRef.current.feature;
+        activeBlockRef.current.setStyle({ 
+          weight: 1.5, 
+          color: 'rgba(255, 255, 255, 0.3)', 
+          fillColor: getVillageColor(prevFeature), 
+          fillOpacity: 0.12, 
+          dashArray: '3, 3' 
+        });
       }
-      // 🌟 นำ mouseout ออก หรือไม่ให้ทำอะไร เพื่อให้สีค้างไว้จนกว่าจะไปชี้อันใหม่
+
+      // ไฮไลต์สีหมู่บ้านใหม่ที่เพิ่งจิ้ม/ชี้
+      targetLayer.setStyle({ 
+        weight: 3, 
+        color: '#ffffff', 
+        fillColor: defaultColor, 
+        fillOpacity: 0.7, 
+        dashArray: '' 
+      });
+
+      if (targetLayer.bringToFront) targetLayer.bringToFront();
+      activeBlockRef.current = targetLayer;
+    };
+
+    layer.on({
+      mouseover: handleHighlight,  // สำหรับการใช้เมาส์ชี้บนคอมพิวเตอร์
+      click: handleHighlight       // สำหรับการใช้นิ้วแตะบนมือถือ
     });
   };
 
@@ -826,21 +868,6 @@ export default function BoLuangDashboard() {
     return () => L.divIcon({ className: 'bg-transparent border-none', html: `<div class="relative flex items-center justify-center w-10 h-10"><div class="absolute inset-0 bg-[#10b981] rounded-full blur-[8px] opacity-40"></div><div class="relative flex items-center justify-center w-7 h-7 bg-[#0f172a] border-[1.5px] border-[#10b981] rounded-full shadow-[0_0_15px_rgba(16,185,129,0.9)] z-10"><span class="text-[#10b981] text-[13px]">🛡️</span></div></div>`, iconSize: [40, 40], iconAnchor: [20, 20] });
   }, [L]);
 
-  // 🌟 เพิ่มฟังก์ชันเพื่อกำหนด properties indexId ให้ geoBlock ตอนรับข้อมูลมา เพื่อใช้จำค่า State
-  const geoBlockWithIndex = useMemo(() => {
-    if (!geoBlock || !geoBlock.features) return null;
-    return {
-      ...geoBlock,
-      features: geoBlock.features.map((feature: any, index: number) => ({
-        ...feature,
-        properties: {
-          ...feature.properties,
-          indexId: index
-        }
-      }))
-    };
-  }, [geoBlock]);
-
   return (
     <main className="relative w-screen h-screen bg-[#0b132b] font-sans text-white overflow-hidden">
       <style dangerouslySetInnerHTML={{__html: `
@@ -950,8 +977,7 @@ export default function BoLuangDashboard() {
 
       {/* 🗺️ ระบบแผนที่หลัก */}
       <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">        
-        {/* 🌟 คลิกพื้นหลังเพื่อล้างค่า Active (เอาสี Highlight ออก) */}
-        <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }} onClick={() => setActiveVillageIndex(null)}>         
+        <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>         
           <div 
             className={`absolute top-[110px] z-[1000] flex flex-col space-y-2 transition-all duration-500 ease-in-out pointer-events-auto ${
               isLeftPanelOpen ? 'left-[315px] md:left-[390px]' : 'left-[15px] md:left-[50px]'   
@@ -1029,7 +1055,7 @@ export default function BoLuangDashboard() {
             ))}
 
             {showBoluang && geoBoluang && <GeoJSON key="boluang-layer" data={geoBoluang} style={styleBoluang} onEachFeature={onEachBoluangFeature} />}
-            {showBlock && geoBlockWithIndex && <GeoJSON key="block-layer" data={geoBlockWithIndex} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
+            {showBlock && geoBlock && <GeoJSON key="block-layer" data={geoBlock} style={getBlockStyle} onEachFeature={onEachBlockFeature} />}
             {showParcel && geoParcel && <GeoJSON key="parcel-layer" data={geoParcel} style={styleParcel} />}
             
             {showLandslide && geoLandslide && (
@@ -1785,7 +1811,7 @@ export default function BoLuangDashboard() {
               
           <div className="mt-2 mb-4">
             <div className="flex items-center mb-3">
-              <svg className="w-3.5 h-3.5 text-[#38bdf8] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+              <svg className="w-3.5 h-3.5 text-[#38bdf8] mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2-2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
               <span className="text-[10px] md:text-[11px] text-[#38bdf8] tracking-widest font-bold uppercase">ศูนย์ข้อมูลเปิด (OPEN DATA)</span>
               <div className="flex-1 border-t border-[#1e293b] ml-3"></div>
             </div>
