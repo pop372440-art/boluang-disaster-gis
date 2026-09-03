@@ -620,10 +620,9 @@ export default function FloodWatchDashboard() {
 
           <div className="w-full flex-1 relative z-0">
             <iframe 
-   src="https://embed.windy.com/embed2.html?lat=18.163&lon=98.374&zoom=10...&lang=th" 
-   width="100%" 
-   height="100%">
-</iframe>
+                width="100%" height="100%" frameBorder="0" allow="geolocation"
+                src={`https://embed.windy.com/embed2.html?lat=${position.lat}&lon=${position.lng}&detailLat=${position.lat}&detailLon=${position.lng}&zoom=${windyZoom}&level=surface&overlay=${windyLayer}&product=ecmwf&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1...&lang=th`}
+              ></iframe>
           </div>
         </div>
 
