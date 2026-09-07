@@ -15,21 +15,30 @@ const MapContainer = dynamic(() => import('react-leaflet').then(m => m.MapContai
 const TileLayer = dynamic(() => import('react-leaflet').then(m => m.TileLayer), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(m => m.Marker), { ssr: false });
 
-/* ================= 2. ค่าคงที่ & ตัวช่วย ================= */
+/* ================= 2. ค่าคงที่ ================= */
 const INITIAL_LAT = 18.1633;
 const INITIAL_LNG = 98.3744;
 
-/* จับคู่ layer กับ product ของ Windy ให้ถูกต้อง
-   radar = ข้อมูลตรวจวัดจริง ห้ามบังคับ ecmwf / pm2p5 ต้องใช้ cams */
+/* ⭐ เพดานจริงของไทล์เรดาร์ RainViewer — เกินกว่านี้เซิร์ฟเวอร์ส่งภาพ
+   "Zoom Level Not Supported" กลับมา จึงต้องหยุดขอไทล์ที่ระดับนี้
+   แล้วให้ Leaflet ขยายภาพเดิมแทน */
+const RADAR_MAX_NATIVE_ZOOM = 10;
+const RADAR_KEEP_FRAMES = 10;          // จำนวนเฟรมที่โหลดไว้ กันเน็ตมือถือหนักเกิน
+const RADAR_OPACITY = 0.62;
+const DEFAULT_MAP_ZOOM = 11;           // เปิดมาเห็นเรดาร์เต็มความละเอียดจริง
+const TRANSPARENT_TILE =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+/* จับคู่ layer กับ product ของ Windy ให้ถูกคู่ */
 const WINDY_LAYERS = [
-  { id: 'radar',    icon: '📡', label: 'เรดาร์ฝน',        product: 'radar' },
-  { id: 'rain',     icon: '🌧️', label: 'ฝน',              product: 'ecmwf' },
-  { id: 'wind',     icon: '💨', label: 'ลม',              product: 'ecmwf' },
-  { id: 'temp',     icon: '🌡️', label: 'อุณหภูมิ',        product: 'ecmwf' },
-  { id: 'clouds',   icon: '☁️', label: 'เมฆ',             product: 'ecmwf' },
-  { id: 'pressure', icon: '⏲️', label: 'ความกดอากาศ',     product: 'ecmwf' },
-  { id: 'thunder',  icon: '⚡', label: 'ฟ้าผ่า',          product: 'satellite' },
-  { id: 'pm2p5',    icon: '😷', label: 'PM2.5 / มลพิษ',   product: 'cams' },
+  { id: 'radar',    icon: '📡', label: 'เรดาร์ฝน',      product: 'radar' },
+  { id: 'rain',     icon: '🌧️', label: 'ฝน',            product: 'ecmwf' },
+  { id: 'wind',     icon: '💨', label: 'ลม',            product: 'ecmwf' },
+  { id: 'temp',     icon: '🌡️', label: 'อุณหภูมิ',      product: 'ecmwf' },
+  { id: 'clouds',   icon: '☁️', label: 'เมฆ',           product: 'ecmwf' },
+  { id: 'pressure', icon: '⏲️', label: 'ความกดอากาศ',   product: 'ecmwf' },
+  { id: 'thunder',  icon: '⚡', label: 'ฟ้าผ่า',        product: 'satellite' },
+  { id: 'pm2p5',    icon: '😷', label: 'PM2.5 / มลพิษ', product: 'cams' },
 ];
 
 const getWmoWeatherDesc = (code: number) => {
@@ -61,27 +70,27 @@ const getAqiStatus = (aqi: number) => {
 };
 
 const ALERT_STYLE: Record<string, { ring: string; bg: string; text: string; icon: string }> = {
-  GREEN:  { ring: 'border-emerald-500/50', bg: 'bg-emerald-50',  text: 'text-emerald-700', icon: '✅' },
-  YELLOW: { ring: 'border-yellow-500/60',  bg: 'bg-yellow-50',   text: 'text-yellow-700',  icon: '⚠️' },
-  ORANGE: { ring: 'border-orange-500/60',  bg: 'bg-orange-50',   text: 'text-orange-700',  icon: '🟠' },
-  RED:    { ring: 'border-red-500/70',     bg: 'bg-red-50',      text: 'text-red-700',     icon: '🚨' },
+  GREEN:  { ring: 'border-emerald-500/50', bg: 'bg-emerald-50', text: 'text-emerald-700', icon: '✅' },
+  YELLOW: { ring: 'border-yellow-500/60',  bg: 'bg-yellow-50',  text: 'text-yellow-700',  icon: '⚠️' },
+  ORANGE: { ring: 'border-orange-500/60',  bg: 'bg-orange-50',  text: 'text-orange-700',  icon: '🟠' },
+  RED:    { ring: 'border-red-500/70',     bg: 'bg-red-50',     text: 'text-red-700',     icon: '🚨' },
 };
 
-/* นาฬิกาแยกคอมโพเนนต์ กันทั้งหน้ารีเรนเดอร์ทุกวินาที */
-function LiveClock() {
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    setNow(new Date());
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return <span className="text-emerald-400 font-bold">{now ? now.toLocaleTimeString('th-TH') : '--:--:--'}</span>;
+/* บอกอายุข้อมูลตามจริง แทนนาฬิกาเดินทุกวินาทีที่ชวนเข้าใจผิดว่าสดตลอด */
+function DataAge({ iso }: { iso?: string }) {
+  const [, tick] = useState(0);
+  useEffect(() => { const t = setInterval(() => tick(v => v + 1), 30000); return () => clearInterval(t); }, []);
+  if (!iso) return <span className="text-gray-400">--</span>;
+  const mins = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+  const label = mins === 0 ? 'เมื่อสักครู่' : `${mins} นาทีที่แล้ว`;
+  const time = new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  return <span className={mins > 15 ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold'}>{time} น. ({label})</span>;
 }
 
 /* ================= 3. MAIN ================= */
 export default function WeatherDashboard() {
   const [windyLayer, setWindyLayer] = useState('radar');
-  const [windyZoom, setWindyZoom] = useState(9); // เห็นแม่สะเรียง–อมก๋อย–บ่อหลวงในจอเดียว
+  const [windyZoom, setWindyZoom] = useState(9);
   const [searchQuery, setSearchQuery] = useState('');
   const [position, setPosition] = useState({ lat: INITIAL_LAT, lng: INITIAL_LNG });
   const [locationName, setLocationName] = useState('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
@@ -92,21 +101,21 @@ export default function WeatherDashboard() {
 
   const [L, setL] = useState<any>(null);
   const [map, setMap] = useState<any>(null);
+  const [mapZoom, setMapZoom] = useState(DEFAULT_MAP_ZOOM);
   const [radarOn, setRadarOn] = useState(true);
   const [frameIdx, setFrameIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
 
   const markerRef = useRef<any>(null);
-  const radarLayerRef = useRef<any>(null);
+  const radarLayersRef = useRef<any[]>([]);
 
-  /* โหลด leaflet ครั้งเดียว */
   useEffect(() => { import('leaflet').then(mod => setL(mod.default ?? mod)); }, []);
 
   const pinIcon = useMemo(() => {
     if (!L) return undefined;
     return L.divIcon({
       className: 'bg-transparent border-none',
-      html: `<div class="relative flex items-center justify-center w-8 h-8 group">
+      html: `<div class="relative flex items-center justify-center w-8 h-8">
                <div class="absolute inset-0 bg-red-500 rounded-full blur-[6px] opacity-50"></div>
                <svg class="relative z-10 w-8 h-8 text-red-500 drop-shadow-lg" viewBox="0 0 24 24" fill="currentColor">
                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
@@ -116,7 +125,16 @@ export default function WeatherDashboard() {
     });
   }, [L]);
 
-  /* ---------- ดึงข้อมูลจริงจาก API route ---------- */
+  /* ---------- Geocoding ผ่าน API ภายใน (ปิดช่องโหว่ Nominatim) ---------- */
+  const fetchLocationName = useCallback(async (lat: number, lng: number) => {
+    try {
+      const res = await fetch(`/api/geocode?mode=reverse&lat=${lat}&lng=${lng}`);
+      const d = await res.json();
+      if (d?.name) setLocationName(d.name);
+    } catch { /* เงียบไว้ ไม่ให้ล้มทั้งหน้า */ }
+  }, []);
+
+  /* ---------- ดึงข้อมูลจริง ---------- */
   const loadWeather = useCallback(async (lat: number, lng: number) => {
     setLoading(true); setErr(null);
     try {
@@ -124,7 +142,6 @@ export default function WeatherDashboard() {
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || 'ดึงข้อมูลไม่สำเร็จ');
       setData(json);
-      setFrameIdx(Math.max(0, (json.radar?.frames?.length ?? 1) - 1));
     } catch (e: any) {
       setErr(e.message ?? 'เกิดข้อผิดพลาด');
     } finally {
@@ -132,7 +149,6 @@ export default function WeatherDashboard() {
     }
   }, []);
 
-  /* ยิงใหม่ทุกครั้งที่พิกัดเปลี่ยน + refresh อัตโนมัติทุก 5 นาที */
   useEffect(() => {
     const t = setTimeout(() => loadWeather(position.lat, position.lng), 350);
     return () => clearTimeout(t);
@@ -143,48 +159,68 @@ export default function WeatherDashboard() {
     return () => clearInterval(i);
   }, [position.lat, position.lng, loadWeather]);
 
-  /* ---------- คลิกบนแผนที่เพื่อย้ายหมุด (บั๊กเดิม) ---------- */
+  /* ---------- คลิกแผนที่ย้ายหมุด + ติดตามระดับซูม ---------- */
   useEffect(() => {
     if (!map) return;
     const onClick = (e: any) => {
       setPosition({ lat: e.latlng.lat, lng: e.latlng.lng });
       fetchLocationName(e.latlng.lat, e.latlng.lng);
     };
+    const onZoom = () => setMapZoom(map.getZoom());
+    onZoom();
     map.on('click', onClick);
-    return () => { map.off('click', onClick); };
-  }, [map]);
+    map.on('zoomend', onZoom);
+    return () => { map.off('click', onClick); map.off('zoomend', onZoom); };
+  }, [map, fetchLocationName]);
 
-  /* ---------- ชั้นเรดาร์ RainViewer ซ้อนบน Leaflet ---------- */
-  useEffect(() => {
-    if (!map || !L || !data?.radar?.frames?.length) return;
-    if (radarLayerRef.current) { map.removeLayer(radarLayerRef.current); radarLayerRef.current = null; }
-    if (!radarOn) return;
-    const frame = data.radar.frames[Math.min(frameIdx, data.radar.frames.length - 1)];
-    const layer = L.tileLayer(frame.url, { opacity: 0.62, zIndex: 400, tileSize: 256 });
-    layer.addTo(map);
-    radarLayerRef.current = layer;
-    return () => { if (radarLayerRef.current) { map.removeLayer(radarLayerRef.current); radarLayerRef.current = null; } };
-  }, [map, L, data, frameIdx, radarOn]);
+  /* ---------- เฟรมเรดาร์ที่จะแสดงจริง ---------- */
+  const shownFrames = useMemo(() => {
+    const all = data?.radar?.frames ?? [];
+    return all.slice(-RADAR_KEEP_FRAMES);
+  }, [data]);
 
-  /* เล่นภาพเรดาร์ย้อนหลังอัตโนมัติ */
+  /* ⭐ สร้างเลเยอร์เรดาร์ทุกเฟรมล่วงหน้า ตั้ง opacity 0 แล้วสลับแสดง
+        maxNativeZoom = แก้ปัญหา "Zoom Level Not Supported" */
   useEffect(() => {
-    if (!playing || !radarOn || !data?.radar?.frames?.length) return;
-    const i = setInterval(() => setFrameIdx(p => (p + 1) % data.radar.frames.length), 700);
+    if (!map || !L) return;
+    radarLayersRef.current.forEach((l) => { try { map.removeLayer(l); } catch {} });
+    radarLayersRef.current = [];
+    if (!radarOn || shownFrames.length === 0) return;
+
+    radarLayersRef.current = shownFrames.map((f: any) =>
+      L.tileLayer(f.url, {
+        opacity: 0,
+        zIndex: 400,
+        tileSize: 256,
+        maxNativeZoom: RADAR_MAX_NATIVE_ZOOM,
+        maxZoom: 20,
+        minZoom: 3,
+        errorTileUrl: TRANSPARENT_TILE,
+        crossOrigin: true,
+        updateWhenIdle: false,
+        keepBuffer: 2,
+      }).addTo(map)
+    );
+    setFrameIdx(shownFrames.length - 1);
+
+    return () => {
+      radarLayersRef.current.forEach((l) => { try { map.removeLayer(l); } catch {} });
+      radarLayersRef.current = [];
+    };
+  }, [map, L, shownFrames, radarOn]);
+
+  /* สลับเฟรมด้วย opacity — ไม่กระพริบ ไม่โหลดไทล์ซ้ำ */
+  useEffect(() => {
+    radarLayersRef.current.forEach((l, i) => l.setOpacity(i === frameIdx ? RADAR_OPACITY : 0));
+  }, [frameIdx, shownFrames]);
+
+  useEffect(() => {
+    if (!playing || !radarOn || shownFrames.length === 0) return;
+    const i = setInterval(() => setFrameIdx(p => (p + 1) % shownFrames.length), 700);
     return () => clearInterval(i);
-  }, [playing, radarOn, data]);
+  }, [playing, radarOn, shownFrames]);
 
-  /* ---------- Geocoding ---------- */
-  const fetchLocationName = async (lat: number, lng: number) => {
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&accept-language=th`);
-      const d = await res.json();
-      if (d?.display_name) {
-        const parts = d.display_name.split(',').slice(0, 3).reverse().map((s: string) => s.trim()).join(' • ');
-        setLocationName(parts || d.display_name);
-      }
-    } catch { /* เงียบไว้ ไม่ให้ล้มทั้งหน้า */ }
-  };
-
+  /* ---------- Events ---------- */
   const handleMarkerDragEnd = () => {
     const m = markerRef.current;
     if (!m) return;
@@ -195,22 +231,34 @@ export default function WeatherDashboard() {
 
   const handleSearchSubmit = async (e: any) => {
     e.preventDefault();
-    if (!searchQuery.trim()) return;
+    const q = searchQuery.trim();
+    if (q.length < 2) return;
     Swal.fire({ title: 'กำลังค้นหา...', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&accept-language=th`);
+      const res = await fetch(`/api/geocode?mode=search&q=${encodeURIComponent(q)}&limit=5`);
       const d = await res.json();
-      if (d?.length) {
-        const nLat = parseFloat(d[0].lat), nLng = parseFloat(d[0].lon);
-        setPosition({ lat: nLat, lng: nLng });
-        setLocationName(d[0].display_name.split(',').slice(0, 3).reverse().map((s: string) => s.trim()).join(' • '));
-        map?.flyTo([nLat, nLng], 12, { duration: 1.5 });
-        Swal.close();
-      } else {
-        Swal.fire({ icon: 'warning', title: 'ไม่พบสถานที่', text: 'กรุณาลองเปลี่ยนคำค้นหา', background: '#0f172a', color: '#fff' });
+      if (!d.ok || !d.results?.length) {
+        Swal.fire({ icon: 'warning', title: 'ไม่พบสถานที่', text: d.error ?? 'กรุณาลองเปลี่ยนคำค้นหา', background: '#0f172a', color: '#fff' });
+        return;
       }
+      let target = d.results[0];
+      if (d.results.length > 1) {
+        const options: Record<string, string> = {};
+        d.results.forEach((r: any, i: number) => { options[String(i)] = r.name || r.displayName; });
+        const { value, isConfirmed } = await Swal.fire({
+          title: 'พบหลายสถานที่', input: 'select', inputOptions: options, inputValue: '0',
+          showCancelButton: true, confirmButtonText: 'เลือกจุดนี้', cancelButtonText: 'ยกเลิก',
+          background: '#0f172a', color: '#fff', confirmButtonColor: '#0ea5e9',
+        });
+        if (!isConfirmed) return;
+        target = d.results[Number(value)];
+      }
+      setPosition({ lat: target.lat, lng: target.lng });
+      setLocationName(target.name || target.displayName);
+      map?.flyTo([target.lat, target.lng], DEFAULT_MAP_ZOOM, { duration: 1.5 });
+      Swal.close();
     } catch {
-      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', background: '#0f172a', color: '#fff' });
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถเชื่อมต่อระบบค้นหาได้', background: '#0f172a', color: '#fff' });
     }
   };
 
@@ -225,7 +273,7 @@ export default function WeatherDashboard() {
         const nLat = pos.coords.latitude, nLng = pos.coords.longitude;
         setPosition({ lat: nLat, lng: nLng });
         fetchLocationName(nLat, nLng);
-        map?.flyTo([nLat, nLng], 13, { duration: 1.5 });
+        map?.flyTo([nLat, nLng], DEFAULT_MAP_ZOOM, { duration: 1.5 });
         Swal.close();
       },
       () => Swal.fire({ icon: 'error', title: 'ไม่สามารถระบุตำแหน่งได้', background: '#0f172a', color: '#fff' }),
@@ -236,7 +284,7 @@ export default function WeatherDashboard() {
   const handleResetToCenter = () => {
     setPosition({ lat: INITIAL_LAT, lng: INITIAL_LNG });
     setLocationName('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
-    map?.flyTo([INITIAL_LAT, INITIAL_LNG], 13, { duration: 1.5 });
+    map?.flyTo([INITIAL_LAT, INITIAL_LNG], DEFAULT_MAP_ZOOM, { duration: 1.5 });
   };
 
   /* ---------- Legend ครบทุกชั้น ---------- */
@@ -281,7 +329,7 @@ export default function WeatherDashboard() {
     return (
       <div className="bg-[#111827]/95 backdrop-blur-md border-t border-[#1e293b] p-3 md:p-4 shadow-[0_-5px_15px_rgba(0,0,0,0.3)] w-full flex flex-col flex-shrink-0 z-[1000] relative">
         <div className="text-gray-100 text-[12px] md:text-sm font-bold mb-3 flex justify-center items-center px-1">
-          <span className="flex items-center tracking-wide">{lg.title}</span>
+          <span className="tracking-wide">{lg.title}</span>
         </div>
         <div className="relative w-full h-3 md:h-4 rounded-full overflow-hidden shadow-inner flex border border-[#334155]/50">
           {lg.stops.map((s, i) => <div key={i} className="flex-1 h-full" style={{ backgroundColor: s.color }} />)}
@@ -297,17 +345,18 @@ export default function WeatherDashboard() {
     );
   };
 
-  /* ---------- ค่าที่ใช้แสดงผล (มาจาก API ล้วน) ---------- */
+  /* ---------- ค่าที่ใช้แสดงผล ---------- */
   const cur = data?.current;
   const aqiStatus = getAqiStatus(data?.aqi?.us_aqi ?? 0);
   const alert = data?.alert;
   const nowcast = data?.nowcast;
   const st = ALERT_STYLE[alert?.level ?? 'GREEN'];
   const activeProduct = WINDY_LAYERS.find(l => l.id === windyLayer)?.product ?? 'ecmwf';
-  const frames = data?.radar?.frames ?? [];
-  const frameTime = frames[frameIdx]?.time
-    ? new Date(frames[frameIdx].time * 1000).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+  const activeFrame = shownFrames[Math.min(frameIdx, Math.max(0, shownFrames.length - 1))];
+  const frameTime = activeFrame?.time
+    ? new Date(activeFrame.time * 1000).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
     : '--:--';
+  const radarDegraded = radarOn && mapZoom > RADAR_MAX_NATIVE_ZOOM;
 
   const Skeleton = ({ h = 'h-24' }: { h?: string }) => <div className={`${h} w-full bg-gray-200 animate-pulse rounded-2xl`} />;
 
@@ -329,7 +378,7 @@ export default function WeatherDashboard() {
           </div>
         </div>
         <Link href="/" className="flex items-center justify-center space-x-2 bg-[#1e293b] hover:bg-[#334155] border border-gray-700 px-4 py-2.5 rounded-xl text-sm md:text-base font-bold text-white transition-all shadow-sm w-full md:w-auto">
-          <span>⬅️</span> <span>กลับหน้าแผนที่หลัก</span>
+          <span>⬅️</span><span>กลับหน้าแผนที่หลัก</span>
         </Link>
       </header>
 
@@ -341,16 +390,14 @@ export default function WeatherDashboard() {
           </div>
         )}
 
-        {/* 🚨 แถบเตือนภัยจริงจาก API */}
+        {/* 🚨 แถบเตือนภัย */}
         {loading && !data ? <Skeleton h="h-28" /> : alert && (
           <div className={`${st.bg} border ${st.ring} rounded-2xl p-5 md:p-6 shadow-md flex items-start space-x-4`}>
             <div className={`mt-1 text-2xl flex-shrink-0 ${alert.level === 'RED' ? 'animate-pulse' : ''}`}>{st.icon}</div>
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className={`${st.text} font-extrabold text-lg md:text-xl tracking-wide`}>{alert.title}</h3>
-                <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md text-white" style={{ backgroundColor: alert.color }}>
-                  ระดับ {alert.level}
-                </span>
+                <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md text-white" style={{ backgroundColor: alert.color }}>ระดับ {alert.level}</span>
               </div>
               <p className="text-gray-700 text-sm md:text-base font-medium mt-1.5 leading-relaxed">{alert.message}</p>
               <div className="flex flex-wrap gap-x-5 gap-y-1 mt-3 text-[11px] md:text-xs font-mono font-bold text-gray-600">
@@ -363,7 +410,7 @@ export default function WeatherDashboard() {
           </div>
         )}
 
-        {/* ⏱️ Nowcast: อีกกี่นาทีฝนจะมา */}
+        {/* ⏱️ Nowcast */}
         {nowcast && (
           <div className="bg-gradient-to-r from-[#0f172a] to-[#1e293b] rounded-2xl p-5 md:p-6 border border-[#334155] shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center space-x-4">
@@ -424,40 +471,43 @@ export default function WeatherDashboard() {
             </form>
           </div>
           <div className="flex space-x-2 md:space-x-3 w-full md:w-auto">
-            <button onClick={handleResetToCenter} className="flex-1 md:flex-none bg-gray-100 hover:bg-gray-200 text-gray-800 px-5 py-3 rounded-xl font-bold text-sm md:text-base flex items-center justify-center space-x-2 transition-colors shadow-sm">
+            <button onClick={handleResetToCenter} className="flex-1 md:flex-none bg-gray-100 hover:bg-gray-200 text-gray-800 px-5 py-3 rounded-xl font-bold text-sm md:text-base flex items-center justify-center space-x-2 shadow-sm">
               <span>🏠</span><span className="whitespace-nowrap">กลับบ่อหลวง</span>
             </button>
-            <button onClick={handleCurrentLocation} className="flex-1 md:flex-none bg-sky-100 hover:bg-sky-200 text-sky-800 px-5 py-3 rounded-xl font-bold text-sm md:text-base flex items-center justify-center space-x-2 transition-colors shadow-sm">
+            <button onClick={handleCurrentLocation} className="flex-1 md:flex-none bg-sky-100 hover:bg-sky-200 text-sky-800 px-5 py-3 rounded-xl font-bold text-sm md:text-base flex items-center justify-center space-x-2 shadow-sm">
               <span>📍</span><span className="whitespace-nowrap">พิกัดปัจจุบัน</span>
             </button>
           </div>
         </div>
 
-        {/* 🗺️ แผนที่ + เรดาร์ RainViewer */}
+        {/* 🗺️ แผนที่ + เรดาร์ */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
           <div className="bg-gray-50 px-5 py-4 flex flex-col md:flex-row md:items-center justify-between border-b border-gray-200 gap-3">
             <div className="flex items-center space-x-2 text-gray-800 font-extrabold text-sm md:text-base">
               <span>🛰️</span><span>แผนที่ดาวเทียม + เรดาร์ฝน (คลิก / ลากหมุด เพื่อเลือกพิกัด)</span>
             </div>
-            <div className="flex items-center gap-2 text-xs font-mono">
-              <button onClick={() => setRadarOn(v => !v)} className={`px-3 py-2 rounded-lg font-bold transition-colors ${radarOn ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600'}`}>
+            <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+              <button onClick={() => setRadarOn(v => !v)} className={`px-3 py-2 rounded-lg font-bold ${radarOn ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-600'}`}>
                 📡 เรดาร์ {radarOn ? 'เปิด' : 'ปิด'}
               </button>
               <button onClick={() => setPlaying(p => !p)} disabled={!radarOn} className="px-3 py-2 rounded-lg font-bold bg-gray-800 text-white disabled:opacity-40">
                 {playing ? '⏸ หยุด' : '▶ เล่น'}
               </button>
               <span className="px-3 py-2 rounded-lg bg-white border border-gray-300 font-bold text-gray-700">🕒 {frameTime}</span>
+              {radarDegraded && (
+                <span className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-300 text-amber-700 font-bold">
+                  ⚠️ ภาพเรดาร์ขยายจาก z{RADAR_MAX_NATIVE_ZOOM}
+                </span>
+              )}
               <a href={`https://www.google.com/maps/search/?api=1&query=${position.lat},${position.lng}`} target="_blank" rel="noopener noreferrer"
-                className="bg-[#0ea5e9] hover:bg-[#0284c7] text-white px-4 py-2 rounded-lg font-bold transition-colors shadow-sm">
-                Google Maps ↗
-              </a>
+                className="bg-[#0ea5e9] hover:bg-[#0284c7] text-white px-4 py-2 rounded-lg font-bold shadow-sm">Google Maps ↗</a>
             </div>
           </div>
 
           <div className="h-[350px] md:h-[500px] w-full relative z-0">
-            <MapContainer center={[INITIAL_LAT, INITIAL_LNG]} zoom={13} maxZoom={20} zoomControl attributionControl={false}
+            <MapContainer center={[INITIAL_LAT, INITIAL_LNG]} zoom={DEFAULT_MAP_ZOOM} maxZoom={20} zoomControl attributionControl={false}
               className="w-full h-full bg-gray-100" ref={setMap as any}>
-              <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={20} />
+              <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={20} maxNativeZoom={19} />
               {pinIcon && (
                 <Marker draggable position={[position.lat, position.lng]} icon={pinIcon} ref={markerRef}
                   eventHandlers={{ dragend: handleMarkerDragEnd }} />
@@ -465,19 +515,20 @@ export default function WeatherDashboard() {
             </MapContainer>
           </div>
 
-          {frames.length > 0 && radarOn && (
+          {radarOn && shownFrames.length > 1 && (
             <div className="px-5 py-3 bg-gray-50 border-t border-gray-200 flex items-center gap-3">
-              <input type="range" min={0} max={frames.length - 1} value={frameIdx}
+              <input type="range" min={0} max={shownFrames.length - 1} value={Math.min(frameIdx, shownFrames.length - 1)}
                 onChange={(e) => { setPlaying(false); setFrameIdx(Number(e.target.value)); }}
                 className="w-full accent-[#0ea5e9]" />
-              <span className={`text-[11px] font-bold whitespace-nowrap px-2 py-1 rounded ${frames[frameIdx]?.isForecast ? 'bg-purple-100 text-purple-700' : 'bg-sky-100 text-sky-700'}`}>
-                {frames[frameIdx]?.isForecast ? 'พยากรณ์' : 'ย้อนหลัง'}
+              <span className={`text-[11px] font-bold whitespace-nowrap px-2 py-1 rounded ${activeFrame?.isForecast ? 'bg-purple-100 text-purple-700' : 'bg-sky-100 text-sky-700'}`}>
+                {activeFrame?.isForecast ? 'พยากรณ์' : 'ย้อนหลัง'}
               </span>
             </div>
           )}
 
           <div className="bg-gray-50 px-5 py-3 text-[12px] md:text-[13px] text-gray-600 font-bold border-t border-gray-200">
             💡 คลิกที่แผนที่หรือลากหมุด 📍 เพื่อปักตำแหน่งใหม่ ระบบจะดึงข้อมูลสภาพอากาศของจุดนั้นให้อัตโนมัติ
+            {radarDegraded && <span className="text-amber-700"> • ภาพเรดาร์มีความละเอียดสูงสุดที่ระดับซูม {RADAR_MAX_NATIVE_ZOOM} การซูมลึกกว่านี้เป็นการขยายภาพเดิม</span>}
           </div>
         </div>
 
@@ -491,7 +542,7 @@ export default function WeatherDashboard() {
           <div className="flex items-center space-x-3 mt-3 lg:mt-0 text-gray-300 font-mono text-[11px] md:text-sm whitespace-nowrap">
             <span>พิกัด: <span className="text-[#38bdf8]">{position.lat.toFixed(4)}, {position.lng.toFixed(4)}</span></span>
             <span className="hidden md:inline">|</span>
-            <span>{loading ? <span className="text-yellow-400 font-bold">กำลังอัปเดต…</span> : <>อัปเดต: <LiveClock /></>}</span>
+            <span>{loading ? <span className="text-yellow-400 font-bold">กำลังอัปเดต…</span> : <>ข้อมูล ณ <DataAge iso={data?.updatedAt} /></>}</span>
           </div>
         </div>
 
@@ -561,12 +612,10 @@ export default function WeatherDashboard() {
             </div>
           </div>
 
-          {/* กราฟฝนรายชั่วโมง 24 ชม. */}
+          {/* ฝนรายชั่วโมง */}
           <div className="col-span-1 md:col-span-4 bg-white p-5 md:p-7 rounded-3xl border border-gray-200 shadow-sm h-[320px] md:h-[360px] flex flex-col">
-            <div className="flex items-center mb-4">
-              <span className="text-xl mr-2">⏳</span>
-              <h3 className="text-gray-800 text-base md:text-lg font-extrabold">ฝนรายชั่วโมง 24 ชั่วโมงข้างหน้า (มม. / โอกาสเกิดฝน %)</h3>
-            </div>
+            <div className="flex items-center mb-4"><span className="text-xl mr-2">⏳</span>
+              <h3 className="text-gray-800 text-base md:text-lg font-extrabold">ฝนรายชั่วโมง 24 ชั่วโมงข้างหน้า (มม. / โอกาสเกิดฝน %)</h3></div>
             <div className="flex-1 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={data?.hourly ?? []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -677,7 +726,15 @@ export default function WeatherDashboard() {
               </a>
             </div>
           </div>
+        </div>
 
+        {/* ⚖️ ข้อความสงวนสิทธิ์ */}
+        <div className="bg-gray-100 border border-gray-300 rounded-2xl p-4 md:p-5 text-[11px] md:text-xs text-gray-600 leading-relaxed">
+          <span className="font-extrabold text-gray-700">⚖️ ข้อจำกัดความรับผิดชอบ: </span>
+          ข้อมูลในหน้านี้เป็นการประมวลผลอัตโนมัติจากแบบจำลองพยากรณ์อากาศ (Open-Meteo / ECMWF) และภาพเรดาร์ตรวจอากาศ (RainViewer, Windy)
+          เพื่อใช้ประกอบการตัดสินใจเบื้องต้นเท่านั้น <span className="font-bold">มิใช่ประกาศเตือนภัยอย่างเป็นทางการ</span>
+          การแจ้งเตือนภัยอย่างเป็นทางการให้ยึดตามประกาศของกรมอุตุนิยมวิทยาและกรมป้องกันและบรรเทาสาธารณภัยเป็นสำคัญ
+          หากพบความผิดปกติของระบบ โปรดแจ้งเจ้าหน้าที่ผู้ดูแลระบบ เทศบาลตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่
         </div>
       </main>
 
