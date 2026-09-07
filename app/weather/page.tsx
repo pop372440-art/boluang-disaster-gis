@@ -19,19 +19,16 @@ const Marker = dynamic(() => import('react-leaflet').then(m => m.Marker), { ssr:
 const INITIAL_LAT = 18.1633;
 const INITIAL_LNG = 98.3744;
 
-/* ⭐ เพดานจริงของไทล์เรดาร์ RainViewer — เกินกว่านี้เซิร์ฟเวอร์ส่งภาพ
-   "Zoom Level Not Supported" กลับมา จึงต้องหยุดขอไทล์ที่ระดับนี้
-   แล้วให้ Leaflet ขยายภาพเดิมแทน */
-const RADAR_MAX_NATIVE_ZOOM = 10;
-const RADAR_KEEP_FRAMES = 10;          // จำนวนเฟรมที่โหลดไว้ กันเน็ตมือถือหนักเกิน
+/* ⭐ แก้ไขการตั้งค่าเรดาร์เพื่อป้องกัน Zoom Level Not Supported และ 429 Too Many Requests */
+const RADAR_MAX_NATIVE_ZOOM = 8;     // ลดระดับ Native ลง เพื่อหลีกเลี่ยงการขอภาพลึกเกินไป
+const RADAR_KEEP_FRAMES = 6;         // ลดจำนวนเฟรมที่โหลดพร้อมกัน (เพื่อลดภาระเซิร์ฟเวอร์)
 const RADAR_OPACITY = 0.62;
-const DEFAULT_MAP_ZOOM = 11;           // เปิดมาเห็นเรดาร์เต็มความละเอียดจริง
-const TRANSPARENT_TILE =
-  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+const DEFAULT_MAP_ZOOM = 11;
+const TRANSPARENT_TILE = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
 /* จับคู่ layer กับ product ของ Windy ให้ถูกคู่ */
 const WINDY_LAYERS = [
-  { id: 'radar',    icon: '📡', label: 'เรดาร์ฝน',      product: 'radar' },
+  { id: 'radar',    icon: '📡', label: 'เรดาร์ฝน',     product: 'radar' },
   { id: 'rain',     icon: '🌧️', label: 'ฝน',            product: 'ecmwf' },
   { id: 'wind',     icon: '💨', label: 'ลม',            product: 'ecmwf' },
   { id: 'temp',     icon: '🌡️', label: 'อุณหภูมิ',      product: 'ecmwf' },
@@ -179,8 +176,7 @@ export default function WeatherDashboard() {
     return all.slice(-RADAR_KEEP_FRAMES);
   }, [data]);
 
-  /* ⭐ สร้างเลเยอร์เรดาร์ทุกเฟรมล่วงหน้า ตั้ง opacity 0 แล้วสลับแสดง
-        maxNativeZoom = แก้ปัญหา "Zoom Level Not Supported" */
+  /* ⭐ สร้างเลเยอร์เรดาร์ทุกเฟรมล่วงหน้า ตั้ง opacity 0 แล้วสลับแสดง */
   useEffect(() => {
     if (!map || !L) return;
     radarLayersRef.current.forEach((l) => { try { map.removeLayer(l); } catch {} });
@@ -192,8 +188,8 @@ export default function WeatherDashboard() {
         opacity: 0,
         zIndex: 400,
         tileSize: 256,
-        maxNativeZoom: RADAR_MAX_NATIVE_ZOOM,
-        maxZoom: 20,
+        maxNativeZoom: RADAR_MAX_NATIVE_ZOOM, // ⭐ กันการขอภาพเรดาร์ลึกเกินไป
+        maxZoom: 20,                          // ยอมให้ขยายภาพเก่าต่อได้
         minZoom: 3,
         errorTileUrl: TRANSPARENT_TILE,
         crossOrigin: true,
@@ -216,7 +212,8 @@ export default function WeatherDashboard() {
 
   useEffect(() => {
     if (!playing || !radarOn || shownFrames.length === 0) return;
-    const i = setInterval(() => setFrameIdx(p => (p + 1) % shownFrames.length), 700);
+    // ⭐ ปรับความเร็วการเล่นเฟรมให้ช้าลง เพื่อหลีกเลี่ยงภาระเซิร์ฟเวอร์
+    const i = setInterval(() => setFrameIdx(p => (p + 1) % shownFrames.length), 1000);
     return () => clearInterval(i);
   }, [playing, radarOn, shownFrames]);
 
