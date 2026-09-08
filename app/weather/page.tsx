@@ -217,6 +217,154 @@ export default function WeatherDashboard() {
     return () => clearInterval(i);
   }, [playing, radarOn, shownFrames]);
 
+/* ═══════════ 🔔 ระบบแจ้งเตือนด้วย SweetAlert ═══════════ */
+const alertMemoRef = useRef<{ sig: string; at: number } | null>(null);
+const [muted, setMuted] = useState(false);
+
+/* เสียงเตือนสังเคราะห์ ไม่ต้องพึ่งไฟล์เสียงภายนอก */
+const beep = useCallback((times = 2) => {
+  if (muted) return;
+  try {
+    const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+    const ctx = new Ctx();
+    for (let i = 0; i < times; i++) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine';
+      o.frequency.value = 880;
+      const t0 = ctx.currentTime + i * 0.45;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.35, t0 + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+      o.start(t0); o.stop(t0 + 0.4);
+    }
+  } catch {}
+  try { navigator.vibrate?.([220, 120, 220]); } catch {}
+}, [muted]);
+
+useEffect(() => {
+  if (!data?.alert || !data?.nowcast) return;
+
+  const a = data.alert;
+  const nc = data.nowcast;
+
+  /* ลายเซ็นเหตุการณ์ — กันเด้งซ้ำเรื่องเดิม */
+  const sig = `${a.level}|${nc.status}|${nc.etaMinutes ?? '-'}`;
+  const prev = alertMemoRef.current;
+  const COOLDOWN = a.level === 'RED' ? 10 * 60e3 : 30 * 60e3;
+  if (prev && prev.sig === sig && Date.now() - prev.at < COOLDOWN) return;
+
+  const worthPopup =
+    a.level === 'RED' || a.level === 'ORANGE' ||
+    nc.status === 'RAINING_NOW' ||
+    (nc.status === 'INCOMING' && nc.etaMinutes !== null && nc.etaMinutes <= 90);
+  if (!worthPopup) { alertMemoRef.current = { sig, at: Date.now() }; return; }
+
+  alertMemoRef.current = { sig, at: Date.now() };
+
+  const isCritical = a.level === 'RED' || a.level === 'ORANGE';
+  if (isCritical || nc.status === 'RAINING_NOW') beep(a.level === 'RED' ? 4 : 2);
+
+  const rows = (data.corridor ?? [])
+    .filter((c: any) => c.wet)
+    .slice(0, 4)
+    .map((c: any) =>
+      `<tr>
+         <td style="padding:4px 10px;text-align:left">${c.distanceKm} กม.</td>
+         <td style="padding:4px 10px;color:#38bdf8;font-weight:700">${c.mmh} มม./ชม.</td>
+         <td style="padding:4px 10px;color:#fbbf24">${c.etaMin !== null ? `~${c.etaMin} นาที` : '—'}</td>
+       </tr>`).join('');
+
+  const html = `
+    <div style="text-align:left;font-size:14px;line-height:1.75;color:#e2e8f0">
+      <div style="background:${a.color}22;border-left:4px solid ${a.color};
+                  padding:10px 14px;border-radius:8px;margin-bottom:14px">
+        <b style="color:${a.color};font-size:15px">${nc.headline}</b>
+      </div>
+
+      <div style="margin-bottom:12px">${a.message}</div>
+
+      ${data.motion ? `
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:10px">
+        🧭 กลุ่มฝนเคลื่อนที่จากทิศ<b style="color:#38bdf8">${data.motion.comingFrom}</b>
+        ด้วยความเร็ว <b style="color:#38bdf8">${data.motion.speedKmh} กม./ชม.</b>
+        (ความเชื่อมั่น ${data.motion.confidence})
+        ${data.motion.stationary
+          ? '<br/><span style="color:#f87171">⚠️ กลุ่มฝนเกือบนิ่ง เสี่ยงฝนตกซ้ำที่เดิมและน้ำป่าไหลหลาก</span>' : ''}
+      </div>` : ''}
+
+      ${rows ? `
+      <table style="width:100%;border-collapse:collapse;font-size:12px;
+                    background:#0b1220;border-radius:8px;overflow:hidden">
+        <tr style="color:#94a3b8;background:#111c2e">
+          <th style="padding:6px 10px;text-align:left">ระยะต้นทาง</th>
+          <th style="padding:6px 10px;text-align:left">ความแรง</th>
+          <th style="padding:6px 10px;text-align:left">คาดถึงพื้นที่</th>
+        </tr>${rows}
+      </table>` : ''}
+
+      <div style="margin-top:14px;font-size:12px;color:#94a3b8">
+        📊 ฝนสะสมคาดการณ์ &nbsp;3 ชม. <b>${a.sums.s3.toFixed(1)}</b> •
+        6 ชม. <b>${a.sums.s6.toFixed(1)}</b> •
+        12 ชม. <b>${a.sums.s12.toFixed(1)}</b> มม.
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:#64748b">
+        📍 ${locationName}<br/>
+        🕒 ข้อมูล ณ ${new Date(data.updatedAt).toLocaleString('th-TH')}
+        ${data.radarOk ? '• ✅ อ่านค่าเรดาร์จริงสำเร็จ' : '• ⚠️ ไม่มีข้อมูลเรดาร์'}
+        ${data.stale ? '<br/>⚠️ ข้อมูลย้อนหลัง ระบบภายนอกไม่ตอบสนอง' : ''}
+      </div>
+      <div style="margin-top:10px;font-size:10px;color:#475569;line-height:1.5">
+        ⚖️ ประมวลผลอัตโนมัติเพื่อประกอบการตัดสินใจเบื้องต้น
+        มิใช่ประกาศเตือนภัยอย่างเป็นทางการ
+      </div>
+    </div>`;
+
+  Swal.fire({
+    title: `${a.level === 'RED' ? '🚨' : a.level === 'ORANGE' ? '🟠'
+            : nc.status === 'RAINING_NOW' ? '🌧️' : '⚠️'}  ${a.title}`,
+    html,
+    background: '#0f172a',
+    color: '#f1f5f9',
+    width: 620,
+    padding: '1.5rem',
+    showCloseButton: true,
+    allowOutsideClick: !isCritical,        // ระดับวิกฤตต้องกดรับทราบเท่านั้น
+    confirmButtonText: isCritical ? 'รับทราบและดำเนินการ' : 'รับทราบ',
+    confirmButtonColor: a.color,
+    showDenyButton: isCritical,
+    denyButtonText: '📋 คัดลอกข้อความแจ้งเตือน',
+    denyButtonColor: '#334155',
+    timer: isCritical ? undefined : 15000,
+    timerProgressBar: !isCritical,
+    didOpen: (el) => {
+      if (a.level === 'RED') {
+        el.style.boxShadow = `0 0 0 4px ${a.color}55`;
+        el.animate(
+          [{ boxShadow: `0 0 0 4px ${a.color}22` },
+           { boxShadow: `0 0 0 14px ${a.color}00` }],
+          { duration: 1400, iterations: Infinity }
+        );
+      }
+    },
+  }).then((r) => {
+    if (r.isDenied) {
+      const txt =
+        `[แจ้งเตือนสภาพอากาศ • ทต.บ่อหลวง]\n` +
+        `ระดับ: ${a.title} (${a.level})\n` +
+        `${nc.headline}\n${a.message}\n` +
+        `พื้นที่: ${locationName}\n` +
+        `เวลา: ${new Date(data.updatedAt).toLocaleString('th-TH')}\n` +
+        `— ประมวลผลอัตโนมัติ มิใช่ประกาศเตือนภัยอย่างเป็นทางการ`;
+      navigator.clipboard?.writeText(txt);
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success',
+        title: 'คัดลอกแล้ว พร้อมวางลงกลุ่มไลน์', showConfirmButton: false,
+        timer: 2200, background: '#0f172a', color: '#fff' });
+    }
+  });
+}, [data, locationName, beep]);
+  
+
   /* ---------- Events ---------- */
   const handleMarkerDragEnd = () => {
     const m = markerRef.current;
