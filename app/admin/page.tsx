@@ -38,7 +38,7 @@ export default function AdminPanel() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 📥 ดึงข้อมูลเมื่อ Login สำเร็จ หรือเปลี่ยน Tab (พร้อมระบบ Auto-Refresh)
+  // 📥 ดึงข้อมูลเมื่อ Login สำเร็จ หรือเปลี่ยน Tab
   useEffect(() => {
     if (session) {
       if (activeTab === 'pending') fetchActiveReports(false);
@@ -47,13 +47,12 @@ export default function AdminPanel() {
       const intervalId = setInterval(() => {
         if (activeTab === 'pending') fetchActiveReports(true);
         else fetchResolvedReports(true);
-      }, 15000); // Auto refresh ทุก 15 วินาที
+      }, 15000); 
 
       return () => clearInterval(intervalId);
     }
   }, [session, activeTab]);
 
-  // 🔄 ฟังก์ชันดึงข้อมูล (รอดำเนินการ)
   const fetchActiveReports = async (isSilent = false) => {
     if (!isSilent) setLoadingData(true);
     try {
@@ -72,7 +71,6 @@ export default function AdminPanel() {
     }
   };
 
-  // 🔄 ฟังก์ชันดึงข้อมูล (ปิดงานแล้ว / ประวัติ)
   const fetchResolvedReports = async (isSilent = false) => {
     if (!isSilent) setLoadingData(true);
     try {
@@ -91,7 +89,6 @@ export default function AdminPanel() {
     }
   };
 
-  // 🚀 ฟังก์ชัน Login
   const handleLogin = async (e: any) => {
     e.preventDefault();
     setIsLoggingIn(true);
@@ -106,12 +103,10 @@ export default function AdminPanel() {
     }
   };
 
-  // 🚪 ฟังก์ชัน Logout
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
 
-  // 🔍 ฟังก์ชันกดขยายรูปภาพ
   const handleViewImage = (imageUrl: string) => {
     Swal.fire({
       imageUrl: imageUrl,
@@ -129,7 +124,18 @@ export default function AdminPanel() {
     });
   };
 
-  // ✅ ฟังก์ชัน "ปิดจ๊อบ" อัจฉริยะ (ของเดิมที่ยอดเยี่ยมอยู่แล้ว)
+  // ✅ ฟังก์ชันช่วยอัปโหลดไฟล์ (ลดความซ้ำซ้อนของโค้ด)
+  const uploadImage = async (file: File) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `resolved-${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `reports/${fileName}`;
+    const { error } = await supabase.storage.from('disaster_images').upload(filePath, file);
+    if (error) throw error;
+    const { data } = supabase.storage.from('disaster_images').getPublicUrl(filePath);
+    return data.publicUrl;
+  };
+
+  // ✅ ฟังก์ชัน "ปิดจ๊อบ" อัจฉริยะ (อัปเกรด 2 รูป)
   const handleCloseJob = async (reportId: string, currentRiskType: string) => {
     const { value: formValues } = await Swal.fire({
       title: '📝 บันทึกการปฏิบัติงาน',
@@ -137,8 +143,11 @@ export default function AdminPanel() {
         <div class="text-left mb-2 text-sm text-gray-700">ระบุรายละเอียดการแก้ไขปัญหา <b>${currentRiskType}</b></div>
         <textarea id="swal-input-text" class="swal2-textarea" placeholder="เช่น นำรถแบคโฮเข้าเคลียร์พื้นที่เรียบร้อย..." style="margin: 0 auto 15px auto; width: 100%; font-size: 14px;"></textarea>
         
-        <div class="text-left mb-2 text-sm font-bold text-gray-700">📷 แนบภาพผลการปฏิบัติงาน (หลังดำเนินการ)</div>
-        <input type="file" id="swal-input-file" class="swal2-file" accept="image/*" style="display: flex; width: 100%; font-size: 14px; margin: 0 auto;">
+        <div class="text-left mb-2 text-sm font-bold text-gray-700">📷 ภาพที่ 1 (ผลการปฏิบัติงาน)</div>
+        <input type="file" id="swal-input-file-1" class="swal2-file" accept="image/*" style="display: flex; width: 100%; font-size: 14px; margin: 0 auto 15px auto;">
+
+        <div class="text-left mb-2 text-sm font-bold text-gray-700">📷 ภาพที่ 2 (มุมมองอื่น - ถ้ามี)</div>
+        <input type="file" id="swal-input-file-2" class="swal2-file" accept="image/*" style="display: flex; width: 100%; font-size: 14px; margin: 0 auto;">
       `,
       showCancelButton: true,
       confirmButtonColor: '#10b981',
@@ -147,42 +156,29 @@ export default function AdminPanel() {
       cancelButtonText: 'ยกเลิก',
       preConfirm: () => {
         const text = (document.getElementById('swal-input-text') as HTMLTextAreaElement).value;
-        const fileInput = document.getElementById('swal-input-file') as HTMLInputElement;
-        const file = fileInput.files ? fileInput.files[0] : null;
+        const file1 = (document.getElementById('swal-input-file-1') as HTMLInputElement).files?.[0] || null;
+        const file2 = (document.getElementById('swal-input-file-2') as HTMLInputElement).files?.[0] || null;
 
         if (!text) {
           Swal.showValidationMessage('กรุณาระบุรายละเอียดการดำเนินการครับ!');
           return false;
         }
-        return { text, file };
+        return { text, file1, file2 };
       }
     });
 
     if (formValues) {
-      const { text: actionText, file: resolveFile } = formValues;
+      const { text: actionText, file1, file2 } = formValues;
 
       try {
         Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-        let resolvedImageUrl = null;
+        let url1 = null;
+        let url2 = null;
 
-        if (resolveFile) {
-          const fileExt = resolveFile.name.split('.').pop();
-          const fileName = `resolved-${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-          const filePath = `reports/${fileName}`;
-
-          const { error: uploadError } = await supabase.storage
-            .from('disaster_images')
-            .upload(filePath, resolveFile);
-
-          if (uploadError) throw uploadError;
-
-          const { data: publicUrlData } = supabase.storage
-            .from('disaster_images')
-            .getPublicUrl(filePath);
-
-          resolvedImageUrl = publicUrlData.publicUrl;
-        }
+        // อัปโหลดรูปภาพ (ทำทีละไฟล์)
+        if (file1) url1 = await uploadImage(file1);
+        if (file2) url2 = await uploadImage(file2);
 
         const now = new Date().toISOString();
         const userEmail = session?.user?.email;
@@ -192,7 +188,8 @@ export default function AdminPanel() {
           .update({ 
             status: 'ดำเนินการเสร็จแล้ว',
             action_taken: actionText,
-            resolved_image_url: resolvedImageUrl, 
+            resolved_image_url: url1, 
+            resolved_image_url_2: url2, // บันทึกรูปที่ 2 ลงฐานข้อมูล
             resolved_at: now,
             resolved_by: userEmail
           })
@@ -280,7 +277,6 @@ export default function AdminPanel() {
           </div>
           
           <div className="flex space-x-2">
-            {/* ชุดปุ่มสลับ Tab */}
             <div className="flex bg-gray-800 p-1 rounded-lg border border-gray-700">
               <button 
                 onClick={() => setActiveTab('pending')}
@@ -325,12 +321,11 @@ export default function AdminPanel() {
                 ) : (
                   (activeTab === 'pending' ? reports : resolvedReports).map((report) => (
                     <tr key={report.id} className="hover:bg-gray-800/30 transition-colors">
-                      {/* วันเวลา */}
+                      
                       <td className="p-4 text-sm font-mono text-gray-300 align-top">
                         {new Date(activeTab === 'pending' ? report.created_at : report.resolved_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })} น.
                       </td>
                       
-                      {/* ประเภทภัยและพื้นที่ */}
                       <td className="p-4 align-top">
                         <div className="font-bold text-white">{report.risk_type}</div>
                         <div className="text-sm text-blue-400 mt-0.5 flex items-center">
@@ -338,7 +333,6 @@ export default function AdminPanel() {
                         </div>
                       </td>
 
-                      {/* ระดับความรุนแรง (แสดงเฉพาะรอดำเนินการ) */}
                       {activeTab === 'pending' && (
                         <td className="p-4 text-center align-top">
                           <span className={`px-3 py-1 rounded-full text-xs font-bold ${report.severity_level >= 4 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : report.severity_level === 3 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'}`}>
@@ -347,10 +341,8 @@ export default function AdminPanel() {
                         </td>
                       )}
                       
-                      {/* รายละเอียด */}
                       <td className="p-4 align-top">
                         {activeTab === 'pending' ? (
-                          // มุมมองรอดำเนินการ (แสดงข้อมูลแจ้งเหตุ)
                           <div className="flex items-start space-x-3">
                             {report.image_url && (
                               <div className="flex-shrink-0 cursor-pointer relative group" onClick={() => handleViewImage(report.image_url)}>
@@ -364,14 +356,22 @@ export default function AdminPanel() {
                             </div>
                           </div>
                         ) : (
-                          // มุมมองประวัติการแก้ไข (แสดงข้อมูลผลการแก้ไข)
-                          <div className="flex items-start space-x-3">
-                            {report.resolved_image_url && (
-                              <div className="flex-shrink-0 cursor-pointer relative group" onClick={() => handleViewImage(report.resolved_image_url)}>
-                                <img src={report.resolved_image_url} alt="รูปผลการแก้ไข" className="w-16 h-16 object-cover rounded-lg border border-emerald-600 group-hover:border-emerald-400 transition-colors" />
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"><span className="text-white text-xs drop-shadow-md">🔍</span></div>
-                              </div>
-                            )}
+                          // ✅ ส่วนแสดงรูปภาพ 2 รูป ในสถานะปิดงานแล้ว
+                          <div className="flex flex-col space-y-2">
+                            <div className="flex space-x-2">
+                              {report.resolved_image_url && (
+                                <div className="flex-shrink-0 cursor-pointer relative group" onClick={() => handleViewImage(report.resolved_image_url)}>
+                                  <img src={report.resolved_image_url} alt="รูปผลการแก้ไข 1" className="w-16 h-16 object-cover rounded-lg border border-emerald-600 group-hover:border-emerald-400 transition-colors" />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"><span className="text-white text-xs drop-shadow-md">🔍</span></div>
+                                </div>
+                              )}
+                              {report.resolved_image_url_2 && (
+                                <div className="flex-shrink-0 cursor-pointer relative group" onClick={() => handleViewImage(report.resolved_image_url_2)}>
+                                  <img src={report.resolved_image_url_2} alt="รูปผลการแก้ไข 2" className="w-16 h-16 object-cover rounded-lg border border-emerald-600 group-hover:border-emerald-400 transition-colors" />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"><span className="text-white text-xs drop-shadow-md">🔍</span></div>
+                                </div>
+                              )}
+                            </div>
                             <div>
                               <div className="text-sm text-emerald-300 font-medium whitespace-pre-line">{report.action_taken || 'ไม่มีรายละเอียดเพิ่มเติม'}</div>
                               <div className="text-[11px] text-gray-500 mt-2">อ้างอิง: {report.tracking_code}</div>
@@ -380,14 +380,12 @@ export default function AdminPanel() {
                         )}
                       </td>
 
-                      {/* ผู้ดำเนินการ (แสดงเฉพาะปิดงานแล้ว) */}
                       {activeTab === 'resolved' && (
                         <td className="p-4 align-top">
                           <div className="text-sm text-gray-300 break-all">{report.resolved_by || '-'}</div>
                         </td>
                       )}
 
-                      {/* การจัดการ (แสดงเฉพาะรอดำเนินการ) */}
                       {activeTab === 'pending' && (
                         <td className="p-4 align-top text-right">
                           <div className="flex items-center justify-end space-x-2">
