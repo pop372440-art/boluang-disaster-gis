@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
     display: 'standalone',
     background_color: '#0b132b',
     theme_color: '#38bdf8',
-   icons: [
+    icons: [
       {
         src: '/android-chrome-192x192.png',
         sizes: '192x192',
@@ -24,13 +24,12 @@ export default function manifest(): MetadataRoute.Manifest {
     screenshots: [
       {
         src: '/screen-wide.png',
-        sizes: '1280x720', // ⚠️ ถ้าขนาดของจริงไม่ใช่ 1280x720 ต้องเปลี่ยนตรงนี้นะครับ
+        sizes: '1280x720',
         type: 'image/png',
-        form_factor: 'wide',
       },
       {
         src: '/screen-mobile.png',
-        sizes: '750x1334', // ตามขนาดจริงที่ท่านเคยบอกไว้
+        sizes: '750x1334',
         type: 'image/png',
       },
     ],
