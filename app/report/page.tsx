@@ -205,6 +205,9 @@ export default function ReportPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingGPS, setIsFetchingGPS] = useState(false);
   
+  // ✅ 1. เพิ่ม State เพื่อป้องกันการทับซ้อนพิกัด (สิทธิ์ผู้ใช้ต้องใหญ่กว่า Auto)
+  const [isManualVillage, setIsManualVillage] = useState(false);
+
   const [cooldownTime, setCooldownTime] = useState(0);
 
   // 🌟 State สำหรับพับ/ขยาย Bottom Sheet บนมือถือ
@@ -306,8 +309,9 @@ export default function ReportPage() {
     return result;
   }, [geoBlock]);
 
+  // ✅ 2. อัปเดต useEffect ให้ตรวจสอบ isManualVillage
   useEffect(() => {
-    if (position && geoBlock && geoBlock.features) {
+    if (position && geoBlock && geoBlock.features && !isManualVillage) {
       let foundVillage = null;
       for (const feature of geoBlock.features) {
         if (checkPointInFeature(position.lng, position.lat, feature)) {
@@ -330,7 +334,7 @@ export default function ReportPage() {
         });
       }
     }
-  }, [position, geoBlock]);
+  }, [position, geoBlock, isManualVillage, formData.village_name]);
 
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
   const customIcon = L ? L.divIcon({
@@ -347,16 +351,20 @@ export default function ReportPage() {
   }) : null;
 
   const LocationMarker = () => {
-    useMapEvents({ click(e: any) { setPosition(e.latlng); } });
+    // 💡 ให้การคลิกบนแผนที่ถือเป็นการใช้พิกัดจริง (ปลดล็อก Auto)
+    useMapEvents({ click(e: any) { setPosition(e.latlng); setIsManualVillage(false); } });
     return position === null ? null : <Marker position={position} icon={customIcon}></Marker>;
   };
 
+  // ✅ 3. ปลดล็อคโหมด Auto เมื่อกดขอตำแหน่ง GPS ใหม่
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
       Swal.fire({ icon: 'error', title: 'ไม่รองรับ GPS', text: 'เบราว์เซอร์ของคุณไม่รองรับการดึงตำแหน่งครับ' });
       return;
     }
     setIsFetchingGPS(true);
+    setIsManualVillage(false);
+    
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
@@ -372,9 +380,12 @@ export default function ReportPage() {
     );
   };
 
+  // ✅ 4. ล็อคโหมดเมื่อผู้ใช้เลือกหมู่บ้านเอง
   const handleVillageChange = (e: any) => {
     const selectedName = e.target.value;
     setFormData(prev => ({ ...prev, village_name: selectedName }));
+    setIsManualVillage(true); 
+
     if (mapRef && villageList.length > 0) {
       const targetVillage = villageList.find(v => v.name === selectedName);
       if (targetVillage) mapRef.flyTo([targetVillage.lat, targetVillage.lng], 15, { duration: 1.5, easeLinearity: 0.25 });
@@ -594,6 +605,7 @@ export default function ReportPage() {
           setSelectedFile(null); 
           setPdpaConsent(false);
           setAiResult(null); 
+          setIsManualVillage(false);
         }
       });
 
