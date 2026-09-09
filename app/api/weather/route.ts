@@ -19,11 +19,19 @@ const RADAR_BLOCK = 3;
 const RADAR_SCHEME = 0;
 const CORRIDOR_KM = [10, 20, 30, 45, 60, 80, 100, 120];
 
-/* ═══════════ ฟังก์ชันคำนวณเรดาร์ ═══════════ */
+/* ═══════════ ฟังก์ชันคำนวณเรดาร์ และภูมิศาสตร์ ═══════════ */
 const PX_TO_DBZ = (v: number) => (v <= 4 ? -Infinity : (v / 255) * 87 - 20);
 const DBZ_TO_MMH = (d: number) => !isFinite(d) || d < 5 ? 0 : Math.pow(Math.pow(10, d / 10) / 200, 1 / 1.6);
 const toRad = (d: number) => (d * Math.PI) / 180;
-const toDeg = (r: number) => (r * 180) / Math.PI;
+
+// ✅ เพิ่มฟังก์ชัน lonLatToPx ที่ขาดไป
+function lonLatToPx(lat: number, lng: number, z: number) {
+  const n = 256 * Math.pow(2, z);
+  const x = ((lng + 180) / 360) * n;
+  const s = Math.sin(toRad(lat));
+  const y = (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n;
+  return { x, y };
+}
 
 async function fetchTile(url: string) {
   try {
@@ -35,24 +43,52 @@ async function fetchTile(url: string) {
 }
 
 async function buildGrid(host: string, path: string, lat: number, lng: number) {
-  const n = 256 * Math.pow(2, RADAR_Z), x = ((lng + 180) / 360) * n, y = (0.5 - Math.log((1 + Math.sin(toRad(lat))) / (1 - Math.sin(toRad(lat)))) / (4 * Math.PI)) * n;
-  const tx0 = Math.floor(x / 256) - Math.floor(RADAR_BLOCK / 2), ty0 = Math.floor(y / 256) - Math.floor(RADAR_BLOCK / 2);
-  const W = RADAR_BLOCK * 256, grid = { d: new Uint8Array(W * W), w: W, h: W, ox: tx0 * 256, oy: ty0 * 256 };
+  // เรียกใช้ฟังก์ชัน lonLatToPx เพื่อหาพิกัดศูนย์กลาง
+  const center = lonLatToPx(lat, lng, RADAR_Z);
+  
+  const tx0 = Math.floor(center.x / 256) - Math.floor(RADAR_BLOCK / 2);
+  const ty0 = Math.floor(center.y / 256) - Math.floor(RADAR_BLOCK / 2);
+  const W = RADAR_BLOCK * 256;
+  const grid = { d: new Uint8Array(W * W), w: W, h: W, ox: tx0 * 256, oy: ty0 * 256 };
+  
   await Promise.all(Array.from({ length: RADAR_BLOCK * RADAR_BLOCK }).map((_, i) => {
     const xi = i % RADAR_BLOCK, yi = Math.floor(i / RADAR_BLOCK);
     return fetchTile(`${host}${path}/256/${RADAR_Z}/${tx0 + xi}/${ty0 + yi}/${RADAR_SCHEME}/1_0.png`).then(png => {
-      if (png) for (let py = 0; py < 256; py++) for (let px = 0; px < 256; px++) { const k = (py * 256 + px) << 2; grid.d[(yi * 256 + py) * W + (xi * 256 + px)] = png.data[k + 3] < 20 ? 0 : png.data[k]; }
+      if (png) {
+        for (let py = 0; py < 256; py++) {
+          for (let px = 0; px < 256; px++) { 
+            const k = (py * 256 + px) << 2; 
+            grid.d[(yi * 256 + py) * W + (xi * 256 + px)] = png.data[k + 3] < 20 ? 0 : png.data[k]; 
+          }
+        }
+      }
     });
   }));
   return grid;
 }
 
-const sample = (g: any, px: number, py: number) => { const x = Math.round(px - g.ox), y = Math.round(py - g.oy); return (x < 0 || y < 0 || x >= g.w || y >= g.h) ? 0 : g.d[y * g.w + x]; };
-function sampleArea(g: any, px: number, py: number, r = 2) { let s = 0, n = 0; for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { s += sample(g, px + dx, py + dy); n++; } return s / n; }
+const sample = (g: any, px: number, py: number) => { 
+  const x = Math.round(px - g.ox), y = Math.round(py - g.oy); 
+  return (x < 0 || y < 0 || x >= g.w || y >= g.h) ? 0 : g.d[y * g.w + x]; 
+};
+
+function sampleArea(g: any, px: number, py: number, r = 2) { 
+  let s = 0, n = 0; 
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) { 
+      s += sample(g, px + dx, py + dy); 
+      n++; 
+    }
+  } 
+  return s / n; 
+}
 
 /* ═══════════ HANDLER ═══════════ */
 export async function GET(req: NextRequest) {
-  const sp = req.nextUrl.searchParams, lat = parseFloat(sp.get('lat') ?? '') || BO_LUANG.lat, lng = parseFloat(sp.get('lng') ?? '') || BO_LUANG.lng;
+  const sp = req.nextUrl.searchParams;
+  const lat = parseFloat(sp.get('lat') ?? '') || BO_LUANG.lat;
+  const lng = parseFloat(sp.get('lng') ?? '') || BO_LUANG.lng;
+  
   try {
     const [main, multi, aqi, rvMeta] = await Promise.all([
       fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m,surface_pressure&hourly=precipitation_probability,temperature_2m,weather_code,cape&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max&timezone=Asia%2FBangkok&forecast_days=7`, { cache: 'no-store' }).then(r => r.json()),
@@ -73,7 +109,8 @@ export async function GET(req: NextRequest) {
       return mx;
     });
 
-    const host = rvMeta?.host ?? 'https://tilecache.rainviewer.com', past = rvMeta?.radar?.past ?? [];
+    const host = rvMeta?.host ?? 'https://tilecache.rainviewer.com';
+    const past = rvMeta?.radar?.past ?? [];
     let obsMmh = 0, corridor: any[] = [], radarOk = false;
 
     if (past.length >= 3) {
@@ -93,8 +130,10 @@ export async function GET(req: NextRequest) {
       nowcast: { status: obsMmh >= 0.5 ? 'RAINING_NOW' : 'CLEAR', headline: obsMmh >= 0.5 ? `พบฝน ${obsMmh.toFixed(1)} มม./ชม.` : 'สภาพอากาศปกติ' },
       hourly: times.slice(startIdx, startIdx + 24).map((t: string, i: number) => ({ hour: t.slice(11, 16), rain: next24[i] })),
       forecast: main.daily?.time?.map((d: string, i: number) => ({ day: new Date(d).toLocaleDateString('th-TH', { weekday: 'short' }), rain: main.daily.precipitation_sum[i] })),
-      radar: { host, frames: [...past, ...rvMeta?.radar?.nowcast].map((f: any) => ({ time: f.time, path: f.path, url: `${host}${f.path}/256/{z}/{x}/{y}/4/1_1.png` })) }
+      radar: { host, frames: [...past, ...(rvMeta?.radar?.nowcast || [])].map((f: any) => ({ time: f.time, path: f.path, url: `${host}${f.path}/256/{z}/{x}/{y}/4/1_1.png` })) }
     };
     return NextResponse.json(payload);
-  } catch { return NextResponse.json({ ok: false }, { status: 502 }); }
+  } catch { 
+    return NextResponse.json({ ok: false }, { status: 502 }); 
+  }
 }
