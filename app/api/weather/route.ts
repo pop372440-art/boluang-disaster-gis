@@ -7,13 +7,6 @@ export const dynamic = 'force-dynamic';
 
 /* ═══════════ ค่าคงที่ ═══════════ */
 const BO_LUANG = { lat: 18.1633, lng: 98.3744 };
-const T = {
-  YELLOW: { peakHourly: 4, sum3h: 12 },
-  ORANGE: { peakHourly: 8, sum3h: 25, sum6h: 25 },
-  RED: { sum6h: 45, sum12h: 50, consecMm: 12, consecCount: 2 },
-};
-const OBS = { yellow: 2, orange: 10, red: 25 };
-
 const RADAR_Z = 7;
 const RADAR_BLOCK = 3;
 const RADAR_SCHEME = 0;
@@ -24,7 +17,6 @@ const PX_TO_DBZ = (v: number) => (v <= 4 ? -Infinity : (v / 255) * 87 - 20);
 const DBZ_TO_MMH = (d: number) => !isFinite(d) || d < 5 ? 0 : Math.pow(Math.pow(10, d / 10) / 200, 1 / 1.6);
 const toRad = (d: number) => (d * Math.PI) / 180;
 
-// ✅ เพิ่มฟังก์ชัน lonLatToPx ที่ขาดไป
 function lonLatToPx(lat: number, lng: number, z: number) {
   const n = 256 * Math.pow(2, z);
   const x = ((lng + 180) / 360) * n;
@@ -43,9 +35,7 @@ async function fetchTile(url: string) {
 }
 
 async function buildGrid(host: string, path: string, lat: number, lng: number) {
-  // เรียกใช้ฟังก์ชัน lonLatToPx เพื่อหาพิกัดศูนย์กลาง
   const center = lonLatToPx(lat, lng, RADAR_Z);
-  
   const tx0 = Math.floor(center.x / 256) - Math.floor(RADAR_BLOCK / 2);
   const ty0 = Math.floor(center.y / 256) - Math.floor(RADAR_BLOCK / 2);
   const W = RADAR_BLOCK * 256;
@@ -91,7 +81,7 @@ export async function GET(req: NextRequest) {
   
   try {
     const [main, multi, aqi, rvMeta] = await Promise.all([
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m,surface_pressure&hourly=precipitation_probability,temperature_2m,weather_code,cape&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max&timezone=Asia%2FBangkok&forecast_days=7`, { cache: 'no-store' }).then(r => r.json()),
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,surface_pressure&hourly=precipitation_probability,temperature_2m,weather_code,cape&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max&timezone=Asia%2FBangkok&forecast_days=7`, { cache: 'no-store' }).then(r => r.json()),
       fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=precipitation&models=ecmwf_ifs025,gfs_seamless,icon_seamless,jma_seamless&timezone=Asia%2FBangkok&forecast_days=3`, { cache: 'no-store' }).then(r => r.json()),
       fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm2_5&timezone=Asia%2FBangkok`, { cache: 'no-store' }).then(r => r.json()),
       fetch('https://api.rainviewer.com/public/weather-maps.json', { cache: 'no-store' }).then(r => r.json()),
@@ -109,6 +99,10 @@ export async function GET(req: NextRequest) {
       return mx;
     });
 
+    // ✅ คำนวณฝนสะสมเพื่อส่งให้หน้าเว็บ (แก้บั๊ก s3, s6)
+    const getSum = (hours: number) => next24.slice(0, hours).reduce((a, b) => a + (b || 0), 0);
+    const sums = { s3: getSum(3), s6: getSum(6), s12: getSum(12), s24: getSum(24) };
+
     const host = rvMeta?.host ?? 'https://tilecache.rainviewer.com';
     const past = rvMeta?.radar?.past ?? [];
     let obsMmh = 0, corridor: any[] = [], radarOk = false;
@@ -119,21 +113,62 @@ export async function GET(req: NextRequest) {
         radarOk = true;
         const c = lonLatToPx(lat, lng, RADAR_Z);
         obsMmh = DBZ_TO_MMH(PX_TO_DBZ(sampleArea(gB, c.x, c.y, 2)));
-        corridor = CORRIDOR_KM.map(km => ({ distanceKm: km, mmh: +DBZ_TO_MMH(PX_TO_DBZ(sampleArea(gB, c.x, c.y, 2))).toFixed(1), wet: true }));
+        corridor = CORRIDOR_KM.map(km => ({ 
+            distanceKm: km, 
+            precipitation: +DBZ_TO_MMH(PX_TO_DBZ(sampleArea(gB, c.x, c.y, 2))).toFixed(1), // ✅ เปลี่ยนเป็น precipitation ให้ตรงกับหน้าบ้าน
+            wet: true 
+        }));
       }
     }
 
+    const level = obsMmh >= 25 ? 'RED' : obsMmh >= 10 ? 'ORANGE' : obsMmh >= 2 ? 'YELLOW' : 'GREEN';
+    const levelColor = { GREEN: '#10b981', YELLOW: '#facc15', ORANGE: '#f97316', RED: '#ef4444' }[level];
+
     const payload = {
       ok: true, updatedAt: new Date().toISOString(),
-      current: { ...cur, rain_now: cur.precipitation, rain_today: main.daily?.precipitation_sum?.[0] },
-      alert: { level: obsMmh >= 25 ? 'RED' : obsMmh >= 10 ? 'ORANGE' : obsMmh >= 2 ? 'YELLOW' : 'GREEN', title: 'สถานะล่าสุดจากเรดาร์', message: `ตรวจพบฝน ${obsMmh.toFixed(1)} มม./ชม.` },
-      nowcast: { status: obsMmh >= 0.5 ? 'RAINING_NOW' : 'CLEAR', headline: obsMmh >= 0.5 ? `พบฝน ${obsMmh.toFixed(1)} มม./ชม.` : 'สภาพอากาศปกติ' },
-      hourly: times.slice(startIdx, startIdx + 24).map((t: string, i: number) => ({ hour: t.slice(11, 16), rain: next24[i] })),
-      forecast: main.daily?.time?.map((d: string, i: number) => ({ day: new Date(d).toLocaleDateString('th-TH', { weekday: 'short' }), rain: main.daily.precipitation_sum[i] })),
-      radar: { host, frames: [...past, ...(rvMeta?.radar?.nowcast || [])].map((f: any) => ({ time: f.time, path: f.path, url: `${host}${f.path}/256/{z}/{x}/{y}/4/1_1.png` })) }
+      current: { 
+          ...cur, 
+          rain_now: cur.precipitation, 
+          rain_today: main.daily?.precipitation_sum?.[0],
+          uv_max: main.daily?.uv_index_max?.[0]
+      },
+      alert: { 
+          level: level, 
+          title: 'สถานะล่าสุดจากเรดาร์', 
+          message: `ตรวจพบฝน ${obsMmh.toFixed(1)} มม./ชม.`, 
+          color: levelColor, 
+          sums: sums // ✅ ส่งข้อมูล s3, s6 ไปให้หน้าเว็บ
+      },
+      nowcast: { 
+          status: obsMmh >= 0.5 ? 'RAINING_NOW' : 'CLEAR', 
+          headline: obsMmh >= 0.5 ? `พบฝน ${obsMmh.toFixed(1)} มม./ชม.` : 'สภาพอากาศปกติ',
+          etaMinutes: 0
+      },
+      corridor: corridor,
+      aqi: {
+          us_aqi: Math.round(aqi?.current?.us_aqi ?? 0),
+          pm2_5: +(aqi?.current?.pm2_5 ?? 0).toFixed(1)
+      },
+      hourly: times.slice(startIdx, startIdx + 24).map((t: string, i: number) => ({ 
+          hour: t.slice(11, 16), 
+          rain: next24[i],
+          prob: main.hourly?.precipitation_probability?.[startIdx + i] ?? 0
+      })),
+      forecast: main.daily?.time?.map((d: string, i: number) => ({ 
+          day: i === 0 ? 'วันนี้' : new Date(d).toLocaleDateString('th-TH', { weekday: 'short' }), 
+          rain: main.daily.precipitation_sum[i],
+          maxTemp: main.daily.temperature_2m_max[i],
+          minTemp: main.daily.temperature_2m_min[i]
+      })),
+      radar: { 
+          host, 
+          frames: [...past, ...(rvMeta?.radar?.nowcast || [])].map((f: any) => ({ 
+              time: f.time, 
+              path: f.path, 
+              url: `${host}${f.path}/256/{z}/{x}/{y}/4/1_1.png` 
+          })) 
+      }
     };
     return NextResponse.json(payload);
-  } catch { 
-    return NextResponse.json({ ok: false }, { status: 502 }); 
-  }
+  } catch { return NextResponse.json({ ok: false }, { status: 502 }); }
 }
