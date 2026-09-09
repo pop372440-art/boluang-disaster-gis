@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
 
 // 🚨 1. Import ผู้ช่วยบ่อหลวงเข้ามาใช้งาน
@@ -8,14 +8,11 @@ import SmartHelper from '@/components/SmartHelper';
 // 📈 2. Import Vercel Analytics (เก็บสถิติผู้ใช้งาน)
 import { Analytics } from "@vercel/analytics/react";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+// 🌟 เปลี่ยนมาใช้ฟอนต์ Noto Sans Thai ที่ Next.js 14 รู้จักแน่นอน
+const notoSansThai = Noto_Sans_Thai({
+  subsets: ["thai", "latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
 });
 
 // 🌟 ตั้งค่า SEO และ Social Sharing (OG Image) + เก็บค่า PWA เดิมไว้
@@ -55,7 +52,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="th" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="th" className={`${notoSansThai.className} h-full antialiased`}>
       <head>
         {/* 🚀 เปิดท่อเชื่อมต่อล่วงหน้าสำหรับโหลดแผนที่ OSM และ Esri เพื่อลด LCP ลงให้ผ่านเกณฑ์ */}
         <link rel="preconnect" href="https://tile.openstreetmap.org" crossOrigin="anonymous" />
