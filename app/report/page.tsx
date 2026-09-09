@@ -777,9 +777,41 @@ export default function ReportPage() {
                       <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
                     </label>
                   </div>
-                  <span className="text-[10px] text-slate-500 mt-3 flex items-center bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm">
-                    ✨ มีระบบ AI ช่วยประเมินข้อมูลทันที
-                  </span>
+                  
+                  {/* 🤖 AI Highlight Banner (Pro Version) */}
+                <div className="mt-4 w-full relative group rounded-xl p-[2px] bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 overflow-hidden shadow-lg shadow-purple-500/20">
+        
+                {/* ออร่าเรืองแสงด้านหลัง */}
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 opacity-40 group-hover:opacity-100 transition-opacity blur-md"></div>
+    
+                {/* กล่องสีขาวด้านใน */}
+                <div className="relative bg-white/95 backdrop-blur-sm rounded-[10px] px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+        
+                {/* ไอคอน AI ประกายแสง */}
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-50 to-purple-100 flex items-center justify-center border border-purple-200 shadow-inner">
+                <svg className="w-5 h-5 text-purple-600 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+                </div>
+        
+                <div className="text-left">
+                <h4 className="text-[14px] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-700 to-purple-600">
+                วิเคราะห์ภาพด้วย Gemini AI
+          </h4>
+          <p className="text-[11px] text-slate-500 font-bold mt-0.5">
+            ระบบช่วยประเมินประเภทภัยและระดับความรุนแรง
+          </p>
+        </div>
+      </div>
+      
+      {/* ไฟกระพริบสถานะ */}
+      <div className="flex h-3 w-3 relative ml-2 flex-shrink-0">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
+      </div>
+    </div>
+  </div>
                 </div>
               )}
             </div>
