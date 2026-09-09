@@ -18,8 +18,10 @@ export default function AdminPanel() {
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // State สำหรับข้อมูลแจ้งเหตุ
+  // State สำหรับข้อมูลแจ้งเหตุ & Tabs
+  const [activeTab, setActiveTab] = useState<'pending' | 'resolved'>('pending');
   const [reports, setReports] = useState<any[]>([]);
+  const [resolvedReports, setResolvedReports] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(false);
 
   // 🔐 ตรวจสอบการ Login
@@ -36,26 +38,24 @@ export default function AdminPanel() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 📥 ดึงข้อมูลเมื่อ Login สำเร็จ (พร้อมระบบ Auto-Refresh)
+  // 📥 ดึงข้อมูลเมื่อ Login สำเร็จ หรือเปลี่ยน Tab (พร้อมระบบ Auto-Refresh)
   useEffect(() => {
     if (session) {
-      // 1. ดึงข้อมูลครั้งแรกเมื่อเปิดหน้าเว็บ (โชว์ Loading)
-      fetchActiveReports(false); 
+      if (activeTab === 'pending') fetchActiveReports(false);
+      else fetchResolvedReports(false);
 
-      // 2. 🚀 ตั้งเวลา Auto-Refresh แบบ "Silent" (ไม่โชว์ Loading) ทุกๆ 15 วินาที
       const intervalId = setInterval(() => {
-        fetchActiveReports(true); // true = isSilent (ทำแบบเงียบๆ ไม่กระพริบ)
-      }, 15000); // 15000 ms = 15 วินาที
+        if (activeTab === 'pending') fetchActiveReports(true);
+        else fetchResolvedReports(true);
+      }, 15000); // Auto refresh ทุก 15 วินาที
 
-      // 3. ทำความสะอาดการตั้งเวลาเมื่อปิดหน้าเว็บ
       return () => clearInterval(intervalId);
     }
-  }, [session]);
+  }, [session, activeTab]);
 
-  // 🔄 ฟังก์ชันดึงข้อมูล (เพิ่มพารามิเตอร์ isSilent)
+  // 🔄 ฟังก์ชันดึงข้อมูล (รอดำเนินการ)
   const fetchActiveReports = async (isSilent = false) => {
-    if (!isSilent) setLoadingData(true); // โชว์ Loading เฉพาะตอนกดปุ่มรีเฟรชมือ หรือโหลดครั้งแรก
-    
+    if (!isSilent) setLoadingData(true);
     try {
       const { data, error } = await supabase
         .from('boluang_disaster_reports')
@@ -66,7 +66,26 @@ export default function AdminPanel() {
       if (error) throw error;
       if (data) setReports(data);
     } catch (error) {
-      console.error('Error fetching:', error);
+      console.error('Error fetching pending:', error);
+    } finally {
+      if (!isSilent) setLoadingData(false);
+    }
+  };
+
+  // 🔄 ฟังก์ชันดึงข้อมูล (ปิดงานแล้ว / ประวัติ)
+  const fetchResolvedReports = async (isSilent = false) => {
+    if (!isSilent) setLoadingData(true);
+    try {
+      const { data, error } = await supabase
+        .from('boluang_disaster_reports')
+        .select('*')
+        .eq('status', 'ดำเนินการเสร็จแล้ว') 
+        .order('resolved_at', { ascending: false });
+
+      if (error) throw error;
+      if (data) setResolvedReports(data);
+    } catch (error) {
+      console.error('Error fetching resolved:', error);
     } finally {
       if (!isSilent) setLoadingData(false);
     }
@@ -92,11 +111,11 @@ export default function AdminPanel() {
     await supabase.auth.signOut();
   };
 
-  // 🔍 ฟังก์ชันกดขยายรูปภาพบนแผนที่ (สำหรับ Admin)
+  // 🔍 ฟังก์ชันกดขยายรูปภาพ
   const handleViewImage = (imageUrl: string) => {
     Swal.fire({
       imageUrl: imageUrl,
-      imageAlt: 'ภาพแจ้งเหตุจากประชาชน',
+      imageAlt: 'ภาพแจ้งเหตุ',
       showConfirmButton: false,
       showCloseButton: true,
       width: 'auto',
@@ -110,7 +129,7 @@ export default function AdminPanel() {
     });
   };
 
-  // ✅ ฟังก์ชัน "ปิดจ๊อบ" อัจฉริยะ (อัปเกรดแนบรูปได้)
+  // ✅ ฟังก์ชัน "ปิดจ๊อบ" อัจฉริยะ (ของเดิมที่ยอดเยี่ยมอยู่แล้ว)
   const handleCloseJob = async (reportId: string, currentRiskType: string) => {
     const { value: formValues } = await Swal.fire({
       title: '📝 บันทึกการปฏิบัติงาน',
@@ -181,9 +200,9 @@ export default function AdminPanel() {
 
         if (error) throw error;
 
-        Swal.fire({ icon: 'success', title: 'ปิดงานสำเร็จ!', text: 'ข้อมูลถูกบันทึกและลบออกจากแผนที่ประชาชนแล้ว', confirmButtonColor: '#10b981' });
+        Swal.fire({ icon: 'success', title: 'ปิดงานสำเร็จ!', text: 'ข้อมูลถูกบันทึกและย้ายไปที่ประวัติการแก้ไขแล้ว', confirmButtonColor: '#10b981' });
         
-        fetchActiveReports(false); // อัปเดตตารางใหม่ทันที (แบบโชว์ Loading นิดนึงเพื่อความมั่นใจ)
+        fetchActiveReports(false); 
         
       } catch (error) {
         console.error(error);
@@ -248,23 +267,39 @@ export default function AdminPanel() {
       </header>
 
       <main className="p-6 max-w-7xl mx-auto">
-        <div className="flex justify-between items-end mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 space-y-4 md:space-y-0">
           <div>
             <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
-              <span>รายการแจ้งเหตุที่ต้องดำเนินการ</span>
-              {/* 🟢 ไฟสถานะกระพริบ แสดงว่าระบบทำงานและ Auto-refresh อยู่ */}
+              <span>{activeTab === 'pending' ? 'รายการแจ้งเหตุที่ต้องดำเนินการ' : 'ประวัติการแก้ไขปัญหา'}</span>
               <span className="relative flex h-2.5 w-2.5 ml-2 mt-1">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
               </span>
             </h2>
-            <p className="text-gray-400 mt-1 text-sm">เรียงลำดับจากรายการใหม่ล่าสุด (อัปเดตอัตโนมัติทุก 15 วินาที)</p>
+            <p className="text-gray-400 mt-1 text-sm">อัปเดตข้อมูลอัตโนมัติทุก 15 วินาที</p>
           </div>
           
-          {/* ปุ่มรีเฟรชมือ (เผื่อแอดมินใจร้อน) */}
-          <button onClick={() => fetchActiveReports(false)} className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 border border-gray-700 transition-colors">
-            <span>🔄</span> <span>รีเฟรชข้อมูล</span>
-          </button>
+          <div className="flex space-x-2">
+            {/* ชุดปุ่มสลับ Tab */}
+            <div className="flex bg-gray-800 p-1 rounded-lg border border-gray-700">
+              <button 
+                onClick={() => setActiveTab('pending')}
+                className={`px-4 py-2 rounded-md text-sm font-bold transition-colors ${activeTab === 'pending' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+              >
+                🚨 รอดำเนินการ
+              </button>
+              <button 
+                onClick={() => setActiveTab('resolved')}
+                className={`px-4 py-2 rounded-md text-sm font-bold transition-colors ${activeTab === 'resolved' ? 'bg-emerald-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+              >
+                ✅ ปิดงานแล้ว
+              </button>
+            </div>
+            
+            <button onClick={() => activeTab === 'pending' ? fetchActiveReports(false) : fetchResolvedReports(false)} className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 border border-gray-700 transition-colors">
+              <span>🔄</span>
+            </button>
+          </div>
         </div>
 
         <div className="bg-[#1e293b] rounded-xl border border-gray-700 overflow-hidden shadow-2xl">
@@ -272,112 +307,103 @@ export default function AdminPanel() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-800/50 border-b border-gray-700 text-sm font-semibold text-gray-300">
-                  <th className="p-4 w-48">วันเวลาที่แจ้ง</th>
+                  <th className="p-4 w-48">{activeTab === 'pending' ? 'วันเวลาที่แจ้ง' : 'วันเวลาที่ปิดงาน'}</th>
                   <th className="p-4 w-56">ประเภทภัย / พื้นที่</th>
-                  <th className="p-4 text-center">ระดับ</th>
-                  <th className="p-4">รายละเอียดผู้แจ้ง</th>
-                  <th className="p-4 text-right">การจัดการ</th>
+                  {activeTab === 'pending' && <th className="p-4 text-center">ระดับ</th>}
+                  <th className="p-4">{activeTab === 'pending' ? 'รายละเอียดผู้แจ้ง' : 'ผลการดำเนินการ'}</th>
+                  {activeTab === 'resolved' && <th className="p-4">ผู้ดำเนินการ</th>}
+                  {activeTab === 'pending' && <th className="p-4 text-right">การจัดการ</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
                 {loadingData ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-gray-500">กำลังโหลดข้อมูล...</td></tr>
-                ) : reports.length === 0 ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-gray-400 text-lg">✨ ยอดเยี่ยม! ขณะนี้ไม่มีเหตุการณ์ที่ต้องดำเนินการ</td></tr>
+                  <tr><td colSpan={6} className="p-8 text-center text-gray-500">กำลังโหลดข้อมูล...</td></tr>
+                ) : (activeTab === 'pending' ? reports : resolvedReports).length === 0 ? (
+                  <tr><td colSpan={6} className="p-8 text-center text-gray-400 text-lg">
+                    {activeTab === 'pending' ? '✨ ยอดเยี่ยม! ขณะนี้ไม่มีเหตุการณ์ที่ต้องดำเนินการ' : 'ยังไม่มีประวัติการปิดงาน'}
+                  </td></tr>
                 ) : (
-                  reports.map((report) => (
+                  (activeTab === 'pending' ? reports : resolvedReports).map((report) => (
                     <tr key={report.id} className="hover:bg-gray-800/30 transition-colors">
-                      <td className="p-4 text-sm font-mono text-gray-300">
-                        {new Date(report.created_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })} น.
+                      {/* วันเวลา */}
+                      <td className="p-4 text-sm font-mono text-gray-300 align-top">
+                        {new Date(activeTab === 'pending' ? report.created_at : report.resolved_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })} น.
                       </td>
-                      <td className="p-4">
+                      
+                      {/* ประเภทภัยและพื้นที่ */}
+                      <td className="p-4 align-top">
                         <div className="font-bold text-white">{report.risk_type}</div>
                         <div className="text-sm text-blue-400 mt-0.5 flex items-center">
                           📍 {report.village_name}
                         </div>
                       </td>
-                      <td className="p-4 text-center">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${report.severity_level >= 4 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : report.severity_level === 3 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'}`}>
-                          ระดับ {report.severity_level}
-                        </span>
-                      </td>
+
+                      {/* ระดับความรุนแรง (แสดงเฉพาะรอดำเนินการ) */}
+                      {activeTab === 'pending' && (
+                        <td className="p-4 text-center align-top">
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${report.severity_level >= 4 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : report.severity_level === 3 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'}`}>
+                            ระดับ {report.severity_level}
+                          </span>
+                        </td>
+                      )}
                       
-                      {/* 📸 แสดงภาพขนาดย่อ และข้อความ */}
-                      <td className="p-4">
-                        <div className="flex items-start space-x-3">
-                          {report.image_url && (
-                            <div 
-                              className="flex-shrink-0 cursor-pointer relative group"
-                              onClick={() => handleViewImage(report.image_url)}
-                            >
-                              <img 
-                                src={report.image_url} 
-                                alt="รูปแจ้งเหตุ" 
-                                className="w-16 h-16 md:w-20 md:h-14 object-cover rounded-lg border border-gray-600 group-hover:border-blue-400 transition-colors" 
-                              />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                                <span className="text-white text-xs drop-shadow-md">🔍</span>
+                      {/* รายละเอียด */}
+                      <td className="p-4 align-top">
+                        {activeTab === 'pending' ? (
+                          // มุมมองรอดำเนินการ (แสดงข้อมูลแจ้งเหตุ)
+                          <div className="flex items-start space-x-3">
+                            {report.image_url && (
+                              <div className="flex-shrink-0 cursor-pointer relative group" onClick={() => handleViewImage(report.image_url)}>
+                                <img src={report.image_url} alt="รูปแจ้งเหตุ" className="w-16 h-16 object-cover rounded-lg border border-gray-600 group-hover:border-blue-400 transition-colors" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"><span className="text-white text-xs drop-shadow-md">🔍</span></div>
                               </div>
+                            )}
+                            <div>
+                              <div className="text-sm text-gray-200 line-clamp-2 max-w-sm cursor-help" title={report.description}>{report.description}</div>
+                              <div className="text-xs text-gray-500 mt-1">👤 {report.reporter_name} ({report.reporter_role})</div>
                             </div>
-                          )}
-                          <div>
-                            {/* 💡 พระเอกอยู่ตรงนี้ครับ: ใส่ title และ cursor-help สำหรับ Hover */}
-                            <div 
-                              className="text-sm text-gray-200 line-clamp-2 max-w-sm cursor-help"
-                              title={report.description}
-                            >
-                              {report.description}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1">👤 {report.reporter_name} ({report.reporter_role})</div>
                           </div>
-                        </div>
+                        ) : (
+                          // มุมมองประวัติการแก้ไข (แสดงข้อมูลผลการแก้ไข)
+                          <div className="flex items-start space-x-3">
+                            {report.resolved_image_url && (
+                              <div className="flex-shrink-0 cursor-pointer relative group" onClick={() => handleViewImage(report.resolved_image_url)}>
+                                <img src={report.resolved_image_url} alt="รูปผลการแก้ไข" className="w-16 h-16 object-cover rounded-lg border border-emerald-600 group-hover:border-emerald-400 transition-colors" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"><span className="text-white text-xs drop-shadow-md">🔍</span></div>
+                              </div>
+                            )}
+                            <div>
+                              <div className="text-sm text-emerald-300 font-medium whitespace-pre-line">{report.action_taken || 'ไม่มีรายละเอียดเพิ่มเติม'}</div>
+                              <div className="text-[11px] text-gray-500 mt-2">อ้างอิง: {report.tracking_code}</div>
+                            </div>
+                          </div>
+                        )}
                       </td>
 
-                      {/* 🚀 ชุดปุ่มจัดการ (เปิดแผนที่ / นำทาง / ปิดจ๊อบ) */}
-                      <td className="p-4 align-middle text-right">
-                        <div className="flex items-center justify-end space-x-2">
-                          
-                          {/* 📍 ปุ่มเปิดพิกัด (Google Maps) */}
-                          <a 
-                            href={`https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            title="เปิดพิกัดใน Google Maps"
-                            className="w-8 h-8 bg-[#0f172a] hover:bg-[#1e293b] border border-[#38bdf8] text-[#38bdf8] rounded-lg flex items-center justify-center transition-all shadow-sm hover:shadow-[#38bdf8]/30 group"
-                          >
-                            <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                          </a>
+                      {/* ผู้ดำเนินการ (แสดงเฉพาะปิดงานแล้ว) */}
+                      {activeTab === 'resolved' && (
+                        <td className="p-4 align-top">
+                          <div className="text-sm text-gray-300 break-all">{report.resolved_by || '-'}</div>
+                        </td>
+                      )}
 
-                          {/* 🚗 ปุ่มนำทาง (Directions) */}
-                          <a 
-                            href={`https://www.google.com/maps/dir/?api=1&destination=${report.latitude},${report.longitude}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            title="นำทางไปยังจุดเกิดเหตุ"
-                            className="w-8 h-8 bg-[#0f172a] hover:bg-[#1e293b] border border-[#2dd4bf] text-[#2dd4bf] rounded-lg flex items-center justify-center transition-all shadow-sm hover:shadow-[#2dd4bf]/30 group"
-                          >
-                            <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                            </svg>
-                          </a>
-
-                          {/* ✅ ปุ่มปิดจ๊อบ */}
-                          <button 
-                            onClick={() => handleCloseJob(report.id, report.risk_type)}
-                            title="บันทึกและปิดงาน"
-                            className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/50 hover:border-emerald-500 px-3 py-1.5 rounded-lg text-[13px] font-bold transition-all shadow-[0_0_10px_rgba(16,185,129,0.1)] hover:shadow-[0_0_15px_rgba(16,185,129,0.4)] whitespace-nowrap flex items-center space-x-1"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                            </svg>
-                            <span>ปิดจ๊อบ</span>
-                          </button>
-
-                        </div>
-                      </td>
+                      {/* การจัดการ (แสดงเฉพาะรอดำเนินการ) */}
+                      {activeTab === 'pending' && (
+                        <td className="p-4 align-top text-right">
+                          <div className="flex items-center justify-end space-x-2">
+                            <a href={`https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`} target="_blank" rel="noopener noreferrer" title="เปิดพิกัดใน Google Maps" className="w-8 h-8 bg-[#0f172a] hover:bg-[#1e293b] border border-[#38bdf8] text-[#38bdf8] rounded-lg flex items-center justify-center transition-all shadow-sm group">
+                              <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            </a>
+                            <a href={`https://www.google.com/maps/dir/?api=1&destination=${report.latitude},${report.longitude}`} target="_blank" rel="noopener noreferrer" title="นำทางไปยังจุดเกิดเหตุ" className="w-8 h-8 bg-[#0f172a] hover:bg-[#1e293b] border border-[#2dd4bf] text-[#2dd4bf] rounded-lg flex items-center justify-center transition-all shadow-sm group">
+                              <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+                            </a>
+                            <button onClick={() => handleCloseJob(report.id, report.risk_type)} title="บันทึกและปิดงาน" className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/50 hover:border-emerald-500 px-3 py-1.5 rounded-lg text-[13px] font-bold transition-all shadow-[0_0_10px_rgba(16,185,129,0.1)] hover:shadow-[0_0_15px_rgba(16,185,129,0.4)] whitespace-nowrap flex items-center space-x-1">
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                              <span>ปิดจ๊อบ</span>
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
