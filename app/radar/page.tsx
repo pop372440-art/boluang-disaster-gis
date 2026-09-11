@@ -12,25 +12,24 @@ export default function RadarPage() {
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
   const [radarData, setRadarData] = useState<any>(null);
+  
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   
-  // State สำหรับแผงควบคุม UI
-  const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(true);
+  // 🎛️ State สำหรับแผงจัดการชั้นข้อมูล
   const [mapStyle, setMapStyle] = useState<'light' | 'terrain' | 'satellite' | 'dark'>('dark');
   const [showRadar, setShowRadar] = useState(true);
+  const [radarOpacity, setRadarOpacity] = useState(0.8);
   const [showBoluang, setShowBoluang] = useState(true);
-  const [showBlock, setShowBlock] = useState(true);
-  const [radarOpacity, setRadarOpacity] = useState(0.7);
-
+  const [showBlock, setShowBlock] = useState(false);
+  const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(true);
+  
   const center = { lat: 18.1633, lng: 98.3744 };
 
   useEffect(() => {
     fetch('/geojson/boluang.json').then(res => res.json()).then(data => setGeoBoluang(data));
     fetch('/geojson/block.json').then(res => res.json()).then(data => setGeoBlock(data));
-  }, []);
-
-  useEffect(() => {
+    
     fetch('https://api.rainviewer.com/public/weather-maps.json')
       .then(res => res.json())
       .then(data => {
@@ -52,207 +51,211 @@ export default function RadarPage() {
           }
           return nextIndex;
         });
-      }, 1200); 
+      }, 1000); 
     }
     return () => clearInterval(interval);
   }, [isPlaying, radarData]);
 
-  const activeFrame = radarData?.frames[currentFrameIndex];
-  // Scheme 4 = สีคล้ายเรดาร์กรมอุตุฯ
-  const radarUrl = (showRadar && activeFrame) ? `${radarData.host}${activeFrame.path}/256/{z}/{x}/{y}/4/1_1.png` : '';
-  const isNowcast = currentFrameIndex >= (radarData?.pastCount || 0);
-
-  // ฟังก์ชันเลือก Basemap
-  const renderBasemap = () => {
+  // 🗺️ เปลี่ยนไปใช้แผนที่ระดับ Pro จาก ESRI / ArcGIS (ซูมได้ลึก ไม่มีลายน้ำ Error)
+  const getBasemapUrl = () => {
     switch (mapStyle) {
-      case 'light': return <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />;
-      case 'terrain': return <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}" />;
-      case 'satellite': return <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />;
-      case 'dark': return <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />;
+      case 'light': return "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}";
+      case 'terrain': return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}";
+      case 'satellite': return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+      case 'dark': default: return "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}";
     }
   };
 
+  const activeFrame = radarData?.frames[currentFrameIndex];
+  const radarUrl = (showRadar && activeFrame) ? `${radarData.host}${activeFrame.path}/256/{z}/{x}/{y}/4/1_1.png` : '';
+  const isNowcast = currentFrameIndex >= (radarData?.pastCount || 0);
+
   return (
-    <div className="relative w-screen h-screen bg-[#111827] overflow-hidden font-sans text-white flex flex-col">
+    <div className="relative w-screen h-screen bg-[#111319] overflow-hidden font-sans text-white flex flex-col select-none">
+      
+      {/* 🚀 CSS สำหรับปรับแต่งหน้าตาให้ลื่นและดู Pro */}
       <style dangerouslySetInnerHTML={{__html: `
-        .leaflet-container { background: #111827 !important; }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+        .leaflet-container { background: #111319 !important; }
+        .custom-range { -webkit-appearance: none; background: transparent; }
+        .custom-range::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #4178F3; cursor: pointer; border: 3px solid #1E222B; box-shadow: 0 0 10px rgba(65,120,243,0.5); }
+        .custom-range::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: #333946; border-radius: 4px; }
+        .custom-range:focus { outline: none; }
+        .pro-panel { background: #232732; border: 1px solid #333946; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+        .custom-checkbox { -webkit-appearance: none; width: 16px; height: 16px; border: 1px solid #4B5563; border-radius: 4px; background: #1E222B; cursor: pointer; position: relative; }
+        .custom-checkbox:checked { background: #4178F3; border-color: #4178F3; }
+        .custom-checkbox:checked::after { content: ''; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
       `}} />
 
       {/* 🚀 Header */}
-      <header className="h-[60px] bg-[#1f2937]/95 border-b border-[#374151] z-[1000] flex items-center justify-between px-4 shadow-md shrink-0">
+      <header className="h-[50px] bg-[#1A1D24]/95 border-b border-[#2D323B] backdrop-blur-md z-[1000] flex items-center justify-between px-4 shrink-0 shadow-sm">
         <div className="flex items-center space-x-3">
-          <button onClick={() => { if(window.history.length > 1) window.close(); else window.location.href = '/'; }} className="w-8 h-8 flex items-center justify-center bg-slate-800 hover:bg-rose-500 rounded text-gray-400 hover:text-white transition-colors">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+          <button onClick={() => { if(window.history.length > 1) window.close(); else window.location.href = '/'; }} className="text-[#8B94A5] hover:text-white transition-colors">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
-          <div>
-            <h1 className="text-[14px] font-bold tracking-wide flex items-center text-white">เรดาร์และปริมาณฝน (Nowcast)</h1>
-            <p className="text-[10px] text-[#38bdf8]">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</p>
+          <div className="flex items-baseline space-x-2">
+            <h1 className="text-[14px] font-bold tracking-wide text-[#E5E7EB]">เรดาร์และปริมาณฝน (Nowcast)</h1>
+            <span className="text-[11px] text-[#4178F3] font-medium hidden md:inline">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</span>
           </div>
         </div>
       </header>
 
       <div className="relative flex-1">
+        
         {/* 🗺️ แผนที่หลัก */}
         <div className="absolute inset-0 z-0">
-          <MapContainer center={[center.lat, center.lng]} zoom={12} maxZoom={16} zoomControl={false} attributionControl={false} className="w-full h-full">
-            {renderBasemap()}
-            {showBoluang && geoBoluang && <GeoJSON data={geoBoluang} style={{ color: mapStyle==='light' ? '#3b82f6' : '#ffffff', weight: 2.5, fill: false, opacity: 0.9, dashArray: '6,6' }} />}
-            {showBlock && geoBlock && <GeoJSON data={geoBlock} style={{ color: mapStyle==='light' ? '#f59e0b' : '#fcd34d', weight: 1.5, fill: false, opacity: 0.6, dashArray: '3,3' }} />}
+          <MapContainer center={[center.lat, center.lng]} zoom={12} maxZoom={18} zoomControl={false} attributionControl={false} className="w-full h-full">
+            <TileLayer url={getBasemapUrl()} />
+            {/* วาดเส้นขอบเขตบ่อหลวงให้ดู Professional (เส้นประสีขาวบางๆ) */}
+            {showBoluang && geoBoluang && <GeoJSON data={geoBoluang} style={{ color: '#FFFFFF', weight: 1.5, fill: false, opacity: 0.8, dashArray: '4,4' }} />}
+            {/* โซนหมู่บ้าน (สีส้มอ่อนบางๆ) */}
+            {showBlock && geoBlock && <GeoJSON data={geoBlock} style={{ color: '#F59E0B', weight: 1, fill: false, opacity: 0.4 }} />}
+            {/* ชั้นข้อมูลเรดาร์ */}
             {radarUrl && <TileLayer key={`${radarUrl}-${radarOpacity}`} url={radarUrl} opacity={radarOpacity} zIndex={100} />}
           </MapContainer>
         </div>
 
-        {/* 🎛️ แผงจัดการชั้นข้อมูล (สไตล์ CLPP) */}
-        {isLayerMenuOpen ? (
-          <div className="absolute top-4 left-4 z-[1000] w-[260px] bg-[#1f2937]/95 backdrop-blur-md border border-[#374151] rounded-xl shadow-2xl flex flex-col overflow-hidden">
-            <div className="bg-[#374151]/50 px-4 py-3 flex items-center justify-between border-b border-[#374151]">
-              <h3 className="text-[13px] font-bold text-white tracking-wide">จัดการชั้นข้อมูล</h3>
-              <button onClick={() => setIsLayerMenuOpen(false)} className="text-gray-400 hover:text-white">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+        {/* 🎛️ แผงจัดการชั้นข้อมูล (ซ้ายบน) สไตล์ ONWR */}
+        {isLayerMenuOpen && (
+          <div className="absolute top-4 left-4 z-[1000] w-[260px] pro-panel flex flex-col">
+            <div className="px-4 py-3 border-b border-[#333946] flex justify-between items-center bg-[#1A1D24] rounded-t-[12px]">
+              <h3 className="text-[13px] font-bold text-[#E5E7EB]">จัดการชั้นข้อมูล</h3>
+              <button onClick={() => setIsLayerMenuOpen(false)} className="text-[#8B94A5] hover:text-white"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
             </div>
             
-            <div className="p-3">
-              {/* ปุ่มเลือก Basemap 4 แบบ */}
-              <div className="grid grid-cols-4 gap-2 mb-4">
+            <div className="p-4 space-y-5">
+              {/* Basemap Selector (ปุ่มแบบรูปภาพ) */}
+              <div className="grid grid-cols-4 gap-2">
                 {[
-                  { id: 'light', name: 'Light', bg: 'bg-[#f3f4f6]' },
-                  { id: 'terrain', name: 'Terrain', bg: 'bg-[url("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/12/1841/3196")]' },
-                  { id: 'satellite', name: 'Satellite', bg: 'bg-[url("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/12/1841/3196")]' },
-                  { id: 'dark', name: 'Dark', bg: 'bg-[#111827]' }
-                ].map((b) => (
-                  <button key={b.id} onClick={() => setMapStyle(b.id as any)} className="flex flex-col items-center group">
-                    <div className={`w-full h-10 rounded-lg border-2 ${mapStyle === b.id ? 'border-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' : 'border-[#374151] group-hover:border-gray-400'} ${b.bg} bg-cover bg-center transition-all`}></div>
-                    <span className={`text-[10px] mt-1.5 font-bold ${mapStyle === b.id ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>{b.name}</span>
-                  </button>
+                  { id: 'light', name: 'Light', bg: 'bg-[#E5E7EB]' },
+                  { id: 'terrain', name: 'Terrain', bg: 'bg-[#8F9779]' },
+                  { id: 'satellite', name: 'Satellite', bg: 'bg-[#2D4C1E]' },
+                  { id: 'dark', name: 'Dark', bg: 'bg-[#1A1D24]' }
+                ].map(bg => (
+                  <div 
+                    key={bg.id} 
+                    onClick={() => setMapStyle(bg.id as any)} 
+                    className={`flex flex-col items-center justify-center p-1 rounded-lg border cursor-pointer transition-all ${mapStyle === bg.id ? 'bg-[#292E38] border-[#4178F3]' : 'border-transparent hover:bg-[#292E38]'}`}
+                  >
+                    <div className={`w-full h-8 ${bg.bg} rounded-md border border-[#333946] mb-1.5 opacity-90`}></div>
+                    <span className={`text-[9px] font-bold ${mapStyle === bg.id ? 'text-[#4178F3]' : 'text-[#8B94A5]'}`}>{bg.name}</span>
+                  </div>
                 ))}
               </div>
 
-              <div className="border-t border-[#374151] my-3"></div>
+              {/* Layer Toggles */}
+              <div className="space-y-3.5">
+                <div className="flex items-center justify-between group">
+                  <label className="flex items-center space-x-3 cursor-pointer">
+                    <input type="checkbox" checked={showRadar} onChange={(e) => setShowRadar(e.target.checked)} className="custom-checkbox" />
+                    <span className="text-[13px] text-[#D1D5DB] group-hover:text-white transition-colors">เรดาร์คอมโพสิต</span>
+                  </label>
+                  {/* Slider ควบคุมความโปร่งแสงขนาดจิ๋ว */}
+                  {showRadar && (
+                    <input type="range" min="0" max="1" step="0.1" value={radarOpacity} onChange={(e) => setRadarOpacity(parseFloat(e.target.value))} className="w-16 h-1 bg-[#333946] rounded-full appearance-none outline-none accent-[#4178F3]" title="ปรับความโปร่งแสง" />
+                  )}
+                </div>
 
-              {/* Checkboxes */}
-              <div className="space-y-2 max-h-[250px] overflow-y-auto custom-scrollbar pr-2">
-                <label className="flex items-center justify-between cursor-pointer group">
-                  <div className="flex items-center space-x-3">
-                    <input type="checkbox" checked={showRadar} onChange={(e) => setShowRadar(e.target.checked)} className="w-4 h-4 rounded border-gray-500 text-blue-500 focus:ring-0 bg-[#111827] accent-blue-500" />
-                    <span className="text-[12px] font-medium text-gray-200 group-hover:text-white transition-colors">เรดาร์คอมโพสิต</span>
-                  </div>
-                </label>
-                
-                {/* แถบปรับความโปร่งแสง (จะโชว์เมื่อเปิดเรดาร์) */}
-                {showRadar && (
-                  <div className="pl-7 pr-1 pb-2 pt-1">
-                    <input type="range" min="0" max="1" step="0.1" value={radarOpacity} onChange={(e) => setRadarOpacity(parseFloat(e.target.value))} className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500" title={`ความโปร่งแสง ${Math.round(radarOpacity*100)}%`} />
-                  </div>
-                )}
+                <div className="border-t border-[#333946]"></div>
 
-                <div className="border-t border-[#374151]/50 my-2 pt-2"></div>
+                <div className="flex items-center justify-between group">
+                  <label className="flex items-center space-x-3 cursor-pointer">
+                    <input type="checkbox" checked={showBoluang} onChange={(e) => setShowBoluang(e.target.checked)} className="custom-checkbox" />
+                    <span className="text-[13px] text-[#D1D5DB] group-hover:text-white transition-colors">ขอบเขตตำบลบ่อหลวง</span>
+                  </label>
+                </div>
 
-                <label className="flex items-center justify-between cursor-pointer group">
-                  <div className="flex items-center space-x-3">
-                    <input type="checkbox" checked={showBoluang} onChange={(e) => setShowBoluang(e.target.checked)} className="w-4 h-4 rounded border-gray-500 text-blue-500 focus:ring-0 bg-[#111827] accent-blue-500" />
-                    <span className="text-[12px] font-medium text-gray-200 group-hover:text-white transition-colors">ขอบเขตตำบลบ่อหลวง</span>
-                  </div>
-                </label>
-
-                <label className="flex items-center justify-between cursor-pointer group">
-                  <div className="flex items-center space-x-3">
-                    <input type="checkbox" checked={showBlock} onChange={(e) => setShowBlock(e.target.checked)} className="w-4 h-4 rounded border-gray-500 text-blue-500 focus:ring-0 bg-[#111827] accent-blue-500" />
-                    <span className="text-[12px] font-medium text-gray-200 group-hover:text-white transition-colors">โซนหมู่บ้านย่อย (13 หมู่)</span>
-                  </div>
-                </label>
+                <div className="flex items-center justify-between group">
+                  <label className="flex items-center space-x-3 cursor-pointer">
+                    <input type="checkbox" checked={showBlock} onChange={(e) => setShowBlock(e.target.checked)} className="custom-checkbox" />
+                    <span className="text-[13px] text-[#D1D5DB] group-hover:text-white transition-colors">โซนหมู่บ้าน</span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
-        ) : (
-          <button onClick={() => setIsLayerMenuOpen(true)} className="absolute top-4 left-4 z-[1000] bg-[#1f2937]/90 p-2.5 rounded-xl border border-[#374151] text-white hover:bg-blue-600 transition-colors shadow-lg">
+        )}
+
+        {/* ปุ่มเปิดเมนู */}
+        {!isLayerMenuOpen && (
+          <button onClick={() => setIsLayerMenuOpen(true)} className="absolute top-4 left-4 z-[1000] p-2 bg-[#232732]/90 border border-[#333946] rounded-lg shadow-md hover:bg-[#2D323B] transition-colors pointer-events-auto text-[#8B94A5] hover:text-white">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
         )}
 
-        {/* 📊 Legend แถบสี (ซ้ายล่าง) */}
-        <div className="absolute bottom-6 left-4 z-[1000] w-[130px] bg-[#1f2937]/95 backdrop-blur-md border border-[#374151] p-3 rounded-xl shadow-xl pointer-events-none">
-          <div className="flex justify-between items-center border-b border-[#374151] pb-1.5 mb-2">
-            <h3 className="text-[10px] font-bold text-gray-300">Radar<br/>dBZ</h3>
-            <h3 className="text-[10px] font-bold text-gray-300 text-right">ฝน<br/>mm/hr</h3>
-          </div>
-          <div className="flex flex-col space-y-[2px]">
-            {[
-              { d: '66.5', m: '636', c: '#ff00ff' },
-              { d: '64.0', m: '445', c: '#cc00cc' },
-              { d: '61.5', m: '311', c: '#990099' },
-              { d: '59.0', m: '217', c: '#660066' },
-              { d: '56.5', m: '152', c: '#ff0000' },
-              { d: '54.0', m: '106', c: '#cc0000' },
-              { d: '51.5', m: '74.6', c: '#990000' },
-              { d: '49.0', m: '52.2', c: '#ff6600' },
-              { d: '46.5', m: '36.5', c: '#ff9900' },
-              { d: '44.0', m: '25.6', c: '#ffcc00' },
-              { d: '41.5', m: '17.9', c: '#ffff00' },
-              { d: '39.0', m: '12.5', c: '#ccff00' },
-              { d: '36.5', m: '8.76', c: '#99ff00' },
-              { d: '34.0', m: '6.13', c: '#66ff00' },
-              { d: '31.5', m: '4.29', c: '#33cc33' },
-              { d: '29.0', m: '3.00', c: '#009900' },
-              { d: '26.5', m: '2.10', c: '#006600' },
-              { d: '24.0', m: '1.47', c: '#00ffcc' },
-              { d: '21.5', m: '1.03', c: '#00ccff' },
-              { d: '19.0', m: '0.72', c: '#0099ff' },
-              { d: '16.5', m: '0.50', c: '#0066ff' },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center text-[9px] font-mono justify-between">
-                <span className="text-gray-400 w-6 text-right pr-1">{item.d}</span>
-                <div className="w-4 h-3 flex-shrink-0" style={{ backgroundColor: item.c }}></div>
-                <span className="text-gray-400 w-8 text-left pl-1">{item.m}</span>
+        {/* 📊 Legend แถบสีแนวตั้งแบบ Pro (ซ้ายล่าง) */}
+        <div className="absolute bottom-[100px] md:bottom-6 left-4 z-[1000] pointer-events-auto">
+          <div className="pro-panel px-3 py-4 w-[140px]">
+            <div className="text-center mb-3">
+              <h3 className="text-[11px] font-bold text-[#E5E7EB] leading-tight">Radar Composite</h3>
+              <p className="text-[9px] text-[#8B94A5] mt-0.5">dBZ / mm/hr</p>
+            </div>
+            
+            <div className="flex relative">
+              {/* แถบสี Gradient แนวตั้ง */}
+              <div className="w-3 rounded-full mr-3" style={{ background: 'linear-gradient(to bottom, #990099, #FF0000, #FF6600, #FFCC00, #33CC33, #0099FF, #00FFFF)', height: '180px' }}></div>
+              
+              {/* ตัวเลขกำกับ */}
+              <div className="flex flex-col justify-between h-[180px] text-[10px] font-mono text-[#8B94A5] py-1">
+                <span>100+ (รุนแรง)</span>
+                <span>50.0</span>
+                <span>25.0</span>
+                <span>10.0</span>
+                <span>2.5</span>
+                <span>1.0</span>
+                <span>0.1 (เบา)</span>
               </div>
-            ))}
+            </div>
           </div>
         </div>
 
-        {/* 🎛️ แผงควบคุมเวลา (Timeline Player) - ตรงกลางด้านล่าง */}
-        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-[95%] max-w-[650px] z-[1000] pointer-events-auto">
-          <div className="bg-[#1f2937]/95 border border-[#374151] rounded-xl p-3 shadow-2xl backdrop-blur-xl">
+        {/* 🎛️ แผงควบคุมเวลา Timeline Player แบบ Pro (ตรงกลางด้านล่าง) */}
+        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-[90%] max-w-[550px] z-[1000] pointer-events-auto">
+          <div className="pro-panel py-3 px-5 flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0 md:space-x-4">
             
-            <div className="flex items-center justify-between mb-2 pb-2 border-b border-[#374151]/50">
-              <div className="flex items-center space-x-2">
-                <span className="text-[12px] font-bold text-white">Radar Composite</span>
-                <span className={`text-[10px] font-bold ml-1 ${isNowcast ? 'text-orange-400' : 'text-blue-400'}`}>
-                  ({isNowcast ? 'Nowcasting ล่วงหน้า' : 'ข้อมูลย้อนหลัง'})
-                </span>
+            {/* ซ้าย: ชื่อและสถานะ */}
+            <div className="flex items-center space-x-3 w-full md:w-auto justify-between md:justify-start">
+              <div className="flex flex-col">
+                <span className="text-[13px] font-bold text-[#E5E7EB]">TMD Radar Composite</span>
+                <div className="flex items-center mt-0.5 space-x-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isNowcast ? 'bg-[#F59E0B]' : 'bg-[#4178F3]'} ${isPlaying ? 'animate-pulse' : ''}`}></span>
+                  <span className="text-[10px] font-bold text-[#8B94A5] uppercase tracking-wider">
+                    {isNowcast ? 'Nowcasting' : 'Past'}
+                  </span>
+                </div>
               </div>
-              
-              <div className="text-white font-mono font-bold text-[12px] bg-[#111827] px-2.5 py-1 rounded border border-[#374151]">
-                {activeFrame ? new Date(activeFrame.time * 1000).toLocaleString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--'} น.
+              <div className="md:hidden text-[#4178F3] font-mono font-bold text-[14px]">
+                {activeFrame ? new Date(activeFrame.time * 1000).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '--:--'} น.
               </div>
             </div>
             
-            <div className="flex items-center space-x-4 px-1">
-              <button onClick={() => { setIsPlaying(!isPlaying); if(!isPlaying && currentFrameIndex >= radarData?.frames?.length - 1) setCurrentFrameIndex(0); }} className="text-gray-400 hover:text-white transition-colors shrink-0">
+            {/* ขวา: ตัวควบคุม Slider */}
+            <div className="flex items-center flex-1 w-full space-x-3">
+              <button onClick={() => { setIsPlaying(!isPlaying); if(!isPlaying && currentFrameIndex >= radarData?.frames?.length - 1) setCurrentFrameIndex(0); }} className="text-[#8B94A5] hover:text-[#4178F3] transition-colors focus:outline-none">
                 {isPlaying ? (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 9v6m4-6v6" /></svg>
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
                 ) : (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /></svg>
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                 )}
               </button>
               
-              <div className="flex-1 relative flex items-center h-5">
+              <div className="flex-1 relative flex items-center h-6">
                 <input 
                   type="range" min="0" max={(radarData?.frames?.length || 1) - 1} value={currentFrameIndex}
                   onChange={(e) => { setIsPlaying(false); setCurrentFrameIndex(parseInt(e.target.value)); }}
-                  className="w-full h-1.5 bg-[#374151] rounded-lg appearance-none cursor-pointer accent-blue-500 z-10"
+                  className="w-full custom-range z-10"
                 />
+                {/* ขีดเส้นคั่นแบ่งอดีต-อนาคต */}
                 {radarData && (
                   <div 
-                    className="absolute h-3 w-1 bg-white z-0 rounded" 
+                    className="absolute h-3 w-[2px] bg-[#F59E0B] z-0 rounded-full" 
                     style={{ left: `${((radarData.pastCount - 1) / (radarData.frames.length - 1)) * 100}%` }}
+                    title="เวลาปัจจุบัน"
                   ></div>
                 )}
               </div>
-
-              <div className="text-[10px] text-gray-400 font-mono shrink-0">
-                <span className="text-blue-400">ปัจจุบัน (T=0)</span> เฟรม {currentFrameIndex + 1}/{radarData?.frames?.length || 0}
+              
+              <div className="hidden md:block text-[#4178F3] font-mono font-bold text-[15px] min-w-[65px] text-right">
+                {activeFrame ? new Date(activeFrame.time * 1000).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '--:--'} น.
               </div>
             </div>
 
