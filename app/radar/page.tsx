@@ -143,7 +143,7 @@ export default function RadarPage() {
             {showBoluang && geoBoluang && <GeoJSON data={geoBoluang} style={{ color: '#E5E7EB', weight: 1.5, fill: false, opacity: 0.8, dashArray: '4,4' }} />}
             {showBlock && geoBlock && <GeoJSON data={geoBlock} style={{ color: '#F59E0B', weight: 1, fill: false, opacity: 0.4 }} />}
             
-            {/* 🔥 เรดาร์กันแครช (maxNativeZoom=12 คือคีย์สำคัญ) */}
+            {/* 🔥 เรดาร์กันแครช (maxNativeZoom=6 คือคีย์สำคัญ) */}
             {radarUrl && <TileLayer key={activeFrame?.path} url={radarUrl} opacity={radarOpacity} zIndex={100} maxNativeZoom={12} maxZoom={20} />}
             
             <ClickableMap onMapClick={handleMapClick} />
