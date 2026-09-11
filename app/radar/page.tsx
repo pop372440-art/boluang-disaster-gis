@@ -4,6 +4,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import { useMapEvents } from 'react-leaflet';
+import { createClient } from '@supabase/supabase-js';
+
+// 🌟 ตั้งค่า Supabase
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false });
@@ -15,7 +21,6 @@ const ClickableMap = ({ onMapClick }: { onMapClick: (lat: number, lng: number) =
   return null;
 };
 
-// ข้อมูลจำลองสำหรับตารางสถิติรายจังหวัด (Mock Data)
 const mockProvincialRainData = [
   { id: 1, prov: 'ตราด', acc: 9.4, avg: 0.3, area: 8, peak: '11:30' },
   { id: 2, prov: 'ระยอง', acc: 6.8, avg: 0.2, area: 4, peak: '11:30' },
@@ -58,10 +63,20 @@ export default function RadarPage() {
   const [isFetchingForecast, setIsFetchingForecast] = useState(false);
   const [isTopHeaderVisible, setIsTopHeaderVisible] = useState(false);
   const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
+  
+  // 🌟 State สำหรับสถิติการใช้งานจริง
+  const [realStats, setRealStats] = useState({
+    totalVisits: 0,
+    totalUniqueVisitors: 0,
+    todayVisits: 0,
+    todayUniqueVisitors: 0,
+    isLoading: true
+  });
+  
   const mapRef = useRef<any>(null);
-
   const center = { lat: 18.1633, lng: 98.3744 };
 
+  // 📥 โหลดข้อมูลเริ่มต้น (GIS & Radar)
   useEffect(() => {
     fetch('/geojson/boluang.json').then(res => res.json()).then(data => setGeoBoluang(data)).catch(() => {});
     fetch('/geojson/block.json').then(res => res.json()).then(data => setGeoBlock(data)).catch(() => {});
@@ -74,6 +89,53 @@ export default function RadarPage() {
         setCurrentFrameIndex(data.radar.past.length - 1);
       }).catch(err => console.error(err));
   }, []);
+
+  // 📥 ดึงข้อมูลสถิติจริงจาก Supabase เมื่อเปิด Modal
+  useEffect(() => {
+    if (isStatsModalOpen) {
+      const fetchRealStats = async () => {
+        setRealStats(prev => ({ ...prev, isLoading: true }));
+        try {
+          // 1. ดึงข้อมูลทั้งหมด
+          const { data: allLogs, error: allLogsError } = await supabase
+            .from('visitor_logs')
+            .select('session_id, visited_at');
+            
+          if (allLogsError) throw allLogsError;
+
+          const totalVisits = allLogs.length;
+          
+          // หา Unique Visitors (นับ session_id ที่ไม่ซ้ำ)
+          const uniqueSessions = new Set(allLogs.map(log => log.session_id));
+          const totalUniqueVisitors = uniqueSessions.size;
+
+          // 2. กรองข้อมูลเฉพาะวันนี้
+          const today = new Date();
+          today.setHours(0, 0, 0, 0); // เริ่มต้นเที่ยงคืนวันนี้
+          
+          const todayLogs = allLogs.filter(log => new Date(log.visited_at) >= today);
+          const todayVisits = todayLogs.length;
+          
+          const todayUniqueSessions = new Set(todayLogs.map(log => log.session_id));
+          const todayUniqueVisitors = todayUniqueSessions.size;
+
+          setRealStats({
+            totalVisits,
+            totalUniqueVisitors,
+            todayVisits,
+            todayUniqueVisitors,
+            isLoading: false
+          });
+
+        } catch (error) {
+          console.error("Error fetching stats:", error);
+          setRealStats(prev => ({ ...prev, isLoading: false }));
+        }
+      };
+
+      fetchRealStats();
+    }
+  }, [isStatsModalOpen]);
 
   useEffect(() => {
     let interval: any;
@@ -239,7 +301,7 @@ export default function RadarPage() {
           </MapContainer>
         </div>
 
-        {/* 🎛️ 1. จัดการชั้นข้อมูล (Panel ซ้ายบน Full Scale) */}
+        {/* 🎛️ 1. จัดการชั้นข้อมูล */}
         {isLayerMenuOpen && (
           <div className="absolute top-4 left-4 z-[1000] w-[270px] onwr-panel flex flex-col pointer-events-auto">
             <div className="px-4 py-2 border-b border-[#333946] flex justify-between items-center bg-[#232732] rounded-t-lg">
@@ -259,24 +321,16 @@ export default function RadarPage() {
                 </div>
               </div>
 
-              {/* Scrollable Layers */}
               <div className="p-3 overflow-y-auto onwr-scroll pr-1">
                 <LayerToggle label="เรดาร์คอมโพสิต" checked={showRadar} onChange={(e: any) => setShowRadar(e.target.checked)} />
                 <LayerToggle label="ประมาณการฝนสะสม 3 ชม. ล่วงหน้า" checked={false} onChange={() => {}} />
                 <LayerToggle label="ฝนสถานีรายชั่วโมง" checked={true} onChange={() => {}} isRadioGroup={true} />
                 <LayerToggle label="สถานีเรดาร์" checked={true} onChange={() => {}} hasLabelToggle="checked" />
-                
                 <div className="border-t border-[#333946] my-2"></div>
-                
                 <LayerToggle label="ขอบเขตจังหวัด" checked={true} onChange={() => {}} hasLabelToggle="unchecked" />
                 <LayerToggle label="ขอบเขตอำเภอ" checked={false} onChange={() => {}} hasLabelToggle="unchecked" />
                 <LayerToggle label="ขอบเขตตำบลบ่อหลวง" checked={showBoluang} onChange={(e: any) => setShowBoluang(e.target.checked)} hasLabelToggle="unchecked" />
                 <LayerToggle label="โซนหมู่บ้าน 13 โซน" checked={showBlock} onChange={(e: any) => setShowBlock(e.target.checked)} hasLabelToggle="unchecked" />
-                <LayerToggle label="ลุ่มน้ำหลัก" checked={false} onChange={() => {}} hasLabelToggle="unchecked" />
-                <LayerToggle label="ลุ่มน้ำย่อย" checked={false} onChange={() => {}} hasLabelToggle="unchecked" />
-                <LayerToggle label="เส้นลำน้ำ" checked={false} onChange={() => {}} />
-                <LayerToggle label="พื้นที่โอกาสเกิดแผ่นดินถล่ม" checked={false} onChange={() => {}} />
-                <LayerToggle label="พื้นที่น้ำท่วมซ้ำซาก (พด.)" checked={false} onChange={() => {}} />
               </div>
             </div>
           </div>
@@ -286,56 +340,31 @@ export default function RadarPage() {
           <button onClick={() => setIsLayerMenuOpen(true)} className="absolute top-4 left-4 z-[1000] p-2 bg-[#232732] border border-[#333946] rounded-lg shadow-md hover:bg-[#2D323B] transition-colors pointer-events-auto text-[#8B94A5] hover:text-white"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg></button>
         )}
 
-        {/* 🎛️ 2. ตารางพยากรณ์รายจังหวัด (Panel ขวาบน Full Scale) */}
+        {/* 🎛️ 2. ตารางพยากรณ์รายจังหวัด */}
         {isTablePanelOpen && (
           <div className="absolute top-4 right-16 z-[900] w-[380px] onwr-panel flex flex-col pointer-events-auto hidden xl:flex overflow-hidden">
-            
-            {/* Header Tabs */}
             <div className="flex border-b border-[#333946] bg-[#111319]">
               <button className="px-4 py-2.5 text-[12px] font-bold text-blue-400 border-b-2 border-blue-500 bg-[#1A1D24]">เรดาร์</button>
               <button className="px-4 py-2.5 text-[12px] font-medium text-gray-500 hover:text-gray-300">สถานีวัดฝน</button>
               <button className="px-4 py-2.5 text-[12px] font-medium text-gray-500 hover:text-gray-300">สถานีเรดาร์</button>
               <button onClick={() => setIsTablePanelOpen(false)} className="ml-auto px-3 text-gray-500 hover:text-white"><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z" /></svg></button>
             </div>
-
             <div className="p-4 bg-[#1A1D24]">
               <h3 className="text-[14px] font-bold text-white mb-3">ประมาณการฝนสะสม 3 ชั่วโมง ล่วงหน้า (รายจังหวัด)</h3>
-              
               <div className="flex items-center space-x-2 text-[12px] mb-4 border-b border-[#333946] pb-3">
                 <span className="text-gray-400">ระดับพื้นที่</span>
                 <button className="px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded">จังหวัด</button>
                 <button className="px-2 py-0.5 text-gray-400 hover:text-white">อำเภอ</button>
                 <button className="px-2 py-0.5 text-gray-400 hover:text-white">ตำบล</button>
               </div>
-
-              <div className="flex items-center space-x-2 text-[12px] mb-3">
-                <span className="text-gray-400">ฝนสะสม ≥</span>
-                <div className="bg-[#111319] border border-[#333946] px-2 py-1 rounded text-gray-400 flex items-center justify-between w-20 cursor-pointer hover:border-gray-500">
-                  <span>ทั้งหมด</span><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                </div>
-                <span className="text-gray-400">มม.</span>
-              </div>
-
-              {/* Table Data */}
               <div className="w-full text-[11px]">
                 <div className="flex font-bold text-gray-400 border-b border-[#333946] pb-2 mb-2">
-                  <div className="w-10 text-center">ลำดับ</div>
-                  <div className="flex-1">จังหวัด</div>
-                  <div className="w-16 text-right text-blue-400 flex items-center justify-end cursor-pointer">สะสม <svg className="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg></div>
-                  <div className="w-14 text-right">เฉลี่ย</div>
-                  <div className="w-16 text-right">%พื้นที่</div>
-                  <div className="w-14 text-right pr-2">Peak</div>
+                  <div className="w-10 text-center">ลำดับ</div><div className="flex-1">จังหวัด</div><div className="w-16 text-right text-blue-400">สะสม</div><div className="w-14 text-right">เฉลี่ย</div><div className="w-16 text-right">%พื้นที่</div><div className="w-14 text-right pr-2">Peak</div>
                 </div>
-                
                 <div className="overflow-y-auto h-[350px] onwr-scroll pr-1">
                   {mockProvincialRainData.map((row, index) => (
                     <div key={row.id} className="flex text-gray-300 py-2 hover:bg-[#232732] cursor-pointer">
-                      <div className="w-10 text-center text-gray-500">{index + 1}</div>
-                      <div className="flex-1 font-bold text-[#E5E7EB]">{row.prov}</div>
-                      <div className="w-16 text-right font-mono text-white">{row.acc.toFixed(1)}</div>
-                      <div className="w-14 text-right font-mono">{row.avg.toFixed(1)}</div>
-                      <div className="w-16 text-right font-mono">{row.area}%</div>
-                      <div className="w-14 text-right font-mono pr-2">{row.peak}</div>
+                      <div className="w-10 text-center text-gray-500">{index + 1}</div><div className="flex-1 font-bold text-[#E5E7EB]">{row.prov}</div><div className="w-16 text-right font-mono text-white">{row.acc.toFixed(1)}</div><div className="w-14 text-right font-mono">{row.avg.toFixed(1)}</div><div className="w-16 text-right font-mono">{row.area}%</div><div className="w-14 text-right font-mono pr-2">{row.peak}</div>
                     </div>
                   ))}
                 </div>
@@ -357,7 +386,6 @@ export default function RadarPage() {
               </div>
               <button onClick={() => setClickedLocation(null)} className="text-[#EF4444] hover:text-red-400 bg-red-500/10 p-1 rounded-md transition-colors"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg></button>
             </div>
-            
             <div className="p-4 bg-[#232732] rounded-b-lg">
               {isFetchingForecast ? (
                 <div className="flex flex-col items-center justify-center py-8"><svg className="animate-spin h-6 w-6 text-[#4178F3] mb-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><p className="text-[12px] text-[#8B94A5] font-bold animate-pulse">กำลังประมวลผลโมเดล...</p></div>
@@ -389,19 +417,17 @@ export default function RadarPage() {
           </div>
         )}
 
-        {/* 🎛️ 3. แถบเครื่องมือแผนที่ (ขวาล่าง) */}
+        {/* 🎛️ 3. แถบเครื่องมือแผนที่ */}
         <div className="absolute bottom-[100px] md:bottom-24 right-4 z-[900] flex flex-col space-y-2 pointer-events-auto">
           <div className="bg-[#1A1D24]/90 backdrop-blur-md border border-[#333946] rounded-xl flex flex-col overflow-hidden shadow-lg">
-            <button onClick={handleGoHome} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#2D323B] transition-colors border-b border-[#333946]" title="กลับจุดเริ่มต้น"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg></button>
-            <button onClick={handleZoomIn} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#2D323B] transition-colors border-b border-[#333946]" title="ซูมเข้า"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v12m-6-6h12" /></svg></button>
-            <button onClick={handleZoomOut} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#2D323B] transition-colors" title="ซูมออก"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg></button>
+            <button onClick={handleGoHome} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#2D323B] transition-colors border-b border-[#333946]"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg></button>
+            <button onClick={handleZoomIn} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#2D323B] transition-colors border-b border-[#333946]"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v12m-6-6h12" /></svg></button>
+            <button onClick={handleZoomOut} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#2D323B] transition-colors"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" /></svg></button>
           </div>
         </div>
 
-        {/* 🎛️ 4. แถบ Legend คู่ (ซ้ายล่าง) */}
+        {/* 🎛️ 4. แถบ Legend คู่ */}
         <div className="absolute bottom-[100px] md:bottom-6 left-4 z-[900] pointer-events-auto flex items-end space-x-4 hidden md:flex">
-          
-          {/* Legend 1: Radar Composite */}
           <div className="onwr-panel px-3 py-4 w-[130px]">
             <div className="text-center mb-4">
               <h3 className="text-[11px] font-bold text-[#E5E7EB]">Radar Composite</h3>
@@ -415,7 +441,6 @@ export default function RadarPage() {
             </div>
           </div>
 
-          {/* Legend 2: ฝนสถานี 24 ชั่วโมง */}
           <div className="onwr-panel p-4 pb-3 w-[260px]">
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-[12px] font-bold text-[#E5E7EB]">ฝนสถานี 24 ชั่วโมง (มม.)</h3>
@@ -424,17 +449,9 @@ export default function RadarPage() {
                 <button className="px-2 py-0.5 text-[9px] bg-blue-500/20 text-blue-400 font-bold">24 ชม.</button>
               </div>
             </div>
-            
             <div className="w-full h-2 rounded-full flex overflow-hidden mb-2">
-              <div className="h-full w-[15%]" style={{background: '#00FFFF'}}></div>
-              <div className="h-full w-[15%]" style={{background: '#0099FF'}}></div>
-              <div className="h-full w-[15%]" style={{background: '#33CC33'}}></div>
-              <div className="h-full w-[15%]" style={{background: '#FFCC00'}}></div>
-              <div className="h-full w-[15%]" style={{background: '#FF6600'}}></div>
-              <div className="h-full w-[15%]" style={{background: '#FF0000'}}></div>
-              <div className="h-full w-[10%]" style={{background: '#990099'}}></div>
+              <div className="h-full w-[15%]" style={{background: '#00FFFF'}}></div><div className="h-full w-[15%]" style={{background: '#0099FF'}}></div><div className="h-full w-[15%]" style={{background: '#33CC33'}}></div><div className="h-full w-[15%]" style={{background: '#FFCC00'}}></div><div className="h-full w-[15%]" style={{background: '#FF6600'}}></div><div className="h-full w-[15%]" style={{background: '#FF0000'}}></div><div className="h-full w-[10%]" style={{background: '#990099'}}></div>
             </div>
-            
             <div className="flex justify-between text-[9px] font-mono text-[#8B94A5] mb-1 px-1">
               <span>0.1-10</span><span>10-20</span><span>20-35</span><span>35-50</span><span>50-70</span><span>70-90</span><span>≥90</span>
             </div>
@@ -442,7 +459,6 @@ export default function RadarPage() {
               <span>น้อย</span><span className="ml-2">ปานกลาง</span><span className="ml-4">หนัก</span><span>หนักมาก</span>
             </div>
           </div>
-
         </div>
 
         {/* 🎛️ แผงควบคุมเวลา Timeline Player */}
@@ -457,7 +473,6 @@ export default function RadarPage() {
                 </div>
               </div>
             </div>
-            
             <div className="flex items-center flex-1 w-full space-x-3">
               <button onClick={() => { setIsPlaying(!isPlaying); if(!isPlaying && currentFrameIndex >= radarData?.frames?.length - 1) setCurrentFrameIndex(0); }} className="text-[#8B94A5] hover:text-[#4178F3] transition-colors focus:outline-none">
                 {isPlaying ? <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> : <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>}
@@ -474,6 +489,97 @@ export default function RadarPage() {
         </div>
 
       </div>
+
+      {/* 🌟 5. Modal สถิติจาก Supabase แบบ Real-time */}
+      {isStatsModalOpen && (
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto">
+          <div className="bg-white rounded-2xl w-[90%] max-w-[500px] shadow-2xl overflow-hidden flex flex-col animate-fade-in">
+            <div className="px-5 py-4 flex justify-between items-center border-b border-gray-100">
+              <h2 className="text-[16px] font-bold text-gray-800">สถิติการใช้งาน</h2>
+              <div className="flex items-center space-x-4">
+                <span className="text-[11px] text-gray-500 font-mono">อัปเดต: {new Date().toLocaleTimeString('th-TH')} น.</span>
+                <button onClick={() => setIsStatsModalOpen(false)} className="text-gray-400 hover:text-red-500 transition-colors">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 flex-1 overflow-y-auto">
+              <div className="flex space-x-6 border-b border-gray-100 mb-5">
+                <button className="text-blue-600 font-bold border-b-2 border-blue-600 pb-2 text-[13px]">วันนี้</button>
+                <button className="text-gray-400 hover:text-gray-600 font-medium pb-2 text-[13px]">รายเดือน</button>
+                <button className="text-gray-400 hover:text-gray-600 font-medium pb-2 text-[13px]">รายปี</button>
+                <button className="text-gray-400 hover:text-gray-600 font-medium pb-2 text-[13px]">ทั้งหมด</button>
+              </div>
+
+              {realStats.isLoading ? (
+                <div className="py-10 flex flex-col items-center justify-center">
+                  <svg className="animate-spin h-8 w-8 text-blue-500 mb-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  <span className="text-sm text-gray-500 font-bold">กำลังดึงข้อมูลจาก Supabase...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3">
+                    <p className="text-[11px] text-blue-600 font-bold mb-1">ยอดเข้าชมสะสม</p>
+                    <p className="text-[20px] font-black text-gray-800">{realStats.totalVisits.toLocaleString()}</p>
+                    <p className="text-[10px] text-gray-500">ครั้ง (ทั้งหมด)</p>
+                  </div>
+                  <div className="bg-green-50/50 border border-green-100 rounded-xl p-3">
+                    <p className="text-[11px] text-green-600 font-bold mb-1">จำนวนผู้เข้าชมสะสม</p>
+                    <p className="text-[20px] font-black text-gray-800">{realStats.totalUniqueVisitors.toLocaleString()}</p>
+                    <p className="text-[10px] text-gray-500">คน (ทั้งหมด)</p>
+                  </div>
+                  <div className="bg-purple-50/50 border border-purple-100 rounded-xl p-3">
+                    <p className="text-[11px] text-purple-600 font-bold mb-1">ยอดเข้าชมวันนี้</p>
+                    <p className="text-[20px] font-black text-gray-800">{realStats.todayVisits.toLocaleString()}</p>
+                    <p className="text-[10px] text-gray-500">ครั้ง (วันนี้)</p>
+                  </div>
+                  <div className="bg-orange-50/50 border border-orange-100 rounded-xl p-3">
+                    <p className="text-[11px] text-orange-600 font-bold mb-1">จำนวนผู้เข้าชมวันนี้</p>
+                    <p className="text-[20px] font-black text-gray-800">{realStats.todayUniqueVisitors.toLocaleString()}</p>
+                    <p className="text-[10px] text-gray-500">คน (วันนี้)</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-[12px] font-bold text-gray-800">สถิติรายวัน (14 วันล่าสุด)</h4>
+                  <div className="flex items-center space-x-3 text-[10px] text-gray-500">
+                    <span className="flex items-center"><span className="w-2 h-2 bg-blue-500 mr-1 rounded-sm"></span> ยอดเข้าชม</span>
+                    <span className="flex items-center"><span className="w-2 h-2 bg-purple-500 mr-1 rounded-sm"></span> ผู้เข้าชม</span>
+                  </div>
+                </div>
+                <div className="h-24 flex items-end justify-around border-b border-gray-200 pb-1">
+                  <div className="w-8 flex justify-center items-end space-x-1"><div className="w-3 bg-blue-500 h-[40%] rounded-t-sm"></div><div className="w-3 bg-purple-500 h-[35%] rounded-t-sm"></div></div>
+                  <div className="w-8 flex justify-center items-end space-x-1"><div className="w-3 bg-blue-500 h-[70%] rounded-t-sm"></div><div className="w-3 bg-purple-500 h-[60%] rounded-t-sm"></div></div>
+                  <div className="w-8 flex justify-center items-end space-x-1"><div className="w-3 bg-blue-500 h-[100%] rounded-t-sm"></div><div className="w-3 bg-purple-500 h-[85%] rounded-t-sm"></div></div>
+                  <div className="w-8 flex justify-center items-end space-x-1"><div className="w-3 bg-blue-500 h-[50%] rounded-t-sm"></div><div className="w-3 bg-purple-500 h-[45%] rounded-t-sm"></div></div>
+                </div>
+                <div className="flex justify-around text-[9px] text-gray-400 mt-1 font-mono">
+                  <span>8/9/69</span><span>9/9/69</span><span>10/9/69</span><span>11/9/69</span>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-[12px] font-bold text-gray-800 mb-2">📱 สัดส่วนอุปกรณ์ (Devices)</h4>
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden flex mb-2">
+                  <div className="h-full bg-blue-500 w-[60%]"></div>
+                  <div className="h-full bg-orange-400 w-[10%]"></div>
+                  <div className="h-full bg-emerald-500 w-[30%]"></div>
+                </div>
+                <div className="flex justify-between text-[10px] text-gray-600">
+                  <span className="flex items-center"><span className="w-2 h-2 bg-blue-500 rounded-full mr-1"></span> มือถือ 60%</span>
+                  <span className="flex items-center"><span className="w-2 h-2 bg-orange-400 rounded-full mr-1"></span> แท็บเล็ต 10%</span>
+                  <span className="flex items-center"><span className="w-2 h-2 bg-emerald-500 rounded-full mr-1"></span> เดสก์ท็อป 30%</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
