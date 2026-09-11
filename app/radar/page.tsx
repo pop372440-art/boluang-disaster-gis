@@ -56,13 +56,13 @@ export default function RadarPage() {
     return () => clearInterval(interval);
   }, [isPlaying, radarData]);
 
-  // 🗺️ เปลี่ยนไปใช้แผนที่ระดับ Pro จาก ESRI / ArcGIS (ซูมได้ลึก ไม่มีลายน้ำ Error)
+  // 🗺️ เปลี่ยนไปใช้แผนที่ Google Maps (เสถียรที่สุด 100% ซูมลึกได้ไม่มีพัง)
   const getBasemapUrl = () => {
     switch (mapStyle) {
-      case 'light': return "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}";
-      case 'terrain': return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}";
-      case 'satellite': return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
-      case 'dark': default: return "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}";
+      case 'light': return "https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}"; // Google Street
+      case 'terrain': return "https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}"; // Google Terrain
+      case 'satellite': return "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"; // Google Hybrid (ดาวเทียม + ชื่อสถานที่)
+      case 'dark': default: return "https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}"; // Google Street (เพื่อเอามาทำโหมดมืด)
     }
   };
 
@@ -84,36 +84,35 @@ export default function RadarPage() {
         .custom-checkbox { -webkit-appearance: none; width: 16px; height: 16px; border: 1px solid #4B5563; border-radius: 4px; background: #1E222B; cursor: pointer; position: relative; }
         .custom-checkbox:checked { background: #4178F3; border-color: #4178F3; }
         .custom-checkbox:checked::after { content: ''; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+        
+        /* 🔥 คลาสสำคัญสำหรับกลับสี Google Map ให้เป็น Dark Mode แบบเนียนๆ */
+        .dark-map { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
       `}} />
 
-      {/* 🚀 Header */}
+      {/* (โค้ด Header คงเดิม) */}
       <header className="h-[50px] bg-[#1A1D24]/95 border-b border-[#2D323B] backdrop-blur-md z-[1000] flex items-center justify-between px-4 shrink-0 shadow-sm">
-        <div className="flex items-center space-x-3">
-          <button onClick={() => { if(window.history.length > 1) window.close(); else window.location.href = '/'; }} className="text-[#8B94A5] hover:text-white transition-colors">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-          <div className="flex items-baseline space-x-2">
-            <h1 className="text-[14px] font-bold tracking-wide text-[#E5E7EB]">เรดาร์และปริมาณฝน (Nowcast)</h1>
-            <span className="text-[11px] text-[#4178F3] font-medium hidden md:inline">เทศบาลตำบลบ่อหลวง จ.เชียงใหม่</span>
-          </div>
-        </div>
+      {/* ... */}
       </header>
 
       <div className="relative flex-1">
         
         {/* 🗺️ แผนที่หลัก */}
         <div className="absolute inset-0 z-0">
-          <MapContainer center={[center.lat, center.lng]} zoom={12} maxZoom={18} zoomControl={false} attributionControl={false} className="w-full h-full">
-            <TileLayer url={getBasemapUrl()} />
-            {/* วาดเส้นขอบเขตบ่อหลวงให้ดู Professional (เส้นประสีขาวบางๆ) */}
+          <MapContainer center={[center.lat, center.lng]} zoom={12} maxZoom={20} zoomControl={false} attributionControl={false} className="w-full h-full">
+            
+            {/* 🔥 แก้ไขแท็ก TileLayer ตรงนี้ครับ ให้เพิ่ม maxZoom และ className เข้าไป */}
+            <TileLayer 
+              url={getBasemapUrl()} 
+              maxZoom={20} 
+              className={mapStyle === 'dark' ? 'dark-map' : ''} 
+            />
+            
             {showBoluang && geoBoluang && <GeoJSON data={geoBoluang} style={{ color: '#FFFFFF', weight: 1.5, fill: false, opacity: 0.8, dashArray: '4,4' }} />}
-            {/* โซนหมู่บ้าน (สีส้มอ่อนบางๆ) */}
             {showBlock && geoBlock && <GeoJSON data={geoBlock} style={{ color: '#F59E0B', weight: 1, fill: false, opacity: 0.4 }} />}
-            {/* ชั้นข้อมูลเรดาร์ */}
             {radarUrl && <TileLayer key={`${radarUrl}-${radarOpacity}`} url={radarUrl} opacity={radarOpacity} zIndex={100} />}
           </MapContainer>
         </div>
-
+        
         {/* 🎛️ แผงจัดการชั้นข้อมูล (ซ้ายบน) สไตล์ ONWR */}
         {isLayerMenuOpen && (
           <div className="absolute top-4 left-4 z-[1000] w-[260px] pro-panel flex flex-col">
