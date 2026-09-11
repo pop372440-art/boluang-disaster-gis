@@ -1567,7 +1567,7 @@ export default function BoLuangDashboard() {
                     <h3 className="text-[15px] font-extrabold text-white group-hover:text-[#60a5fa] transition-colors leading-tight">ระบบเฝ้าระวังน้ำท่วมและน้ำป่า</h3>
                     <p className="text-[12px] font-bold text-[#e2e8f0] mt-1 mb-1">Bo Luang Flood Watch</p>
                     <p className="text-[11px] text-gray-400 leading-relaxed">ติดตามระดับน้ำลำห้วย แจ้งเตือนน้ำป่าไหลหลาก และดินถล่ม</p>
-                  </div>
+                  </div>              
                 </div>
               </div>
             </div>
@@ -1583,6 +1583,31 @@ export default function BoLuangDashboard() {
                   <CustomToggleBox label="พยากรณ์อากาศรายพื้นที่" source="ข้อมูล: Open-Meteo & TMD" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} dotColor="#38bdf8" apiStatus={apiStatus.tmd} />
                   <CustomToggleBox label="ฝนสะสม 24 ชม." source="สถานีตรวจวัดจริง สทนช." active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#facc15" apiStatus={apiStatus.tmd} />
                 </div>
+                
+                {/* 🚀 ปุ่มเรดาร์ฝนที่เพิ่มเข้ามาใหม่ วางต่อท้ายตรงนี้ครับ */}
+                <div className="mt-3">
+                  <button 
+                    onClick={() => window.open('/radar', '_blank')} 
+                    className="w-full relative overflow-hidden rounded-xl border border-blue-500/30 group"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-900 to-slate-900"></div>
+                    <div className="absolute inset-0 bg-[url('https://tilecache.rainviewer.com/v2/radar/1726059600/256/4/12/7/4/1_1.png')] opacity-30 bg-cover bg-center group-hover:scale-110 transition-transform duration-700"></div>
+                    
+                    <div className="relative p-3 flex items-center justify-between z-10 backdrop-blur-[2px]">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.5)]">
+                          <span className="text-[18px]">📡</span>
+                        </div>
+                        <div className="text-left">
+                          <div className="text-[13px] font-bold text-white tracking-wide">เรดาร์ฝน (Nowcast)</div>
+                          <div className="text-[10px] text-blue-300">ติดตามกลุ่มฝนเคลื่อนไหวสด</div>
+                        </div>
+                      </div>
+                      <svg className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                    </div>
+                  </button>
+                </div>
+                
               </div>
 
               <div>
