@@ -124,7 +124,6 @@ export default function AdminPanel() {
     });
   };
 
-  // ✅ ฟังก์ชันช่วยอัปโหลดไฟล์ (ลดความซ้ำซ้อนของโค้ด)
   const uploadImage = async (file: File) => {
     const fileExt = file.name.split('.').pop();
     const fileName = `resolved-${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
@@ -135,7 +134,6 @@ export default function AdminPanel() {
     return data.publicUrl;
   };
 
-  // ✅ ฟังก์ชัน "ปิดจ๊อบ" อัจฉริยะ (อัปเกรด 2 รูป)
   const handleCloseJob = async (reportId: string, currentRiskType: string) => {
     const { value: formValues } = await Swal.fire({
       title: '📝 บันทึกการปฏิบัติงาน',
@@ -176,7 +174,6 @@ export default function AdminPanel() {
         let url1 = null;
         let url2 = null;
 
-        // อัปโหลดรูปภาพ (ทำทีละไฟล์)
         if (file1) url1 = await uploadImage(file1);
         if (file2) url2 = await uploadImage(file2);
 
@@ -189,7 +186,7 @@ export default function AdminPanel() {
             status: 'ดำเนินการเสร็จแล้ว',
             action_taken: actionText,
             resolved_image_url: url1, 
-            resolved_image_url_2: url2, // บันทึกรูปที่ 2 ลงฐานข้อมูล
+            resolved_image_url_2: url2,
             resolved_at: now,
             resolved_by: userEmail
           })
@@ -212,6 +209,9 @@ export default function AdminPanel() {
     return <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white font-sans">กำลังตรวจสอบสิทธิ์...</div>;
   }
 
+  // ==========================================
+  // 1. หน้า Login (สถานะตอนออกจากระบบแล้ว)
+  // ==========================================
   if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0f172a] font-sans">
@@ -233,30 +233,63 @@ export default function AdminPanel() {
               <label className="block text-sm font-medium text-gray-300 mb-1">รหัสผ่าน</label>
               <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-[#0b132b] border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="••••••••" />
             </div>
-            <button type="submit" disabled={isLoggingIn} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-lg mt-2">
-              {isLoggingIn ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
-            </button>
+            
+            <div className="pt-2 space-y-3">
+              <button type="submit" disabled={isLoggingIn} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-lg">
+                {isLoggingIn ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+              </button>
+              
+              {/* 🌟 1. ปุ่มกลับหน้าหลัก (สำหรับหน้าฟอร์ม Login) */}
+              <button 
+                type="button" 
+                onClick={() => window.location.href = '/'}
+                className="w-full flex items-center justify-center space-x-2 bg-[#1e293b] hover:bg-[#334155] border border-gray-600 text-gray-300 font-bold py-3 px-4 rounded-lg transition-colors shadow-sm"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                <span>กลับสู่หน้าเว็บหลัก</span>
+              </button>
+            </div>
           </form>
         </div>
       </div>
     );
   }
 
+  // ==========================================
+  // 2. หน้า Dashboard (สถานะตอนล็อกอินแล้ว)
+  // ==========================================
   return (
     <div className="min-h-screen bg-[#0f172a] text-white font-sans">
-      <header className="bg-[#1e293b] border-b border-gray-700 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
-        <div className="flex items-center space-x-3">
+      <header className="bg-[#1e293b] border-b border-gray-700 px-6 py-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
+        
+        {/* 🌟 2.1 โลโก้คลิกเพื่อกลับหน้าหลักได้ */}
+        <div 
+          onClick={() => window.location.href = '/'} 
+          className="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition-opacity"
+          title="คลิกเพื่อกลับหน้าหลัก"
+        >
           <span className="text-2xl">🚨</span>
           <div>
             <h1 className="text-lg font-bold text-white leading-tight">Admin Command Center</h1>
             <p className="text-xs text-blue-400">ระบบจัดการคำร้องสาธารณภัย ต.บ่อหลวง</p>
           </div>
         </div>
-        <div className="flex items-center space-x-4">
-          <div className="text-right hidden md:block">
+
+        <div className="flex items-center space-x-3 sm:space-x-4">
+          <div className="text-right hidden lg:block">
             <p className="text-sm font-medium text-gray-200">เข้าสู่ระบบโดย:</p>
             <p className="text-xs text-green-400 font-mono">{session.user.email}</p>
           </div>
+          
+          {/* 🌟 2.2 ปุ่มกลับหน้าหลักตรง Header (ข้างปุ่มออกจากระบบ) */}
+          <button 
+            onClick={() => window.location.href = '/'} 
+            className="hidden sm:flex items-center space-x-1.5 bg-gray-700/50 hover:bg-gray-600 text-gray-200 border border-gray-600 px-4 py-2 rounded-lg text-sm font-bold transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+            <span>หน้าหลัก</span>
+          </button>
+
           <button onClick={handleLogout} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/50 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
             ออกจากระบบ
           </button>
@@ -356,7 +389,6 @@ export default function AdminPanel() {
                             </div>
                           </div>
                         ) : (
-                          // ✅ ส่วนแสดงรูปภาพ 2 รูป ในสถานะปิดงานแล้ว
                           <div className="flex flex-col space-y-2">
                             <div className="flex space-x-2">
                               {report.resolved_image_url && (
