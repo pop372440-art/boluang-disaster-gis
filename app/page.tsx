@@ -1539,7 +1539,8 @@ export default function BoLuangDashboard() {
           </div>
         </div>
         
-        <div className="flex items-center space-x-2 md:space-x-3">          
+        <div className="flex items-center space-x-2 md:space-x-3">      
+          
           <button
             onClick={() => {
               if (isInstallable && deferredPrompt) {
@@ -1864,9 +1865,6 @@ export default function BoLuangDashboard() {
             </div>
           </div>
         </div>
-      </aside>  
-                 
-    </div>
       </aside>  
       
       {/* 🌟 วางโค้ด Modal ที่หายไปตรงนี้ครับ (ก่อนปิด main) */}
