@@ -1,4 +1,4 @@
-'use client'; 
+'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
@@ -175,6 +175,10 @@ export default function BoLuangDashboard() {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [headerWeather, setHeaderWeather] = useState<{ temp: number; wCode: number } | null>(null);
 
+  // 🌟 State สำหรับฟีเจอร์ติดตั้ง PWA
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null); 
+  const [isInstallable, setIsInstallable] = useState(false);
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -305,6 +309,40 @@ export default function BoLuangDashboard() {
     } catch (error) { 
       Swal.fire({ icon: 'error', title: 'ระบบค้นหาขัดข้อง', background: '#0f172a', color: '#fff' }); 
     }
+  };
+
+  // 🌟 ฟังก์ชันดักจับ Event การติดตั้ง PWA
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault(); 
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    window.addEventListener('appinstalled', () => {
+      setDeferredPrompt(null);
+      setIsInstallable(false);
+      console.log('PWA was installed');
+    });
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      console.log('User accepted the install prompt');
+    } else {
+      console.log('User dismissed the install prompt');
+    }
+    setDeferredPrompt(null);
+    setIsInstallable(false);
   };
 
   useEffect(() => {
@@ -1583,31 +1621,6 @@ export default function BoLuangDashboard() {
                   <CustomToggleBox label="พยากรณ์อากาศรายพื้นที่" source="ข้อมูล: Open-Meteo & TMD" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} dotColor="#38bdf8" apiStatus={apiStatus.tmd} />
                   <CustomToggleBox label="ฝนสะสม 24 ชม." source="สถานีตรวจวัดจริง สทนช." active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#facc15" apiStatus={apiStatus.tmd} />
                 </div>
-                
-                {/* 🚀 ปุ่มเรดาร์ฝนที่เพิ่มเข้ามาใหม่ วางต่อท้ายตรงนี้ครับ */}
-                <div className="mt-3">
-                  <button 
-                    onClick={() => window.open('/radar', '_blank')} 
-                    className="w-full relative overflow-hidden rounded-xl border border-blue-500/30 group"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-900 to-slate-900"></div>
-                    <div className="absolute inset-0 bg-[url('https://tilecache.rainviewer.com/v2/radar/1726059600/256/4/12/7/4/1_1.png')] opacity-30 bg-cover bg-center group-hover:scale-110 transition-transform duration-700"></div>
-                    
-                    <div className="relative p-3 flex items-center justify-between z-10 backdrop-blur-[2px]">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.5)]">
-                          <span className="text-[18px]">📡</span>
-                        </div>
-                        <div className="text-left">
-                          <div className="text-[13px] font-bold text-white tracking-wide">เรดาร์ฝน (Nowcast)</div>
-                          <div className="text-[10px] text-blue-300">ติดตามกลุ่มฝนเคลื่อนไหวสด</div>
-                        </div>
-                      </div>
-                      <svg className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                    </div>
-                  </button>
-                </div>
-                
               </div>
 
               <div>
@@ -1845,66 +1858,8 @@ export default function BoLuangDashboard() {
             </div>
           </div>
         </div>
-      </aside>    
+      </aside>  
                  
-      {showQrModal && (
-        <div 
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#050b14]/80 backdrop-blur-md px-4 pointer-events-auto"
-          onClick={() => setShowQrModal(false)}
-        >
-          <div 
-            className="bg-[#0b132b] border border-[#1e293b] rounded-3xl p-6 md:p-8 shadow-[0_0_50px_rgba(37,99,235,0.2)] max-w-sm w-full relative flex flex-col items-center text-center animate-fade-in-api"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button 
-              onClick={() => setShowQrModal(false)} 
-              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-[#1e293b] rounded-full text-gray-400 hover:text-white hover:bg-red-500 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-
-            <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-blue-500 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-500/30">
-              <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-            </div>
-            <h3 className="text-xl font-bold text-white mb-2">ติดตั้งแอปลงมือถือ</h3>
-            <p className="text-[13px] text-gray-400 mb-5 leading-relaxed">
-              สแกนคิวอาร์โค้ดด้านล่าง เพื่อเปิดระบบในสมาร์ทโฟน
-            </p>
-
-            <div className="bg-white p-3 rounded-2xl shadow-inner mb-5 w-[180px] h-[180px] flex items-center justify-center">
-              <img 
-                src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://boluang-disaster-gis.vercel.app/" 
-                alt="QR Code สำหรับเข้าเว็บไซต์" 
-                className="w-full h-full object-contain"
-              />
-            </div>
-
-            <div className="w-full bg-[#0f172a]/80 border border-[#1e293b] rounded-xl p-4 mb-6 text-left">
-              <h4 className="text-white font-bold text-[14px] mb-3 flex items-center">
-                <svg className="w-4 h-4 mr-1.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                ติดตั้งลงเครื่อง
-              </h4>
-              <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-start text-[13px]">
-                  <span className="text-gray-200 font-bold w-[120px] flex-shrink-0">IOS • Safari</span>
-                  <span className="text-gray-400">กดปุ่มแชร์ แล้วเลือก <span className="text-white">เพิ่มไปยังหน้าจอโฮม</span></span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-start text-[13px]">
-                  <span className="text-gray-200 font-bold w-[120px] flex-shrink-0">Android • Chrome</span>
-                  <span className="text-gray-400">กดเมนู ⋮ แล้วเลือก <span className="text-white">ติดตั้งแอป</span></span>
-                </div>
-              </div>
-            </div>
-
-            <button 
-              onClick={() => setShowQrModal(false)} 
-              className="w-full bg-[#1e293b] hover:bg-[#334155] text-white py-3 rounded-xl font-bold transition-colors border border-[#334155]"
-            >
-              ปิดหน้าต่าง
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
