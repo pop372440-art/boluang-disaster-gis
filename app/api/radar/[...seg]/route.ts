@@ -1,25 +1,39 @@
 export const runtime = 'edge';
 
-const UPSTREAM = 'https://tilecache.rainviewer.com/';
+const UPSTREAM = 'https://tilecache.rainviewer.com';
 
-export async function GET(_req: Request, { params }: { params: { seg: string[] } }) {
-  const r = await fetch(UPSTREAM + params.seg.join('/'), {
-    headers: { Accept: 'image/png' },
-    cache: 'force-cache',
-    next: { revalidate: 600 },
-  });
+export async function GET(_req: Request, ctx: any) {
+  const p = await ctx.params;                       // Next 15 = Promise, Next 14 = object
+  const seg: string[] = Array.isArray(p?.seg) ? p.seg : [];
+  if (!seg.length) return new Response('bad path', { status: 400 });
 
-  if (!r.ok) {
-    return new Response(null, {
-      status: r.status,
-      headers: { 'Cache-Control': 'public, s-maxage=30' },  // cache 429 สั้น ๆ กันยิงซ้ำ
+  const target = `${UPSTREAM}/${seg.join('/')}`;
+
+  try {
+    const r = await fetch(target, {
+      headers: { Accept: 'image/png,*/*', 'User-Agent': 'boluang-disaster-gis/1.0' },
+      cache: 'force-cache',
+      next: { revalidate: 900 },
     });
-  }
 
-  return new Response(r.body, {
-    headers: {
-      'Content-Type': 'image/png',
-      'Cache-Control': 'public, max-age=600, s-maxage=1800, stale-while-revalidate=3600',
-    },
-  });
+    if (!r.ok) {
+      return new Response(null, {
+        status: r.status,
+        headers: {
+          'Cache-Control': 'public, max-age=20, s-maxage=20',   // cache error สั้น ๆ กันยิงซ้ำถล่ม
+          'Retry-After': r.headers.get('retry-after') ?? '30',
+        },
+      });
+    }
+
+    return new Response(r.body, {
+      headers: {
+        'Content-Type': r.headers.get('content-type') ?? 'image/png',
+        'Cache-Control': 'public, max-age=900, s-maxage=3600, stale-while-revalidate=86400',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+  } catch {
+    return new Response(null, { status: 502, headers: { 'Cache-Control': 'public, max-age=10' } });
+  }
 }
