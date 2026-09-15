@@ -1,4 +1,4 @@
-'use client';
+'use client'; 
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
@@ -343,6 +343,7 @@ export default function BoLuangDashboard() {
     }
     setDeferredPrompt(null);
     setIsInstallable(false);
+    setShowQrModal(false); // ปิด Modal หลังจากกดปุ่ม
   };
 
   useEffect(() => {
@@ -1539,14 +1540,13 @@ export default function BoLuangDashboard() {
           </div>
         </div>
         
-        <div className="flex items-center space-x-2 md:space-x-3">      
-          
+        <div className="flex items-center space-x-2 md:space-x-3">          
           <button
             onClick={() => {
               if (isInstallable && deferredPrompt) {
-                handleInstallClick(); // ถ้า Browser รองรับ ให้เด้งติดตั้งทันที!
+                handleInstallClick(); 
               } else {
-                setShowQrModal(true); // ถ้ารองรับไม่ได้ ให้โชว์ QR Code แทน
+                setShowQrModal(true); 
               }
             }}
             className="hidden md:flex items-center bg-gradient-to-r from-blue-600 to-blue-500 border border-blue-400 hover:border-white rounded-full px-3 py-1.5 shadow-[0_0_15px_rgba(37,99,235,0.3)] hover:shadow-[0_0_20px_rgba(37,99,235,0.6)] hover:scale-105 transition-all cursor-pointer group"
@@ -1574,6 +1574,23 @@ export default function BoLuangDashboard() {
         <div className="relative flex h-full items-start">
           <div className="w-[300px] md:w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-r-2xl md:rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.5)] p-4 md:p-5 backdrop-blur-xl max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar">
             
+            {/* 🌟 ปุ่มติดตั้งแอปสำหรับมือถือ (แสดงเฉพาะหน้าจอมือถือ) */}
+            <button 
+              onClick={() => {
+                if (isInstallable && deferredPrompt) {
+                  handleInstallClick(); // ถ้ารองรับ กดปุ๊บเด้งติดตั้งทันที!
+                } else {
+                  setShowQrModal(true); // ถ้าไม่รองรับ ให้โชว์คำแนะนำแทน
+                }
+              }}
+              className="md:hidden w-full mb-5 py-3.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:brightness-110 rounded-xl text-[14px] font-bold text-white shadow-[0_4px_15px_rgba(37,99,235,0.4)] flex items-center justify-center space-x-2 transition-all cursor-pointer"
+            >
+              <svg className="w-5 h-5 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>ติดตั้งแอปลงมือถือ (PWA)</span>
+            </button>
+
             <div className="relative mb-4">
               <div 
                 onClick={() => window.open('/weather', '_blank')}
@@ -1866,7 +1883,7 @@ export default function BoLuangDashboard() {
           </div>
         </div>
       </aside>  
-      
+                 
       {/* 🌟 วางโค้ด Modal ที่หายไปตรงนี้ครับ (ก่อนปิด main) */}
       {showQrModal && (
         <div 
@@ -1892,13 +1909,25 @@ export default function BoLuangDashboard() {
               สแกนคิวอาร์โค้ดด้านล่าง เพื่อเปิดระบบในสมาร์ทโฟน
             </p>
 
-            <div className="bg-white p-3 rounded-2xl shadow-inner mb-5 w-[180px] h-[180px] flex items-center justify-center">
-              <img 
-                src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://boluang-disaster-gis.vercel.app/" 
-                alt="QR Code สำหรับเข้าเว็บไซต์" 
-                className="w-full h-full object-contain"
-              />
-            </div>
+            {/* ซ่อนรูป QR Code ถ้าเปิดบนมือถือ เพราะสแกนหน้าจอตัวเองไม่ได้ */}
+            {!isMobile && (
+              <div className="bg-white p-3 rounded-2xl shadow-inner mb-5 w-[180px] h-[180px] flex items-center justify-center">
+                <img 
+                  src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://boluang-disaster-gis.vercel.app/" 
+                  alt="QR Code สำหรับเข้าเว็บไซต์" 
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            )}
+            
+            {/* คำแนะนำเพิ่มเติมสำหรับคนที่เปิดลิงก์ผ่านแอป LINE */}
+            {isMobile && !isInstallable && (
+              <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-xl mb-4 text-left w-full shadow-inner">
+                <p className="text-[12px] text-blue-300 leading-relaxed">
+                  💡 <b>คำแนะนำ:</b> หากคุณเปิดเว็บนี้ผ่านแอป <b>LINE</b> หรือ <b>Facebook</b> แนะนำให้กดเมนู <span className="font-bold text-white">⋮ มุมขวาบน</span> แล้วเลือก <span className="font-bold text-white">เปิดด้วยเบราว์เซอร์ (Open in Browser)</span> ก่อน เพื่อให้ระบบรองรับการติดตั้งแอปครับ
+                </p>
+              </div>
+            )}
 
             <div className="w-full bg-[#0f172a]/80 border border-[#1e293b] rounded-xl p-4 mb-6 text-left">
               <h4 className="text-white font-bold text-[14px] mb-3 flex items-center">
@@ -1939,6 +1968,7 @@ export default function BoLuangDashboard() {
           </div>
         </div>
       )}
+
     </main>
   );
 }
