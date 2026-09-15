@@ -7,9 +7,10 @@ import { useMapEvents, useMap } from 'react-leaflet';
 import { createClient } from '@supabase/supabase-js';
 
 /* ═══════════════════════════ SUPABASE ═══════════════════════════ */
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+);
 
 const MapContainer = dynamic(() => import('react-leaflet').then((m) => m.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then((m) => m.TileLayer), { ssr: false });
@@ -17,9 +18,8 @@ const GeoJSON = dynamic(() => import('react-leaflet').then((m) => m.GeoJSON), { 
 const Marker = dynamic(() => import('react-leaflet').then((m) => m.Marker), { ssr: false });
 
 /* ═══════════════════════════ CONFIG ═══════════════════════════ */
-const SRC = 512;
-const NATIVE_Z = 12;
 const TZ = 'Asia/Bangkok';
+const NATIVE_Z = 12;              // zoom สูงสุดที่ RainViewer มีข้อมูลจริง (standard tile grid)
 const RV_SCHEME_DEFAULT = 4;
 const STALE_MINUTES = 20;
 
@@ -32,68 +32,101 @@ const LOW_MEM =
    (((navigator as any).hardwareConcurrency ?? 4) <= 4) ||
    window.innerWidth < 768);
 
-const CACHE_MAX = LOW_MEM ? 48 : 140;
-const PREFETCH_RADIUS = LOW_MEM ? 2 : 4;
-const PREFETCH_MAX_TILES = 36;
-const PREFETCH_WORKERS = LOW_MEM ? 2 : 4;
+const SRC = 512;                              // ขนาดภาพ tile ที่ขอจาก RainViewer
+const CACHE_MAX = LOW_MEM ? 40 : 90;          // 1 tile 512px ≈ 1 MB  →  40 MB / 90 MB
+const PREFETCH_RADIUS = LOW_MEM ? 1 : 3;
+const PREFETCH_MAX_TILES = 16;
+const MAX_INFLIGHT = 4;                       // ยิงพร้อมกันสูงสุด
+const NEG_TTL = 60_000;                       // จำ tile ที่พังไว้ 60 วิ
 
 /* ═══════════════════ TIME (ล็อก Asia/Bangkok) ═══════════════════ */
 const toDate = (d: Date | number | null | undefined) =>
   d == null ? null : typeof d === 'number' ? new Date(d) : d;
 const fmtTime = (d: Date | number | null | undefined) => {
-  const dt = toDate(d);
-  return dt ? dt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: TZ }) : '--:--';
+  const x = toDate(d);
+  return x ? x.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: TZ }) : '--:--';
 };
 const fmtDate = (d: Date | number | null | undefined) => {
-  const dt = toDate(d);
-  return dt ? dt.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', timeZone: TZ }) : '-';
+  const x = toDate(d);
+  return x ? x.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', timeZone: TZ }) : '-';
 };
 
-/* ═══════════════════════ TILE CACHE ═══════════════════════ */
+/* ═══════════ TILE LOADER: queue + circuit breaker + neg-cache ═══════════ */
 const tileCache = new Map<string, Promise<ImageData | null>>();
+const negCache = new Map<string, number>();
 
 const touchCache = (k: string, p: Promise<ImageData | null>) => {
-  tileCache.delete(k);
-  tileCache.set(k, p);
+  tileCache.delete(k); tileCache.set(k, p);
   while (tileCache.size > CACHE_MAX) {
-    const oldest = tileCache.keys().next().value as string | undefined;
-    if (oldest === undefined) break;
-    tileCache.delete(oldest);
+    const o = tileCache.keys().next().value as string | undefined;
+    if (o === undefined) break;
+    tileCache.delete(o);
   }
 };
 
-const pruneTileCache = (activePaths: string[]) => {
-  if (!activePaths.length) return;
+const pruneTileCache = (paths: string[]) => {
+  if (!paths.length) return;
   for (const k of Array.from(tileCache.keys()))
-    if (!activePaths.some((p) => k.includes(p))) tileCache.delete(k);
+    if (!paths.some((p) => k.includes(p))) tileCache.delete(k);
 };
+
+let inFlight = 0;
+const waitQ: (() => void)[] = [];
+let breakerUntil = 0;
+let breakerTick = 0;                       // ใช้ trigger re-render แบดจ์
+
+const acquire = () => new Promise<void>((res) => {
+  const run = () => { if (inFlight < MAX_INFLIGHT) { inFlight++; res(); } else waitQ.push(run); };
+  run();
+});
+const release = () => { inFlight = Math.max(0, inFlight - 1); waitQ.shift()?.(); };
+const isBlocked = () => Date.now() < breakerUntil;
+
+/** ⚠️ ยิงผ่าน proxy ของเราเสมอ — ห้ามใช้ host ของ RainViewer */
+const frameTileUrl = (path: string, z: number, x: number, y: number, color = RV_SCHEME_DEFAULT) =>
+  `/api/radar${path}/${SRC}/${z}/${x}/${y}/${color}/1_1.png`;
 
 const loadTile = (url: string): Promise<ImageData | null> => {
   const hit = tileCache.get(url);
   if (hit) { touchCache(url, hit); return hit; }
-  const p = new Promise<ImageData | null>((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    (img as any).decoding = 'async';
-    img.onload = () => {
-      try {
-        const c = document.createElement('canvas');
-        c.width = SRC; c.height = SRC;
-        const ctx = c.getContext('2d', { willReadFrequently: true })!;
-        ctx.clearRect(0, 0, SRC, SRC);
-        ctx.drawImage(img, 0, 0, SRC, SRC);
-        resolve(ctx.getImageData(0, 0, SRC, SRC));
-      } catch { resolve(null); }
-    };
-    img.onerror = () => resolve(null);
-    img.src = url;
-  });
+
+  const neg = negCache.get(url);
+  if (neg && Date.now() < neg) return Promise.resolve(null);
+  if (neg) negCache.delete(url);
+
+  const p = (async (): Promise<ImageData | null> => {
+    if (isBlocked()) return null;
+    await acquire();
+    try {
+      if (isBlocked()) return null;
+      const res = await fetch(url, { cache: 'force-cache' });
+
+      if (res.status === 429 || res.status === 503 || res.status === 502) {
+        const ra = Number(res.headers.get('retry-after')) || 30;
+        breakerUntil = Date.now() + Math.min(ra, 120) * 1000;   // หยุดยิงทั้งระบบชั่วคราว
+        breakerTick++;
+        negCache.set(url, Date.now() + NEG_TTL);
+        return null;
+      }
+      if (!res.ok) { negCache.set(url, Date.now() + NEG_TTL); return null; }
+
+      const bmp = await createImageBitmap(await res.blob());
+      const c = document.createElement('canvas');
+      c.width = bmp.width; c.height = bmp.height;
+      const ctx = c.getContext('2d', { willReadFrequently: true })!;
+      ctx.drawImage(bmp, 0, 0);
+      bmp.close();
+      return ctx.getImageData(0, 0, c.width, c.height);
+    } catch {
+      negCache.set(url, Date.now() + NEG_TTL);
+      return null;
+    } finally { release(); }
+  })();
+
   touchCache(url, p);
+  p.then((d) => { if (!d) tileCache.delete(url); });   // ห้าม cache ความล้มเหลวถาวร
   return p;
 };
-
-const frameTileUrl = (host: string, path: string, z: number, x: number, y: number, color = RV_SCHEME_DEFAULT) =>
-  `${host}${path}/${SRC}/${z}/${x}/${y}/${color}/1_1.png`;
 
 const catmull = (t: number, a: number, b: number, c: number, d: number) =>
   b + 0.5 * t * (c - a + t * (2 * a - 5 * b + 4 * c - d + t * (3 * (b - c) + d - a)));
@@ -105,31 +138,30 @@ const getSmoothLayerClass = (L: any) => {
   if (SmoothLayerClass) return SmoothLayerClass;
   SmoothLayerClass = L.GridLayer.extend({
     options: {
-      tileSize: 256, colorScheme: RV_SCHEME_DEFAULT, quality: 'bicubic', gain: 1, cutoff: 6,
-      updateWhenZooming: false, updateWhenIdle: false, keepBuffer: 2,
+      tileSize: SRC,                       // 512 → จำนวน tile ลดลง 4 เท่า
+      colorScheme: RV_SCHEME_DEFAULT, quality: 'bicubic', gain: 1, cutoff: 6,
+      updateWhenZooming: false, updateWhenIdle: true, keepBuffer: 1,
     },
 
     createTile(coords: any, done: any) {
-      const size = this.getTileSize();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const out = Math.round(size.x * dpr);
+      const px = this.getTileSize().x;
       const canvas = L.DomUtil.create('canvas') as HTMLCanvasElement;
-      canvas.width = out; canvas.height = out;
-      canvas.style.width = `${size.x}px`;
-      canvas.style.height = `${size.y}px`;
-      this._render(coords, canvas, out).then(() => done(null, canvas)).catch((e: any) => done(e, canvas));
+      canvas.width = px; canvas.height = px;
+      canvas.style.width = `${px}px`;
+      canvas.style.height = `${px}px`;
+      this._render(coords, canvas, px).then(() => done(null, canvas)).catch((e: any) => done(e, canvas));
       return canvas;
     },
 
     async _render(coords: any, canvas: HTMLCanvasElement, out: number) {
-      const { host, framePath, colorScheme, quality, gain, cutoff } = this.options;
-      const z = coords.z;
+      const { framePath, colorScheme, quality, gain, cutoff } = this.options;
+      const z = coords.z - 1;              // grid 512px = standard tile ที่ z-1
       const ctx = canvas.getContext('2d')!;
-      if (!host || !framePath) return;
+      if (!framePath || z < 0) return;
 
-      /* ── zoom ที่มีข้อมูลจริง → วาดตรง ๆ (FIX: gain ใช้งานได้แล้ว) ── */
+      /* zoom ที่มีข้อมูลจริง → วาดตรง ๆ (gain ทำงานที่ path นี้ด้วย) */
       if (z <= NATIVE_Z) {
-        const img = await loadTile(frameTileUrl(host, framePath, z, coords.x, coords.y, colorScheme));
+        const img = await loadTile(frameTileUrl(framePath, z, coords.x, coords.y, colorScheme));
         if (!img) return;
 
         const tmp = document.createElement('canvas');
@@ -137,16 +169,13 @@ const getSmoothLayerClass = (L: any) => {
         const tctx = tmp.getContext('2d')!;
 
         if (gain !== 1 || cutoff > 0) {
-          // ⚠️ copy ก่อน — ห้ามแก้ ImageData ใน cache โดยตรง
-          const buf = new Uint8ClampedArray(img.data);
+          const buf = new Uint8ClampedArray(img.data);      // copy — ห้ามแก้ของใน cache
           for (let i = 3; i < buf.length; i += 4) {
             const a = buf[i] * gain;
             buf[i] = a <= cutoff ? 0 : a > 255 ? 255 : a;
           }
           tctx.putImageData(new ImageData(buf, SRC, SRC), 0, 0);
-        } else {
-          tctx.putImageData(img, 0, 0);
-        }
+        } else tctx.putImageData(img, 0, 0);
 
         ctx.imageSmoothingEnabled = true;
         (ctx as any).imageSmoothingQuality = 'high';
@@ -154,7 +183,7 @@ const getSmoothLayerClass = (L: any) => {
         return;
       }
 
-      /* ── zoom เกินข้อมูล → resample เอง ── */
+      /* zoom เกินข้อมูล → resample เอง */
       const scale = 1 << (z - NATIVE_Z);
       const n = 1 << NATIVE_Z;
       const gx0 = (coords.x * SRC) / scale;
@@ -167,16 +196,14 @@ const getSmoothLayerClass = (L: any) => {
 
       const tiles = new Map<string, ImageData | null>();
       const jobs: Promise<void>[] = [];
-      for (let tx = tx0; tx <= tx1; tx++) {
+      for (let tx = tx0; tx <= tx1; tx++)
         for (let ty = ty0; ty <= ty1; ty++) {
-          const wx = ((tx % n) + n) % n;
-          const wy = clamp(ty, 0, n - 1);
+          const wx = ((tx % n) + n) % n, wy = clamp(ty, 0, n - 1);
           const key = `${wx}/${wy}`;
           if (tiles.has(key)) continue;
           tiles.set(key, null);
-          jobs.push(loadTile(frameTileUrl(host, framePath, NATIVE_Z, wx, wy, colorScheme)).then((d) => { tiles.set(key, d); }));
+          jobs.push(loadTile(frameTileUrl(framePath, NATIVE_Z, wx, wy, colorScheme)).then((d) => { tiles.set(key, d); }));
         }
-      }
       await Promise.all(jobs);
 
       const px = (gx: number, gy: number, ch: number): number => {
@@ -190,7 +217,7 @@ const getSmoothLayerClass = (L: any) => {
         const iy = clamp(Math.floor(fy) - ty * SRC, 0, SRC - 1);
         const o = (iy * SRC + ix) * 4;
         const a = d.data[o + 3];
-        return ch === 3 ? a : (d.data[o + ch] * a) / 255;   // premultiply
+        return ch === 3 ? a : (d.data[o + ch] * a) / 255;
       };
 
       const outImg = ctx.createImageData(out, out);
@@ -210,9 +237,8 @@ const getSmoothLayerClass = (L: any) => {
             r = px(ix, iy, 0); g = px(ix, iy, 1); b = px(ix, iy, 2); a = px(ix, iy, 3);
           } else if (quality === 'bilinear') {
             for (let ch = 0; ch < 4; ch++) {
-              const v =
-                px(ix, iy, ch) * (1 - fx) * (1 - fy) + px(ix + 1, iy, ch) * fx * (1 - fy) +
-                px(ix, iy + 1, ch) * (1 - fx) * fy + px(ix + 1, iy + 1, ch) * fx * fy;
+              const v = px(ix, iy, ch) * (1 - fx) * (1 - fy) + px(ix + 1, iy, ch) * fx * (1 - fy) +
+                        px(ix, iy + 1, ch) * (1 - fx) * fy + px(ix + 1, iy + 1, ch) * fx * fy;
               if (ch === 0) r = v; else if (ch === 1) g = v; else if (ch === 2) b = v; else a = v;
             }
           } else {
@@ -225,12 +251,11 @@ const getSmoothLayerClass = (L: any) => {
             }
           }
 
-          /* FIX: un-premultiply ด้วย alpha เดิม แล้วค่อย gain เฉพาะ alpha */
           const aRaw = clamp(a, 0, 255);
           const aOut = clamp(aRaw * gain, 0, 255);
           if (aOut <= cutoff || aRaw < 1) { O[o + 3] = 0; continue; }
           const inv = 255 / aRaw;
-          O[o]     = clamp(r * inv, 0, 255);
+          O[o] = clamp(r * inv, 0, 255);
           O[o + 1] = clamp(g * inv, 0, 255);
           O[o + 2] = clamp(b * inv, 0, 255);
           O[o + 3] = aOut;
@@ -242,58 +267,56 @@ const getSmoothLayerClass = (L: any) => {
   return SmoothLayerClass;
 };
 
-/* ─────────── React wrapper: cross-fade + bounded prefetch ─────────── */
+/* ─────────── React wrapper ─────────── */
 function SmoothRadar({
-  host, frame, frames = [], frameIndex = 0, enabled = true, opacity = 0.75,
+  frame, frames = [], frameIndex = 0, enabled = true, opacity = 0.75,
   quality = 'bicubic', colorScheme = RV_SCHEME_DEFAULT, gain = 1, cutoff = 6, zIndex = 300,
 }: {
-  host: string; frame: RadarFrame | null; frames?: RadarFrame[]; frameIndex?: number;
-  enabled?: boolean; opacity?: number; quality?: Quality; colorScheme?: number;
-  gain?: number; cutoff?: number; zIndex?: number;
+  frame: RadarFrame | null; frames?: RadarFrame[]; frameIndex?: number; enabled?: boolean;
+  opacity?: number; quality?: Quality; colorScheme?: number; gain?: number; cutoff?: number; zIndex?: number;
 }) {
   const map = useMap();
   const currentRef = useRef<any>(null);
   const pendingRef = useRef<any>(null);
 
-  /* FIX: prefetch เฉพาะเฟรมรอบ index ปัจจุบัน (เดิมยิงทุกเฟรม ~416 req) */
+  /* prefetch: เฉพาะเฟรมใกล้เคียง + คำนวณพิกัดให้ตรง zoom จริง */
   useEffect(() => {
-    if (!enabled || !host || !frames.length || !map) return;
+    if (!enabled || !frames.length || !map) return;
     let cancelled = false;
 
     const run = async () => {
+      if (isBlocked()) return;
+      const zz = Math.min(map.getZoom() - 1, NATIVE_Z);
+      if (zz < 0) return;
       const b = map.getBounds();
-      const z = Math.min(map.getZoom(), NATIVE_Z);
-      const nw = map.project(b.getNorthWest(), z).divideBy(SRC);
-      const se = map.project(b.getSouthEast(), z).divideBy(SRC);
+      const nw = map.project(b.getNorthWest(), zz).divideBy(256);   // ← standard grid
+      const se = map.project(b.getSouthEast(), zz).divideBy(256);
       const x0 = Math.floor(nw.x), x1 = Math.ceil(se.x);
       const y0 = Math.floor(nw.y), y1 = Math.ceil(se.y);
-
-      const perFrame = (x1 - x0 + 1) * (y1 - y0 + 1);
-      if (perFrame <= 0 || perFrame > PREFETCH_MAX_TILES) return;
+      if ((x1 - x0 + 1) * (y1 - y0 + 1) > PREFETCH_MAX_TILES) return;
 
       const lo = Math.max(0, frameIndex - PREFETCH_RADIUS);
       const hi = Math.min(frames.length - 1, frameIndex + PREFETCH_RADIUS);
-
       const urls: string[] = [];
       for (let fi = lo; fi <= hi; fi++)
         for (let x = x0; x <= x1; x++)
           for (let y = y0; y <= y1; y++)
-            urls.push(frameTileUrl(host, frames[fi].path, z, x, y, colorScheme));
+            urls.push(frameTileUrl(frames[fi].path, zz, x, y, colorScheme));
 
       let i = 0;
-      const worker = async () => { while (i < urls.length && !cancelled) await loadTile(urls[i++]); };
-      await Promise.all(Array.from({ length: PREFETCH_WORKERS }, worker));
+      const w = async () => { while (i < urls.length && !cancelled && !isBlocked()) await loadTile(urls[i++]); };
+      await Promise.all(Array.from({ length: 2 }, w));
     };
 
-    const t = setTimeout(run, 500);
+    const t = setTimeout(run, 900);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [host, frames, frameIndex, map, enabled, colorScheme]);
+  }, [frames, frameIndex, map, enabled, colorScheme]);
 
   useEffect(() => {
     if (!map) return;
     const L = require('leaflet');
 
-    if (!enabled || !frame || !host) {
+    if (!enabled || !frame) {
       [currentRef, pendingRef].forEach((r) => { if (r.current) { try { map.removeLayer(r.current); } catch {} r.current = null; } });
       return;
     }
@@ -301,8 +324,8 @@ function SmoothRadar({
 
     const Cls = getSmoothLayerClass(L);
     const next = new Cls({
-      host, framePath: frame.path, colorScheme, quality, gain, cutoff,
-      opacity: 0, zIndex: zIndex + 1, tileSize: 256, maxZoom: 20, pane: 'overlayPane',
+      framePath: frame.path, colorScheme, quality, gain, cutoff,
+      opacity: 0, zIndex: zIndex + 1, tileSize: SRC, maxZoom: 20, pane: 'overlayPane',
     });
     pendingRef.current = next;
     next.addTo(map);
@@ -319,9 +342,9 @@ function SmoothRadar({
       pendingRef.current = null;
     };
     next.on('load', reveal);
-    const guard = setTimeout(reveal, 1500);
+    const guard = setTimeout(reveal, 2000);
     return () => { clearTimeout(guard); next.off('load', reveal); };
-  }, [map, host, frame?.path, enabled, quality, colorScheme, gain, cutoff, zIndex]);
+  }, [map, frame?.path, enabled, quality, colorScheme, gain, cutoff, zIndex]);
 
   useEffect(() => { currentRef.current?.setOpacity(opacity); }, [opacity]);
   useEffect(() => () => {
@@ -331,29 +354,12 @@ function SmoothRadar({
   return null;
 }
 
-/* ═══════════════════════ BASEMAPS (ไม่ใช้ Google tile endpoint) ═══════════════════════ */
+/* ═══════════════════════ BASEMAPS ═══════════════════════ */
 const BASEMAPS = {
-  light: {
-    name: 'Light', swatch: 'bg-[#E5E7EB]',
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    subdomains: 'abcd', maxNativeZoom: 20, attr: '&copy; OpenStreetMap &copy; CARTO', labels: '',
-  },
-  terrain: {
-    name: 'Terrain', swatch: 'bg-[#8F9779]',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-    subdomains: '', maxNativeZoom: 19, attr: 'Tiles &copy; Esri', labels: '',
-  },
-  satellite: {
-    name: 'Satellite', swatch: 'bg-[#2D4C1E]',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    subdomains: '', maxNativeZoom: 19, attr: 'Tiles &copy; Esri, Maxar, Earthstar Geographics',
-    labels: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-  },
-  dark: {
-    name: 'Dark', swatch: 'bg-[#111319]',
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png',
-    subdomains: 'abcd', maxNativeZoom: 20, attr: '&copy; OpenStreetMap &copy; CARTO', labels: '',
-  },
+  light: { name: 'Light', swatch: 'bg-[#E5E7EB]', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', subdomains: 'abcd', maxNativeZoom: 20, attr: '&copy; OSM &copy; CARTO', labels: '' },
+  terrain: { name: 'Terrain', swatch: 'bg-[#8F9779]', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', subdomains: '', maxNativeZoom: 19, attr: 'Tiles &copy; Esri', labels: '' },
+  satellite: { name: 'Satellite', swatch: 'bg-[#2D4C1E]', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains: '', maxNativeZoom: 19, attr: 'Tiles &copy; Esri, Maxar', labels: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}' },
+  dark: { name: 'Dark', swatch: 'bg-[#111319]', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png', subdomains: 'abcd', maxNativeZoom: 20, attr: '&copy; OSM &copy; CARTO', labels: '' },
 } as const;
 type BasemapId = keyof typeof BASEMAPS;
 
@@ -403,7 +409,6 @@ const getNum = (p: any = {}, keys: string[]) => {
   for (const k of keys) { const v = Number(p?.[k]); if (!isNaN(v) && v > 0) return v; }
   return 0;
 };
-/* FIX: เดิมใช้ features.indexOf(feature) = O(n²) ทุก re-render */
 const getIdx = (f: any) => (f?.properties?.__idx ?? 0) as number;
 
 /* ═══════════════════ เกณฑ์เตือนภัย ═══════════════════ */
@@ -416,7 +421,6 @@ const LEVELS = [
 ];
 const classify = (idx: number) => LEVELS.find((l) => idx < l.max) || LEVELS[LEVELS.length - 1];
 
-/* FIX: legend เดิมจับคู่สี CLPP กับภาพ RainViewer ที่คนละพาเลตต์ → เลิกผูกสีกับ dBZ */
 const RAIN_BANDS = [
   { label: 'ฝนหนักมาก', dbz: '≥ 55', c: '#A800A8' },
   { label: 'ฝนหนัก', dbz: '44 – 55', c: '#E81010' },
@@ -433,7 +437,6 @@ const ClickableMap = ({ onMapClick }: { onMapClick: (lat: number, lng: number) =
   return null;
 };
 
-/* FIX: next/dynamic ไม่ forward ref → mapRef เดิมเป็น null ตลอด */
 const MapRefBinder = ({ mapRef }: { mapRef: React.MutableRefObject<any> }) => {
   const map = useMap();
   useEffect(() => {
@@ -451,8 +454,9 @@ export default function RadarPage() {
   const [radarData, setRadarData] = useState<any>(null);
 
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);        // เริ่มแบบหยุด กันยิง tile รัวตอนเปิดหน้า
   const [speed, setSpeed] = useState(1000);
+  const [blockedNow, setBlockedNow] = useState(false);
 
   const [mapStyle, setMapStyle] = useState<BasemapId>('satellite');
   const [showRadar, setShowRadar] = useState(true);
@@ -491,7 +495,16 @@ export default function RadarPage() {
 
   useEffect(() => { if (LOW_MEM) setRadarQuality('bilinear'); }, []);
 
-  /* โหลด GeoJSON + เรดาร์ */
+  /* เฝ้าสถานะ rate-limit */
+  useEffect(() => {
+    const t = setInterval(() => setBlockedNow(isBlocked()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  /* หยุดเล่นอัตโนมัติเมื่อโดนจำกัด */
+  useEffect(() => { if (blockedNow && isPlaying) setIsPlaying(false); }, [blockedNow, isPlaying]);
+
+  /* โหลด GeoJSON + รายการเฟรมเรดาร์ */
   useEffect(() => {
     fetch('/geojson/boluang.json').then((r) => r.json()).then(setGeoBoluang).catch(() => {});
     fetch('/geojson/block.json').then((r) => r.json()).then((d) => {
@@ -505,8 +518,7 @@ export default function RadarPage() {
         .then((d) => {
           const frames: RadarFrame[] = [...(d.radar.past || []), ...(d.radar.nowcast || [])];
           pruneTileCache(frames.map((f) => f.path));
-          setRadarData({ host: d.host, frames, pastCount: d.radar.past.length });
-          /* FIX: ไม่กระชากผู้ใช้กลับ T+0 ทุก 5 นาที */
+          setRadarData({ frames, pastCount: d.radar.past.length });
           setCurrentFrameIndex((prev) => (prev === 0 ? d.radar.past.length - 1 : Math.min(prev, frames.length - 1)));
         })
         .catch(console.error);
@@ -516,7 +528,7 @@ export default function RadarPage() {
     return () => clearInterval(t);
   }, []);
 
-  /* คำนวณความเสี่ยงรายหมู่บ้าน */
+  /* ความเสี่ยงรายหมู่บ้าน */
   const computeVillageRisk = useCallback(async (fc: any) => {
     const feats: any[] = fc?.features || [];
     if (!feats.length) return;
@@ -542,8 +554,7 @@ export default function RadarPage() {
 
         const hours = [1, 2, 3].map((k) => ({
           time: times[idx + k] ? new Date(`${times[idx + k]}:00+07:00`) : null,
-          rain: prec[idx + k] ?? 0,
-          prob: prob[idx + k] ?? 0,
+          rain: prec[idx + k] ?? 0, prob: prob[idx + k] ?? 0,
         }));
 
         const rain3h = hours.reduce((s, h) => s + (h.rain || 0), 0);
@@ -552,10 +563,8 @@ export default function RadarPage() {
         const maxProb = Math.max(0, ...hours.map((h) => h.prob || 0));
         const peakHour = hours.reduce((a, b) => ((b.rain || 0) > (a.rain || 0) ? b : a), hours[0]);
 
-        /* API แบบถ่วงน้ำหนักถดถอย k=0.9 (เดิม sum ดิบ 7 วัน) */
         const daily: number[] = (d?.daily?.precipitation_sum || []).slice(0, 7);
         const api7 = daily.reduce((acc: number, v: number) => acc * 0.9 + (v || 0), 0);
-
         const soilFactor = 1 + Math.min(api7 / 120, 0.5);
         const slope = getNum(props, ['slope_deg', 'slope', 'SLOPE']);
         const terrainFactor = slope > 20 ? 1.25 : slope > 12 ? 1.1 : 1.0;
@@ -566,16 +575,13 @@ export default function RadarPage() {
           households: getNum(props, ['households', 'house', 'HOUSE', 'hh']),
           population: getNum(props, ['population', 'pop', 'POP']),
           centroid: cents[i], rain1h, rain3h, rain24h, maxProb, api7, soilFactor, terrainFactor,
-          riskIndex, level: classify(riskIndex),
-          peak: fmtTime(peakHour?.time),
-          hours, raw: props,
+          riskIndex, level: classify(riskIndex), peak: fmtTime(peakHour?.time), hours, raw: props,
         };
       });
 
       rows.sort((a, b) => b.riskIndex - a.riskIndex);
       setVillageRisk(rows);
       setRiskUpdatedAt(new Date());
-      /* FIX: ไม่รีเซ็ต dismiss ทุก 10 นาทีแล้ว — ใช้ signature แทน */
     } catch (e) { console.error('village risk error', e); }
     finally { setRiskLoading(false); }
   }, []);
@@ -587,7 +593,6 @@ export default function RadarPage() {
     return () => clearInterval(t);
   }, [geoBlock, computeVillageRisk]);
 
-  /* FIX: key เดิม `moo|name` ชนกันได้ → ใช้ __idx */
   const riskByIdx = useMemo(() => {
     const m = new Map<number, any>();
     villageRisk.forEach((v) => m.set(Number(v.id), v));
@@ -606,7 +611,7 @@ export default function RadarPage() {
   const alertSig = useMemo(() => alertVillages.map((v) => `${v.id}:${v.level.key}`).join('|'), [alertVillages]);
   const showAlert = alertVillages.length > 0 && alertSig !== dismissedSig;
 
-  /* สถิติ — FIX: เดิม select ทุกแถว ติดลิมิต 1000 แถว */
+  /* สถิติผ่าน RPC */
   useEffect(() => {
     if (!isStatsModalOpen) return;
     (async () => {
@@ -631,13 +636,13 @@ export default function RadarPage() {
     let iv: any;
     if (isPlaying && radarData?.frames?.length) {
       iv = setInterval(() => {
+        if (isBlocked()) return;
         setCurrentFrameIndex((p) => (p + 1 >= radarData.frames.length ? 0 : p + 1));
       }, speed);
     }
     return () => clearInterval(iv);
   }, [isPlaying, radarData, speed]);
 
-  /* FIX: เพิ่ม AbortController กัน race condition ตอนคลิกรัว */
   const handleMapClick = async (lat: number, lng: number) => {
     setClickedLocation({ lat, lng });
     setIsFetchingForecast(true);
@@ -696,11 +701,8 @@ export default function RadarPage() {
     if (!showRisk || !v) return { color: '#F59E0B', weight: 1.2, fill: false, opacity: 0.6 };
     const isSel = selectedVillage?.id === v.id;
     return {
-      color: isSel ? '#FFFFFF' : v.level.color,
-      weight: isSel ? 3 : 1.6,
-      fillColor: v.level.color,
-      fillOpacity: v.level.key === 'normal' ? 0.1 : 0.38,
-      opacity: 0.95,
+      color: isSel ? '#FFFFFF' : v.level.color, weight: isSel ? 3 : 1.6,
+      fillColor: v.level.color, fillOpacity: v.level.key === 'normal' ? 0.1 : 0.38, opacity: 0.95,
     };
   }, [riskByIdx, showRisk, selectedVillage]);
 
@@ -752,8 +754,7 @@ export default function RadarPage() {
         ) : villageRisk.length ? (
           villageRisk.map((v, i) => (
             <div key={v.id} onClick={() => flyToVillage(v)}
-              className={`flex items-center text-[#D1D5DB] py-2.5 border-b border-[#333946]/30 hover:bg-[#232732] cursor-pointer rounded px-1 transition-colors ${
-                selectedVillage?.id === v.id ? 'bg-[#232732] ring-1 ring-[#4178F3]/40' : ''}`}>
+              className={`flex items-center text-[#D1D5DB] py-2.5 border-b border-[#333946]/30 hover:bg-[#232732] cursor-pointer rounded px-1 transition-colors ${selectedVillage?.id === v.id ? 'bg-[#232732] ring-1 ring-[#4178F3]/40' : ''}`}>
               <div className="w-7 text-center text-[#8B94A5] font-mono">{i + 1}</div>
               <div className="w-1.5 h-6 rounded-full mr-2 shrink-0" style={{ background: v.level.color, boxShadow: `0 0 8px ${v.level.glow}` }} />
               <div className="flex-1 min-w-0">
@@ -826,7 +827,6 @@ export default function RadarPage() {
           </button>
         </div>
       </header>
-      {/* FIX: มือถือแตะเปิด header ได้ (เดิมมีแค่ onMouseEnter) */}
       {!isTopHeaderVisible && (
         <button onClick={() => setIsTopHeaderVisible(true)} onMouseEnter={() => setIsTopHeaderVisible(true)}
           className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-5 bg-[#1A1D24]/80 backdrop-blur-md rounded-b-xl border-b border-x border-[#333946] flex items-center justify-center cursor-pointer z-[1500] hover:bg-[#232732]">
@@ -844,9 +844,9 @@ export default function RadarPage() {
               subdomains={bm.subdomains || 'abc'} maxZoom={20} maxNativeZoom={bm.maxNativeZoom} />
             {bm.labels && <TileLayer key={`${mapStyle}-lbl`} url={bm.labels} maxZoom={20} maxNativeZoom={19} pane="overlayPane" />}
             <SmoothRadar
-              host={radarData?.host || ''} frame={activeFrame} frames={radarData?.frames || []}
-              frameIndex={currentFrameIndex} enabled={showRadar} opacity={radarOpacity}
-              quality={radarQuality} colorScheme={colorScheme} gain={radarGain} cutoff={6} zIndex={300}
+              frame={activeFrame} frames={radarData?.frames || []} frameIndex={currentFrameIndex}
+              enabled={showRadar} opacity={radarOpacity} quality={radarQuality}
+              colorScheme={colorScheme} gain={radarGain} cutoff={6} zIndex={300}
             />
             {showBoluang && geoBoluang && <GeoJSON data={geoBoluang} style={{ color: '#FFFFFF', weight: 2, fill: false, opacity: 0.9, dashArray: '5,5' }} />}
             {showBlock && geoBlock && (
@@ -1123,7 +1123,7 @@ export default function RadarPage() {
           </div>
         </div>
 
-        {/* ══ LEGEND (FIX: ไม่จับคู่สี×dBZ ผิดพาเลตต์อีก) ══ */}
+        {/* ══ LEGEND ══ */}
         {isLegendOpen && (
           <div className="absolute bottom-8 left-5 z-[900] onwr-panel px-3 py-3 w-[188px] bg-[#1A1D24]/95 backdrop-blur-md hidden lg:block">
             <h3 className="text-[11.5px] font-bold text-[#E5E7EB] mb-2">ระดับความรุนแรงฝน</h3>
@@ -1137,8 +1137,7 @@ export default function RadarPage() {
               ))}
             </div>
             <p className="mt-2 pt-2 border-t border-[#333946] text-[8.5px] text-[#8B94A5] leading-relaxed">
-              ค่าอ้างอิงสมการ Z–R (Marshall–Palmer)<br />
-              สีบนแผนที่ใช้พาเลตต์ RainViewer #{colorScheme}
+              ค่าอ้างอิงสมการ Z–R (Marshall–Palmer)<br />สีบนแผนที่ใช้พาเลตต์ RainViewer #{colorScheme}
             </p>
             <div className="mt-2 pt-2 border-t border-[#333946] space-y-1">
               {LEVELS.map((l) => (
@@ -1154,17 +1153,22 @@ export default function RadarPage() {
         {/* ══ TIMELINE PLAYER ══ */}
         <div className="absolute bottom-[92px] md:bottom-8 left-1/2 -translate-x-1/2 w-[92%] max-w-[620px] z-[1000]">
           <div className="onwr-panel bg-[#1A1D24]/96 backdrop-blur-md overflow-hidden">
-            <div className="px-5 py-2.5 border-b border-[#333946] flex items-center justify-between">
-              <span className="text-[12.5px] font-bold text-[#E5E7EB]">
-                Radar Composite {isNowcast ? '(Nowcasting)' : ''} — {fmtDate(activeFrame ? activeFrame.time * 1000 : null)} เวลา {fmtTime(activeFrame ? activeFrame.time * 1000 : null)} น.
+            <div className="px-5 py-2.5 border-b border-[#333946] flex items-center justify-between gap-2">
+              <span className="text-[12.5px] font-bold text-[#E5E7EB] truncate">
+                Radar {isNowcast ? '(Nowcasting)' : ''} — {fmtDate(activeFrame ? activeFrame.time * 1000 : null)} {fmtTime(activeFrame ? activeFrame.time * 1000 : null)} น.
               </span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${isNowcast ? 'bg-[#F59E0B]/15 text-[#F59E0B]' : 'bg-[#4178F3]/15 text-[#4178F3]'}`}>
-                {isNowcast ? `คาดการณ์ T+${frameOffset}` : frameOffset === 0 ? 'ปัจจุบัน (T+0)' : `ย้อนหลัง ${Math.abs(frameOffset)} นาที`}
-              </span>
+              {blockedNow ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#F59E0B]/15 text-[#F59E0B] shrink-0">ชะลอโหลด (rate limit)</span>
+              ) : (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded shrink-0 ${isNowcast ? 'bg-[#F59E0B]/15 text-[#F59E0B]' : 'bg-[#4178F3]/15 text-[#4178F3]'}`}>
+                  {isNowcast ? `T+${frameOffset}` : frameOffset === 0 ? 'ปัจจุบัน (T+0)' : `ย้อนหลัง ${Math.abs(frameOffset)} นาที`}
+                </span>
+              )}
             </div>
 
             <div className="px-5 py-3 flex items-center gap-3">
-              <button onClick={() => setIsPlaying(!isPlaying)} className="text-[#E5E7EB] hover:text-[#4178F3] bg-[#232732] p-1.5 rounded-full border border-[#333946] shrink-0">
+              <button onClick={() => setIsPlaying(!isPlaying)} disabled={blockedNow}
+                className={`text-[#E5E7EB] hover:text-[#4178F3] bg-[#232732] p-1.5 rounded-full border border-[#333946] shrink-0 ${blockedNow ? 'opacity-40 cursor-not-allowed' : ''}`}>
                 {isPlaying ? <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg> : <svg className="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>}
               </button>
               <div className="flex-1 relative flex items-center h-8">
@@ -1174,14 +1178,13 @@ export default function RadarPage() {
               </div>
               <button onClick={() => { setIsPlaying(false); setCurrentFrameIndex((radarData?.pastCount || 1) - 1); }}
                 className="text-[10px] font-bold px-2.5 py-1.5 rounded border border-[#333946] text-[#4178F3] hover:bg-[#232732] shrink-0">T+0</button>
-              <span className="text-[10px] font-mono text-[#8B94A5] shrink-0">เฟรม {currentFrameIndex + 1}/{radarData?.frames?.length || 0}</span>
+              <span className="text-[10px] font-mono text-[#8B94A5] shrink-0">{currentFrameIndex + 1}/{radarData?.frames?.length || 0}</span>
               <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}
                 className="bg-[#111319] border border-[#333946] text-[#8B94A5] text-[10px] rounded px-1.5 py-1 outline-none shrink-0">
                 <option value={1600}>0.5x</option><option value={1000}>1x</option><option value={600}>2x</option><option value={350}>3x</option>
               </select>
             </div>
 
-            {/* FIX: stale-data guard */}
             <div className="px-5 pb-2.5 text-[10px] font-mono flex items-center gap-1.5">
               <span className={`w-1.5 h-1.5 rounded-full ${isStale ? 'bg-[#EF4444]' : 'bg-[#22C55E] animate-pulse'}`} />
               <span className={isStale ? 'text-[#EF4444] font-bold' : 'text-[#8B94A5]'}>
@@ -1189,7 +1192,6 @@ export default function RadarPage() {
                 {fmtTime(latestPast ? latestPast.time * 1000 : null)} น.
                 {minutesAgo != null && ` (${minutesAgo} นาทีที่แล้ว)`}
               </span>
-              <span className="text-[#8B94A5]">· {radarQuality === 'bicubic' ? 'คมสูงสุด' : radarQuality === 'bilinear' ? 'สมดุล' : 'ประหยัด'}</span>
             </div>
           </div>
         </div>
@@ -1210,7 +1212,6 @@ export default function RadarPage() {
               </div>
             </div>
             <div className="px-4 pb-6 overflow-hidden">
-              {/* legend ย่อสำหรับมือถือ */}
               <div className="flex flex-wrap gap-1.5 mb-3">
                 {LEVELS.map((l) => (
                   <span key={l.key} className="flex items-center text-[9px] text-[#8B94A5] px-1.5 py-0.5 rounded bg-[#111319] border border-[#333946]">
