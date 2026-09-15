@@ -1850,13 +1850,8 @@ export default function BoLuangDashboard() {
             </div>
           </div>
         </div>
-      </aside>
-      
-            </div>
-          </div>
-        </div>
-      </aside>
-      
+      </aside>    
+                 
       {showQrModal && (
         <div 
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#050b14]/80 backdrop-blur-md px-4 pointer-events-auto"
