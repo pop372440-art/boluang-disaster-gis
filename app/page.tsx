@@ -1827,7 +1827,31 @@ export default function BoLuangDashboard() {
                       <b>ความโปร่งใสของข้อมูล (Data Honesty):</b><br/>ข้อมูลภัยพิบัติถูกดึงจาก API ของหน่วยงานรัฐแบบ Real-time ข้อมูลพื้นที่เสี่ยงเป็นเพียงการอ้างอิงภูมิศาสตร์ ไม่ใช่การทำนายล่วงหน้า
                   </p>
               </div>
+              <div className="mt-6 p-3 bg-[#0f172a]/80 border border-[#1e293b] rounded-xl text-center shadow-inner">
+                  <p className="text-[10px] text-gray-500 font-mono leading-relaxed">
+                      <b>ความโปร่งใสของข้อมูล (Data Honesty):</b><br/>ข้อมูลภัยพิบัติถูกดึงจาก API ของหน่วยงานรัฐแบบ Real-time ข้อมูลพื้นที่เสี่ยงเป็นเพียงการอ้างอิงภูมิศาสตร์ ไม่ใช่การทำนายล่วงหน้า
+                  </p>
+              </div>
 
+              {/* 🔒 ปุ่ม Admin ลับ (Discrete Staff Portal) */}
+              <div className="mt-3 flex justify-center pb-2">
+                <button 
+                  onClick={() => window.location.href = '/admin'} 
+                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-[#475569] hover:text-[#94a3b8] hover:bg-[#0f172a] border border-transparent hover:border-[#1e293b] transition-all duration-300 group"
+                  title="เข้าสู่ระบบหลังบ้าน (เฉพาะเจ้าหน้าที่)"
+                >
+                  <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <span className="text-[10px] font-mono tracking-widest font-semibold uppercase">Staff Portal</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </aside>
+      
             </div>
           </div>
         </div>
