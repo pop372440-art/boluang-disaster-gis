@@ -1827,11 +1827,6 @@ export default function BoLuangDashboard() {
                       <b>ความโปร่งใสของข้อมูล (Data Honesty):</b><br/>ข้อมูลภัยพิบัติถูกดึงจาก API ของหน่วยงานรัฐแบบ Real-time ข้อมูลพื้นที่เสี่ยงเป็นเพียงการอ้างอิงภูมิศาสตร์ ไม่ใช่การทำนายล่วงหน้า
                   </p>
               </div>
-              <div className="mt-6 p-3 bg-[#0f172a]/80 border border-[#1e293b] rounded-xl text-center shadow-inner">
-                  <p className="text-[10px] text-gray-500 font-mono leading-relaxed">
-                      <b>ความโปร่งใสของข้อมูล (Data Honesty):</b><br/>ข้อมูลภัยพิบัติถูกดึงจาก API ของหน่วยงานรัฐแบบ Real-time ข้อมูลพื้นที่เสี่ยงเป็นเพียงการอ้างอิงภูมิศาสตร์ ไม่ใช่การทำนายล่วงหน้า
-                  </p>
-              </div>
 
               {/* 🔒 ปุ่ม Admin ลับ (Discrete Staff Portal) */}
               <div className="mt-3 flex justify-center pb-2">
