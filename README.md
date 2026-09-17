@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bo Luang Disaster GIS
 
-## Getting Started
+ระบบสนับสนุนการตัดสินใจด้านสาธารณภัยของเทศบาลตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่ หน้า `/radar` แสดงเรดาร์ตรวจวัดฝนและประมาณการฝนรายหมู่บ้าน โดยระบบ **ไม่ใช่คำสั่งอพยพอัตโนมัติ** การแจ้งเตือนจริงต้องได้รับการตรวจสอบและอนุมัติจากเจ้าหน้าที่ผู้รับผิดชอบ
 
-First, run the development server:
+## Data sources
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+| ข้อมูล | แหล่งข้อมูล | การใช้งาน | Freshness เริ่มต้น |
+|---|---|---|---|
+| Radar observation/nowcast | RainViewer | ภาพเรดาร์และ animation; แยก `past` กับ `nowcast` ตาม metadata จริง | stale 20 นาที, expired 40 นาที |
+| Hourly/daily precipitation | Open-Meteo | sampling 3–5 จุดต่อหมู่บ้าน, ฝน T+1 ถึง T+3 และฝนย้อนหลัง 7 วัน | stale 15 นาที, expired 30 นาที |
+| ขอบเขตตำบล/หมู่บ้าน | GeoJSON ของโครงการ | ขอบเขตตำบลและ 13 หมู่บ้าน | ตรวจ schema ทุกครั้งก่อนใช้ |
+| Usage statistics | Supabase RPC | สถิติการใช้งาน | ตามเวลาตอบกลับของฐานข้อมูล |
+
+RainViewer metadata เรียกผ่าน `/api/radar/frames` และ radar tiles เรียกผ่าน `/api/radar/[...path]` เท่านั้น ส่วน Open-Meteo เรียกผ่าน `/api/forecast` ซึ่ง cache 10 นาที
+
+## Risk formula
+
+```text
+rain3h = precipitation(T+1) + precipitation(T+2) + precipitation(T+3)
+api7 = ผลรวม precipitation_sum ของ 7 วันที่ผ่านมา
+soilFactor = 1 + min(api7 / 120, 0.5)
+terrainFactor = 1.25 เมื่อ slope > 20°
+                1.10 เมื่อ slope > 12°
+                1.00 กรณีอื่น
+riskIndex = rain3h × soilFactor × terrainFactor
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+ระบบสรุปฝน 3 ชั่วโมงรายหมู่บ้านเป็น mean, max และ p90 โดยใช้ p90 ประเมินความเสี่ยงตามค่า config เริ่มต้น เกณฑ์อยู่ใน `lib/radar/threshold-config.ts`: NORMAL `<10`, WATCH `≥10`, WARNING `≥35`, DANGER `≥60`, CRITICAL `≥90` ทุกค่ายังต้องสอบเทียบกับเหตุการณ์จริงในพื้นที่บ่อหลวง
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+หากข้อมูลฝนขาดหาย, เป็น NaN, ติดลบ หรือหมดอายุ ระบบจะไม่แทนค่าด้วยศูนย์เพื่อออกผล “ปกติ” หากไม่มี slope ระบบใช้ตัวคูณอ้างอิง 1.00 แต่ระบุ confidence ต่ำอย่างชัดเจน
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Assumptions and limitations
 
-## Learn More
+- GeoJSON ปัจจุบันไม่มี slope จึงแสดง confidence ต่ำ
+- เกณฑ์ความเสี่ยงยังไม่มีผล validation ย้อนหลัง จึงห้ามกล่าวอ้างว่าระบบ “ทำนายแม่นยำ”
+- Radar observation และ Open-Meteo forecast เป็นคนละชุดข้อมูลและห้ามตีความแทนกัน
+- ถ้า RainViewer `nowcast` ว่าง ระบบจะไม่ติดป้าย observed frame ว่า nowcast
+- Supabase client ใช้เฉพาะ anon key; ห้ามใส่ service-role key ใน client bundle และต้องตรวจ RLS ใน dashboard/database แยกต่างหาก
+- Alert ต้องผ่านเกณฑ์ 2 รอบก่อนยกระดับ ใช้ hysteresis ตอนลดระดับ และ notification จริงอยู่ในสถานะรอเจ้าหน้าที่อนุมัติ
+- ไม่มี dataset พื้นที่น้ำท่วมซ้ำซากใน repository จึงแสดง layer เป็น unavailable โดยไม่สร้างข้อมูลจำลอง
+- `boluang_landslide_risk.json` เป็น polygon hazard zones ไม่ใช่จุดสำรวจภาคสนาม
 
-To learn more about Next.js, take a look at the following resources:
+## Development
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+รายละเอียด audit, architecture และแผน Phase 1–4 อยู่ที่ [docs/radar-architecture.md](docs/radar-architecture.md)
