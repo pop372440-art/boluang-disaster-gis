@@ -1,37 +1,59 @@
+import {
+  buildRadarTileUpstreamUrl,
+  isTransientTileStatus,
+  parseRetryAfter,
+  tileNegativeCacheHeaders,
+  tileSuccessCacheHeaders,
+  validateRadarTilePath,
+} from '@/lib/radar/radar-tile-proxy';
+import { logError, logWarn, requestLogContext } from '@/lib/observability/structured-logger';
+
 export const runtime = 'edge';
 
-const UPSTREAM = 'https://tilecache.rainviewer.com';
-
-export async function GET(_req: Request, ctx: any) {
+export async function GET(req: Request, ctx: any) {
+  const startedAt = Date.now();
+  const context = requestLogContext(req, '/api/radar/[...path]');
   const p = await ctx.params;
   const seg: string[] = Array.isArray(p?.path) ? p.path : [];
-  if (!seg.length) return new Response('bad path', { status: 400 });
+  const tilePath = validateRadarTilePath(seg);
+  if (!tilePath) return new Response('bad path', { status: 400, headers: { 'Cache-Control': 'no-store' } });
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
   try {
-    const r = await fetch(`${UPSTREAM}/${seg.join('/')}`, {
-      headers: { Accept: 'image/png,*/*', 'User-Agent': 'boluang-disaster-gis/1.0' },
+    const ifNoneMatch = req.headers.get('if-none-match');
+    const r = await fetch(buildRadarTileUpstreamUrl(tilePath), {
+      headers: {
+        Accept: 'image/png,*/*',
+        'User-Agent': 'boluang-disaster-gis/1.0',
+        ...(ifNoneMatch ? { 'If-None-Match': ifNoneMatch } : {}),
+      },
+      signal: controller.signal,
       cache: 'force-cache',
-      next: { revalidate: 900 },
+      next: { revalidate: 3_600 },
     });
 
+    if (r.status === 304) return new Response(null, { status: 304, headers: tileSuccessCacheHeaders(r.headers.get('etag')) });
     if (!r.ok) {
+      const retryAfter = parseRetryAfter(r.headers.get('retry-after'));
+      logWarn('radar_tile_upstream_failed', { ...context, upstreamStatus: r.status, durationMs: Date.now() - startedAt });
       return new Response(null, {
-        status: r.status,
-        headers: {
-          'Cache-Control': 'public, max-age=20, s-maxage=20',
-          'Retry-After': r.headers.get('retry-after') ?? '30',
-        },
+        status: isTransientTileStatus(r.status) ? r.status : 502,
+        headers: tileNegativeCacheHeaders(retryAfter),
       });
     }
 
     return new Response(r.body, {
-      headers: {
-        'Content-Type': r.headers.get('content-type') ?? 'image/png',
-        'Cache-Control': 'public, max-age=900, s-maxage=3600, stale-while-revalidate=86400',
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers: tileSuccessCacheHeaders(r.headers.get('etag')),
     });
-  } catch {
-    return new Response(null, { status: 502, headers: { 'Cache-Control': 'public, max-age=10' } });
+  } catch (error) {
+    const timeoutError = error instanceof Error && error.name === 'AbortError';
+    logError('radar_tile_failed', error, { ...context, durationMs: Date.now() - startedAt });
+    return new Response(null, {
+      status: timeoutError ? 504 : 502,
+      headers: tileNegativeCacheHeaders(30),
+    });
+  } finally {
+    clearTimeout(timeout);
   }
 }
