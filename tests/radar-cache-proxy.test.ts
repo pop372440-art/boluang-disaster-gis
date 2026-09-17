@@ -3,8 +3,13 @@ import test from 'node:test';
 import { RadarFrameCache } from '../lib/radar/radar-frame-cache.ts';
 import {
   parseRetryAfter,
+  RAINVIEWER_NATIVE_ZOOM,
   validateRadarTilePath,
 } from '../lib/radar/radar-tile-proxy.ts';
+
+test('RainViewer source zoom is capped before provider error tiles', () => {
+  assert.equal(RAINVIEWER_NATIVE_ZOOM, 7);
+});
 
 test('tile proxy rejects traversal and accepts the RainViewer tile shape', () => {
   assert.equal(validateRadarTilePath(['..', 'secret']), null);

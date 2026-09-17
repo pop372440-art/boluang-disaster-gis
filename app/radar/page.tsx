@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import 'leaflet/dist/leaflet.css';
 import { useMapEvents, useMap } from 'react-leaflet';
 import { createClient } from '@supabase/supabase-js';
@@ -171,7 +172,7 @@ export default function RadarPage() {
   const [riskUpdatedAt, setRiskUpdatedAt] = useState<Date | null>(null);
   const [dismissedSig, setDismissedSig] = useState('');
 
-  const [isTopHeaderVisible, setIsTopHeaderVisible] = useState(false);
+  const [isTopHeaderVisible, setIsTopHeaderVisible] = useState(true);
   const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
   const [realStats, setRealStats] = useState({ totalVisits: 0, totalUniqueVisitors: 0, todayVisits: 0, todayUniqueVisitors: 0, isLoading: true });
 
@@ -553,9 +554,9 @@ export default function RadarPage() {
       ? `${Math.round(status.freshness.ageMinutes)} นาทีที่แล้ว`
       : status.timestamp ? fmtTime(new Date(status.timestamp)) : 'ยังไม่มีเวลาอ้างอิง');
     return (
-      <div title={`${status.source}: ${detail}`} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#333946] bg-[#1A1D24]/95 text-[10px] whitespace-nowrap">
-        <span className="w-2 h-2 rounded-full" style={{ background: color }} />
-        <span className="text-[#D1D5DB]">{status.source}</span>
+      <div title={`${status.source}: ${detail}`} className="liquid-bar flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] whitespace-nowrap">
+        <span className="w-2 h-2 rounded-full ring-2 ring-white/10" style={{ background: color }} aria-hidden="true" />
+        <span className="text-[#E1E9F7]">{status.source}</span>
         <span style={{ color }}>{state}</span>
       </div>
     );
@@ -575,8 +576,9 @@ export default function RadarPage() {
           <div className="py-10 text-center text-[#8B94A5] text-[12px] animate-pulse">กำลังประมวลผลรายหมู่บ้าน...</div>
         ) : villageRisk.length ? (
           villageRisk.map((v, i) => (
-            <div key={v.id} onClick={() => flyToVillage(v)}
-              className={`flex items-center text-[#D1D5DB] py-2.5 border-b border-[#333946]/30 hover:bg-[#232732] cursor-pointer rounded px-1 transition-colors ${selectedVillage?.id === v.id ? 'bg-[#232732] ring-1 ring-[#4178F3]/40' : ''}`}>
+            <button key={v.id} onClick={() => flyToVillage(v)}
+              className={`w-full flex items-center text-left text-[#D1D5DB] py-2.5 border-b border-white/5 hover:bg-white/8 cursor-pointer rounded-xl px-1.5 transition-colors ${selectedVillage?.id === v.id ? 'bg-white/10 ring-1 ring-[#75C5FF]/40' : ''}`}
+              aria-label={`เปิดรายละเอียด ${v.name} ระดับ${v.level.name} ฝนคาดการณ์ 3 ชั่วโมง ${fmtNumber(v.rain3h)} มิลลิเมตร`}>
               <div className="w-7 text-center text-[#8B94A5] font-mono">{i + 1}</div>
               <div className="w-1.5 h-6 rounded-full mr-2 shrink-0" style={{ background: v.level.color, boxShadow: `0 0 8px ${v.level.glow}` }} />
               <div className="flex-1 min-w-0">
@@ -586,7 +588,7 @@ export default function RadarPage() {
               <div className="w-14 text-right font-mono text-white font-bold">{fmtNumber(v.rain3h)}</div>
               <div className="w-12 text-right font-mono text-[#8B94A5]">{fmtNumber(v.riskIndex)}</div>
               <div className="w-12 text-right font-mono pr-1">{v.peak}</div>
-            </div>
+            </button>
           ))
         ) : (
           <div className="py-10 text-center text-[#8B94A5] text-[12px]">ไม่พบข้อมูล /geojson/block.json</div>
@@ -596,25 +598,59 @@ export default function RadarPage() {
   );
 
   return (
-    <div className="relative w-screen h-screen bg-[#111319] overflow-hidden font-sans text-white flex flex-col select-none">
+    <div className="liquid-radar relative w-screen h-screen bg-[#07111f] overflow-hidden text-white flex flex-col select-none">
       <style dangerouslySetInnerHTML={{ __html: `
-        .leaflet-container { background:#111319 !important; }
+        .liquid-radar {
+          --glass: rgba(11, 24, 42, .62);
+          --glass-strong: rgba(9, 20, 36, .82);
+          --glass-soft: rgba(255, 255, 255, .075);
+          --glass-line: rgba(255, 255, 255, .18);
+          --glass-line-soft: rgba(255, 255, 255, .09);
+          --ink: #f5f8ff;
+          --muted: #aebbd0;
+          --accent: #65b8ff;
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+          background: radial-gradient(circle at 22% 0%, #183c61 0, #07111f 34%, #030812 100%);
+        }
+        .liquid-radar::before {
+          content:''; position:absolute; inset:0; z-index:1; pointer-events:none;
+          background:linear-gradient(180deg,rgba(5,12,22,.06),rgba(2,7,14,.34));
+        }
+        .leaflet-container { background:#07111f !important; }
         .leaflet-tile-pane, .leaflet-overlay-pane { cursor:crosshair; }
-        .leaflet-control-attribution { background:rgba(17,19,25,.78) !important; color:#8B94A5 !important; font-size:9px !important; padding:2px 6px !important; border-radius:6px 0 0 0 !important; }
-        .leaflet-control-attribution a { color:#4178F3 !important; }
-        .ops-panel { background:#1A1D24; border:1px solid #333946; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.7); }
-        .ops-checkbox { appearance:none; width:14px; height:14px; border:2px solid #4B5563; border-radius:4px; background:transparent; cursor:pointer; position:relative; transition:.2s; }
-        .ops-checkbox:checked { background:#4178F3; border-color:#4178F3; }
+        .leaflet-control-attribution { background:rgba(7,17,31,.68) !important; backdrop-filter:blur(16px) saturate(150%); color:#aebbd0 !important; font-size:9px !important; padding:3px 8px !important; border:1px solid rgba(255,255,255,.1); border-radius:9px 0 0 0 !important; }
+        .leaflet-control-attribution a { color:#65b8ff !important; }
+        .ops-panel {
+          background:linear-gradient(145deg,rgba(255,255,255,.105),rgba(255,255,255,.035)),var(--glass);
+          border:1px solid var(--glass-line); border-radius:22px;
+          box-shadow:0 24px 70px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.16);
+          backdrop-filter:blur(28px) saturate(165%); -webkit-backdrop-filter:blur(28px) saturate(165%);
+        }
+        .liquid-bar {
+          background:linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.045)),var(--glass-strong);
+          border:1px solid var(--glass-line); box-shadow:0 18px 60px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.2);
+          backdrop-filter:blur(30px) saturate(170%); -webkit-backdrop-filter:blur(30px) saturate(170%);
+        }
+        .liquid-subpanel { background:rgba(255,255,255,.055) !important; border-color:var(--glass-line-soft) !important; }
+        .ops-checkbox { appearance:none; width:18px; height:18px; border:1.5px solid rgba(255,255,255,.3); border-radius:6px; background:rgba(255,255,255,.06); cursor:pointer; position:relative; transition:.2s; }
+        .ops-checkbox:checked { background:linear-gradient(145deg,#78c8ff,#278be8); border-color:#9bd7ff; box-shadow:0 0 14px rgba(69,166,255,.42); }
         .ops-checkbox:checked::after { content:''; position:absolute; left:3.5px; top:.5px; width:4px; height:8px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg); }
-        .ops-slider { -webkit-appearance:none; width:100%; height:4px; background:#333946; border-radius:2px; outline:none; }
-        .ops-slider::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:#4178F3; cursor:pointer; border:2px solid #1A1D24; box-shadow:0 0 8px rgba(65,120,243,.8); }
+        .ops-slider { -webkit-appearance:none; width:100%; height:5px; background:rgba(255,255,255,.15); border-radius:999px; outline:none; }
+        .ops-slider::-webkit-slider-thumb { -webkit-appearance:none; width:17px; height:17px; border-radius:50%; background:#eef8ff; cursor:pointer; border:4px solid #3a9ff4; box-shadow:0 3px 14px rgba(0,0,0,.45),0 0 0 3px rgba(80,174,255,.18); }
         .ops-scroll::-webkit-scrollbar { width:6px; }
-        .ops-scroll::-webkit-scrollbar-track { background:#111319; border-radius:4px; }
-        .ops-scroll::-webkit-scrollbar-thumb { background:#333946; border-radius:4px; }
-        .village-label { background:rgba(17,19,25,.85) !important; border:1px solid #333946 !important; color:#E5E7EB !important; font-size:10px !important; padding:2px 6px !important; border-radius:6px !important; box-shadow:none !important; }
+        .ops-scroll::-webkit-scrollbar-track { background:transparent; }
+        .ops-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,.2); border-radius:999px; }
+        .village-label { background:rgba(8,20,36,.72) !important; backdrop-filter:blur(14px); border:1px solid rgba(255,255,255,.18) !important; color:#f5f8ff !important; font-size:10px !important; padding:3px 7px !important; border-radius:9px !important; box-shadow:0 8px 24px rgba(0,0,0,.25) !important; }
         .village-label::before { display:none !important; }
+        .liquid-radar button, .liquid-radar select, .liquid-radar input { font:inherit; }
+        .liquid-radar button:focus-visible, .liquid-radar select:focus-visible, .liquid-radar input:focus-visible, .liquid-radar a:focus-visible { outline:2px solid #8fd1ff; outline-offset:3px; }
+        .liquid-radar button { min-height:36px; }
         @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
         .animate-fade-in { animation: fadeIn .25s ease-out; }
+        @media (max-width: 767px) {
+          .liquid-bar { border-radius:0 0 22px 22px; }
+          .ops-panel { border-radius:19px; }
+        }
         @media (prefers-reduced-motion: reduce) {
           .animate-fade-in, .animate-pulse, .animate-ping, .animate-spin { animation:none !important; }
           * { scroll-behavior:auto !important; transition-duration:0.01ms !important; }
@@ -624,18 +660,19 @@ export default function RadarPage() {
       {/* ══ TOP BAR ══ */}
       <div className="absolute top-0 left-0 w-full h-8 z-[1999]" onMouseEnter={() => setIsTopHeaderVisible(true)} />
       <header
-        className={`absolute top-0 left-1/2 -translate-x-1/2 w-[98%] max-w-[1200px] h-[76px] bg-[#1A1D24]/92 backdrop-blur-xl rounded-b-2xl z-[2000] flex items-center justify-between px-6 shadow-[0_15px_50px_rgba(0,0,0,.6)] transition-transform duration-500 border-b border-x border-[#333946] ${isTopHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}
-        onMouseLeave={() => setIsTopHeaderVisible(false)}>
+        className={`liquid-bar absolute top-2 md:top-3 left-1/2 -translate-x-1/2 w-[calc(100%-16px)] md:w-[96%] max-w-[1320px] min-h-[72px] rounded-[22px] z-[2000] flex items-center justify-between px-3 md:px-5 py-2 transition-transform duration-500 ${isTopHeaderVisible ? 'translate-y-0' : '-translate-y-[120%]'}`}>
         <div className="flex items-center space-x-4">
-          <div className="w-11 h-11 bg-[#111319] rounded-full border border-[#333946] flex items-center justify-center p-1.5">
-            <img src="/Logogis3.png" alt="Logo" className="w-full h-full object-contain opacity-90" />
+          <div className="w-11 h-11 bg-white/10 rounded-[14px] border border-white/20 flex items-center justify-center p-1.5 shadow-inner">
+            <Image src="/Logogis3.png" alt="ตราสัญลักษณ์ระบบ GIS เทศบาลตำบลบ่อหลวง" width={36} height={36} priority className="w-full h-full object-contain opacity-95" />
           </div>
           <div>
-            <h1 className="text-[15px] font-extrabold tracking-wide text-[#E5E7EB]">
-              RADAR COMPOSITE <span className="text-[#4178F3] mx-1">•</span>
-              <span className="font-medium text-[#D1D5DB]">RADAR OBSERVATION + FORECAST รายหมู่บ้าน</span>
-            </h1>
-            <p className="text-[11px] text-[#8B94A5] mt-1 font-mono">เทศบาลตำบลบ่อหลวง อ.ฮอด จ.เชียงใหม่</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-[14px] md:text-[15px] font-bold tracking-[-.01em] text-[#F5F8FF]">
+                Bo Luang Radar <span className="hidden lg:inline font-medium text-[#C7D2E5]">· Observation & Village Forecast</span>
+              </h1>
+              <span className="hidden sm:inline-flex rounded-full border border-cyan-200/25 bg-cyan-300/10 px-2 py-0.5 text-[8px] font-bold tracking-[.12em] text-cyan-100">PUBLIC BETA</span>
+            </div>
+            <p className="text-[10px] md:text-[11px] text-[#AEBBD0] mt-1">เทศบาลตำบลบ่อหลวง · เครื่องมือสนับสนุนการตัดสินใจ</p>
           </div>
         </div>
         <div className="flex items-center space-x-3">
@@ -643,11 +680,11 @@ export default function RadarPage() {
             <span className="text-[#8B94A5] font-bold text-[11px] uppercase">อัปเดต</span>
             <div className="px-3 py-1.5 bg-[#111319] border border-[#333946] text-[#4178F3] rounded-lg font-mono font-bold text-[12px]">{fmtTime(riskUpdatedAt)} น.</div>
           </div>
-          <button onClick={() => setReloadToken((token) => token + 1)} className="flex items-center px-4 py-2 bg-[#232732] border border-[#333946] text-[#D1D5DB] hover:bg-[#2D323B] rounded-xl font-bold space-x-2" aria-label="โหลดข้อมูล Radar และ Forecast ใหม่">
+          <button onClick={() => setReloadToken((token) => token + 1)} className="flex items-center px-3 md:px-4 py-2 bg-white/8 border border-white/15 text-[#E8F1FF] hover:bg-white/14 rounded-[14px] font-semibold space-x-2 shadow-inner" aria-label="โหลดข้อมูล Radar และ Forecast ใหม่">
             <svg className={`w-4 h-4 ${riskLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M19.418 9A7.003 7.003 0 006 7.293M4.582 15A7.003 7.003 0 0018 16.707" /></svg>
-            <span className="text-[12px]">รีเฟรช</span>
+            <span className="hidden md:inline text-[12px]">รีเฟรช</span>
           </button>
-          <button onClick={() => setIsStatsModalOpen(true)} className="flex items-center px-4 py-2 bg-[#4178F3]/10 border border-[#4178F3]/30 text-[#4178F3] hover:bg-[#4178F3]/20 rounded-xl font-bold space-x-2">
+          <button onClick={() => setIsStatsModalOpen(true)} className="hidden sm:flex items-center px-4 py-2 bg-[#4AAEFF]/12 border border-[#70C1FF]/25 text-[#8FD1FF] hover:bg-[#4AAEFF]/20 rounded-[14px] font-semibold space-x-2">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2-2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
             <span className="text-[12px]">สถิติ</span>
           </button>
@@ -655,7 +692,7 @@ export default function RadarPage() {
       </header>
       {!isTopHeaderVisible && (
         <button onClick={() => setIsTopHeaderVisible(true)} onMouseEnter={() => setIsTopHeaderVisible(true)}
-          className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-5 bg-[#1A1D24]/80 backdrop-blur-md rounded-b-xl border-b border-x border-[#333946] flex items-center justify-center cursor-pointer z-[1500] hover:bg-[#232732]">
+          className="liquid-bar absolute top-0 left-1/2 -translate-x-1/2 w-20 h-6 rounded-b-xl flex items-center justify-center cursor-pointer z-[1500] hover:bg-white/10">
           <div className="w-6 h-1 bg-[#8B94A5]/50 rounded-full" />
         </button>
       )}
@@ -692,14 +729,14 @@ export default function RadarPage() {
           </MapContainer>
         </div>
 
-        <div className="absolute top-5 left-1/2 -translate-x-1/2 z-[1300] hidden md:flex items-center gap-1.5 max-w-[92%]">
+        <div className="absolute top-[94px] left-1/2 -translate-x-1/2 z-[1300] hidden md:flex items-center gap-1.5 max-w-[92%]">
           <DataStatusBadge status={radarStatus} />
           <DataStatusBadge status={forecastStatus} />
           <DataStatusBadge status={geoJsonStatus} />
         </div>
 
         {healthStatus.status === 'degraded' && (
-          <div className="absolute top-4 md:top-14 left-1/2 -translate-x-1/2 z-[1350] w-[92%] max-w-[620px] rounded-xl border border-orange-400/60 bg-[#2A1D12]/95 px-3 py-2 text-[11px] text-orange-100 shadow-xl flex items-center gap-2" role="status">
+          <div className="liquid-bar absolute top-[86px] md:top-[132px] left-1/2 -translate-x-1/2 z-[1350] w-[92%] max-w-[660px] rounded-2xl border-orange-300/35 px-3 py-2 text-[11px] text-orange-100 flex items-center gap-2" role="status">
             <span aria-hidden="true">⚠️</span>
             <span className="flex-1">โหมดจำกัด: แหล่งข้อมูลบางส่วนไม่พร้อม ระบบจะไม่ใช้ข้อมูลเก่าหรือข้อมูลผิดพลาดออกสัญญาณเตือน</span>
             <button onClick={() => setReloadToken((token) => token + 1)} className="rounded-lg border border-orange-300/50 px-2 py-1 font-bold">ลองใหม่</button>
@@ -708,7 +745,7 @@ export default function RadarPage() {
 
         {/* ══ ALERT BANNER ══ */}
         {showAlert && (
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1400] w-[92%] max-w-[640px] animate-fade-in">
+          <div className="absolute top-[132px] left-1/2 -translate-x-1/2 z-[1400] w-[92%] max-w-[680px] animate-fade-in">
             <div className="rounded-2xl border px-4 py-3 flex items-center gap-3 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,.6)]"
               style={{ background: 'rgba(26,29,36,.93)', borderColor: alertVillages[0].level.color }}>
               <span className="w-2.5 h-2.5 rounded-full animate-pulse shrink-0" style={{ background: alertVillages[0].level.color, boxShadow: `0 0 12px ${alertVillages[0].level.glow}` }} />
@@ -730,8 +767,8 @@ export default function RadarPage() {
 
         {/* ══ LAYER PANEL ══ */}
         {isLayerMenuOpen ? (
-          <div className="absolute top-5 left-5 z-[1000] w-[292px] ops-panel flex-col hidden md:flex">
-            <div className="px-5 py-3.5 border-b border-[#333946] flex justify-between items-center bg-[#232732] rounded-t-xl">
+          <div className="absolute top-[94px] left-5 z-[1000] w-[304px] ops-panel flex-col hidden md:flex">
+            <div className="px-5 py-3.5 border-b border-white/10 flex justify-between items-center liquid-subpanel rounded-t-[22px]">
               <h3 className="text-[13px] font-bold text-[#E5E7EB] flex items-center">
                 <svg className="w-4 h-4 mr-2 text-[#4178F3]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
                 จัดการชั้นข้อมูล
@@ -809,7 +846,7 @@ export default function RadarPage() {
 
         {/* ══ RANKING PANEL ══ */}
         {isTablePanelOpen ? (
-          <div className="absolute top-5 right-5 z-[900] w-[398px] ops-panel flex-col hidden xl:flex overflow-hidden">
+          <div className="absolute top-[94px] right-5 z-[900] w-[404px] ops-panel flex-col hidden xl:flex overflow-hidden">
             <div className="flex border-b border-[#333946] bg-[#111319]">
               <button onClick={() => setScope('village')} className={`px-5 py-3 text-[12px] font-bold ${scope === 'village' ? 'text-[#4178F3] border-b-2 border-[#4178F3] bg-[#1A1D24]' : 'text-[#8B94A5] hover:text-[#E5E7EB]'}`}>รายหมู่บ้าน</button>
               <button onClick={() => setScope('tambon')} className={`px-5 py-3 text-[12px] font-bold ${scope === 'tambon' ? 'text-[#4178F3] border-b-2 border-[#4178F3] bg-[#1A1D24]' : 'text-[#8B94A5] hover:text-[#E5E7EB]'}`}>สรุประดับตำบล</button>
@@ -878,7 +915,7 @@ export default function RadarPage() {
 
         {/* ══ VILLAGE DETAIL ══ */}
         {selectedVillage && (
-          <div className="absolute top-24 right-5 xl:right-[420px] z-[1050] w-[326px] ops-panel animate-fade-in hidden md:block" style={{ borderColor: `${selectedVillage.level.color}66` }}>
+          <div className="absolute top-[112px] right-5 xl:right-[442px] z-[1050] w-[336px] ops-panel animate-fade-in hidden md:block" style={{ borderColor: `${selectedVillage.level.color}66` }}>
             <div className="px-5 py-4 border-b border-[#333946] flex justify-between items-center bg-[#232732] rounded-t-xl">
               <div className="flex items-center space-x-3 min-w-0">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center border text-[13px] font-black shrink-0"
@@ -946,7 +983,7 @@ export default function RadarPage() {
 
         {/* ══ POINT FORECAST ══ */}
         {clickedLocation && !selectedVillage && (
-          <div className="absolute top-24 right-5 xl:right-[420px] z-[1040] w-[318px] ops-panel animate-fade-in hidden md:block">
+          <div className="absolute top-[112px] right-5 xl:right-[442px] z-[1040] w-[326px] ops-panel animate-fade-in hidden md:block">
             <div className="px-5 py-4 border-b border-[#333946] flex justify-between items-center bg-[#232732] rounded-t-xl">
               <div>
                 <h3 className="text-[13px] font-bold text-[#E5E7EB]">พิกัดที่เลือก</h3>
@@ -1026,7 +1063,7 @@ export default function RadarPage() {
 
         {/* ══ TIMELINE PLAYER ══ */}
         <div className="absolute bottom-[92px] md:bottom-8 left-1/2 -translate-x-1/2 w-[92%] max-w-[620px] z-[1000]">
-          <div className="ops-panel bg-[#1A1D24]/96 backdrop-blur-md overflow-hidden">
+          <div className="ops-panel overflow-hidden">
             <div className="px-5 py-2.5 border-b border-[#333946] flex items-center justify-between gap-2">
               <span className="text-[12.5px] font-bold text-[#E5E7EB] truncate">
                 Radar {isNowcast ? '(Nowcasting)' : ''} — {fmtDate(activeFrame ? activeFrame.time * 1000 : null)} {fmtTime(activeFrame ? activeFrame.time * 1000 : null)} น.
@@ -1079,7 +1116,7 @@ export default function RadarPage() {
 
         {/* ══ MOBILE SHEET ══ */}
         <div className={`md:hidden absolute left-0 right-0 bottom-0 z-[1200] transition-transform duration-300 ${isSheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-72px)]'}`}>
-          <div className="bg-[#1A1D24]/97 backdrop-blur-xl border-t border-[#333946] rounded-t-2xl shadow-[0_-10px_40px_rgba(0,0,0,.7)] max-h-[74vh] flex flex-col">
+          <div className="liquid-bar border-t border-white/15 rounded-t-[26px] shadow-[0_-18px_55px_rgba(0,0,0,.48)] max-h-[76vh] flex flex-col">
             <div onClick={() => setIsSheetOpen(!isSheetOpen)} className="py-3 px-5 cursor-pointer">
               <div className="w-10 h-1 bg-[#4B5563] rounded-full mx-auto mb-2.5" />
               <div className="flex items-center justify-between">
