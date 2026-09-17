@@ -1,6 +1,7 @@
 const TILE_PATH = /^v\d+\/radar\/[A-Za-z0-9_-]+\/(256|512)\/\d{1,2}\/\d+\/\d+\/\d+\/(0_0|0_1|1_0|1_1)\.png$/;
 
 export const RAINVIEWER_TILE_ORIGIN = 'https://tilecache.rainviewer.com';
+export const RAINVIEWER_NATIVE_ZOOM = 7;
 
 export function validateRadarTilePath(segments: string[]): string | null {
   const path = segments.map((segment) => decodeURIComponent(segment)).join('/');

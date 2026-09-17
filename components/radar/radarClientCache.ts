@@ -1,9 +1,12 @@
 'use client';
 
 import { RadarFrameCache } from '@/lib/radar/radar-frame-cache';
+import { RAINVIEWER_NATIVE_ZOOM } from '@/lib/radar/radar-tile-proxy';
 
 export const SOURCE_TILE_SIZE = 512;
-export const NATIVE_ZOOM = 12;
+// RainViewer radar tiles provide native imagery through zoom 7. Higher map
+// zooms reuse and resample z7 tiles so provider error artwork is never drawn.
+export const NATIVE_ZOOM = RAINVIEWER_NATIVE_ZOOM;
 export const DEFAULT_COLOR_SCHEME = 4;
 export type RadarQuality = 'bicubic' | 'bilinear' | 'raw';
 
