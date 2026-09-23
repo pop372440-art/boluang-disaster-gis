@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { validateAndNormalizeVillageGeoJson } from '@/lib/radar/geojson-validation';
 import { parseRainViewerMetadata } from '@/lib/radar/rainviewer-adapter';
+import { buildMetNorwayUrl, parseMetNorwayResponse } from '@/lib/radar/met-norway-adapter';
 import { logInfo, requestLogContext } from '@/lib/observability/structured-logger';
 
 export const runtime = 'nodejs';
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  const [rainViewer, openMeteo, geoJson, supabase] = await Promise.all([
+  const [rainViewer, openMeteo, metNorway, geoJson, supabase] = await Promise.all([
     timedCheck(async (signal) => {
       const response = await fetch('https://api.rainviewer.com/public/weather-maps.json', { signal, cache: 'no-store' });
       if (!response.ok) throw new Error('rainviewer unavailable');
@@ -41,6 +42,20 @@ export async function GET(request: Request) {
       if (!response.ok) throw new Error('open-meteo unavailable');
       const payload = await response.json();
       if (!Array.isArray(payload?.hourly?.time)) throw new Error('open-meteo invalid');
+    }),
+    timedCheck(async (signal) => {
+      const coordinate = { latitude: 18.1633, longitude: 98.3744 };
+      const response = await fetch(buildMetNorwayUrl(coordinate), {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': process.env.MET_NORWAY_USER_AGENT ??
+            'BoLuangDisasterGIS/1.0 github.com/pop372440-art/boluang-disaster-gis',
+        },
+        signal,
+        next: { revalidate: 600 },
+      });
+      if (!response.ok) throw new Error('met-norway unavailable');
+      parseMetNorwayResponse(await response.json(), coordinate);
     }),
     timedCheck(async () => {
       const file = await readFile(path.join(process.cwd(), 'public/geojson/block.json'), 'utf8');
@@ -58,7 +73,7 @@ export async function GET(request: Request) {
       : Promise.resolve<HealthCheck>({ status: 'unconfigured', latencyMs: 0, checkedAt: new Date().toISOString() }),
   ]);
 
-  const checks = { rainViewer, openMeteo, geoJson, supabase };
+  const checks = { rainViewer, openMeteo, metNorway, geoJson, supabase };
   const degraded = Object.values(checks).some((check) => check.status !== 'ok');
   logInfo('health_check_completed', {
     ...context,

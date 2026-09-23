@@ -8,10 +8,11 @@
 |---|---|---|---|
 | Radar observation/nowcast | RainViewer | ภาพเรดาร์และ animation; แยก `past` กับ `nowcast` ตาม metadata จริง | stale 20 นาที, expired 40 นาที |
 | Hourly/daily precipitation | Open-Meteo | sampling 3–5 จุดต่อหมู่บ้าน, ฝน T+1 ถึง T+3 และฝนย้อนหลัง 7 วัน | stale 15 นาที, expired 30 นาที |
+| Independent forecast cross-check | MET Norway Locationforecast 2.0 | จุดตัวแทน 1 จุดต่อหมู่บ้าน ใช้เปรียบเทียบฝน 3 ชั่วโมงกับ Open-Meteo เท่านั้น | stale 90 นาที, expired 180 นาที |
 | ขอบเขตตำบล/หมู่บ้าน | GeoJSON ของโครงการ | ขอบเขตตำบลและ 13 หมู่บ้าน | ตรวจ schema ทุกครั้งก่อนใช้ |
 | Usage statistics | Supabase RPC | สถิติการใช้งาน | ตามเวลาตอบกลับของฐานข้อมูล |
 
-RainViewer metadata เรียกผ่าน `/api/radar/frames` และ radar tiles เรียกผ่าน `/api/radar/[...path]` เท่านั้น ส่วน Open-Meteo เรียกผ่าน `/api/forecast` ซึ่ง cache 10 นาที
+RainViewer metadata เรียกผ่าน `/api/radar/frames` และ radar tiles เรียกผ่าน `/api/radar/[...path]` เท่านั้น ส่วน Open-Meteo เรียกผ่าน `/api/forecast` ซึ่ง cache 10 นาที และ MET Norway เรียกผ่าน server route `/api/forecast/met-norway` ซึ่ง cache 15 นาที ระบบไม่เรียก MET Norway จาก browser โดยตรง และส่ง `User-Agent` ที่ระบุตัวโครงการตามข้อกำหนดของผู้ให้บริการ
 
 ## Risk formula
 
@@ -34,6 +35,9 @@ riskIndex = rain3h × soilFactor × terrainFactor
 - GeoJSON ปัจจุบันไม่มี slope จึงแสดง confidence ต่ำ
 - เกณฑ์ความเสี่ยงยังไม่มีผล validation ย้อนหลัง จึงห้ามกล่าวอ้างว่าระบบ “ทำนายแม่นยำ”
 - Radar observation และ Open-Meteo forecast เป็นคนละชุดข้อมูลและห้ามตีความแทนกัน
+- MET Norway เป็นข้อมูลตรวจสอบไขว้ ไม่ถูกนำไปคำนวณ riskIndex หรือออก alert โดยตรงจนกว่าจะผ่าน local validation; Open-Meteo p90 มาจาก 3–5 จุด แต่ MET Norway เป็นจุดตัวแทนเพียงจุดเดียว จึงไม่ใช่การเปรียบเทียบ spatial support แบบเดียวกัน
+- ระดับความสอดคล้องของแบบจำลองใช้ค่าความต่างเริ่มต้น `≤2`, `≤5`, และ `>5` มม. ซึ่งอยู่ใน config และยังต้องสอบเทียบกับมาตรวัดฝน/เหตุการณ์จริง
+- ข้อมูล MET Norway ต้องให้เครดิตตามใบอนุญาตของผู้ให้บริการ ระบบไม่ใช้ชื่อ โลโก้ หรือรูปแบบหน้าตาของ Yr เพื่อทำให้เข้าใจว่าเป็นบริการอย่างเป็นทางการของ Yr, NRK หรือ MET Norway
 - ถ้า RainViewer `nowcast` ว่าง ระบบจะไม่ติดป้าย observed frame ว่า nowcast
 - Supabase client ใช้เฉพาะ anon key; ห้ามใส่ service-role key ใน client bundle และต้องตรวจ RLS ใน dashboard/database แยกต่างหาก
 - Alert ต้องผ่านเกณฑ์ 2 รอบก่อนยกระดับ ใช้ hysteresis ตอนลดระดับ และ notification จริงอยู่ในสถานะรอเจ้าหน้าที่อนุมัติ
@@ -41,6 +45,8 @@ riskIndex = rain3h × soilFactor × terrainFactor
 - `boluang_landslide_risk.json` เป็น polygon hazard zones ไม่ใช่จุดสำรวจภาคสนาม
 
 ## Development
+
+กำหนด `MET_NORWAY_USER_AGENT` ใน Vercel ได้เพื่อระบุชื่อแอปและช่องทางติดต่อของผู้ดูแลให้ชัดเจนขึ้น หากไม่กำหนด ระบบจะใช้ชื่อโครงการและ URL ของ repository โดยอัตโนมัติ
 
 ```bash
 npm install
