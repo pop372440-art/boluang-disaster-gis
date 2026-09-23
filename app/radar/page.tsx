@@ -14,6 +14,10 @@ import { getRiskLevelDefinition, RISK_CONFIG, RISK_LEVELS } from '@/lib/radar/th
 import type { DataSourceStatus, RadarFrame, RadarMetadata } from '@/lib/radar/types';
 import type { AlertState } from '@/lib/radar/alert-state-machine';
 import {
+  clampAnimationFrameMs,
+  selectEffectiveRadarQuality,
+} from '@/lib/radar/radar-render-policy';
+import {
   aggregateVillageForecasts,
   chunkItems,
   createVillageSamplePlans,
@@ -138,13 +142,13 @@ export default function RadarPage() {
 
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);        // เริ่มแบบหยุด กันยิง tile รัวตอนเปิดหน้า
-  const [speed, setSpeed] = useState(1000);
+  const [speed, setSpeed] = useState(1100);
   const [blockedNow, setBlockedNow] = useState(false);
 
   const [mapStyle, setMapStyle] = useState<BasemapId>('satellite');
   const [showRadar, setShowRadar] = useState(true);
   const [radarOpacity, setRadarOpacity] = useState(0.72);
-  const [radarQuality, setRadarQuality] = useState<Quality>('bicubic');
+  const [radarQuality, setRadarQuality] = useState<Quality>('bilinear');
   const [radarGain, setRadarGain] = useState(1);
   const [colorScheme, setColorScheme] = useState(RV_SCHEME_DEFAULT);
   const [showBoluang, setShowBoluang] = useState(true);
@@ -184,6 +188,7 @@ export default function RadarPage() {
   const center = { lat: 18.1633, lng: 98.3744 };
 
   useEffect(() => { setRadarQuality(detectRadarQuality()); }, []);
+  const effectiveRadarQuality = selectEffectiveRadarQuality(radarQuality, isPlaying);
 
   /* เฝ้าสถานะ rate-limit */
   useEffect(() => {
@@ -429,7 +434,7 @@ export default function RadarPage() {
       iv = setInterval(() => {
         if (isRadarTileBlocked()) return;
         setCurrentFrameIndex((p) => (p + 1 >= radarData.frames.length ? 0 : p + 1));
-      }, speed);
+      }, clampAnimationFrameMs(speed));
     }
     return () => clearInterval(iv);
   }, [isPlaying, radarData, speed]);
@@ -708,7 +713,7 @@ export default function RadarPage() {
             {bm.labels && <TileLayer key={`${mapStyle}-lbl`} url={bm.labels} maxZoom={20} maxNativeZoom={19} pane="overlayPane" />}
             <SmoothRadar
               frame={activeFrame} frames={radarData?.frames || []} frameIndex={currentFrameIndex}
-              enabled={showRadar} opacity={radarOpacity} quality={radarQuality}
+              enabled={showRadar} opacity={radarOpacity} quality={effectiveRadarQuality}
               colorScheme={colorScheme} gain={radarGain} cutoff={6} zIndex={300}
             />
             {showBoluang && geoBoluang && <GeoJSON data={geoBoluang} style={{ color: '#FFFFFF', weight: 2, fill: false, opacity: 0.9, dashArray: '5,5' }} />}
@@ -802,11 +807,13 @@ export default function RadarPage() {
                     <span className="text-[10px] text-[#8B94A5] w-[48px] shrink-0">ความคม</span>
                     <div className="flex bg-[#111319] rounded border border-[#333946] overflow-hidden flex-1">
                       {([{ k: 'bicubic', t: 'สูงสุด' }, { k: 'bilinear', t: 'สมดุล' }, { k: 'raw', t: 'ประหยัด' }] as const).map((o) => (
-                        <button key={o.k} onClick={() => setRadarQuality(o.k)}
-                          className={`flex-1 py-1 text-[9.5px] font-bold transition-colors ${radarQuality === o.k ? 'bg-[#4178F3]/20 text-[#4178F3]' : 'text-[#8B94A5] hover:bg-[#2D323B]'}`}>{o.t}</button>
+                        <button key={o.k} onClick={() => setRadarQuality(o.k)} disabled={isPlaying}
+                          title={isPlaying ? 'หยุดแอนิเมชันก่อนเปลี่ยนความคม' : undefined}
+                          className={`flex-1 py-1 text-[9.5px] font-bold transition-colors ${effectiveRadarQuality === o.k ? 'bg-[#4178F3]/20 text-[#4178F3]' : 'text-[#8B94A5] hover:bg-[#2D323B]'} ${isPlaying ? 'cursor-not-allowed opacity-70' : ''}`}>{o.t}</button>
                       ))}
                     </div>
                   </div>
+                  {isPlaying && <p className="pl-[54px] text-[9px] text-[#8B94A5]">แอนิเมชันใช้โหมดประหยัดเพื่อให้ปุ่มและแผนที่ตอบสนอง</p>}
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] text-[#8B94A5] w-[48px] shrink-0">ความเข้ม</span>
                     <input type="range" min="0.6" max="1.8" step="0.05" value={radarGain} onChange={(e) => setRadarGain(parseFloat(e.target.value))} className="ops-slider flex-1" />
@@ -1079,6 +1086,7 @@ export default function RadarPage() {
 
             <div className="px-5 py-3 flex items-center gap-3">
               <button onClick={() => setIsPlaying(!isPlaying)} disabled={blockedNow}
+                aria-label={isPlaying ? 'หยุดแอนิเมชันเรดาร์' : 'เล่นแอนิเมชันเรดาร์'}
                 className={`text-[#E5E7EB] hover:text-[#4178F3] bg-[#232732] p-1.5 rounded-full border border-[#333946] shrink-0 ${blockedNow ? 'opacity-40 cursor-not-allowed' : ''}`}>
                 {isPlaying ? <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg> : <svg className="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>}
               </button>
@@ -1094,7 +1102,7 @@ export default function RadarPage() {
               <span className="text-[10px] font-mono text-[#8B94A5] shrink-0">{currentFrameIndex + 1}/{radarData?.frames?.length || 0}</span>
               <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}
                 className="bg-[#111319] border border-[#333946] text-[#8B94A5] text-[10px] rounded px-1.5 py-1 outline-none shrink-0">
-                <option value={1600}>0.5x</option><option value={1000}>1x</option><option value={600}>2x</option><option value={350}>3x</option>
+                <option value={1600}>0.5x</option><option value={1100}>1x</option><option value={900}>1.5x</option>
               </select>
             </div>
 
