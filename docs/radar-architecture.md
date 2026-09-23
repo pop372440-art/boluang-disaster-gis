@@ -18,6 +18,7 @@
 - ranking และรายละเอียดความเสี่ยงรายหมู่บ้านเป็น primary workflow
 - Radar observation, RainViewer nowcast (เมื่อมีจริง) และ Open-Meteo forecast ต้องไม่ถูกรวมเป็นข้อมูลชนิดเดียวกัน
 - ทุกผลประเมินมี source, timestamp, freshness, confidence และเหตุผลประกอบ
+- แนวโน้ม D+7–D+9 เป็น planning outlook แยกจาก operational alert โดยวัด model spread และลด confidence ตาม forecast horizon
 - ข้อเสนอการปฏิบัติเป็น decision support และต้องผ่านเจ้าหน้าที่ ไม่ใช่คำสั่งอพยพอัตโนมัติ
 
 ## Source audit
@@ -75,6 +76,8 @@ flowchart TD
 - `lib/radar/geojson-validation.ts`
 - `lib/radar/rainviewer-adapter.ts`
 - `lib/radar/open-meteo-adapter.ts`
+- `lib/radar/open-meteo-outlook-adapter.ts`
+- `lib/radar/long-range-outlook.ts`
 - `lib/radar/radar-tile-proxy.ts`
 - `lib/radar/radar-frame-cache.ts`
 - `lib/radar/village-sampling.ts`
@@ -83,6 +86,7 @@ flowchart TD
 - `lib/radar/alert-state-machine.ts`
 - `lib/observability/structured-logger.ts`
 - `app/api/forecast/route.ts`
+- `app/api/forecast/outlook/route.ts`
 - `app/radar/error.tsx`
 - `app/radar/loading.tsx`
 - `tests/risk-engine.test.ts`

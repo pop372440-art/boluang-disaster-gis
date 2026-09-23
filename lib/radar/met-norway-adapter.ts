@@ -5,6 +5,7 @@ export const MET_NORWAY_SOURCE = 'MET Norway Locationforecast' as const;
 export type MetNorwayHourlyForecast = {
   time: string;
   precipitation: number | null;
+  precipitationPeriodHours: 1 | 6 | 12 | null;
   probability: number | null;
   airTemperature: number | null;
   windSpeed: number | null;
@@ -47,14 +48,18 @@ export function parseMetNorwayResponse(value: unknown, coordinate: Coordinate): 
   const hourly = timeseries.map((entry: any): MetNorwayHourlyForecast | null => {
     if (!entry || typeof entry.time !== 'string') return null;
     const instant = entry.data?.instant?.details ?? {};
-    const nextHour = entry.data?.next_1_hours ?? {};
+    const period = entry.data?.next_1_hours ? { data: entry.data.next_1_hours, hours: 1 as const }
+      : entry.data?.next_6_hours ? { data: entry.data.next_6_hours, hours: 6 as const }
+        : entry.data?.next_12_hours ? { data: entry.data.next_12_hours, hours: 12 as const }
+          : null;
     return {
       time: entry.time,
-      precipitation: nullableNumber(nextHour.details?.precipitation_amount, 0),
-      probability: nullableNumber(nextHour.details?.probability_of_precipitation, 0),
+      precipitation: nullableNumber(period?.data?.details?.precipitation_amount, 0),
+      precipitationPeriodHours: period?.hours ?? null,
+      probability: nullableNumber(period?.data?.details?.probability_of_precipitation, 0),
       airTemperature: nullableNumber(instant.air_temperature),
       windSpeed: nullableNumber(instant.wind_speed, 0),
-      symbolCode: typeof nextHour.summary?.symbol_code === 'string' ? nextHour.summary.symbol_code : null,
+      symbolCode: typeof period?.data?.summary?.symbol_code === 'string' ? period.data.summary.symbol_code : null,
     };
   }).filter((entry: MetNorwayHourlyForecast | null): entry is MetNorwayHourlyForecast => entry != null);
 
@@ -75,8 +80,33 @@ export function sumMetNorwayRain3h(location: MetNorwayLocationForecast | undefin
   const hourly = location?.hourly ?? [];
   let index = hourly.findIndex((entry) => new Date(entry.time).getTime() >= now);
   if (index < 0) index = 0;
-  const values = [1, 2, 3].map((offset) => hourly[index + offset]?.precipitation ?? null);
+  const values = [1, 2, 3].map((offset) => {
+    const entry = hourly[index + offset];
+    return entry?.precipitationPeriodHours === 1 ? entry.precipitation : null;
+  });
   return values.every((value) => value != null)
     ? values.reduce<number>((sum, value) => sum + (value as number), 0)
     : null;
+}
+
+const bangkokDate = (timestamp: number) => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Bangkok',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+}).format(new Date(timestamp));
+
+export function aggregateMetNorwayDailyRain(location: MetNorwayLocationForecast | undefined) {
+  const totals = new Map<string, number>();
+  for (const entry of location?.hourly ?? []) {
+    if (entry.precipitation == null || entry.precipitationPeriodHours == null) continue;
+    const startedAt = Date.parse(entry.time);
+    if (!Number.isFinite(startedAt)) continue;
+    const amountPerHour = entry.precipitation / entry.precipitationPeriodHours;
+    for (let hour = 0; hour < entry.precipitationPeriodHours; hour += 1) {
+      const date = bangkokDate(startedAt + (hour + 0.5) * 60 * 60 * 1000);
+      totals.set(date, (totals.get(date) ?? 0) + amountPerHour);
+    }
+  }
+  return totals;
 }
