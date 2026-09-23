@@ -13,6 +13,11 @@ import { parseRainViewerMetadata } from '@/lib/radar/rainviewer-adapter';
 import { getRiskLevelDefinition, RISK_CONFIG, RISK_LEVELS } from '@/lib/radar/threshold-config';
 import type { DataSourceStatus, RadarFrame, RadarMetadata } from '@/lib/radar/types';
 import type { AlertState } from '@/lib/radar/alert-state-machine';
+import { compareRainForecasts } from '@/lib/radar/forecast-model-comparison';
+import {
+  parseMetNorwayApiResponse,
+  sumMetNorwayRain3h,
+} from '@/lib/radar/met-norway-adapter';
 import {
   clampAnimationFrameMs,
   selectEffectiveRadarQuality,
@@ -138,6 +143,7 @@ export default function RadarPage() {
   const [radarData, setRadarData] = useState<RadarMetadata | null>(null);
   const [radarStatus, setRadarStatus] = useState<DataSourceStatus>(() => initialSourceStatus('RainViewer'));
   const [forecastStatus, setForecastStatus] = useState<DataSourceStatus>(() => initialSourceStatus('Open-Meteo'));
+  const [metNorwayStatus, setMetNorwayStatus] = useState<DataSourceStatus>(() => initialSourceStatus('MET Norway'));
   const [geoJsonStatus, setGeoJsonStatus] = useState<DataSourceStatus>(() => initialSourceStatus('GeoJSON เทศบาลตำบลบ่อหลวง'));
 
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
@@ -318,6 +324,7 @@ export default function RadarPage() {
     riskAbortRef.current = controller;
     setRiskLoading(true);
     setForecastStatus((previous) => ({ ...previous, state: 'loading', error: null }));
+    setMetNorwayStatus((previous) => ({ ...previous, state: 'loading', error: null }));
     try {
       const plans = createVillageSamplePlans(features);
       if (plans.some((plan) => plan.points.length < RISK_CONFIG.villageSampling.minPoints)) {
@@ -325,6 +332,21 @@ export default function RadarPage() {
       }
       const samples = flattenSamplePlans(plans);
       const batches = chunkItems(samples, 25);
+      const representativePoints = plans.map((plan) => plan.points[0]);
+      const metNorwayResultPromise = (async () => {
+        const latitude = representativePoints.map((point) => point[1].toFixed(5)).join(',');
+        const longitude = representativePoints.map((point) => point[0].toFixed(5)).join(',');
+        const response = await fetch(`/api/forecast/met-norway?latitude=${latitude}&longitude=${longitude}`, {
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+        if (!response.ok) throw new Error(`MET Norway HTTP ${response.status}`);
+        return parseMetNorwayApiResponse(await response.json());
+      })().then((data) => ({ data, error: null as Error | null }))
+        .catch((error: unknown) => ({
+          data: null,
+          error: error instanceof Error ? error : new Error('MET Norway response ไม่ถูกต้อง'),
+        }));
       const forecasts = await Promise.all(batches.map(async (batch) => {
         const latitude = batch.map((point) => point.latitude.toFixed(5)).join(',');
         const longitude = batch.map((point) => point.longitude.toFixed(5)).join(',');
@@ -340,7 +362,7 @@ export default function RadarPage() {
         staleAfterMinutes: RISK_CONFIG.freshness.forecastStaleAfterMinutes,
         expireAfterMinutes: RISK_CONFIG.freshness.forecastExpireAfterMinutes,
       });
-      const rows = aggregateVillageForecasts({
+      let rows = aggregateVillageForecasts({
         features,
         plans,
         locations: forecasts.flatMap((forecast) => forecast.locations),
@@ -348,6 +370,36 @@ export default function RadarPage() {
         fetchedAt,
         previousAlerts: alertStatesRef.current,
       }).map((row) => ({ ...row, peak: fmtTime(row.peakTime) }));
+      const metNorwayResult = await metNorwayResultPromise;
+      if (controller.signal.aborted) return;
+      if (metNorwayResult.data) {
+        const metFreshness = evaluateFreshness(metNorwayResult.data.fetchedAt, {
+          staleAfterMinutes: RISK_CONFIG.freshness.metNorwayStaleAfterMinutes,
+          expireAfterMinutes: RISK_CONFIG.freshness.metNorwayExpireAfterMinutes,
+        });
+        rows = rows.map((row, index) => ({
+          ...row,
+          forecastComparison: compareRainForecasts(
+            row.rain3h,
+            sumMetNorwayRain3h(metNorwayResult.data?.locations[index]),
+            RISK_CONFIG.forecastAgreement,
+          ),
+          metNorwayFetchedAt: metNorwayResult.data?.fetchedAt,
+        }));
+        setMetNorwayStatus({
+          state: metFreshness.status === 'fresh' ? 'fresh' : 'stale',
+          source: 'MET Norway',
+          timestamp: metNorwayResult.data.fetchedAt,
+          freshness: metFreshness,
+          error: null,
+        });
+      } else {
+        setMetNorwayStatus((previous) => ({
+          ...previous,
+          state: 'error',
+          error: metNorwayResult.error?.message ?? 'MET Norway ไม่พร้อมใช้งาน',
+        }));
+      }
       if (controller.signal.aborted) return;
       alertStatesRef.current = new Map(rows.map((row) => [row.id, row.alertState]));
       setVillageRisk(rows);
@@ -361,6 +413,11 @@ export default function RadarPage() {
       });
     } catch (error: unknown) {
       if (controller.signal.aborted) return;
+      setMetNorwayStatus((previous) => previous.state === 'loading' ? {
+        ...previous,
+        state: 'error',
+        error: 'ยกเลิกการตรวจสอบไขว้เพราะข้อมูลพยากรณ์หลักไม่พร้อม',
+      } : previous);
       setForecastStatus((previous) => ({
         ...previous,
         state: 'error',
@@ -494,6 +551,9 @@ export default function RadarPage() {
 
   const fmtNumber = (value: number | null | undefined, digits = 1) =>
     typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '—';
+
+  const agreementText = (agreement: string | undefined) => agreement === 'high' ? 'สอดคล้องสูง' :
+    agreement === 'medium' ? 'สอดคล้องปานกลาง' : agreement === 'low' ? 'แตกต่างมาก' : 'ข้อมูลไม่พอเปรียบเทียบ';
 
   const L = typeof window !== 'undefined' ? require('leaflet') : null;
   const customPinIcon = L
@@ -737,6 +797,7 @@ export default function RadarPage() {
         <div className="absolute top-[94px] left-1/2 -translate-x-1/2 z-[1300] hidden md:flex items-center gap-1.5 max-w-[92%]">
           <DataStatusBadge status={radarStatus} />
           <DataStatusBadge status={forecastStatus} />
+          <DataStatusBadge status={metNorwayStatus} />
           <DataStatusBadge status={geoJsonStatus} />
         </div>
 
@@ -840,7 +901,7 @@ export default function RadarPage() {
                   ดัชนีเสี่ยง = <b className="text-[#D1D5DB]">ฝนคาด 3 ชม. × ดินอิ่มน้ำ × ความลาดชัน</b>
                 </div>
                 <div className="mt-2 text-[9px] text-[#8B94A5] leading-relaxed">
-                  เรดาร์: RainViewer · พยากรณ์: Open-Meteo · แผนที่ฐาน: Esri / CARTO / OSM
+                  เรดาร์: RainViewer · พยากรณ์หลัก: Open-Meteo · ตรวจสอบไขว้: MET Norway · แผนที่ฐาน: Esri / CARTO / OSM
                 </div>
               </div>
             </div>
@@ -971,13 +1032,17 @@ export default function RadarPage() {
                 <span>ฝน 3 ชม. mean</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hMean)} มม.</span>
                 <span>ฝน 3 ชม. max</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hMax)} มม.</span>
                 <span>ฝน 3 ชม. p90</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hP90)} มม. (ใช้ประเมิน)</span>
+                <span>MET Norway 3 ชม.</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.forecastComparison?.referenceRain3h)} มม. (ตรวจสอบไขว้)</span>
+                <span>เทียบแบบจำลอง</span><span className={`text-right font-bold ${selectedVillage.forecastComparison?.agreement === 'low' ? 'text-[#F97316]' : 'text-[#D1D5DB]'}`}>
+                  {agreementText(selectedVillage.forecastComparison?.agreement)}{selectedVillage.forecastComparison?.differenceMm != null ? ` · ต่าง ${fmtNumber(selectedVillage.forecastComparison.differenceMm)} มม.` : ''}
+                </span>
                 <span>โอกาสฝนสูงสุด</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.maxProb, 0)}%</span>
                 <span>ดินอิ่มน้ำ (API)</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.api7, 0)} มม. (×{fmtNumber(selectedVillage.soilFactor, 2)})</span>
                 <span>ตัวคูณภูมิประเทศ</span><span className="text-right text-[#D1D5DB]">×{fmtNumber(selectedVillage.terrainFactor, 2)}</span>
                 <span>ดัชนีเสี่ยงรวม</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.riskIndex)}</span>
                 <span>ความเชื่อมั่น</span><span className="text-right text-[#D1D5DB]">{selectedVillage.confidence === 'low' ? 'ต่ำ' : selectedVillage.confidence === 'medium' ? 'ปานกลาง' : 'สูง'}</span>
                 <span>เวลาข้อมูล</span><span className="text-right text-[#D1D5DB]">{fmtTime(riskUpdatedAt)} น.</span>
-                <span>แหล่งข้อมูล</span><span className="text-right text-[#D1D5DB]">Open-Meteo</span>
+                <span>แหล่งข้อมูล</span><span className="text-right text-[#D1D5DB]">Open-Meteo (ประเมิน) · MET Norway (เทียบ)</span>
                 <span>สถานะ Alert</span><span className="text-right text-[#D1D5DB]">{selectedVillage.alertState.current.toUpperCase()} · {selectedVillage.alertState.notificationStatus === 'awaiting_human_approval' ? 'รออนุมัติ' : 'ยังไม่ส่ง'}</span>
                 {selectedVillage.households > 0 && (<><span>ครัวเรือน</span><span className="text-right text-[#D1D5DB]">{selectedVillage.households}</span></>)}
                 <span>พิกัด</span><span className="text-right text-[#D1D5DB]">{selectedVillage.centroid[1].toFixed(4)}, {selectedVillage.centroid[0].toFixed(4)}</span>

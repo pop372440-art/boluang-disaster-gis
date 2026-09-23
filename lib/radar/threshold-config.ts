@@ -23,12 +23,20 @@ export const RISK_CONFIG = {
     radarExpireAfterMinutes: 40,
     forecastStaleAfterMinutes: 15,
     forecastExpireAfterMinutes: 30,
+    metNorwayStaleAfterMinutes: 90,
+    metNorwayExpireAfterMinutes: 180,
   },
   villageSampling: {
     minPoints: 3,
     maxPoints: 5,
     aggregationMethod: 'p90' as const,
     minimumCoverage: 0.6,
+  },
+  forecastAgreement: {
+    // Initial operational thresholds. These must be calibrated against local
+    // rain gauges and recorded events before being treated as validated.
+    highDifferenceMm: 2,
+    mediumDifferenceMm: 5,
   },
   alert: {
     promotionCycles: 2,
