@@ -14,6 +14,12 @@ const catmull = (t: number, a: number, b: number, c: number, d: number) =>
   b + 0.5 * t * (c - a + t * (2 * a - 5 * b + 4 * c - d + t * (3 * (b - c) + d - a)));
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
 
+const yieldToBrowser = () => new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+
+// Keep CPU-heavy resampling jobs serial. Stale jobs exit immediately via their
+// AbortSignal instead of competing with the current frame for the main thread.
+let renderQueue: Promise<void> = Promise.resolve();
+
 export type SmoothRadarOptions = GridLayerOptions & {
   framePath: string;
   colorScheme?: number;
@@ -46,7 +52,9 @@ export function createSmoothRadarLayer(options: SmoothRadarOptions) {
         canvas.height = size;
         canvas.style.width = `${size}px`;
         canvas.style.height = `${size}px`;
-        this._render(coords, canvas, size)
+        const render = renderQueue.then(() => this._render(coords, canvas, size));
+        renderQueue = render.catch(() => undefined);
+        render
           .then(() => done(null, canvas))
           .catch((error: Error) => done(error.name === 'AbortError' ? null : error, canvas));
         return canvas;
@@ -107,6 +115,40 @@ export function createSmoothRadarLayer(options: SmoothRadarOptions) {
         await Promise.all(jobs);
         if (requestSignal.aborted) return;
 
+        if (quality === 'raw') {
+          const source = document.createElement('canvas');
+          source.width = (maxX - minX + 1) * SOURCE_TILE_SIZE;
+          source.height = (maxY - minY + 1) * SOURCE_TILE_SIZE;
+          const sourceContext = source.getContext('2d');
+          if (!sourceContext) return;
+          for (let x = minX; x <= maxX; x += 1) {
+            for (let y = minY; y <= maxY; y += 1) {
+              if (requestSignal.aborted) return;
+              const wrappedX = ((x % tileCount) + tileCount) % tileCount;
+              const wrappedY = clamp(y, 0, tileCount - 1);
+              const tile = tiles.get(`${wrappedX}/${wrappedY}`);
+              if (tile) sourceContext.putImageData(
+                tile,
+                (x - minX) * SOURCE_TILE_SIZE,
+                (y - minY) * SOURCE_TILE_SIZE,
+              );
+            }
+          }
+          context.imageSmoothingEnabled = false;
+          context.drawImage(
+            source,
+            globalX - minX * SOURCE_TILE_SIZE,
+            globalY - minY * SOURCE_TILE_SIZE,
+            span,
+            span,
+            0,
+            0,
+            outputSize,
+            outputSize,
+          );
+          return;
+        }
+
         const pixel = (x: number, y: number, channel: number) => {
           const boundedY = clamp(y, 0, tileCount * SOURCE_TILE_SIZE - 1);
           const tileX = ((Math.floor(x / SOURCE_TILE_SIZE) % tileCount) + tileCount) % tileCount;
@@ -123,6 +165,8 @@ export function createSmoothRadarLayer(options: SmoothRadarOptions) {
         const output = context.createImageData(outputSize, outputSize);
         const step = span / outputSize;
         for (let outputY = 0; outputY < outputSize; outputY += 1) {
+          if (requestSignal.aborted) return;
+          if (outputY > 0 && outputY % 8 === 0) await yieldToBrowser();
           const sourceY = globalY + (outputY + 0.5) * step - 0.5;
           const integerY = Math.floor(sourceY);
           const fractionY = sourceY - integerY;
@@ -133,9 +177,7 @@ export function createSmoothRadarLayer(options: SmoothRadarOptions) {
             const offset = (outputY * outputSize + outputX) * 4;
             const channels = [0, 0, 0, 0];
             for (let channel = 0; channel < 4; channel += 1) {
-              if (quality === 'raw') {
-                channels[channel] = pixel(integerX, integerY, channel);
-              } else if (quality === 'bilinear') {
+              if (quality === 'bilinear') {
                 channels[channel] = pixel(integerX, integerY, channel) * (1 - fractionX) * (1 - fractionY) +
                   pixel(integerX + 1, integerY, channel) * fractionX * (1 - fractionY) +
                   pixel(integerX, integerY + 1, channel) * (1 - fractionX) * fractionY +

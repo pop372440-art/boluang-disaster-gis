@@ -2,21 +2,28 @@
 
 import { RadarFrameCache } from '@/lib/radar/radar-frame-cache';
 import { RAINVIEWER_NATIVE_ZOOM } from '@/lib/radar/radar-tile-proxy';
+import {
+  selectAutomaticRadarQuality,
+  type RadarQuality,
+} from '@/lib/radar/radar-render-policy';
 
 export const SOURCE_TILE_SIZE = 512;
 // RainViewer radar tiles provide native imagery through zoom 7. Higher map
 // zooms reuse and resample z7 tiles so provider error artwork is never drawn.
 export const NATIVE_ZOOM = RAINVIEWER_NATIVE_ZOOM;
 export const DEFAULT_COLOR_SCHEME = 4;
-export type RadarQuality = 'bicubic' | 'bilinear' | 'raw';
+export type { RadarQuality } from '@/lib/radar/radar-render-policy';
 
 export function detectRadarQuality(): RadarQuality {
   if (typeof window === 'undefined') return 'bilinear';
   const memory = Number((navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4);
   const cores = Number(navigator.hardwareConcurrency ?? 4);
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || memory <= 2 || cores <= 2) return 'raw';
-  if (window.innerWidth < 768 || memory <= 4 || cores <= 4) return 'bilinear';
-  return 'bicubic';
+  return selectAutomaticRadarQuality({
+    width: window.innerWidth,
+    memoryGb: memory,
+    logicalCores: cores,
+    reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  });
 }
 
 const cache = new RadarFrameCache<ImageData>(
