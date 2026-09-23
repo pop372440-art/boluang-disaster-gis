@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 import { evaluateFreshness } from '@/lib/radar/data-freshness';
 import { validateAndNormalizeVillageGeoJson, validatePolygonFeatureCollection } from '@/lib/radar/geojson-validation';
 import { parseForecastApiResponse } from '@/lib/radar/open-meteo-adapter';
+import { parseOpenMeteoOutlookApiResponse } from '@/lib/radar/open-meteo-outlook-adapter';
 import { parseRainViewerMetadata } from '@/lib/radar/rainviewer-adapter';
 import { getRiskLevelDefinition, RISK_CONFIG, RISK_LEVELS } from '@/lib/radar/threshold-config';
 import type { DataSourceStatus, RadarFrame, RadarMetadata } from '@/lib/radar/types';
@@ -17,7 +18,9 @@ import { compareRainForecasts } from '@/lib/radar/forecast-model-comparison';
 import {
   parseMetNorwayApiResponse,
   sumMetNorwayRain3h,
+  aggregateMetNorwayDailyRain,
 } from '@/lib/radar/met-norway-adapter';
+import { buildLongRangeOutlook } from '@/lib/radar/long-range-outlook';
 import {
   clampAnimationFrameMs,
   selectEffectiveRadarQuality,
@@ -144,6 +147,7 @@ export default function RadarPage() {
   const [radarStatus, setRadarStatus] = useState<DataSourceStatus>(() => initialSourceStatus('RainViewer'));
   const [forecastStatus, setForecastStatus] = useState<DataSourceStatus>(() => initialSourceStatus('Open-Meteo'));
   const [metNorwayStatus, setMetNorwayStatus] = useState<DataSourceStatus>(() => initialSourceStatus('MET Norway'));
+  const [outlookStatus, setOutlookStatus] = useState<DataSourceStatus>(() => initialSourceStatus('แนวโน้ม 7–9 วัน'));
   const [geoJsonStatus, setGeoJsonStatus] = useState<DataSourceStatus>(() => initialSourceStatus('GeoJSON เทศบาลตำบลบ่อหลวง'));
 
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
@@ -325,6 +329,7 @@ export default function RadarPage() {
     setRiskLoading(true);
     setForecastStatus((previous) => ({ ...previous, state: 'loading', error: null }));
     setMetNorwayStatus((previous) => ({ ...previous, state: 'loading', error: null }));
+    setOutlookStatus((previous) => ({ ...previous, state: 'loading', error: null }));
     try {
       const plans = createVillageSamplePlans(features);
       if (plans.some((plan) => plan.points.length < RISK_CONFIG.villageSampling.minPoints)) {
@@ -346,6 +351,20 @@ export default function RadarPage() {
         .catch((error: unknown) => ({
           data: null,
           error: error instanceof Error ? error : new Error('MET Norway response ไม่ถูกต้อง'),
+        }));
+      const outlookResultPromise = (async () => {
+        const latitude = representativePoints.map((point) => point[1].toFixed(4)).join(',');
+        const longitude = representativePoints.map((point) => point[0].toFixed(4)).join(',');
+        const response = await fetch(`/api/forecast/outlook?latitude=${latitude}&longitude=${longitude}`, {
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+        if (!response.ok) throw new Error(`Outlook HTTP ${response.status}`);
+        return parseOpenMeteoOutlookApiResponse(await response.json());
+      })().then((data) => ({ data, error: null as Error | null }))
+        .catch((error: unknown) => ({
+          data: null,
+          error: error instanceof Error ? error : new Error('ข้อมูลแนวโน้มไม่ถูกต้อง'),
         }));
       const forecasts = await Promise.all(batches.map(async (batch) => {
         const latitude = batch.map((point) => point.latitude.toFixed(5)).join(',');
@@ -370,7 +389,7 @@ export default function RadarPage() {
         fetchedAt,
         previousAlerts: alertStatesRef.current,
       }).map((row) => ({ ...row, peak: fmtTime(row.peakTime) }));
-      const metNorwayResult = await metNorwayResultPromise;
+      const [metNorwayResult, outlookResult] = await Promise.all([metNorwayResultPromise, outlookResultPromise]);
       if (controller.signal.aborted) return;
       if (metNorwayResult.data) {
         const metFreshness = evaluateFreshness(metNorwayResult.data.fetchedAt, {
@@ -400,6 +419,52 @@ export default function RadarPage() {
           error: metNorwayResult.error?.message ?? 'MET Norway ไม่พร้อมใช้งาน',
         }));
       }
+      if (outlookResult.data) {
+        const outlookFreshness = evaluateFreshness(outlookResult.data.fetchedAt, {
+          staleAfterMinutes: RISK_CONFIG.freshness.outlookStaleAfterMinutes,
+          expireAfterMinutes: RISK_CONFIG.freshness.outlookExpireAfterMinutes,
+        });
+        const metOutlookFreshness = evaluateFreshness(metNorwayResult.data?.fetchedAt ?? null, {
+          staleAfterMinutes: RISK_CONFIG.freshness.metNorwayStaleAfterMinutes,
+          expireAfterMinutes: RISK_CONFIG.freshness.metNorwayExpireAfterMinutes,
+        });
+        const outlookUsable = outlookFreshness.status !== 'expired' && outlookFreshness.status !== 'unknown';
+        const metOutlookUsable = metOutlookFreshness.status !== 'expired' && metOutlookFreshness.status !== 'unknown';
+        rows = rows.map((row, index) => {
+          const primary = outlookResult.data?.locations[index];
+          const reference = aggregateMetNorwayDailyRain(metOutlookUsable ? metNorwayResult.data?.locations[index] : undefined);
+          const baseDate = primary?.days[0]?.date;
+          return {
+            ...row,
+            longRangeOutlook: outlookUsable && baseDate ? buildLongRangeOutlook(
+              baseDate,
+              (primary?.days ?? []).map((day) => ({
+                date: day.date,
+                primaryRainMm: day.precipitationMm,
+                referenceRainMm: reference.get(day.date) ?? null,
+                precipitationProbabilityPct: day.precipitationProbabilityPct,
+                temperatureMinC: day.temperatureMinC,
+                temperatureMaxC: day.temperatureMaxC,
+                windGustMaxKmh: day.windGustMaxKmh,
+              })),
+              RISK_CONFIG.longRangeOutlook,
+            ) : [],
+          };
+        });
+        setOutlookStatus({
+          state: outlookFreshness.status === 'fresh' ? 'fresh' : 'stale',
+          source: 'Open-Meteo + MET Norway (planning outlook)',
+          timestamp: outlookResult.data.fetchedAt,
+          freshness: outlookFreshness,
+          error: outlookUsable ? null : 'ข้อมูลแนวโน้มหมดอายุและถูกระงับการแสดงผล',
+        });
+      } else {
+        setOutlookStatus((previous) => ({
+          ...previous,
+          state: 'error',
+          error: outlookResult.error?.message ?? 'แนวโน้ม 7–9 วันไม่พร้อมใช้งาน',
+        }));
+      }
       if (controller.signal.aborted) return;
       alertStatesRef.current = new Map(rows.map((row) => [row.id, row.alertState]));
       setVillageRisk(rows);
@@ -417,6 +482,11 @@ export default function RadarPage() {
         ...previous,
         state: 'error',
         error: 'ยกเลิกการตรวจสอบไขว้เพราะข้อมูลพยากรณ์หลักไม่พร้อม',
+      } : previous);
+      setOutlookStatus((previous) => previous.state === 'loading' ? {
+        ...previous,
+        state: 'error',
+        error: 'ยกเลิกแนวโน้มระยะไกลเพราะข้อมูลพยากรณ์หลักไม่พร้อม',
       } : previous);
       setForecastStatus((previous) => ({
         ...previous,
@@ -798,6 +868,7 @@ export default function RadarPage() {
           <DataStatusBadge status={radarStatus} />
           <DataStatusBadge status={forecastStatus} />
           <DataStatusBadge status={metNorwayStatus} />
+          <DataStatusBadge status={outlookStatus} />
           <DataStatusBadge status={geoJsonStatus} />
         </div>
 
@@ -1022,6 +1093,33 @@ export default function RadarPage() {
                     );
                   })}
                 </div>
+              </div>
+              <div className="rounded-xl border border-[#333946] bg-[#171A21]/80 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11.5px] font-bold text-[#E5E7EB]">แนวโน้ม D+7 ถึง D+9</p>
+                    <p className="mt-0.5 text-[9.5px] text-[#8B94A5]">ใช้วางแผนและติดตามเท่านั้น · ไม่ใช้ยกระดับ Alert อัตโนมัติ</p>
+                  </div>
+                  <span className="rounded-md border border-[#FACC15]/40 bg-[#FACC15]/10 px-2 py-1 text-[9px] font-bold text-[#FACC15]">ความเชื่อมั่นต่ำ</span>
+                </div>
+                {selectedVillage.longRangeOutlook?.length ? (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {selectedVillage.longRangeOutlook.map((day: any) => {
+                      const signalLabel = day.signal === 'prepare' ? 'เตรียมพร้อม' : day.signal === 'monitor' ? 'ติดตาม' : day.signal === 'low' ? 'แนวโน้มต่ำ' : 'ข้อมูลไม่พอ';
+                      const signalClass = day.signal === 'prepare' ? 'text-[#F97316]' : day.signal === 'monitor' ? 'text-[#FACC15]' : day.signal === 'low' ? 'text-[#22C55E]' : 'text-[#94A3B8]';
+                      return (
+                        <div key={day.date} className="rounded-lg border border-[#333946] bg-[#232732] p-2 text-center">
+                          <p className="text-[9px] font-bold text-[#8B94A5]">D+{day.leadDay}</p>
+                          <p className="mt-0.5 text-[9px] text-[#D1D5DB]">{new Date(`${day.date}T12:00:00+07:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</p>
+                          <p className="mt-1 text-[13px] font-bold text-[#E5E7EB]">{fmtNumber(day.consensusRainMm)} มม.</p>
+                          <p className="text-[8.5px] text-[#8B94A5]">โอกาส {fmtNumber(day.precipitationProbabilityPct, 0)}%</p>
+                          <p className={`mt-1 text-[9px] font-bold ${signalClass}`}>● {signalLabel}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : <p className="mt-3 text-[10px] text-[#94A3B8]">ยังไม่มีข้อมูลระยะไกลที่ผ่านการตรวจสอบ</p>}
+                <p className="mt-2 text-[9px] leading-relaxed text-[#8B94A5]">ค่าฝนเป็น consensus รายวันจาก Open-Meteo และ MET Norway; ความต่างระหว่างแบบจำลองใช้บอกความไม่แน่นอน ไม่ใช่ค่าความน่าจะเป็นของภัยพิบัติ</p>
               </div>
               <div className="rounded-xl border p-3" style={{ borderColor: selectedVillage.level.color, background: `${selectedVillage.level.color}12` }}>
                 <p className="text-[11.5px] font-bold" style={{ color: selectedVillage.level.color }}>ข้อเสนอประกอบการตรวจสอบ</p>

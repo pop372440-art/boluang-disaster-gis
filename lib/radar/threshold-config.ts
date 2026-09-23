@@ -25,6 +25,8 @@ export const RISK_CONFIG = {
     forecastExpireAfterMinutes: 30,
     metNorwayStaleAfterMinutes: 90,
     metNorwayExpireAfterMinutes: 180,
+    outlookStaleAfterMinutes: 120,
+    outlookExpireAfterMinutes: 360,
   },
   villageSampling: {
     minPoints: 3,
@@ -37,6 +39,16 @@ export const RISK_CONFIG = {
     // rain gauges and recorded events before being treated as validated.
     highDifferenceMm: 2,
     mediumDifferenceMm: 5,
+  },
+  longRangeOutlook: {
+    startLeadDay: 7,
+    endLeadDay: 9,
+    // Initial planning thresholds only; calibrate with local gauges and events.
+    monitorRainMm: 20,
+    prepareRainMm: 50,
+    monitorProbabilityPct: 60,
+    prepareProbabilityPct: 60,
+    agreementMm: 15,
   },
   alert: {
     promotionCycles: 2,
