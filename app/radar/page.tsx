@@ -14,7 +14,7 @@ import { parseRainViewerMetadata } from '@/lib/radar/rainviewer-adapter';
 import { getRiskLevelDefinition, RISK_CONFIG, RISK_LEVELS } from '@/lib/radar/threshold-config';
 import type { DataSourceStatus, RadarFrame, RadarMetadata } from '@/lib/radar/types';
 import type { AlertState } from '@/lib/radar/alert-state-machine';
-import { compareRainForecasts } from '@/lib/radar/forecast-model-comparison';
+import { compareFreshRainForecasts } from '@/lib/radar/forecast-model-comparison';
 import {
   parseMetNorwayApiResponse,
   sumMetNorwayRain3h,
@@ -398,9 +398,11 @@ export default function RadarPage() {
         });
         rows = rows.map((row, index) => ({
           ...row,
-          forecastComparison: compareRainForecasts(
+          forecastComparison: compareFreshRainForecasts(
             row.rain3h,
             sumMetNorwayRain3h(metNorwayResult.data?.locations[index]),
+            freshness.status === 'fresh',
+            metFreshness.status === 'fresh',
             RISK_CONFIG.forecastAgreement,
           ),
           metNorwayFetchedAt: metNorwayResult.data?.fetchedAt,
@@ -429,7 +431,7 @@ export default function RadarPage() {
           expireAfterMinutes: RISK_CONFIG.freshness.metNorwayExpireAfterMinutes,
         });
         const outlookUsable = outlookFreshness.status !== 'expired' && outlookFreshness.status !== 'unknown';
-        const metOutlookUsable = metOutlookFreshness.status !== 'expired' && metOutlookFreshness.status !== 'unknown';
+        const metOutlookUsable = metOutlookFreshness.status === 'fresh';
         rows = rows.map((row, index) => {
           const primary = outlookResult.data?.locations[index];
           const reference = aggregateMetNorwayDailyRain(metOutlookUsable ? metNorwayResult.data?.locations[index] : undefined);
@@ -468,6 +470,7 @@ export default function RadarPage() {
       if (controller.signal.aborted) return;
       alertStatesRef.current = new Map(rows.map((row) => [row.id, row.alertState]));
       setVillageRisk(rows);
+      setSelectedVillage((previous: any) => previous ? rows.find((row) => row.id === previous.id) ?? null : null);
       setRiskUpdatedAt(new Date(fetchedAt));
       setForecastStatus({
         state: freshness.status === 'fresh' ? 'fresh' : 'stale',
@@ -681,15 +684,20 @@ export default function RadarPage() {
   );
 
   const DataStatusBadge = ({ status }: { status: DataSourceStatus }) => {
-    const state = status.state === 'loading' ? 'กำลังโหลด' : status.state === 'fresh' ? 'พร้อมใช้' :
-      status.state === 'stale' ? 'ข้อมูลเก่า' : status.state === 'error' ? 'ผิดพลาด' : 'รอข้อมูล';
-    const color = status.state === 'fresh' ? '#22C55E' : status.state === 'loading' ? '#38BDF8' :
-      status.state === 'idle' ? '#94A3B8' : '#F97316';
-    const detail = status.error || (status.freshness?.ageMinutes != null
-      ? `${Math.round(status.freshness.ageMinutes)} นาทีที่แล้ว`
+    const fresh = status.freshness && status.timestamp ? evaluateFreshness(status.timestamp, {
+      staleAfterMinutes: status.freshness.staleAfterMinutes,
+      expireAfterMinutes: status.freshness.expireAfterMinutes,
+    }) : null;
+    const effectiveState = status.state === 'fresh' && fresh?.status !== 'fresh' ? 'stale' : status.state;
+    const state = effectiveState === 'loading' ? 'กำลังโหลด' : effectiveState === 'fresh' ? 'พร้อมใช้' :
+      effectiveState === 'stale' ? 'ข้อมูลเก่า' : effectiveState === 'error' ? 'ผิดพลาด' : 'รอข้อมูล';
+    const color = effectiveState === 'fresh' ? '#22C55E' : effectiveState === 'loading' ? '#38BDF8' :
+      effectiveState === 'idle' ? '#94A3B8' : '#F97316';
+    const detail = status.error || (fresh?.ageMinutes != null
+      ? `${Math.round(fresh.ageMinutes)} นาทีที่แล้ว`
       : status.timestamp ? fmtTime(new Date(status.timestamp)) : 'ยังไม่มีเวลาอ้างอิง');
     return (
-      <div title={`${status.source}: ${detail}`} className="liquid-bar flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] whitespace-nowrap">
+      <div title={`${status.source}: ${detail}`} className="liquid-bar flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] whitespace-nowrap">
         <span className="w-2 h-2 rounded-full ring-2 ring-white/10" style={{ background: color }} aria-hidden="true" />
         <span className="text-[#E1E9F7]">{status.source}</span>
         <span style={{ color }}>{state}</span>
@@ -697,8 +705,19 @@ export default function RadarPage() {
     );
   };
 
+  const forecastDisplayFresh = forecastStatus.state === 'fresh' &&
+    evaluateFreshness(forecastStatus.timestamp, {
+      staleAfterMinutes: RISK_CONFIG.freshness.forecastStaleAfterMinutes,
+      expireAfterMinutes: RISK_CONFIG.freshness.forecastExpireAfterMinutes,
+    }).status === 'fresh';
+  const metComparisonFresh = metNorwayStatus.state === 'fresh' && forecastDisplayFresh &&
+    evaluateFreshness(metNorwayStatus.timestamp, {
+      staleAfterMinutes: RISK_CONFIG.freshness.metNorwayStaleAfterMinutes,
+      expireAfterMinutes: RISK_CONFIG.freshness.metNorwayExpireAfterMinutes,
+    }).status === 'fresh';
+
   const RankTable = ({ height = 'h-[320px]' }: any) => (
-    <div className="w-full text-[11.5px]">
+    <div className="w-full text-[12px]">
       <div className="flex font-bold text-[#8B94A5] border-b border-[#333946] pb-2.5 mb-1">
         <div className="w-7 text-center">#</div><div className="w-1.5 mr-2" />
         <div className="flex-1 pl-1">หมู่บ้าน</div>
@@ -718,7 +737,7 @@ export default function RadarPage() {
               <div className="w-1.5 h-6 rounded-full mr-2 shrink-0" style={{ background: v.level.color, boxShadow: `0 0 8px ${v.level.glow}` }} />
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-[#E5E7EB] truncate">{v.name}</div>
-                <div className="text-[9.5px] text-[#8B94A5] font-mono">หมู่ {v.moo} · {v.level.name}</div>
+                <div className="text-[11px] text-[#AEBBD0]">หมู่ {v.moo} · {v.level.name}</div>
               </div>
               <div className="w-14 text-right font-mono text-white font-bold">{fmtNumber(v.rain3h)}</div>
               <div className="w-12 text-right font-mono text-[#8B94A5]">{fmtNumber(v.riskIndex)}</div>
@@ -744,7 +763,7 @@ export default function RadarPage() {
           --ink: #f5f8ff;
           --muted: #aebbd0;
           --accent: #65b8ff;
-          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+          font-family: inherit;
           background: radial-gradient(circle at 22% 0%, #183c61 0, #07111f 34%, #030812 100%);
         }
         .liquid-radar::before {
@@ -1054,41 +1073,46 @@ export default function RadarPage() {
 
         {/* ══ VILLAGE DETAIL ══ */}
         {selectedVillage && (
-          <div className="absolute top-[112px] right-5 xl:right-[442px] z-[1050] w-[336px] ops-panel animate-fade-in hidden md:block" style={{ borderColor: `${selectedVillage.level.color}66` }}>
-            <div className="px-5 py-4 border-b border-[#333946] flex justify-between items-center bg-[#232732] rounded-t-xl">
+          <section role="dialog" aria-label={`รายละเอียด${selectedVillage.name}`} className="absolute inset-x-2 top-[84px] bottom-[84px] z-[1500] md:inset-x-auto md:bottom-auto md:top-[112px] md:right-5 xl:right-[442px] w-auto md:w-[356px] max-h-[calc(100dvh-168px)] md:max-h-[calc(100dvh-128px)] min-h-0 flex flex-col overflow-hidden ops-panel animate-fade-in" style={{ borderColor: `${selectedVillage.level.color}66` }}>
+            <div className="px-5 py-4 border-b border-[#333946] flex justify-between items-center bg-[#232732] rounded-t-xl shrink-0">
               <div className="flex items-center space-x-3 min-w-0">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center border text-[13px] font-black shrink-0"
                   style={{ background: `${selectedVillage.level.color}22`, borderColor: `${selectedVillage.level.color}88`, color: selectedVillage.level.color }}>{selectedVillage.moo}</div>
                 <div className="min-w-0">
-                  <h3 className="text-[13px] font-bold text-[#E5E7EB] truncate">{selectedVillage.name}</h3>
-                  <p className="text-[10px] font-mono mt-0.5" style={{ color: selectedVillage.level.color }}>ระดับ{selectedVillage.level.name}</p>
+                  <h3 className="text-[16px] font-bold text-[#E5E7EB] truncate">{selectedVillage.name}</h3>
+                  <p className="text-[12px] mt-0.5" style={{ color: selectedVillage.level.color }}>ระดับ{selectedVillage.level.name}</p>
                 </div>
               </div>
-              <button onClick={() => setSelectedVillage(null)} className="text-[#8B94A5] hover:text-[#EF4444] p-1.5 rounded-lg border border-[#333946] shrink-0">
+              <button type="button" aria-label="ปิดรายละเอียดหมู่บ้าน" onClick={() => setSelectedVillage(null)} className="text-[#AEBBD0] hover:text-[#EF4444] p-1.5 rounded-lg border border-[#333946] shrink-0">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 min-h-0 overflow-y-auto overscroll-contain ops-scroll">
+              {!forecastDisplayFresh && (
+                <p role="status" className="rounded-lg border border-[#F97316]/50 bg-[#F97316]/10 p-3 text-[12px] text-[#FDBA74]">
+                  ข้อมูลพยากรณ์หลัก{forecastStatus.state === 'error' ? 'โหลดไม่สำเร็จ' : 'ไม่สดใหม่'} · ค่าที่แสดงอาจเป็นข้อมูลรอบก่อน โปรดรีเฟรชและตรวจสอบเวลาก่อนตัดสินใจ
+                </p>
+              )}
               <div className="grid grid-cols-3 gap-2.5">
                 {[{ l: '1 ชม.', v: selectedVillage.rain1h }, { l: '3 ชม. (คาด)', v: selectedVillage.rain3h }, { l: '24 ชม. ผ่านมา', v: selectedVillage.rain24h }].map((s) => (
                   <div key={s.l} className="bg-[#111319] border border-[#333946] rounded-xl p-2.5 text-center">
-                    <p className="text-[9px] text-[#8B94A5]">{s.l}</p>
+                    <p className="text-[11px] text-[#AEBBD0]">{s.l}</p>
                     <p className="text-[16px] font-black font-mono text-[#E5E7EB] mt-0.5">{fmtNumber(s.v)}</p>
-                    <p className="text-[8.5px] text-[#8B94A5]">มม.</p>
+                    <p className="text-[11px] text-[#AEBBD0]">มม.</p>
                   </div>
                 ))}
               </div>
               <div>
-                <p className="text-[11px] font-bold text-[#8B94A5] mb-2">พยากรณ์รายชั่วโมง</p>
+                <p className="text-[13px] font-bold text-[#AEBBD0] mb-2">พยากรณ์รายชั่วโมง</p>
                 <div className="grid grid-cols-3 gap-2.5">
                   {selectedVillage.hours.map((h: any, i: number) => {
                     const r = getRainText(h.rain ?? 0);
                     return (
                       <div key={i} className="bg-[#232732] border border-[#333946] rounded-xl p-2.5 text-center">
-                        <span className="text-[9px] text-[#8B94A5] font-bold">+{i + 1} ชม.</span>
+                        <span className="text-[11px] text-[#AEBBD0] font-bold">+{i + 1} ชม.</span>
                         <div className="text-[18px] my-0.5">{r.icon}</div>
-                        <div className="text-[10px] font-mono text-[#E5E7EB]">{fmtTime(h.time)}</div>
-                        <div className={`text-[10px] font-bold mt-0.5 ${r.color}`}>{fmtNumber(h.rain)} มม.</div>
+                        <div className="text-[12px] tabular-nums text-[#E5E7EB]">{fmtTime(h.time)}</div>
+                        <div className={`text-[12px] font-bold mt-0.5 ${r.color}`}>{fmtNumber(h.rain)} มม.</div>
                       </div>
                     );
                   })}
@@ -1097,10 +1121,10 @@ export default function RadarPage() {
               <div className="rounded-xl border border-[#333946] bg-[#171A21]/80 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[11.5px] font-bold text-[#E5E7EB]">แนวโน้ม D+7 ถึง D+9</p>
-                    <p className="mt-0.5 text-[9.5px] text-[#8B94A5]">ใช้วางแผนและติดตามเท่านั้น · ไม่ใช้ยกระดับ Alert อัตโนมัติ</p>
+                    <p className="text-[14px] font-bold text-[#E5E7EB]">แนวโน้ม D+7 ถึง D+9</p>
+                    <p className="mt-0.5 text-[11px] text-[#AEBBD0]">ใช้วางแผนและติดตามเท่านั้น · ไม่ใช้ยกระดับ Alert อัตโนมัติ</p>
                   </div>
-                  <span className="rounded-md border border-[#FACC15]/40 bg-[#FACC15]/10 px-2 py-1 text-[9px] font-bold text-[#FACC15]">ความเชื่อมั่นต่ำ</span>
+                  <span className="rounded-md border border-[#FACC15]/40 bg-[#FACC15]/10 px-2 py-1 text-[11px] font-bold text-[#FACC15]">ความเชื่อมั่นต่ำ</span>
                 </div>
                 {selectedVillage.longRangeOutlook?.length ? (
                   <div className="mt-3 grid grid-cols-3 gap-2">
@@ -1109,30 +1133,30 @@ export default function RadarPage() {
                       const signalClass = day.signal === 'prepare' ? 'text-[#F97316]' : day.signal === 'monitor' ? 'text-[#FACC15]' : day.signal === 'low' ? 'text-[#22C55E]' : 'text-[#94A3B8]';
                       return (
                         <div key={day.date} className="rounded-lg border border-[#333946] bg-[#232732] p-2 text-center">
-                          <p className="text-[9px] font-bold text-[#8B94A5]">D+{day.leadDay}</p>
-                          <p className="mt-0.5 text-[9px] text-[#D1D5DB]">{new Date(`${day.date}T12:00:00+07:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</p>
+                          <p className="text-[11px] font-bold text-[#AEBBD0]">D+{day.leadDay}</p>
+                          <p className="mt-0.5 text-[11px] text-[#D1D5DB]">{new Date(`${day.date}T12:00:00+07:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</p>
                           <p className="mt-1 text-[13px] font-bold text-[#E5E7EB]">{fmtNumber(day.consensusRainMm)} มม.</p>
-                          <p className="text-[8.5px] text-[#8B94A5]">โอกาส {fmtNumber(day.precipitationProbabilityPct, 0)}%</p>
-                          <p className={`mt-1 text-[9px] font-bold ${signalClass}`}>● {signalLabel}</p>
+                          <p className="text-[11px] text-[#AEBBD0]">โอกาส {fmtNumber(day.precipitationProbabilityPct, 0)}%</p>
+                          <p className={`mt-1 text-[11px] font-bold ${signalClass}`}>● {signalLabel}</p>
                         </div>
                       );
                     })}
                   </div>
-                ) : <p className="mt-3 text-[10px] text-[#94A3B8]">ยังไม่มีข้อมูลระยะไกลที่ผ่านการตรวจสอบ</p>}
-                <p className="mt-2 text-[9px] leading-relaxed text-[#8B94A5]">ค่าฝนเป็น consensus รายวันจาก Open-Meteo และ MET Norway; ความต่างระหว่างแบบจำลองใช้บอกความไม่แน่นอน ไม่ใช่ค่าความน่าจะเป็นของภัยพิบัติ</p>
+                ) : <p className="mt-3 text-[12px] text-[#AEBBD0]">ยังไม่มีข้อมูลระยะไกลที่ผ่านการตรวจสอบ</p>}
+                <p className="mt-2 text-[11px] leading-relaxed text-[#AEBBD0]">แนวโน้มใช้ Open-Meteo และเทียบ MET Norway เฉพาะเมื่อข้อมูลยังใหม่ หากแหล่งใดเก่าจะไม่ใช้เปรียบเทียบ ไม่ใช่ค่าความน่าจะเป็นของภัยพิบัติ</p>
               </div>
               <div className="rounded-xl border p-3" style={{ borderColor: selectedVillage.level.color, background: `${selectedVillage.level.color}12` }}>
-                <p className="text-[11.5px] font-bold" style={{ color: selectedVillage.level.color }}>ข้อเสนอประกอบการตรวจสอบ</p>
-                <p className="text-[11px] text-[#D1D5DB] mt-1">{selectedVillage.level.act}</p>
+                <p className="text-[14px] font-bold" style={{ color: selectedVillage.level.color }}>ข้อเสนอประกอบการตรวจสอบ</p>
+                <p className="text-[12px] text-[#D1D5DB] mt-1">{selectedVillage.level.act}</p>
               </div>
-              <div className="text-[10px] text-[#8B94A5] font-mono grid grid-cols-2 gap-y-1 border-t border-[#333946] pt-3">
+              <div className="text-[12px] text-[#AEBBD0] grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] gap-x-2 gap-y-2 border-t border-[#333946] pt-3">
                 <span>จุดตัวอย่าง</span><span className="text-right text-[#D1D5DB]">{selectedVillage.sampleCount} จุด ({Math.round(selectedVillage.sampleCoverage * 100)}%)</span>
                 <span>ฝน 3 ชม. mean</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hMean)} มม.</span>
                 <span>ฝน 3 ชม. max</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hMax)} มม.</span>
                 <span>ฝน 3 ชม. p90</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hP90)} มม. (ใช้ประเมิน)</span>
-                <span>MET Norway 3 ชม.</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.forecastComparison?.referenceRain3h)} มม. (ตรวจสอบไขว้)</span>
-                <span>เทียบแบบจำลอง</span><span className={`text-right font-bold ${selectedVillage.forecastComparison?.agreement === 'low' ? 'text-[#F97316]' : 'text-[#D1D5DB]'}`}>
-                  {agreementText(selectedVillage.forecastComparison?.agreement)}{selectedVillage.forecastComparison?.differenceMm != null ? ` · ต่าง ${fmtNumber(selectedVillage.forecastComparison.differenceMm)} มม.` : ''}
+                <span>MET Norway 3 ชม.</span><span className="text-right text-[#D1D5DB]">{!metComparisonFresh || selectedVillage.forecastComparison?.agreement === 'unavailable' ? '— (ข้อมูลไม่พร้อมเทียบ)' : `${fmtNumber(selectedVillage.forecastComparison?.referenceRain3h)} มม. (ตรวจสอบไขว้)`}</span>
+                <span>เทียบแบบจำลอง</span><span className={`text-right font-bold ${metComparisonFresh && selectedVillage.forecastComparison?.agreement === 'low' ? 'text-[#F97316]' : 'text-[#D1D5DB]'}`}>
+                  {metComparisonFresh ? agreementText(selectedVillage.forecastComparison?.agreement) : 'ระงับการเทียบ · ข้อมูลเก่าหรือไม่พร้อม'}{metComparisonFresh && selectedVillage.forecastComparison?.differenceMm != null ? ` · ต่าง ${fmtNumber(selectedVillage.forecastComparison.differenceMm)} มม.` : ''}
                 </span>
                 <span>โอกาสฝนสูงสุด</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.maxProb, 0)}%</span>
                 <span>ดินอิ่มน้ำ (API)</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.api7, 0)} มม. (×{fmtNumber(selectedVillage.soilFactor, 2)})</span>
@@ -1140,7 +1164,7 @@ export default function RadarPage() {
                 <span>ดัชนีเสี่ยงรวม</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.riskIndex)}</span>
                 <span>ความเชื่อมั่น</span><span className="text-right text-[#D1D5DB]">{selectedVillage.confidence === 'low' ? 'ต่ำ' : selectedVillage.confidence === 'medium' ? 'ปานกลาง' : 'สูง'}</span>
                 <span>เวลาข้อมูล</span><span className="text-right text-[#D1D5DB]">{fmtTime(riskUpdatedAt)} น.</span>
-                <span>แหล่งข้อมูล</span><span className="text-right text-[#D1D5DB]">Open-Meteo (ประเมิน) · MET Norway (เทียบ)</span>
+                <span>แหล่งข้อมูล</span><span className="text-right text-[#D1D5DB]">Open-Meteo (ประเมิน) · MET Norway ({metComparisonFresh ? 'เทียบ' : 'ไม่พร้อมเทียบ'})</span>
                 <span>สถานะ Alert</span><span className="text-right text-[#D1D5DB]">{selectedVillage.alertState.current.toUpperCase()} · {selectedVillage.alertState.notificationStatus === 'awaiting_human_approval' ? 'รออนุมัติ' : 'ยังไม่ส่ง'}</span>
                 {selectedVillage.households > 0 && (<><span>ครัวเรือน</span><span className="text-right text-[#D1D5DB]">{selectedVillage.households}</span></>)}
                 <span>พิกัด</span><span className="text-right text-[#D1D5DB]">{selectedVillage.centroid[1].toFixed(4)}, {selectedVillage.centroid[0].toFixed(4)}</span>
@@ -1148,7 +1172,7 @@ export default function RadarPage() {
               <a href={`https://www.google.com/maps/dir/?api=1&destination=${selectedVillage.centroid[1]},${selectedVillage.centroid[0]}`} target="_blank" rel="noreferrer"
                 className="block w-full text-center py-2.5 rounded-xl bg-[#4178F3]/15 border border-[#4178F3]/40 text-[#4178F3] text-[12px] font-bold hover:bg-[#4178F3]/25">นำทางไปยังหมู่บ้าน</a>
             </div>
-          </div>
+          </section>
         )}
 
         {/* ══ POINT FORECAST ══ */}

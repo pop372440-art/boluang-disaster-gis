@@ -4,7 +4,7 @@ import {
   parseMetNorwayResponse,
   sumMetNorwayRain3h,
 } from '../lib/radar/met-norway-adapter.ts';
-import { compareRainForecasts } from '../lib/radar/forecast-model-comparison.ts';
+import { compareFreshRainForecasts, compareRainForecasts } from '../lib/radar/forecast-model-comparison.ts';
 
 const coordinate = { latitude: 18.1633, longitude: 98.3744 };
 
@@ -36,4 +36,14 @@ test('model agreement thresholds are explicit and missing data is unavailable', 
   assert.equal(compareRainForecasts(10, 15, config).agreement, 'medium');
   assert.equal(compareRainForecasts(10, 15.1, config).agreement, 'low');
   assert.equal(compareRainForecasts(null, 2, config).agreement, 'unavailable');
+});
+
+test('stale or expired model runs cannot produce an agreement label', () => {
+  const config = { highDifferenceMm: 2, mediumDifferenceMm: 5 };
+  assert.equal(compareFreshRainForecasts(10, 11, true, true, config).agreement, 'high');
+  for (const [primaryFresh, referenceFresh] of [[false, true], [true, false], [false, false]]) {
+    const result = compareFreshRainForecasts(10, 11, primaryFresh, referenceFresh, config);
+    assert.equal(result.agreement, 'unavailable');
+    assert.equal(result.differenceMm, null);
+  }
 });
