@@ -4,15 +4,16 @@ import test from 'node:test';
 import { transitionAlertState } from '../lib/radar/alert-state-machine.ts';
 import { validateAndNormalizeVillageGeoJson } from '../lib/radar/geojson-validation.ts';
 import { aggregatePolygonValues } from '../lib/radar/polygon-aggregation.ts';
-import { generateRepresentativeSamplePoints, pointInPolygon } from '../lib/radar/village-sampling.ts';
+import { pointInPolygon } from '../lib/radar/village-sampling.ts';
+import { createVillageSamplePlans } from '../lib/radar/village-forecast.ts';
 
-test('all 13 actual village polygons yield 3–5 internal representative points', async () => {
+test('all 13 actual village polygons yield 5–12 area-adaptive internal sample points', async () => {
   const raw = JSON.parse(await readFile(new URL('../public/geojson/block.json', import.meta.url), 'utf8'));
   const collection = validateAndNormalizeVillageGeoJson(raw);
-  for (const feature of collection.features) {
-    const points = generateRepresentativeSamplePoints(feature.geometry);
-    assert.ok(points.length >= 3 && points.length <= 5);
-    assert.ok(points.every((point) => pointInPolygon(point, feature.geometry)));
+  const plans = createVillageSamplePlans(collection.features);
+  for (const plan of plans) {
+    assert.ok(plan.points.length >= 5 && plan.points.length <= 12);
+    assert.ok(plan.points.every((point) => pointInPolygon(point, collection.features[plan.featureIndex].geometry)));
   }
 });
 

@@ -53,7 +53,7 @@ export function generateRepresentativeSamplePoints(
   options: SamplingOptions = {},
 ): Position[] {
   const minPoints = Math.max(3, options.minPoints ?? 3);
-  const maxPoints = Math.max(minPoints, Math.min(5, options.maxPoints ?? 5));
+  const maxPoints = Math.max(minPoints, Math.min(20, options.maxPoints ?? 5));
   const rings = exteriorRings(geometry);
   const vertices = rings.flat().filter((point, index, list) => index === 0 || distanceSquared(point, list[index - 1]) > 1e-14);
   if (!vertices.length) return [];
@@ -75,7 +75,10 @@ export function generateRepresentativeSamplePoints(
   }
 
   const candidates: Position[] = [anchor];
-  const gridRatios = [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75], [0.5, 0.5]];
+  const gridRatios: number[][] = [];
+  for (let row = 1; row <= 5; row += 1) {
+    for (let column = 1; column <= 5; column += 1) gridRatios.push([column / 6, row / 6]);
+  }
   for (const [xRatio, yRatio] of gridRatios) {
     const candidate: Position = [
       bounds.minX + (bounds.maxX - bounds.minX) * xRatio,

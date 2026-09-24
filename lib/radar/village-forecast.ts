@@ -6,6 +6,8 @@ import { aggregatePolygonValues } from './polygon-aggregation.ts';
 import { assessRisk, sumApi7 } from './risk-engine.ts';
 import { getRiskLevelDefinition, RISK_CONFIG } from './threshold-config.ts';
 import { generateRepresentativeSamplePoints } from './village-sampling.ts';
+import { findForecastStartIndex, selectNextForecastHours } from './forecast-window.ts';
+import { polygonAreaKm2 } from './spatial-summary.ts';
 
 export type VillageSamplePlan = {
   featureIndex: number;
@@ -28,6 +30,7 @@ export type VillageRiskRow = {
   rain3hMean: number | null;
   rain3hMax: number | null;
   rain3hP90: number | null;
+  representativeRain3h: number | null;
   rain24h: number | null;
   maxProb: number | null;
   api7: number | null;
@@ -56,11 +59,23 @@ type SampleMetric = {
 };
 
 export function createVillageSamplePlans(features: GeoJsonFeature[]): VillageSamplePlan[] {
-  return features.map((feature, featureIndex) => ({
-    featureIndex,
-    villageId: String(feature.properties.village_id ?? `feature-${featureIndex}`),
-    points: generateRepresentativeSamplePoints(feature.geometry, RISK_CONFIG.villageSampling),
-  }));
+  return features.map((feature, featureIndex) => {
+    const targetPoints = Math.max(
+      RISK_CONFIG.villageSampling.minPoints,
+      Math.min(
+        RISK_CONFIG.villageSampling.maxPoints,
+        Math.ceil(polygonAreaKm2(feature) / RISK_CONFIG.villageSampling.targetAreaPerPointKm2),
+      ),
+    );
+    return {
+      featureIndex,
+      villageId: String(feature.properties.village_id ?? `feature-${featureIndex}`),
+      points: generateRepresentativeSamplePoints(feature.geometry, {
+        minPoints: RISK_CONFIG.villageSampling.minPoints,
+        maxPoints: targetPoints,
+      }),
+    };
+  });
 }
 
 export function flattenSamplePlans(plans: VillageSamplePlan[]) {
@@ -81,12 +96,11 @@ function extractSampleMetric(location: OpenMeteoLocationForecast | undefined, no
   const times = location?.hourly.time ?? [];
   const precipitation = location?.hourly.precipitation ?? [];
   const probability = location?.hourly.precipitationProbability ?? [];
-  let index = times.findIndex((time) => new Date(`${time}:00+07:00`).getTime() >= now);
-  if (index < 0) index = Math.max(times.length - 4, 0);
-  const hours = [1, 2, 3].map((offset) => ({
-    time: times[index + offset] ? new Date(`${times[index + offset]}:00+07:00`) : null,
-    rain: precipitation[index + offset] ?? null,
-    prob: probability[index + offset] ?? null,
+  const index = findForecastStartIndex(times, now);
+  const hours = selectNextForecastHours(times, precipitation, probability, now).map((hour) => ({
+    time: hour.time,
+    rain: hour.rain,
+    prob: hour.probability,
   }));
   const rain3h = hours.every((hour) => hour.rain != null)
     ? hours.reduce((sum, hour) => sum + (hour.rain as number), 0)
@@ -174,6 +188,7 @@ export function aggregateVillageForecasts(input: {
       rain3hMean: rain3h.mean,
       rain3hMax: rain3h.max,
       rain3hP90: rain3h.p90,
+      representativeRain3h: sampleMetrics[0]?.rain3h ?? null,
       rain24h: rain24h.selected,
       maxProb: probability.selected,
       api7: api7.selected,
