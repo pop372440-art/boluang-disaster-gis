@@ -148,7 +148,7 @@ export default function RadarPage() {
   const [speed, setSpeed] = useState(1100);
   const [blockedNow, setBlockedNow] = useState(false);
 
-  const [mapStyle, setMapStyle] = useState<BasemapId>('satellite');
+  const [mapStyle, setMapStyle] = useState<BasemapId>('light');
   const [showRadar, setShowRadar] = useState(true);
   const [radarOpacity, setRadarOpacity] = useState(0.72);
   const [radarQuality, setRadarQuality] = useState<Quality>('bilinear');
@@ -169,7 +169,7 @@ export default function RadarPage() {
   const [isLegendOpen, setIsLegendOpen] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isMapFocus, setIsMapFocus] = useState(false);
-  const [scope, setScope] = useState<'village' | 'tambon'>('village');
+  const [scope, setScope] = useState<'village' | 'tambon' | 'station'>('village');
   const [mapZoom, setMapZoom] = useState(12);
 
   const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -837,11 +837,11 @@ export default function RadarPage() {
   );
 
   return (
-    <div className="liquid-radar relative w-screen h-screen bg-[#07111f] overflow-hidden text-white flex flex-col select-none">
+    <div className="liquid-radar relative w-screen h-screen bg-[#E8EDF2] overflow-hidden text-white flex flex-col select-none">
       <style dangerouslySetInnerHTML={{ __html: `
         .liquid-radar {
-          --glass: rgba(8, 20, 36, .82);
-          --glass-strong: rgba(6, 16, 30, .92);
+          --glass: rgba(31, 37, 43, .97);
+          --glass-strong: rgba(25, 31, 37, .98);
           --glass-soft: rgba(255, 255, 255, .075);
           --glass-line: rgba(255, 255, 255, .18);
           --glass-line-soft: rgba(255, 255, 255, .09);
@@ -849,27 +849,26 @@ export default function RadarPage() {
           --muted: #aebbd0;
           --accent: #65b8ff;
           font-family: inherit;
-          background: radial-gradient(circle at 22% 0%, #183c61 0, #07111f 34%, #030812 100%);
+          background:#e8edf2;
         }
         .liquid-radar::before {
           content:''; position:absolute; inset:0; z-index:1; pointer-events:none;
-          background:linear-gradient(180deg,rgba(5,12,22,.06),rgba(2,7,14,.34));
+          background:linear-gradient(180deg,rgba(15,23,42,.02),transparent 18%,transparent 82%,rgba(15,23,42,.04));
         }
-        .leaflet-container { background:#07111f !important; }
+        .leaflet-container { background:#e8edf2 !important; }
         .leaflet-tile-pane, .leaflet-overlay-pane { cursor:crosshair; }
         .leaflet-control-attribution { background:rgba(7,17,31,.68) !important; backdrop-filter:blur(16px) saturate(150%); color:#aebbd0 !important; font-size:9px !important; padding:3px 8px !important; border:1px solid rgba(255,255,255,.1); border-radius:9px 0 0 0 !important; }
         .leaflet-control-attribution a { color:#65b8ff !important; }
         .ops-panel {
-          background:linear-gradient(145deg,rgba(255,255,255,.105),rgba(255,255,255,.035)),var(--glass);
-          border:1px solid var(--glass-line); border-radius:22px;
-          box-shadow:0 16px 42px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.14);
-          backdrop-filter:blur(18px) saturate(145%); -webkit-backdrop-filter:blur(18px) saturate(145%);
+          background:var(--glass);
+          border:1px solid rgba(255,255,255,.12); border-radius:12px;
+          box-shadow:0 12px 32px rgba(15,23,42,.26), inset 0 1px 0 rgba(255,255,255,.05);
         }
         .liquid-bar {
-          background:linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.045)),var(--glass-strong);
-          border:1px solid var(--glass-line); box-shadow:0 14px 38px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.16);
-          backdrop-filter:blur(18px) saturate(145%); -webkit-backdrop-filter:blur(18px) saturate(145%);
+          background:var(--glass-strong);
+          border:1px solid rgba(255,255,255,.12); box-shadow:0 10px 26px rgba(15,23,42,.22);
         }
+        .ops-topbar { background:rgba(255,255,255,.98); border-bottom:1px solid #d9e1ea; box-shadow:0 4px 16px rgba(15,23,42,.10); }
         .liquid-subpanel { background:rgba(255,255,255,.055) !important; border-color:var(--glass-line-soft) !important; }
         .ops-checkbox { appearance:none; width:18px; height:18px; border:1.5px solid rgba(255,255,255,.3); border-radius:6px; background:rgba(255,255,255,.06); cursor:pointer; position:relative; transition:.2s; }
         .ops-checkbox:checked { background:linear-gradient(145deg,#78c8ff,#278be8); border-color:#9bd7ff; box-shadow:0 0 14px rgba(69,166,255,.42); }
@@ -887,8 +886,8 @@ export default function RadarPage() {
         @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
         .animate-fade-in { animation: fadeIn .25s ease-out; }
         @media (max-width: 767px) {
-          .liquid-bar { border-radius:0 0 22px 22px; }
-          .ops-panel { border-radius:19px; }
+          .liquid-bar { border-radius:0 0 18px 18px; }
+          .ops-panel { border-radius:12px; }
         }
         @media (prefers-reduced-motion: reduce) {
           .animate-fade-in, .animate-pulse, .animate-ping, .animate-spin { animation:none !important; }
@@ -899,32 +898,34 @@ export default function RadarPage() {
       {/* ══ TOP BAR ══ */}
       <div className="absolute top-0 left-0 w-full h-8 z-[1999]" onMouseEnter={() => setIsTopHeaderVisible(true)} />
       <header
-        className={`liquid-bar absolute top-2 md:top-3 left-1/2 -translate-x-1/2 w-[calc(100%-16px)] md:w-[96%] max-w-[1320px] min-h-[72px] rounded-[22px] z-[2000] flex items-center justify-between px-3 md:px-5 py-2 transition-transform duration-500 ${isTopHeaderVisible && !isMapFocus ? 'translate-y-0' : '-translate-y-[120%]'}`}>
-        <div className="flex items-center space-x-4">
-          <div className="w-11 h-11 bg-white/10 rounded-[14px] border border-white/20 flex items-center justify-center p-1.5 shadow-inner">
+        className={`ops-topbar absolute top-0 left-0 w-full min-h-[72px] z-[2000] flex items-center justify-between px-3 md:px-6 py-2 transition-transform duration-500 ${isTopHeaderVisible && !isMapFocus ? 'translate-y-0' : '-translate-y-full'}`}>
+        <div className="flex min-w-0 items-center space-x-3 md:space-x-4">
+          <div className="w-11 h-11 md:w-12 md:h-12 bg-white rounded-full border border-[#D7E0EA] flex items-center justify-center p-1 shadow-sm shrink-0">
             <Image src="/Logogis3.png" alt="ตราสัญลักษณ์ระบบ GIS เทศบาลตำบลบ่อหลวง" width={36} height={36} priority className="w-full h-full object-contain opacity-95" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-[14px] md:text-[15px] font-bold tracking-[-.01em] text-[#F5F8FF]">
-                Bo Luang Radar <span className="hidden lg:inline font-medium text-[#C7D2E5]">· Observation & Village Forecast</span>
+              <h1 className="truncate text-[13px] md:text-[15px] font-extrabold tracking-[-.01em] text-[#173B69]">
+                BO LUANG RADAR <span className="hidden lg:inline font-semibold text-[#52657B]">· OBSERVATION & VILLAGE FORECAST</span>
               </h1>
-              <span className="hidden sm:inline-flex rounded-full border border-cyan-200/25 bg-cyan-300/10 px-2 py-0.5 text-[8px] font-bold tracking-[.12em] text-cyan-100">PUBLIC BETA</span>
-              <span className="hidden md:inline-flex rounded-full border border-amber-200/30 bg-amber-300/10 px-2 py-0.5 text-[9px] font-bold text-amber-100">เกณฑ์ทดลอง · ยังไม่ validated</span>
+              <span className="hidden sm:inline-flex rounded-md border border-[#BBD7F7] bg-[#EAF4FF] px-2 py-0.5 text-[8px] font-bold tracking-[.12em] text-[#1D65A6]">PUBLIC BETA</span>
+              <span className="hidden xl:inline-flex rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[9px] font-bold text-amber-700">เกณฑ์ทดลอง · ยังไม่ validated</span>
             </div>
-            <p className="text-[10px] md:text-[11px] text-[#AEBBD0] mt-1">เทศบาลตำบลบ่อหลวง · เครื่องมือสนับสนุนการตัดสินใจ</p>
+            <p className="mt-0.5 truncate text-[10px] md:text-[11px] text-[#66788B]">ระบบเฝ้าระวังฝนและสาธารณภัย · เทศบาลตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่</p>
           </div>
         </div>
-        <div className="flex items-center space-x-3">
-          <div className="hidden lg:flex items-center space-x-2">
-            <span className="text-[#8B94A5] font-bold text-[11px] uppercase">อัปเดต</span>
-            <div className="px-3 py-1.5 bg-[#111319] border border-[#333946] text-[#4178F3] rounded-lg font-mono font-bold text-[12px]">{fmtTime(riskUpdatedAt)} น.</div>
+        <div className="ml-3 flex shrink-0 items-center space-x-2">
+          <div className="hidden lg:flex items-center gap-2 rounded-lg border border-[#D6E0EB] bg-[#F6F9FC] px-3 py-1.5">
+            <span className="text-[10px] font-semibold text-[#64748B]">ข้อมูล ณ วันที่</span>
+            <span className="text-[11px] font-bold text-[#173B69]">{fmtDate(riskUpdatedAt)}</span>
+            <span className="h-4 w-px bg-[#D6E0EB]" />
+            <span className="font-mono text-[11px] font-bold text-[#1D65A6]">{fmtTime(riskUpdatedAt)} น.</span>
           </div>
-          <button onClick={() => setReloadToken((token) => token + 1)} className="flex items-center px-3 md:px-4 py-2 bg-white/8 border border-white/15 text-[#E8F1FF] hover:bg-white/14 rounded-[14px] font-semibold space-x-2 shadow-inner" aria-label="โหลดข้อมูล Radar และ Forecast ใหม่">
+          <button onClick={() => setReloadToken((token) => token + 1)} className="flex items-center px-3 md:px-4 py-2 bg-white border border-[#C9D6E3] text-[#234566] hover:bg-[#F2F7FC] rounded-lg font-semibold space-x-2 shadow-sm" aria-label="โหลดข้อมูล Radar และ Forecast ใหม่">
             <svg className={`w-4 h-4 ${riskLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M19.418 9A7.003 7.003 0 006 7.293M4.582 15A7.003 7.003 0 0018 16.707" /></svg>
             <span className="hidden md:inline text-[12px]">รีเฟรช</span>
           </button>
-          <button onClick={() => setIsStatsModalOpen(true)} className="hidden sm:flex items-center px-4 py-2 bg-[#4AAEFF]/12 border border-[#70C1FF]/25 text-[#8FD1FF] hover:bg-[#4AAEFF]/20 rounded-[14px] font-semibold space-x-2">
+          <button onClick={() => setIsStatsModalOpen(true)} className="hidden sm:flex items-center px-4 py-2 bg-[#1D65A6] border border-[#15568F] text-white hover:bg-[#15568F] rounded-lg font-semibold space-x-2 shadow-sm">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2-2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
             <span className="text-[12px]">สถิติ</span>
           </button>
@@ -1008,7 +1009,7 @@ export default function RadarPage() {
           </MapContainer>
         </div>
 
-        <div className={`absolute top-[86px] md:top-[94px] left-1/2 -translate-x-1/2 z-[1300] items-center gap-1.5 w-[94%] md:w-auto max-w-[94%] overflow-x-auto ops-scroll pb-1 ${isMapFocus ? 'hidden' : 'flex'}`}>
+        <div className={`absolute top-[80px] left-[356px] right-4 xl:right-[438px] z-[1300] items-center justify-center gap-1.5 overflow-x-auto ops-scroll pb-1 ${isMapFocus ? 'hidden' : 'hidden md:flex'}`}>
           <DataStatusBadge status={radarStatus} />
           <DataStatusBadge status={forecastStatus} />
           <DataStatusBadge status={metNorwayStatus} />
@@ -1024,7 +1025,7 @@ export default function RadarPage() {
         )}
 
         {healthStatus.status === 'degraded' && (
-          <div className="liquid-bar absolute top-[86px] md:top-[132px] left-1/2 -translate-x-1/2 z-[1350] w-[92%] max-w-[660px] rounded-2xl border-orange-300/35 px-3 py-2 text-[11px] text-orange-100 flex items-center gap-2" role="status">
+          <div className="liquid-bar absolute top-[124px] left-1/2 -translate-x-1/2 z-[1350] w-[92%] max-w-[660px] rounded-xl border-orange-300/35 px-3 py-2 text-[11px] text-orange-100 flex items-center gap-2" role="status">
             <span aria-hidden="true">⚠️</span>
             <span className="flex-1">โหมดจำกัด: แหล่งข้อมูลบางส่วนไม่พร้อม ระบบจะไม่ใช้ข้อมูลเก่าหรือข้อมูลผิดพลาดออกสัญญาณเตือน</span>
             <button onClick={() => setReloadToken((token) => token + 1)} className="rounded-lg border border-orange-300/50 px-2 py-1 font-bold">ลองใหม่</button>
@@ -1055,7 +1056,7 @@ export default function RadarPage() {
 
         {/* ══ LAYER PANEL ══ */}
         {isLayerMenuOpen ? (
-          <div className="absolute top-[94px] left-5 z-[1000] w-[304px] ops-panel flex-col hidden md:flex">
+          <div className="absolute top-[80px] left-3 z-[1000] w-[332px] ops-panel flex-col hidden md:flex">
             <div className="px-5 py-3.5 border-b border-white/10 flex justify-between items-center liquid-subpanel rounded-t-[22px]">
               <h3 className="text-[13px] font-bold text-[#E5E7EB] flex items-center">
                 <svg className="w-4 h-4 mr-2 text-[#4178F3]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
@@ -1133,17 +1134,18 @@ export default function RadarPage() {
             </div>
           </div>
         ) : (
-          <button onClick={() => setIsLayerMenuOpen(true)} className={`absolute top-5 left-5 z-[1000] p-2.5 bg-[#1A1D24]/90 backdrop-blur-md border border-[#333946] rounded-xl text-[#E5E7EB] hover:bg-[#232732] ${isMapFocus ? 'hidden' : 'hidden md:block'}`}>
+          <button onClick={() => setIsLayerMenuOpen(true)} className={`absolute top-[80px] left-3 z-[1000] p-2.5 bg-[#1F252B] border border-[#3B4651] rounded-lg text-[#E5E7EB] hover:bg-[#2B333B] ${isMapFocus ? 'hidden' : 'hidden md:block'}`}>
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
           </button>
         )}
 
         {/* ══ RANKING PANEL ══ */}
         {isTablePanelOpen && !selectedVillage ? (
-          <div className="absolute top-[94px] right-5 z-[900] w-[404px] ops-panel flex-col hidden xl:flex overflow-hidden">
+          <div className="absolute top-[80px] right-3 z-[900] w-[414px] ops-panel flex-col hidden xl:flex overflow-hidden">
             <div className="flex border-b border-[#333946] bg-[#111319]">
-              <button onClick={() => setScope('village')} className={`px-5 py-3 text-[12px] font-bold ${scope === 'village' ? 'text-[#4178F3] border-b-2 border-[#4178F3] bg-[#1A1D24]' : 'text-[#8B94A5] hover:text-[#E5E7EB]'}`}>รายหมู่บ้าน</button>
-              <button onClick={() => setScope('tambon')} className={`px-5 py-3 text-[12px] font-bold ${scope === 'tambon' ? 'text-[#4178F3] border-b-2 border-[#4178F3] bg-[#1A1D24]' : 'text-[#8B94A5] hover:text-[#E5E7EB]'}`}>สรุประดับตำบล</button>
+              <button onClick={() => setScope('village')} className={`px-4 py-3 text-[12px] font-bold ${scope === 'village' ? 'text-[#65B8FF] border-b-2 border-[#65B8FF] bg-[#1A1D24]' : 'text-[#8B94A5] hover:text-[#E5E7EB]'}`}>เรดาร์รายหมู่บ้าน</button>
+              <button onClick={() => setScope('station')} className={`px-4 py-3 text-[12px] font-bold ${scope === 'station' ? 'text-[#65B8FF] border-b-2 border-[#65B8FF] bg-[#1A1D24]' : 'text-[#8B94A5] hover:text-[#E5E7EB]'}`}>สถานีจริง</button>
+              <button onClick={() => setScope('tambon')} className={`px-4 py-3 text-[12px] font-bold ${scope === 'tambon' ? 'text-[#65B8FF] border-b-2 border-[#65B8FF] bg-[#1A1D24]' : 'text-[#8B94A5] hover:text-[#E5E7EB]'}`}>ภาพรวม</button>
               <button onClick={() => setIsTablePanelOpen(false)} className="ml-auto px-4 text-[#8B94A5] hover:text-[#EF4444]">
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z" /></svg>
               </button>
@@ -1162,6 +1164,47 @@ export default function RadarPage() {
                   </div>
                   <RankTable />
                 </>
+              ) : scope === 'station' ? (
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-[14px] font-bold text-[#E5E7EB]">สถานีตรวจวัดจริง บ้านนาฟ่อน</h3>
+                      <p className="mt-1 text-[10.5px] text-[#8B94A5]">ThaiWater · STN0583 · ไม่ใช่ข้อมูลแบบจำลอง</p>
+                    </div>
+                    <span className={`rounded px-2 py-1 text-[9px] font-bold ${gaugeSourceStatus.state === 'fresh' ? 'bg-emerald-400/15 text-emerald-300' : gaugeSourceStatus.state === 'error' ? 'bg-red-400/15 text-red-300' : 'bg-amber-400/15 text-amber-200'}`}>{gaugeLayerBadge}</span>
+                  </div>
+                  {gaugeStatus ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-lg border border-[#3B4651] bg-[#161B20] p-3 text-center">
+                          <p className="text-[10.5px] text-[#8B94A5]">ฝนตรวจวัด 1 ชม.</p>
+                          <p className="mt-1 font-mono text-[24px] font-black text-cyan-200">{fmtNumber(gaugeStatus.measurements.rain1hMm)} <span className="text-[11px] font-medium text-[#8B94A5]">มม.</span></p>
+                        </div>
+                        <div className="rounded-lg border border-[#3B4651] bg-[#161B20] p-3 text-center">
+                          <p className="text-[10.5px] text-[#8B94A5]">ฝนตรวจวัด 24 ชม.</p>
+                          <p className="mt-1 font-mono text-[24px] font-black text-cyan-200">{fmtNumber(gaugeStatus.measurements.rain24hMm)} <span className="text-[11px] font-medium text-[#8B94A5]">มม.</span></p>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5 rounded-lg border border-[#3B4651] bg-[#161B20] p-3 text-[11px] leading-relaxed text-[#AEBBD0]">
+                        <p>เวลาอ่านค่า: <span className="text-white">{fmtDate(new Date(gaugeStatus.station.observedAt))} {fmtTime(new Date(gaugeStatus.station.observedAt))} น.</span></p>
+                        <p>หน่วยงาน: <span className="text-white">{gaugeStatus.station.agencyName ?? 'ไม่ระบุ'}</span></p>
+                        <p>ข้อมูลสะสม: <span className="text-white">{gaugeStatus.validation.observationCount.toLocaleString()} ระเบียน</span></p>
+                        <p>พิกัด: <span className="font-mono text-white">{gaugeStatus.station.latitude.toFixed(5)}, {gaugeStatus.station.longitude.toFixed(5)}</span></p>
+                      </div>
+                      <div className="rounded-lg border border-amber-300/30 bg-amber-300/10 p-3 text-[11px] leading-relaxed text-amber-100">
+                        กำลังสะสมข้อมูลจริง · เกณฑ์ความเสี่ยงยังไม่ validated และยังไม่ใช้ยกระดับ Alert อัตโนมัติ
+                      </div>
+                      <button onClick={() => mapRef.current?.flyTo([gaugeStatus.station.latitude, gaugeStatus.station.longitude], 15, { duration: 1.1 })}
+                        className="w-full rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-2 text-[11px] font-bold text-cyan-100 hover:bg-cyan-300/15">
+                        แสดงตำแหน่งสถานีบนแผนที่
+                      </button>
+                    </>
+                  ) : (
+                    <div className="rounded-lg border border-[#3B4651] bg-[#161B20] p-6 text-center text-[12px] text-[#AEBBD0]">
+                      {gaugeSourceStatus.state === 'error' ? gaugeSourceStatus.error ?? 'อ่านข้อมูลสถานีไม่สำเร็จ' : 'กำลังโหลดข้อมูลสถานีตรวจวัดจริง...'}
+                    </div>
+                  )}
+                </div>
               ) : tambonSummary ? (
                 <div className="space-y-4">
                   <h3 className="text-[13.5px] font-bold text-[#E5E7EB]">ภาพรวม ต.บ่อหลวง (3 ชม. ล่วงหน้า)</h3>
@@ -1202,14 +1245,14 @@ export default function RadarPage() {
             </div>
           </div>
         ) : !selectedVillage ? (
-          <button onClick={() => setIsTablePanelOpen(true)} className="absolute top-5 right-5 z-[900] px-4 py-2.5 bg-[#1A1D24]/90 backdrop-blur-md border border-[#333946] rounded-xl text-[12px] font-bold text-[#E5E7EB] hidden xl:block hover:bg-[#232732]">
+          <button onClick={() => setIsTablePanelOpen(true)} className="absolute top-[80px] right-3 z-[900] px-4 py-2.5 bg-[#1F252B] border border-[#3B4651] rounded-lg text-[12px] font-bold text-[#E5E7EB] hidden xl:block hover:bg-[#2B333B]">
             อันดับหมู่บ้านเสี่ยง
           </button>
         ) : null}
 
         {/* ══ VILLAGE DETAIL ══ */}
         {selectedVillage && (
-          <section role="dialog" aria-modal="true" aria-label={`รายละเอียด${selectedVillage.name}`} className="absolute inset-x-2 top-[84px] bottom-[84px] z-[1500] md:inset-x-auto md:bottom-auto md:top-[112px] md:right-5 w-auto md:w-[392px] max-h-[calc(100dvh-168px)] md:max-h-[calc(100dvh-128px)] min-h-0 flex flex-col overflow-hidden ops-panel animate-fade-in" style={{ borderColor: `${selectedVillage.level.color}66` }}>
+          <section role="dialog" aria-modal="true" aria-label={`รายละเอียด${selectedVillage.name}`} className="absolute inset-x-2 top-[76px] bottom-[84px] z-[1500] md:inset-x-auto md:bottom-auto md:top-[80px] md:right-3 w-auto md:w-[402px] max-h-[calc(100dvh-168px)] md:max-h-[calc(100dvh-96px)] min-h-0 flex flex-col overflow-hidden ops-panel animate-fade-in" style={{ borderColor: `${selectedVillage.level.color}66` }}>
             <div className="px-5 py-4 border-b border-[#333946] flex justify-between items-center bg-[#232732] rounded-t-xl shrink-0">
               <div className="flex items-center space-x-3 min-w-0">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center border text-[13px] font-black shrink-0"
@@ -1383,7 +1426,7 @@ export default function RadarPage() {
         )}
 
         {/* ══ MAP TOOLS ══ */}
-        <div className="absolute bottom-[160px] md:bottom-32 right-5 z-[900] flex flex-col space-y-2">
+        <div className="absolute bottom-[160px] md:bottom-5 right-3 z-[900] flex flex-col space-y-2">
           <div className="bg-[#1A1D24]/90 backdrop-blur-md border border-[#333946] rounded-xl flex flex-col overflow-hidden">
             <button onClick={fitOperationalBoundary} aria-label="แสดงขอบเขตตำบลทั้งหมด" title="แสดงขอบเขตตำบลทั้งหมด" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
@@ -1405,7 +1448,7 @@ export default function RadarPage() {
 
         {/* ══ LEGEND ══ */}
         {isLegendOpen && !isMapFocus && (
-          <div className="absolute bottom-8 left-5 z-[900] ops-panel px-3 py-3 w-[188px] bg-[#1A1D24]/95 backdrop-blur-md hidden lg:block">
+          <div className="absolute bottom-4 left-3 z-[900] ops-panel px-3 py-3 w-[196px] hidden lg:block">
             <h3 className="text-[11.5px] font-bold text-[#E5E7EB] mb-2">ระดับความรุนแรงฝน</h3>
             <div className="space-y-1">
               {RAIN_BANDS.map((b) => (
@@ -1438,7 +1481,7 @@ export default function RadarPage() {
         )}
 
         {/* ══ TIMELINE PLAYER ══ */}
-        <div className="absolute bottom-[92px] md:bottom-8 left-1/2 -translate-x-1/2 w-[92%] max-w-[620px] z-[1000]">
+        <div className="absolute bottom-[92px] md:bottom-4 left-1/2 -translate-x-1/2 w-[92%] max-w-[680px] z-[1000]">
           <div className="ops-panel overflow-hidden">
             <div className="px-5 py-2.5 border-b border-[#333946] flex items-center justify-between gap-2">
               <span className="text-[12.5px] font-bold text-[#E5E7EB] truncate">
@@ -1540,33 +1583,43 @@ export default function RadarPage() {
 
       {/* ══ STATS MODAL ══ */}
       {isStatsModalOpen && (
-        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setIsStatsModalOpen(false)}>
-          <div className="bg-white rounded-2xl w-[90%] max-w-[520px] shadow-2xl overflow-hidden animate-fade-in" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-5 flex justify-between items-center border-b border-gray-100 bg-gray-50/50">
-              <h2 className="text-[17px] font-extrabold text-gray-800">สถิติการใช้งาน</h2>
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-[#18212B]/55 backdrop-blur-sm" onClick={() => setIsStatsModalOpen(false)}>
+          <div className="bg-white rounded-[18px] w-[92%] max-w-[680px] shadow-2xl overflow-hidden animate-fade-in border border-[#D8E1EB]" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 md:px-6 py-4 flex justify-between items-center border-b border-[#E4EAF0] bg-white">
+              <div>
+                <h2 className="text-[17px] font-extrabold text-[#172B43]">สถิติการใช้งาน</h2>
+                <p className="mt-0.5 text-[10px] text-[#718096]">อัปเดตล่าสุด {fmtTime(riskUpdatedAt)} น.</p>
+              </div>
               <button onClick={() => setIsStatsModalOpen(false)} className="text-gray-400 hover:text-white bg-gray-100 hover:bg-red-500 p-1.5 rounded-lg transition-all">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div className="p-6">
+            <div className="bg-[#F7F9FC] p-5 md:p-6">
+              <div className="mb-4 inline-flex rounded-lg border border-[#D8E1EB] bg-white p-1 text-[11px] font-bold">
+                <span className="rounded-md bg-[#E8F3FF] px-4 py-1.5 text-[#1D65A6]">วันนี้</span>
+                <span className="px-4 py-1.5 text-[#718096]">ยอดสะสม</span>
+              </div>
               {realStats.isLoading ? (
                 <p className="py-12 text-center text-gray-500 text-[13px] font-bold animate-pulse">กำลังเชื่อมต่อฐานข้อมูล...</p>
               ) : (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
-                    { l: 'ยอดเข้าชมสะสม', v: realStats.totalVisits, u: 'ครั้ง', bg: 'bg-blue-50', bd: 'border-blue-100', tx: 'text-blue-600' },
-                    { l: 'ผู้เข้าชมสะสม', v: realStats.totalUniqueVisitors, u: 'คน', bg: 'bg-emerald-50', bd: 'border-emerald-100', tx: 'text-emerald-600' },
-                    { l: 'ยอดเข้าชมวันนี้', v: realStats.todayVisits, u: 'ครั้ง', bg: 'bg-purple-50', bd: 'border-purple-100', tx: 'text-purple-600' },
-                    { l: 'ผู้เข้าชมวันนี้', v: realStats.todayUniqueVisitors, u: 'คน', bg: 'bg-orange-50', bd: 'border-orange-100', tx: 'text-orange-600' },
+                    { l: 'ยอดเข้าชมวันนี้', v: realStats.todayVisits, u: 'ครั้ง', bg: 'bg-sky-50', bd: 'border-sky-200', tx: 'text-sky-700' },
+                    { l: 'ผู้เข้าชมวันนี้', v: realStats.todayUniqueVisitors, u: 'คน', bg: 'bg-emerald-50', bd: 'border-emerald-200', tx: 'text-emerald-700' },
+                    { l: 'ยอดเข้าชมสะสม', v: realStats.totalVisits, u: 'ครั้ง', bg: 'bg-purple-50', bd: 'border-purple-200', tx: 'text-purple-700' },
+                    { l: 'ผู้เข้าชมสะสม', v: realStats.totalUniqueVisitors, u: 'คน', bg: 'bg-amber-50', bd: 'border-amber-200', tx: 'text-amber-700' },
                   ].map((s) => (
-                    <div key={s.l} className={`${s.bg} border ${s.bd} rounded-2xl p-4`}>
-                      <p className={`text-[12px] ${s.tx} font-bold mb-1`}>{s.l}</p>
-                      <p className="text-[26px] font-black text-gray-800">{s.v.toLocaleString()}</p>
+                    <div key={s.l} className={`${s.bg} border ${s.bd} rounded-xl p-3.5`}>
+                      <p className={`text-[11px] ${s.tx} font-bold mb-1`}>{s.l}</p>
+                      <p className="text-[24px] font-black text-[#172B43]">{s.v.toLocaleString()}</p>
                       <p className="text-[11px] text-gray-500 mt-1">{s.u}</p>
                     </div>
                   ))}
                 </div>
               )}
+              <div className="mt-4 rounded-xl border border-[#D8E1EB] bg-white p-4 text-[11px] leading-relaxed text-[#66788B]">
+                ตัวเลขแสดงเฉพาะข้อมูลที่ระบบบันทึกจริง ไม่มีการประมาณจำนวนผู้ใช้หรือสร้างข้อมูลสถิติจำลอง
+              </div>
             </div>
           </div>
         </div>
