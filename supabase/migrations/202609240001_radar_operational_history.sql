@@ -71,6 +71,10 @@ create index if not exists radar_snapshots_village_time_idx
   on public.radar_village_snapshots (village_id, observed_at desc);
 create index if not exists radar_alert_events_village_time_idx
   on public.radar_alert_events (village_id, created_at desc);
+create index if not exists radar_alert_events_actor_idx
+  on public.radar_alert_events (actor_id);
+create index if not exists radar_alert_events_snapshot_idx
+  on public.radar_alert_events (snapshot_id);
 create index if not exists radar_gauges_station_time_idx
   on public.radar_gauge_observations (station_id, observed_at desc);
 
@@ -88,6 +92,26 @@ create policy "authenticated operators can read alert state"
   on public.radar_alert_states for select to authenticated using (true);
 create policy "authenticated operators can read alert audit events"
   on public.radar_alert_events for select to authenticated using (true);
+
+-- Keep API privileges explicit. RLS remains the row-level enforcement layer,
+-- while grants prevent clients from attempting operations they never need.
+revoke all on table
+  public.radar_forecast_runs,
+  public.radar_village_snapshots,
+  public.radar_alert_states,
+  public.radar_alert_events,
+  public.radar_gauge_observations
+from anon, authenticated;
+
+grant select on table
+  public.radar_forecast_runs,
+  public.radar_village_snapshots
+to anon, authenticated;
+
+grant select on table
+  public.radar_alert_states,
+  public.radar_alert_events
+to authenticated;
 
 -- Writes intentionally have no client policy. A reviewed server-side ingestion
 -- worker uses the service role; never expose that key to the browser.
