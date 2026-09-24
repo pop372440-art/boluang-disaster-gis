@@ -746,6 +746,9 @@ export default function RadarPage() {
     ? ((radarData.pastCount - 1) / (radarData.frames.length - 1)) * 100
     : 100;
   const bm = BASEMAPS[mapStyle];
+  const gaugeLayerBadge = gaugeSourceStatus.state === 'fresh' ? 'พร้อมใช้' :
+    gaugeSourceStatus.state === 'stale' ? 'ข้อมูลเก่า' :
+    gaugeSourceStatus.state === 'error' ? 'ไม่พร้อม' : 'กำลังโหลด';
 
   /* ═══════════ UI PARTS ═══════════ */
   const LayerToggle = ({ label, checked, onChange, badge, disabled = false }: any) => (
@@ -1109,7 +1112,7 @@ export default function RadarPage() {
                 </div>
 
                 <LayerToggle label="ฝนสะสมคาดการณ์ 3 ชม. (รายหมู่บ้าน)" checked={showRisk} onChange={(e: any) => setShowRisk(e.target.checked)} badge="FORECAST" />
-                <LayerToggle label="สถานีตรวจวัดจริง (STN0583)" checked={showGaugeStation} onChange={(e: any) => setShowGaugeStation(e.target.checked)} badge="OBSERVED" />
+                <LayerToggle label="สถานีตรวจวัดจริง (STN0583)" checked={showGaugeStation} onChange={(e: any) => setShowGaugeStation(e.target.checked)} badge={gaugeLayerBadge} />
                 <LayerToggle label="ป้ายชื่อหมู่บ้าน" checked={showLabels} onChange={(e: any) => setShowLabels(e.target.checked)} />
                 <div className="border-t border-[#333946] my-3" />
                 <LayerToggle label="ขอบเขตตำบลบ่อหลวง" checked={showBoluang} onChange={(e: any) => setShowBoluang(e.target.checked)} />
