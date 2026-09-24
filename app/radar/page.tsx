@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import 'leaflet/dist/leaflet.css';
-import { useMapEvents, useMap } from 'react-leaflet';
 import { createClient } from '@supabase/supabase-js';
 import { evaluateFreshness } from '@/lib/radar/data-freshness';
 import { validateAndNormalizeVillageGeoJson, validatePolygonFeatureCollection } from '@/lib/radar/geojson-validation';
@@ -21,6 +20,9 @@ import {
   aggregateMetNorwayDailyRain,
 } from '@/lib/radar/met-norway-adapter';
 import { buildLongRangeOutlook } from '@/lib/radar/long-range-outlook';
+import { selectNextForecastHours } from '@/lib/radar/forecast-window';
+import { summarizeTambonRisk } from '@/lib/radar/spatial-summary';
+import { landslideFeatureStyle } from '@/lib/radar/landslide-style';
 import {
   clampAnimationFrameMs,
   selectEffectiveRadarQuality,
@@ -36,6 +38,7 @@ import {
   isRadarTileBlocked,
   pruneRadarFrameCache,
 } from '@/components/radar/radarClientCache';
+import { ClickableMap, MapRefBinder, MapScale } from '@/components/radar/MapRuntimeControls';
 
 /* ═══════════════════════════ SUPABASE ═══════════════════════════ */
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -65,10 +68,10 @@ const fmtDate = (value: Date | number | null | undefined) => {
 };
 /* ═══════════════════════ BASEMAPS ═══════════════════════ */
 const BASEMAPS = {
-  light: { name: 'Light', swatch: 'bg-[#E5E7EB]', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', subdomains: 'abcd', maxNativeZoom: 20, attr: '&copy; OSM &copy; CARTO', labels: '' },
-  terrain: { name: 'Terrain', swatch: 'bg-[#8F9779]', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', subdomains: '', maxNativeZoom: 19, attr: 'Tiles &copy; Esri', labels: '' },
-  satellite: { name: 'Satellite', swatch: 'bg-[#2D4C1E]', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains: '', maxNativeZoom: 19, attr: 'Tiles &copy; Esri, Maxar', labels: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}' },
-  dark: { name: 'Dark', swatch: 'bg-[#111319]', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png', subdomains: 'abcd', maxNativeZoom: 20, attr: '&copy; OSM &copy; CARTO', labels: '' },
+  light: { name: 'ถนน', swatch: 'bg-[#E5E7EB]', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', subdomains: 'abcd', maxNativeZoom: 20, attr: '&copy; OSM &copy; CARTO', labels: '' },
+  terrain: { name: 'ภูมิประเทศ', swatch: 'bg-[#8F9779]', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', subdomains: '', maxNativeZoom: 19, attr: 'Tiles &copy; Esri', labels: '' },
+  satellite: { name: 'ดาวเทียม', swatch: 'bg-[#2D4C1E]', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains: '', maxNativeZoom: 19, attr: 'Tiles &copy; Esri, Maxar', labels: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}' },
+  dark: { name: 'กลางคืน', swatch: 'bg-[#111319]', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png', subdomains: 'abcd', maxNativeZoom: 20, attr: '&copy; OSM &copy; CARTO', labels: '' },
 } as const;
 type BasemapId = keyof typeof BASEMAPS;
 
@@ -115,21 +118,6 @@ const SCHEMES = [
   { v: 6, t: 'NEXRAD III' }, { v: 7, t: 'Rainbow' }, { v: 8, t: 'Dark Sky' },
 ];
 
-const ClickableMap = ({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) => {
-  useMapEvents({ click(e) { onMapClick(e.latlng.lat, e.latlng.lng); } });
-  return null;
-};
-
-const MapRefBinder = ({ mapRef }: { mapRef: React.MutableRefObject<any> }) => {
-  const map = useMap();
-  useEffect(() => {
-    mapRef.current = map;
-    setTimeout(() => map.invalidateSize(), 0);
-    return () => { mapRef.current = null; };
-  }, [map, mapRef]);
-  return null;
-};
-
 const initialSourceStatus = (source: string): DataSourceStatus => ({
   state: 'idle',
   source,
@@ -174,7 +162,9 @@ export default function RadarPage() {
   const [isTablePanelOpen, setIsTablePanelOpen] = useState(true);
   const [isLegendOpen, setIsLegendOpen] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isMapFocus, setIsMapFocus] = useState(false);
   const [scope, setScope] = useState<'village' | 'tambon'>('village');
+  const [mapZoom, setMapZoom] = useState(12);
 
   const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [forecastData, setForecastData] = useState<any>(null);
@@ -191,6 +181,7 @@ export default function RadarPage() {
   const [realStats, setRealStats] = useState({ totalVisits: 0, totalUniqueVisitors: 0, todayVisits: 0, todayUniqueVisitors: 0, isLoading: true });
 
   const mapRef = useRef<any>(null);
+  const detailCloseRef = useRef<HTMLButtonElement | null>(null);
   const fcAbortRef = useRef<AbortController | null>(null);
   const riskAbortRef = useRef<AbortController | null>(null);
   const radarAbortRef = useRef<AbortController | null>(null);
@@ -319,7 +310,7 @@ export default function RadarPage() {
     return () => { controller.abort(); window.clearInterval(timer); };
   }, [reloadToken]);
 
-  /* ความเสี่ยงรายหมู่บ้าน: 3–5 sample points / polygon, batch, p90 */
+  /* ความเสี่ยงรายหมู่บ้าน: สุ่มแบบปรับตามพื้นที่ 5–12 จุด / polygon */
   const computeVillageRisk = useCallback(async (fc: any) => {
     const features = fc?.features || [];
     if (!features.length) return;
@@ -333,7 +324,7 @@ export default function RadarPage() {
     try {
       const plans = createVillageSamplePlans(features);
       if (plans.some((plan) => plan.points.length < RISK_CONFIG.villageSampling.minPoints)) {
-        throw new Error('ไม่สามารถสร้างจุดตัวแทนอย่างน้อย 3 จุดให้ครบทุกหมู่บ้าน');
+        throw new Error(`ไม่สามารถสร้างจุดตัวแทนอย่างน้อย ${RISK_CONFIG.villageSampling.minPoints} จุดให้ครบทุกหมู่บ้าน`);
       }
       const samples = flattenSamplePlans(plans);
       const batches = chunkItems(samples, 25);
@@ -399,7 +390,7 @@ export default function RadarPage() {
         rows = rows.map((row, index) => ({
           ...row,
           forecastComparison: compareFreshRainForecasts(
-            row.rain3h,
+            row.representativeRain3h,
             sumMetNorwayRain3h(metNorwayResult.data?.locations[index]),
             freshness.status === 'fresh',
             metFreshness.status === 'fresh',
@@ -513,28 +504,36 @@ export default function RadarPage() {
     fcAbortRef.current?.abort();
   }, []);
 
+  useEffect(() => {
+    if (!selectedVillage) return;
+    detailCloseRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedVillage(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedVillage]);
+
   const riskByIdx = useMemo(() => {
     const m = new Map<number, any>();
     villageRisk.forEach((v) => m.set(v.featureIndex, v));
     return m;
   }, [villageRisk]);
 
-  const tambonSummary = useMemo(() => {
-    if (!villageRisk.length) return null;
-    const usable = villageRisk.filter((v) => v.rain3h != null && v.riskIndex != null);
-    if (!usable.length) return null;
-    const mean = usable.reduce((s, v) => s + v.rain3h, 0) / usable.length;
-    const peak = Math.max(...usable.map((v) => v.rain3h));
-    const affected = usable.filter((v) => v.rain3h > 1).length;
-    return { mean, peak, affected, worst: usable[0], pctArea: Math.round((affected / usable.length) * 100), level: usable[0].level };
-  }, [villageRisk]);
+  const tambonSummary = useMemo(() => geoBlock
+    ? summarizeTambonRisk(villageRisk, geoBlock.features)
+    : null, [villageRisk, geoBlock]);
 
   const alertVillages = useMemo(() => villageRisk.filter((v) =>
     v.alertState?.notificationStatus === 'awaiting_human_approval' &&
     ['warning', 'danger', 'critical'].includes(v.alertState.current)
   ), [villageRisk]);
   const alertSig = useMemo(() => alertVillages.map((v) => `${v.id}:${v.alertState.current}`).join('|'), [alertVillages]);
-  const showAlert = forecastStatus.state === 'fresh' && alertVillages.length > 0 && alertSig !== dismissedSig;
+  const alertForecastFresh = forecastStatus.state === 'fresh' && evaluateFreshness(forecastStatus.timestamp, {
+    staleAfterMinutes: RISK_CONFIG.freshness.forecastStaleAfterMinutes,
+    expireAfterMinutes: RISK_CONFIG.freshness.forecastExpireAfterMinutes,
+  }).status === 'fresh';
+  const showAlert = alertForecastFresh && alertVillages.length > 0 && alertSig !== dismissedSig;
 
   /* สถิติผ่าน RPC */
   useEffect(() => {
@@ -587,12 +586,12 @@ export default function RadarPage() {
       const payload = parseForecastApiResponse(await r.json());
       const d = payload.locations[0];
       const now = Date.now();
-      let idx = d.hourly.time.findIndex((t: string) => new Date(`${t}:00+07:00`).getTime() >= now);
-      if (idx < 0) idx = 0;
-      const hours = [1, 2, 3].map((k) => ({
-        time: d.hourly.time[idx + k] ? new Date(`${d.hourly.time[idx + k]}:00+07:00`) : null,
-        rain: d.hourly.precipitation[idx + k] ?? null,
-      }));
+      const hours = selectNextForecastHours(
+        d.hourly.time,
+        d.hourly.precipitation,
+        d.hourly.precipitationProbability,
+        now,
+      );
       const complete = hours.every((hour) => hour.rain != null);
       const total = complete ? hours.reduce((sum, hour) => sum + (hour.rain as number), 0) : null;
       if (!ac.signal.aborted) setForecastData({
@@ -614,6 +613,14 @@ export default function RadarPage() {
     mapRef.current?.flyTo([v.centroid[1], v.centroid[0]], 15, { duration: 1.2 });
     setIsSheetOpen(false);
   }, []);
+
+  const fitOperationalBoundary = useCallback(() => {
+    const points = (geoBoluang?.features ?? []).flatMap((feature: any) =>
+      ringsOf(feature.geometry).flatMap((ring) => ring.map(([lng, lat]) => [lat, lng])),
+    );
+    if (points.length) mapRef.current?.fitBounds(points, { padding: [24, 24], maxZoom: 14 });
+    else mapRef.current?.flyTo([center.lat, center.lng], 12, { duration: 1.2 });
+  }, [geoBoluang]);
 
   const getRainText = (mm: number) => {
     if (mm <= 0.1) return { text: 'ไม่มีฝน', color: 'text-gray-400', icon: '☀️' };
@@ -755,8 +762,8 @@ export default function RadarPage() {
     <div className="liquid-radar relative w-screen h-screen bg-[#07111f] overflow-hidden text-white flex flex-col select-none">
       <style dangerouslySetInnerHTML={{ __html: `
         .liquid-radar {
-          --glass: rgba(11, 24, 42, .62);
-          --glass-strong: rgba(9, 20, 36, .82);
+          --glass: rgba(8, 20, 36, .82);
+          --glass-strong: rgba(6, 16, 30, .92);
           --glass-soft: rgba(255, 255, 255, .075);
           --glass-line: rgba(255, 255, 255, .18);
           --glass-line-soft: rgba(255, 255, 255, .09);
@@ -777,13 +784,13 @@ export default function RadarPage() {
         .ops-panel {
           background:linear-gradient(145deg,rgba(255,255,255,.105),rgba(255,255,255,.035)),var(--glass);
           border:1px solid var(--glass-line); border-radius:22px;
-          box-shadow:0 24px 70px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.16);
-          backdrop-filter:blur(28px) saturate(165%); -webkit-backdrop-filter:blur(28px) saturate(165%);
+          box-shadow:0 16px 42px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.14);
+          backdrop-filter:blur(18px) saturate(145%); -webkit-backdrop-filter:blur(18px) saturate(145%);
         }
         .liquid-bar {
           background:linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.045)),var(--glass-strong);
-          border:1px solid var(--glass-line); box-shadow:0 18px 60px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.2);
-          backdrop-filter:blur(30px) saturate(170%); -webkit-backdrop-filter:blur(30px) saturate(170%);
+          border:1px solid var(--glass-line); box-shadow:0 14px 38px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.16);
+          backdrop-filter:blur(18px) saturate(145%); -webkit-backdrop-filter:blur(18px) saturate(145%);
         }
         .liquid-subpanel { background:rgba(255,255,255,.055) !important; border-color:var(--glass-line-soft) !important; }
         .ops-checkbox { appearance:none; width:18px; height:18px; border:1.5px solid rgba(255,255,255,.3); border-radius:6px; background:rgba(255,255,255,.06); cursor:pointer; position:relative; transition:.2s; }
@@ -794,7 +801,7 @@ export default function RadarPage() {
         .ops-scroll::-webkit-scrollbar { width:6px; }
         .ops-scroll::-webkit-scrollbar-track { background:transparent; }
         .ops-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,.2); border-radius:999px; }
-        .village-label { background:rgba(8,20,36,.72) !important; backdrop-filter:blur(14px); border:1px solid rgba(255,255,255,.18) !important; color:#f5f8ff !important; font-size:10px !important; padding:3px 7px !important; border-radius:9px !important; box-shadow:0 8px 24px rgba(0,0,0,.25) !important; }
+        .village-label { background:rgba(8,20,36,.9) !important; backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.22) !important; color:#f5f8ff !important; font-size:12px !important; padding:4px 8px !important; border-radius:9px !important; box-shadow:0 6px 18px rgba(0,0,0,.24) !important; }
         .village-label::before { display:none !important; }
         .liquid-radar button, .liquid-radar select, .liquid-radar input { font:inherit; }
         .liquid-radar button:focus-visible, .liquid-radar select:focus-visible, .liquid-radar input:focus-visible, .liquid-radar a:focus-visible { outline:2px solid #8fd1ff; outline-offset:3px; }
@@ -814,7 +821,7 @@ export default function RadarPage() {
       {/* ══ TOP BAR ══ */}
       <div className="absolute top-0 left-0 w-full h-8 z-[1999]" onMouseEnter={() => setIsTopHeaderVisible(true)} />
       <header
-        className={`liquid-bar absolute top-2 md:top-3 left-1/2 -translate-x-1/2 w-[calc(100%-16px)] md:w-[96%] max-w-[1320px] min-h-[72px] rounded-[22px] z-[2000] flex items-center justify-between px-3 md:px-5 py-2 transition-transform duration-500 ${isTopHeaderVisible ? 'translate-y-0' : '-translate-y-[120%]'}`}>
+        className={`liquid-bar absolute top-2 md:top-3 left-1/2 -translate-x-1/2 w-[calc(100%-16px)] md:w-[96%] max-w-[1320px] min-h-[72px] rounded-[22px] z-[2000] flex items-center justify-between px-3 md:px-5 py-2 transition-transform duration-500 ${isTopHeaderVisible && !isMapFocus ? 'translate-y-0' : '-translate-y-[120%]'}`}>
         <div className="flex items-center space-x-4">
           <div className="w-11 h-11 bg-white/10 rounded-[14px] border border-white/20 flex items-center justify-center p-1.5 shadow-inner">
             <Image src="/Logogis3.png" alt="ตราสัญลักษณ์ระบบ GIS เทศบาลตำบลบ่อหลวง" width={36} height={36} priority className="w-full h-full object-contain opacity-95" />
@@ -857,6 +864,7 @@ export default function RadarPage() {
           <MapContainer center={[center.lat, center.lng]} zoom={12} maxZoom={20} minZoom={5}
             zoomControl={false} attributionControl preferCanvas className="w-full h-full">
             <MapRefBinder mapRef={mapRef} />
+            <MapScale />
             <TileLayer key={mapStyle} url={bm.url} attribution={bm.attr}
               subdomains={bm.subdomains || 'abc'} maxZoom={20} maxNativeZoom={bm.maxNativeZoom} />
             {bm.labels && <TileLayer key={`${mapStyle}-lbl`} url={bm.labels} maxZoom={20} maxNativeZoom={19} pane="overlayPane" />}
@@ -867,29 +875,30 @@ export default function RadarPage() {
             />
             {showBoluang && geoBoluang && <GeoJSON data={geoBoluang} style={{ color: '#FFFFFF', weight: 2, fill: false, opacity: 0.9, dashArray: '5,5' }} />}
             {showLandslide && geoLandslide && (
-              <GeoJSON data={geoLandslide} style={(feature: any) => ({
-                color: feature?.properties?.class >= 3 ? '#EF4444' : '#F59E0B',
-                weight: 0.6,
-                fillColor: feature?.properties?.class >= 3 ? '#EF4444' : '#F59E0B',
-                fillOpacity: 0.24,
-              }) as any} />
+              <GeoJSON data={geoLandslide} style={(feature: any) => landslideFeatureStyle(feature?.properties) as any} />
             )}
             {showBlock && geoBlock && (
               <GeoJSON key={`blk-${villageRisk.length}-${showRisk}-${showLabels}-${riskUpdatedAt?.getTime()}-${selectedVillage?.id ?? 'x'}`}
                 data={geoBlock} style={blockStyle as any} onEachFeature={onEachBlock} />
             )}
-            <ClickableMap onMapClick={handleMapClick} />
+            <ClickableMap onMapClick={handleMapClick} onZoom={setMapZoom} />
             {clickedLocation && customPinIcon && <Marker position={[clickedLocation.lat, clickedLocation.lng]} icon={customPinIcon} />}
           </MapContainer>
         </div>
 
-        <div className="absolute top-[94px] left-1/2 -translate-x-1/2 z-[1300] hidden md:flex items-center gap-1.5 max-w-[92%]">
+        <div className={`absolute top-[86px] md:top-[94px] left-1/2 -translate-x-1/2 z-[1300] items-center gap-1.5 w-[94%] md:w-auto max-w-[94%] overflow-x-auto ops-scroll pb-1 ${isMapFocus ? 'hidden' : 'flex'}`}>
           <DataStatusBadge status={radarStatus} />
           <DataStatusBadge status={forecastStatus} />
           <DataStatusBadge status={metNorwayStatus} />
           <DataStatusBadge status={outlookStatus} />
           <DataStatusBadge status={geoJsonStatus} />
         </div>
+
+        {mapZoom > 13 && (
+          <div role="status" className="liquid-bar absolute top-[130px] md:top-[134px] left-1/2 -translate-x-1/2 z-[1290] rounded-xl px-3 py-1.5 text-[11px] text-amber-100">
+            ซูมระดับรายละเอียดสูง: ขอบเขตและค่าพยากรณ์เป็นระดับหมู่บ้าน ไม่ใช่ระดับแปลงหรืออาคาร
+          </div>
+        )}
 
         {healthStatus.status === 'degraded' && (
           <div className="liquid-bar absolute top-[86px] md:top-[132px] left-1/2 -translate-x-1/2 z-[1350] w-[92%] max-w-[660px] rounded-2xl border-orange-300/35 px-3 py-2 text-[11px] text-orange-100 flex items-center gap-2" role="status">
@@ -990,20 +999,23 @@ export default function RadarPage() {
                 <div className="mt-3 text-[10px] text-[#8B94A5] leading-relaxed bg-[#111319] border border-[#333946] rounded-lg p-2.5">
                   ดัชนีเสี่ยง = <b className="text-[#D1D5DB]">ฝนคาด 3 ชม. × ดินอิ่มน้ำ × ความลาดชัน</b>
                 </div>
-                <div className="mt-2 text-[9px] text-[#8B94A5] leading-relaxed">
+                <div className="mt-2 text-[11px] text-[#AEBBD0] leading-relaxed">
                   เรดาร์: RainViewer · พยากรณ์หลัก: Open-Meteo · ตรวจสอบไขว้: MET Norway · แผนที่ฐาน: Esri / CARTO / OSM
+                </div>
+                <div className="mt-2 rounded-lg border border-cyan-200/15 bg-cyan-300/5 p-2.5 text-[11px] leading-relaxed text-[#C7D2E5]">
+                  เรดาร์ใช้ดูฝนที่ตรวจพบและ nowcast เท่านั้น ยังไม่ถูกนำไปคำนวณดัชนีเสี่ยงอัตโนมัติ
                 </div>
               </div>
             </div>
           </div>
         ) : (
-          <button onClick={() => setIsLayerMenuOpen(true)} className="absolute top-5 left-5 z-[1000] p-2.5 bg-[#1A1D24]/90 backdrop-blur-md border border-[#333946] rounded-xl text-[#E5E7EB] hidden md:block hover:bg-[#232732]">
+          <button onClick={() => setIsLayerMenuOpen(true)} className={`absolute top-5 left-5 z-[1000] p-2.5 bg-[#1A1D24]/90 backdrop-blur-md border border-[#333946] rounded-xl text-[#E5E7EB] hover:bg-[#232732] ${isMapFocus ? 'hidden' : 'hidden md:block'}`}>
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
           </button>
         )}
 
         {/* ══ RANKING PANEL ══ */}
-        {isTablePanelOpen ? (
+        {isTablePanelOpen && !selectedVillage ? (
           <div className="absolute top-[94px] right-5 z-[900] w-[404px] ops-panel flex-col hidden xl:flex overflow-hidden">
             <div className="flex border-b border-[#333946] bg-[#111319]">
               <button onClick={() => setScope('village')} className={`px-5 py-3 text-[12px] font-bold ${scope === 'village' ? 'text-[#4178F3] border-b-2 border-[#4178F3] bg-[#1A1D24]' : 'text-[#8B94A5] hover:text-[#E5E7EB]'}`}>รายหมู่บ้าน</button>
@@ -1031,9 +1043,9 @@ export default function RadarPage() {
                   <h3 className="text-[13.5px] font-bold text-[#E5E7EB]">ภาพรวม ต.บ่อหลวง (3 ชม. ล่วงหน้า)</h3>
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { l: 'ฝนเฉลี่ยทั้งตำบล', v: `${tambonSummary.mean.toFixed(1)} มม.`, c: '#4178F3' },
+                      { l: 'ฝนเฉลี่ยถ่วงน้ำหนักพื้นที่', v: `${tambonSummary.areaWeightedRainMm.toFixed(1)} มม.`, c: '#4178F3' },
                       { l: 'ฝนสูงสุดรายหมู่บ้าน', v: `${tambonSummary.peak.toFixed(1)} มม.`, c: tambonSummary.level.color },
-                      { l: '% พื้นที่มีฝน', v: `${tambonSummary.pctArea}%`, c: '#22C55E' },
+                      { l: 'สัดส่วนพื้นที่มีฝน', v: `${tambonSummary.rainyAreaPct}%`, c: '#22C55E' },
                       { l: 'หมู่บ้านเฝ้าระวัง+', v: `${alertVillages.length} แห่ง`, c: '#F97316' },
                     ].map((s) => (
                       <div key={s.l} className="bg-[#111319] border border-[#333946] rounded-xl p-3">
@@ -1065,15 +1077,15 @@ export default function RadarPage() {
               ) : <div className="py-10 text-center text-[#8B94A5] text-[12px] animate-pulse">กำลังคำนวณ...</div>}
             </div>
           </div>
-        ) : (
+        ) : !selectedVillage ? (
           <button onClick={() => setIsTablePanelOpen(true)} className="absolute top-5 right-5 z-[900] px-4 py-2.5 bg-[#1A1D24]/90 backdrop-blur-md border border-[#333946] rounded-xl text-[12px] font-bold text-[#E5E7EB] hidden xl:block hover:bg-[#232732]">
             อันดับหมู่บ้านเสี่ยง
           </button>
-        )}
+        ) : null}
 
         {/* ══ VILLAGE DETAIL ══ */}
         {selectedVillage && (
-          <section role="dialog" aria-label={`รายละเอียด${selectedVillage.name}`} className="absolute inset-x-2 top-[84px] bottom-[84px] z-[1500] md:inset-x-auto md:bottom-auto md:top-[112px] md:right-5 xl:right-[442px] w-auto md:w-[356px] max-h-[calc(100dvh-168px)] md:max-h-[calc(100dvh-128px)] min-h-0 flex flex-col overflow-hidden ops-panel animate-fade-in" style={{ borderColor: `${selectedVillage.level.color}66` }}>
+          <section role="dialog" aria-modal="true" aria-label={`รายละเอียด${selectedVillage.name}`} className="absolute inset-x-2 top-[84px] bottom-[84px] z-[1500] md:inset-x-auto md:bottom-auto md:top-[112px] md:right-5 w-auto md:w-[392px] max-h-[calc(100dvh-168px)] md:max-h-[calc(100dvh-128px)] min-h-0 flex flex-col overflow-hidden ops-panel animate-fade-in" style={{ borderColor: `${selectedVillage.level.color}66` }}>
             <div className="px-5 py-4 border-b border-[#333946] flex justify-between items-center bg-[#232732] rounded-t-xl shrink-0">
               <div className="flex items-center space-x-3 min-w-0">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center border text-[13px] font-black shrink-0"
@@ -1083,7 +1095,7 @@ export default function RadarPage() {
                   <p className="text-[12px] mt-0.5" style={{ color: selectedVillage.level.color }}>ระดับ{selectedVillage.level.name}</p>
                 </div>
               </div>
-              <button type="button" aria-label="ปิดรายละเอียดหมู่บ้าน" onClick={() => setSelectedVillage(null)} className="text-[#AEBBD0] hover:text-[#EF4444] p-1.5 rounded-lg border border-[#333946] shrink-0">
+              <button ref={detailCloseRef} type="button" aria-label="ปิดรายละเอียดหมู่บ้าน" onClick={() => setSelectedVillage(null)} className="text-[#AEBBD0] hover:text-[#EF4444] p-1.5 rounded-lg border border-[#333946] shrink-0">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -1094,7 +1106,7 @@ export default function RadarPage() {
                 </p>
               )}
               <div className="grid grid-cols-3 gap-2.5">
-                {[{ l: '1 ชม.', v: selectedVillage.rain1h }, { l: '3 ชม. (คาด)', v: selectedVillage.rain3h }, { l: '24 ชม. ผ่านมา', v: selectedVillage.rain24h }].map((s) => (
+                {[{ l: 'แบบจำลอง 1 ชม.', v: selectedVillage.rain1h }, { l: 'แบบจำลอง 3 ชม.', v: selectedVillage.rain3h }, { l: 'แบบจำลองย้อนหลัง 24 ชม.', v: selectedVillage.rain24h }].map((s) => (
                   <div key={s.l} className="bg-[#111319] border border-[#333946] rounded-xl p-2.5 text-center">
                     <p className="text-[11px] text-[#AEBBD0]">{s.l}</p>
                     <p className="text-[16px] font-black font-mono text-[#E5E7EB] mt-0.5">{fmtNumber(s.v)}</p>
@@ -1153,10 +1165,11 @@ export default function RadarPage() {
                 <span>จุดตัวอย่าง</span><span className="text-right text-[#D1D5DB]">{selectedVillage.sampleCount} จุด ({Math.round(selectedVillage.sampleCoverage * 100)}%)</span>
                 <span>ฝน 3 ชม. mean</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hMean)} มม.</span>
                 <span>ฝน 3 ชม. max</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hMax)} มม.</span>
-                <span>ฝน 3 ชม. p90</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hP90)} มม. (ใช้ประเมิน)</span>
+                <span>ค่าที่ใช้ประเมิน</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hMax)} มม. (ค่าสูงสุดจากจุดตัวอย่าง)</span>
+                <span>p90 วินิจฉัย</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hP90)} มม.</span>
                 <span>MET Norway 3 ชม.</span><span className="text-right text-[#D1D5DB]">{!metComparisonFresh || selectedVillage.forecastComparison?.agreement === 'unavailable' ? '— (ข้อมูลไม่พร้อมเทียบ)' : `${fmtNumber(selectedVillage.forecastComparison?.referenceRain3h)} มม. (ตรวจสอบไขว้)`}</span>
                 <span>เทียบแบบจำลอง</span><span className={`text-right font-bold ${metComparisonFresh && selectedVillage.forecastComparison?.agreement === 'low' ? 'text-[#F97316]' : 'text-[#D1D5DB]'}`}>
-                  {metComparisonFresh ? agreementText(selectedVillage.forecastComparison?.agreement) : 'ระงับการเทียบ · ข้อมูลเก่าหรือไม่พร้อม'}{metComparisonFresh && selectedVillage.forecastComparison?.differenceMm != null ? ` · ต่าง ${fmtNumber(selectedVillage.forecastComparison.differenceMm)} มม.` : ''}
+                  {metComparisonFresh ? agreementText(selectedVillage.forecastComparison?.agreement) : 'ระงับการเทียบ · ข้อมูลเก่าหรือไม่พร้อม'}{metComparisonFresh && selectedVillage.forecastComparison?.differenceMm != null ? ` · ต่าง ${fmtNumber(selectedVillage.forecastComparison.differenceMm)} มม. (${fmtNumber((selectedVillage.forecastComparison.relativeDifference ?? 0) * 100, 0)}%)` : ''}
                 </span>
                 <span>โอกาสฝนสูงสุด</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.maxProb, 0)}%</span>
                 <span>ดินอิ่มน้ำ (API)</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.api7, 0)} มม. (×{fmtNumber(selectedVillage.soilFactor, 2)})</span>
@@ -1216,8 +1229,14 @@ export default function RadarPage() {
         {/* ══ MAP TOOLS ══ */}
         <div className="absolute bottom-[160px] md:bottom-32 right-5 z-[900] flex flex-col space-y-2">
           <div className="bg-[#1A1D24]/90 backdrop-blur-md border border-[#333946] rounded-xl flex flex-col overflow-hidden">
-            <button onClick={() => mapRef.current?.flyTo([center.lat, center.lng], 12, { duration: 1.4 })} className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
+            <button onClick={fitOperationalBoundary} aria-label="แสดงขอบเขตตำบลทั้งหมด" title="แสดงขอบเขตตำบลทั้งหมด" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+            </button>
+            <button onClick={() => {
+              setIsMapFocus((value) => !value);
+              if (!isMapFocus) { setIsLayerMenuOpen(false); setIsTablePanelOpen(false); setIsLegendOpen(false); }
+            }} aria-label={isMapFocus ? 'ออกจากโหมดเน้นแผนที่' : 'เข้าโหมดเน้นแผนที่'} title={isMapFocus ? 'แสดงแผงควบคุม' : 'ซ่อนแผงเพื่อดูแผนที่'} className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
+              <span aria-hidden="true">{isMapFocus ? '▣' : '□'}</span>
             </button>
             <button onClick={() => mapRef.current?.zoomIn()} className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m-6-6h12" /></svg>
@@ -1229,7 +1248,7 @@ export default function RadarPage() {
         </div>
 
         {/* ══ LEGEND ══ */}
-        {isLegendOpen && (
+        {isLegendOpen && !isMapFocus && (
           <div className="absolute bottom-8 left-5 z-[900] ops-panel px-3 py-3 w-[188px] bg-[#1A1D24]/95 backdrop-blur-md hidden lg:block">
             <h3 className="text-[11.5px] font-bold text-[#E5E7EB] mb-2">ระดับความรุนแรงฝน</h3>
             <div className="space-y-1">
@@ -1244,6 +1263,13 @@ export default function RadarPage() {
             <p className="mt-2 pt-2 border-t border-[#333946] text-[8.5px] text-[#8B94A5] leading-relaxed">
               ค่าอ้างอิงสมการ Z–R (Marshall–Palmer)<br />สีบนแผนที่ใช้พาเลตต์ RainViewer #{colorScheme}
             </p>
+            {showLandslide && (
+              <div className="mt-2 border-t border-[#333946] pt-2 text-[10px] text-[#AEBBD0]">
+                <p className="mb-1 font-bold text-[#E5E7EB]">ความไวต่อดินถล่ม</p>
+                <p><span className="mr-1 text-[#EF4444]">■</span>สูง (class 1)</p>
+                <p><span className="mr-1 text-[#F59E0B]">■</span>ปานกลาง (class 2)</p>
+              </div>
+            )}
             <div className="mt-2 pt-2 border-t border-[#333946] space-y-1">
               {LEVELS.map((l) => (
                 <div key={l.key} className="flex items-center text-[9px]">
@@ -1310,9 +1336,9 @@ export default function RadarPage() {
         </div>
 
         {/* ══ MOBILE SHEET ══ */}
-        <div className={`md:hidden absolute left-0 right-0 bottom-0 z-[1200] transition-transform duration-300 ${isSheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-72px)]'}`}>
+        <div className={`${isMapFocus ? 'hidden' : 'md:hidden'} absolute left-0 right-0 bottom-0 z-[1200] transition-transform duration-300 ${isSheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-72px)]'}`}>
           <div className="liquid-bar border-t border-white/15 rounded-t-[26px] shadow-[0_-18px_55px_rgba(0,0,0,.48)] max-h-[76vh] flex flex-col">
-            <div onClick={() => setIsSheetOpen(!isSheetOpen)} className="py-3 px-5 cursor-pointer">
+            <button type="button" aria-expanded={isSheetOpen} onClick={() => setIsSheetOpen(!isSheetOpen)} className="w-full py-3 px-5 cursor-pointer text-left">
               <div className="w-10 h-1 bg-[#4B5563] rounded-full mx-auto mb-2.5" />
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
@@ -1323,7 +1349,7 @@ export default function RadarPage() {
                 </div>
                 <span className="text-[10px] text-[#8B94A5] shrink-0 ml-2">{isSheetOpen ? 'ปิด' : 'ดูทั้งหมด'}</span>
               </div>
-            </div>
+            </button>
             <div className="px-4 pb-6 overflow-hidden">
               <div className="flex flex-wrap gap-1.5 mb-3">
                 {LEVELS.map((l) => (

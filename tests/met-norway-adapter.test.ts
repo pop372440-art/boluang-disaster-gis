@@ -38,6 +38,18 @@ test('model agreement thresholds are explicit and missing data is unavailable', 
   assert.equal(compareRainForecasts(null, 2, config).agreement, 'unavailable');
 });
 
+test('model agreement considers relative as well as absolute spread', () => {
+  const config = {
+    highDifferenceMm: 2,
+    mediumDifferenceMm: 5,
+    highRelativeDifference: 0.35,
+    mediumRelativeDifference: 0.6,
+  };
+  assert.equal(compareRainForecasts(0.5, 1.2, config).agreement, 'medium');
+  assert.equal(compareRainForecasts(10, 12, config).agreement, 'high');
+  assert.equal(compareRainForecasts(2, 6, config).agreement, 'low');
+});
+
 test('stale or expired model runs cannot produce an agreement label', () => {
   const config = { highDifferenceMm: 2, mediumDifferenceMm: 5 };
   assert.equal(compareFreshRainForecasts(10, 11, true, true, config).agreement, 'high');

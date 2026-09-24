@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "crs": "EPSG:4326",
+  "datasets": {
+    "boluang.json": {
+      "title": "ขอบเขตตำบลบ่อหลวง",
+      "geometry": ["Polygon", "MultiPolygon"],
+      "status": "local operational copy",
+      "source_agency": "not recorded in source file",
+      "survey_date": null,
+      "limitations": "Do not infer parcel or building accuracy."
+    },
+    "block.json": {
+      "title": "ขอบเขต 13 หมู่บ้าน ตำบลบ่อหลวง",
+      "geometry": ["Polygon", "MultiPolygon"],
+      "stable_id": "village_id (moo-1 through moo-13 after normalization)",
+      "status": "local operational copy",
+      "source_agency": "not recorded in source file",
+      "survey_date": null,
+      "limitations": "Village-scale analysis only."
+    },
+    "boluang_landslide_risk.json": {
+      "title": "พื้นที่ความไวต่อดินถล่ม",
+      "geometry": ["Polygon", "MultiPolygon"],
+      "classification": { "1": "สูง", "2": "ปานกลาง" },
+      "status": "context layer",
+      "source_agency": "not recorded in source file",
+      "survey_date": null,
+      "limitations": "Hazard susceptibility polygons, not surveyed incident points."
+    }
+  }
+}

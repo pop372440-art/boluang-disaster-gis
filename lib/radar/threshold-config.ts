@@ -29,9 +29,12 @@ export const RISK_CONFIG = {
     outlookExpireAfterMinutes: 360,
   },
   villageSampling: {
-    minPoints: 3,
-    maxPoints: 5,
-    aggregationMethod: 'p90' as const,
+    minPoints: 5,
+    maxPoints: 12,
+    targetAreaPerPointKm2: 12,
+    // The operational statistic is named explicitly; p90 remains diagnostic.
+    // Name the operational choice honestly and retain p90 only as a diagnostic.
+    aggregationMethod: 'max' as const,
     minimumCoverage: 0.6,
   },
   forecastAgreement: {
@@ -39,6 +42,8 @@ export const RISK_CONFIG = {
     // rain gauges and recorded events before being treated as validated.
     highDifferenceMm: 2,
     mediumDifferenceMm: 5,
+    highRelativeDifference: 0.35,
+    mediumRelativeDifference: 0.6,
   },
   longRangeOutlook: {
     startLeadDay: 7,

@@ -56,7 +56,7 @@ flowchart TD
     CTRL["Radar / Forecast Controllers"]
     DOMAIN["Risk · Freshness · Alert State"]
     ADAPTER["RainViewer · Open-Meteo · GeoJSON"]
-    INFRA["API Proxy · Cache · Supabase · Logs"]
+    INFRA["API Proxy · Cache · Snapshot DB · Logs"]
 
     UI --> CTRL
     CTRL --> DOMAIN
@@ -113,7 +113,7 @@ flowchart TD
 
 1. **Data correctness and freshness — completed**: adapters, schema validation, stable village identity, API7 correction, missing-data handling, source states, abort and 10-minute forecast cache.
 2. **Radar pipeline — completed**: extracted tile loader/cache, abort in-flight tiles, adjacent-frame-only preload, proxy ETag/SWR, negative cache and device-quality policy.
-3. **Village analytics and alert state — completed**: representative sampling 3–5 points, mean/max/p90, confidence model, two-cycle promotion, hysteresis and human approval gate.
+3. **Village analytics and alert state — completed**: area-adaptive sampling 5–12 points, mean/max/p90, confidence model, two-cycle promotion, hysteresis and human approval gate.
 4. **Operational UX and observability — completed in repository scope**: operational layers, separated timeline semantics, Error Boundary, skeleton/retry, structured logs, degraded mode and reduced-motion support.
 
 ## Phase 2 diff summary
@@ -125,9 +125,9 @@ flowchart TD
 
 ## Phase 3 diff summary
 
-- every actual village polygon generates 3–5 internal representative points
+- every actual village polygon generates 5–12 internal representative points according to area
 - Open-Meteo coordinates are split into batches of no more than 25
-- village results expose mean, max and p90; config-selected p90 drives risk assessment
+- village results expose mean, max and p90; explicitly labelled max drives risk assessment
 - alert state records start/change time, requires two promotion/demotion cycles, applies a 5-point hysteresis margin and never sends a notification automatically
 
 ## Phase 4 diff summary
@@ -142,7 +142,7 @@ flowchart TD
 - repository has no recurrent-flood dataset; the layer remains disabled
 - available landslide data is polygon hazard zoning, not surveyed risk points
 - village GeoJSON has no slope attribute or referenced DEM/raster; terrain confidence therefore remains low
-- Supabase RLS cannot be verified from this repository because migrations/policies and production database access are absent
+- a review-ready Supabase migration with RLS is included but was not applied because the connected project is unrelated to this GIS repository
 - external notification delivery is intentionally not implemented; state remains `awaiting_human_approval`
 
 ## Phase 1 behavioral diff
