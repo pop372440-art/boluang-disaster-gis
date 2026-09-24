@@ -12,6 +12,21 @@ export type ForecastComparison = {
   agreement: ForecastAgreement;
 };
 
+// An agreement label is meaningful only while both model runs are current.
+export function compareFreshRainForecasts(
+  primaryRain3h: number | null,
+  referenceRain3h: number | null,
+  primaryFresh: boolean,
+  referenceFresh: boolean,
+  config: ForecastComparisonConfig,
+): ForecastComparison {
+  return compareRainForecasts(
+    primaryFresh ? primaryRain3h : null,
+    referenceFresh ? referenceRain3h : null,
+    config,
+  );
+}
+
 export function compareRainForecasts(
   primaryRain3h: number | null,
   referenceRain3h: number | null,
