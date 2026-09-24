@@ -58,6 +58,7 @@ const SmoothRadar = dynamic(() => import('@/components/radar/SmoothRadar'), { ss
 const TZ = 'Asia/Bangkok';
 const RV_SCHEME_DEFAULT = 4;
 type Quality = import('@/components/radar/radarClientCache').RadarQuality;
+const isPageVisible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
 
 const toDate = (value: Date | number | null | undefined) =>
   value == null ? null : typeof value === 'number' ? new Date(value) : value;
@@ -169,6 +170,7 @@ export default function RadarPage() {
   const [isLegendOpen, setIsLegendOpen] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isMapFocus, setIsMapFocus] = useState(false);
+  const [isCoordinateMode, setIsCoordinateMode] = useState(false);
   const [scope, setScope] = useState<'village' | 'tambon' | 'station'>('village');
   const [mapZoom, setMapZoom] = useState(12);
 
@@ -274,7 +276,7 @@ export default function RadarPage() {
     };
 
     void loadRadar();
-    const timer = setInterval(() => { void loadRadar(); }, 5 * 60 * 1000);
+    const timer = setInterval(() => { if (isPageVisible()) void loadRadar(); }, 5 * 60 * 1000);
     return () => {
       clearInterval(timer);
       geoAbort.abort();
@@ -323,7 +325,7 @@ export default function RadarPage() {
       }
     };
     void loadGaugeStatus();
-    const timer = window.setInterval(loadGaugeStatus, 15 * 60_000);
+    const timer = window.setInterval(() => { if (isPageVisible()) void loadGaugeStatus(); }, 15 * 60_000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, [reloadToken]);
 
@@ -359,7 +361,7 @@ export default function RadarPage() {
       }
     };
     void loadHealth();
-    const timer = window.setInterval(loadHealth, 2 * 60_000);
+    const timer = window.setInterval(() => { if (isPageVisible()) void loadHealth(); }, 2 * 60_000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, [reloadToken]);
 
@@ -548,7 +550,7 @@ export default function RadarPage() {
   useEffect(() => {
     if (!geoBlock) return;
     computeVillageRisk(geoBlock);
-    const t = setInterval(() => computeVillageRisk(geoBlock), 10 * 60 * 1000);
+    const t = setInterval(() => { if (isPageVisible()) void computeVillageRisk(geoBlock); }, 10 * 60 * 1000);
     return () => clearInterval(t);
   }, [geoBlock, computeVillageRisk]);
 
@@ -641,7 +643,7 @@ export default function RadarPage() {
     let iv: any;
     if (isPlaying && radarData?.frames?.length) {
       iv = setInterval(() => {
-        if (isRadarTileBlocked()) return;
+        if (!isPageVisible() || isRadarTileBlocked()) return;
         setCurrentFrameIndex((p) => (p + 1 >= radarData.frames.length ? 0 : p + 1));
       }, clampAnimationFrameMs(speed));
     }
@@ -649,11 +651,13 @@ export default function RadarPage() {
   }, [isPlaying, radarData, speed]);
 
   const handleMapClick = async (lat: number, lng: number) => {
+    const wasReadingCoordinates = isCoordinateMode;
+    setIsCoordinateMode(false);
     setClickedLocation({ lat, lng });
     setIsFetchingForecast(true);
     setForecastData(null);
 
-    const hitFeat = (geoBlock?.features || []).find((f: any) => pointInPolygon(lng, lat, f.geometry));
+    const hitFeat = wasReadingCoordinates ? null : (geoBlock?.features || []).find((f: any) => pointInPolygon(lng, lat, f.geometry));
     setSelectedVillage(hitFeat ? riskByIdx.get(getIdx(hitFeat)) || null : null);
 
     fcAbortRef.current?.abort();
@@ -715,17 +719,17 @@ export default function RadarPage() {
   const agreementText = (agreement: string | undefined) => agreement === 'high' ? 'สอดคล้องสูง' :
     agreement === 'medium' ? 'สอดคล้องปานกลาง' : agreement === 'low' ? 'แตกต่างมาก' : 'ข้อมูลไม่พอเปรียบเทียบ';
 
-  const L = typeof window !== 'undefined' ? require('leaflet') : null;
-  const customPinIcon = L
-    ? L.divIcon({
+  const leaflet = useMemo(() => typeof window !== 'undefined' ? require('leaflet') : null, []);
+  const customPinIcon = useMemo(() => leaflet
+    ? leaflet.divIcon({
         className: 'bg-transparent border-none',
         html: `<div class="relative flex items-center justify-center w-8 h-8"><div class="absolute inset-0 bg-blue-500 rounded-full blur-[4px] opacity-60 animate-ping"></div><div class="relative w-5 h-5 bg-[#38bdf8] border-2 border-white rounded-full shadow-lg z-10"></div></div>`,
         iconSize: [32, 32], iconAnchor: [16, 16],
       })
-    : null;
+    : null, [leaflet]);
 
-  const gaugeStationIcon = L
-    ? L.divIcon({
+  const gaugeStationIcon = useMemo(() => leaflet
+    ? leaflet.divIcon({
         className: 'bg-transparent border-none',
         html: `<div class="relative flex h-11 w-11 items-center justify-center" aria-hidden="true">
           <div class="absolute inset-0 rounded-full border border-cyan-200/65 bg-cyan-300/15 shadow-[0_0_22px_rgba(34,211,238,.75)]"></div>
@@ -739,7 +743,7 @@ export default function RadarPage() {
         iconAnchor: [22, 22],
         popupAnchor: [0, -20],
       })
-    : null;
+    : null, [leaflet]);
 
   const blockStyle = useCallback((feature: any) => {
     const v = riskByIdx.get(getIdx(feature));
@@ -1034,7 +1038,7 @@ export default function RadarPage() {
                 </Popup>
               </Marker>
             )}
-            <ClickableMap onMapClick={handleMapClick} onZoom={setMapZoom} />
+            <ClickableMap onMapClick={handleMapClick} onZoom={setMapZoom} coordinateMode={isCoordinateMode} />
             {clickedLocation && customPinIcon && <Marker position={[clickedLocation.lat, clickedLocation.lng]} icon={customPinIcon} />}
           </MapContainer>
         </div>
@@ -1417,9 +1421,15 @@ export default function RadarPage() {
           </section>
         )}
 
+        {isCoordinateMode && (
+          <div role="status" className="liquid-bar absolute top-[124px] left-1/2 -translate-x-1/2 z-[1350] rounded-xl border-cyan-300/40 px-3 py-2 text-[11px] font-semibold text-cyan-50 shadow-xl">
+            คลิกตำแหน่งบนแผนที่เพื่ออ่านพิกัด
+          </div>
+        )}
+
         {/* ══ POINT FORECAST ══ */}
         {clickedLocation && !selectedVillage && (
-          <div className="absolute top-[112px] right-5 xl:right-[442px] z-[1040] w-[326px] ops-panel animate-fade-in hidden md:block">
+          <div className="absolute top-[112px] right-3 md:right-5 xl:right-[442px] z-[1040] w-[calc(100%-1.5rem)] max-w-[326px] ops-panel animate-fade-in">
             <div className="px-5 py-4 border-b border-[#333946] flex justify-between items-center bg-[#232732] rounded-t-xl">
               <div>
                 <h3 className="text-[13px] font-bold text-[#E5E7EB]">พิกัดที่เลือก</h3>
@@ -1466,6 +1476,21 @@ export default function RadarPage() {
               if (!isMapFocus) { setIsLayerMenuOpen(false); setIsTablePanelOpen(false); setIsLegendOpen(false); }
             }} aria-label={isMapFocus ? 'ออกจากโหมดเน้นแผนที่' : 'เข้าโหมดเน้นแผนที่'} title={isMapFocus ? 'แสดงแผงควบคุม' : 'ซ่อนแผงเพื่อดูแผนที่'} className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
               <span aria-hidden="true">{isMapFocus ? '▣' : '□'}</span>
+            </button>
+            <button
+              onClick={() => {
+                setIsCoordinateMode((value) => !value);
+                setSelectedVillage(null);
+              }}
+              aria-label={isCoordinateMode ? 'ยกเลิกการอ่านพิกัด' : 'อ่านพิกัดจากแผนที่'}
+              aria-pressed={isCoordinateMode}
+              title={isCoordinateMode ? 'ยกเลิกการอ่านพิกัด' : 'อ่านพิกัดจากแผนที่'}
+              className={`w-11 h-11 flex items-center justify-center border-b border-[#333946] hover:text-white hover:bg-[#2D323B] ${isCoordinateMode ? 'bg-[#4178F3]/25 text-[#7DD3FC]' : 'text-[#8B94A5]'}`}
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <circle cx="12" cy="12" r="3" strokeWidth="2" />
+                <path strokeLinecap="round" strokeWidth="2" d="M12 2v4m0 12v4M2 12h4m12 0h4" />
+              </svg>
             </button>
             <button onClick={() => mapRef.current?.zoomIn()} aria-label="ขยายแผนที่" title="ขยายแผนที่" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m-6-6h12" /></svg>
