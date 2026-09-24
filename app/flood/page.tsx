@@ -23,15 +23,6 @@ const INITIAL_LAT = 18.1633;
 const INITIAL_LNG = 98.3744;
 const MAX_DISTANCE_KM = 50;
 
-// 🎯 กำหนดจุดดึงข้อมูล TMD API เพิ่มเติม (Virtual Stations)
-const LOCAL_TMD_STATIONS = [
-  { name: 'ต.บ่อหลวง (ศูนย์กลาง)', lat: 18.1633, lng: 98.3744 },
-  { name: 'อ.แม่แจ่ม (ดอยอินทนนท์)', lat: 18.4988, lng: 98.3601 },
-  { name: 'อ.ฮอด (ตัวอำเภอ)', lat: 18.1908, lng: 98.6133 },
-  { name: 'อ.จอมทอง', lat: 18.4172, lng: 98.6738 },
-  { name: 'อ.อมก๋อย', lat: 17.7969, lng: 98.3585 }
-];
-
 // 🧮 คำนวณระยะทาง
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371; 
@@ -96,7 +87,7 @@ export default function FloodWatchDashboard() {
   
   const [windyLayer, setWindyLayer] = useState('radar');
   const [windyZoom, setWindyZoom] = useState(5); 
-  const [apiStatus, setApiStatus] = useState({ water: 'กำลังเชื่อมต่อ...', rain: 'กำลังเชื่อมต่อ...', tmd: 'กำลังเชื่อมต่อ...' });
+  const [apiStatus, setApiStatus] = useState({ water: 'กำลังเชื่อมต่อ...', rain: 'กำลังเชื่อมต่อ...' });
 
   // ตัวแปรเก็บชื่อสถานที่ที่ถูกต้อง
   const [locationName, setLocationName] = useState('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
@@ -199,35 +190,6 @@ export default function FloodWatchDashboard() {
         if (rJson) {
           const rStations = extractArrayData(rJson);
           rStations.forEach((s: any) => { const st = parseStation(s, 'rain'); if (st) merged.push(st); });
-        }
-
-        // 3. ดึงปริมาณฝน TMD (เสริมทัพให้กราฟ)
-        const lats = LOCAL_TMD_STATIONS.map(p => p.lat.toFixed(4)).join(',');
-        const lngs = LOCAL_TMD_STATIONS.map(p => p.lng.toFixed(4)).join(',');
-        const tmdUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&daily=precipitation_sum&timezone=Asia%2FBangkok`;
-        const { data: tmdData, status: tmdStatus } = await fetchWithCache(tmdUrl, 'tmd_rain_cache_flood');
-        setApiStatus(prev => ({ ...prev, tmd: tmdStatus }));
-        
-        if (tmdData && Array.isArray(tmdData)) {
-          tmdData.forEach((d, i) => {
-            const rainVal = d?.daily?.precipitation_sum?.[0] || 0;
-            const stationInfo = LOCAL_TMD_STATIONS[i];
-            merged.push({
-              id: `tmd-${i}`,
-              name: `${stationInfo.name}`,
-              prov: 'เชียงใหม่',
-              amp: stationInfo.name.includes('ฮอด') ? 'ฮอด' : (stationInfo.name.includes('แม่แจ่ม') ? 'แม่แจ่ม' : 'จอมทอง'),
-              tum: '',
-              lat: stationInfo.lat,
-              lng: stationInfo.lng,
-              type: 'rain',
-              val: rainVal,
-              risk: getRisk(rainVal, 'rain'),
-              trend: 'steady',
-              time: new Date().toISOString(),
-              source: 'TMD' 
-            });
-          });
         }
 
         setStations(merged);
@@ -869,15 +831,6 @@ export default function FloodWatchDashboard() {
                       <span className={apiStatus.rain.includes('สำเร็จ') ? 'text-[#10b981]' : 'text-red-500'}>{apiStatus.rain}</span>
                     </td>
                     <td className="px-6 py-4 text-gray-400 font-mono text-[11px] md:text-[12px] truncate max-w-[150px] md:max-w-none">/rain_24h</td>
-                  </tr>
-                  <tr className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-semibold text-gray-800">TMD / Open-Meteo</td>
-                    <td className="px-6 py-4 text-gray-500 text-[12px] md:text-[13px] font-mono"><span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded mr-1">ดาวเทียม/พยากรณ์</span> (Virtual Station)</td>
-                    <td className="px-6 py-4 font-bold flex items-center">
-                      <span className={`w-3 h-3 rounded-full mr-2.5 ${apiStatus.tmd.includes('สำเร็จ') ? 'bg-[#10b981]' : 'bg-red-500'}`}></span> 
-                      <span className={apiStatus.tmd.includes('สำเร็จ') ? 'text-[#10b981]' : 'text-red-500'}>{apiStatus.tmd}</span>
-                    </td>
-                    <td className="px-6 py-4 text-gray-400 font-mono text-[11px] md:text-[12px] truncate max-w-[150px] md:max-w-none">/forecast</td>
                   </tr>
                 </tbody>
               </table>

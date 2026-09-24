@@ -39,11 +39,13 @@ import {
   pruneRadarFrameCache,
 } from '@/components/radar/radarClientCache';
 import { ClickableMap, MapRefBinder, MapScale } from '@/components/radar/MapRuntimeControls';
+import { parsePublicGaugeStatus, type PublicGaugeStatus } from '@/lib/radar/gauge-status';
 
 /* ═══════════════════════════ SUPABASE ═══════════════════════════ */
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
+const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabase = supabaseUrl && supabasePublishableKey ? createClient(supabaseUrl, supabasePublishableKey) : null;
 
 const MapContainer = dynamic(() => import('react-leaflet').then((m) => m.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then((m) => m.TileLayer), { ssr: false });
@@ -137,6 +139,8 @@ export default function RadarPage() {
   const [metNorwayStatus, setMetNorwayStatus] = useState<DataSourceStatus>(() => initialSourceStatus('MET Norway'));
   const [outlookStatus, setOutlookStatus] = useState<DataSourceStatus>(() => initialSourceStatus('แนวโน้ม 7–9 วัน'));
   const [geoJsonStatus, setGeoJsonStatus] = useState<DataSourceStatus>(() => initialSourceStatus('GeoJSON เทศบาลตำบลบ่อหลวง'));
+  const [gaugeSourceStatus, setGaugeSourceStatus] = useState<DataSourceStatus>(() => initialSourceStatus('สถานีจริง STN0583'));
+  const [gaugeStatus, setGaugeStatus] = useState<PublicGaugeStatus | null>(null);
 
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);        // เริ่มแบบหยุด กันยิง tile รัวตอนเปิดหน้า
@@ -272,6 +276,51 @@ export default function RadarPage() {
       geoAbort.abort();
       radarAbortRef.current?.abort();
     };
+  }, [reloadToken]);
+
+  /* สถานีตรวจวัดจริง: อ่านผ่าน Edge Function ที่คืนเฉพาะข้อมูล public-safe */
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadGaugeStatus = async () => {
+      setGaugeSourceStatus((previous) => ({ ...previous, state: 'loading', error: null }));
+      try {
+        if (!supabaseUrl || !supabasePublishableKey) throw new Error('ยังไม่ได้ตั้งค่าการเชื่อมต่อสถานีตรวจวัด');
+        const response = await fetch(`${supabaseUrl}/functions/v1/ingest-thaiwater-rain`, {
+          method: 'GET',
+          cache: 'no-store',
+          signal: controller.signal,
+          headers: {
+            apikey: supabasePublishableKey,
+            Authorization: `Bearer ${supabasePublishableKey}`,
+          },
+        });
+        if (!response.ok) throw new Error(`สถานีตรวจวัด HTTP ${response.status}`);
+        const parsed = parsePublicGaugeStatus(await response.json());
+        const freshness = evaluateFreshness(parsed.station.observedAt, {
+          staleAfterMinutes: 360,
+          expireAfterMinutes: 720,
+        });
+        if (controller.signal.aborted) return;
+        setGaugeStatus(parsed);
+        setGaugeSourceStatus({
+          state: freshness.status === 'fresh' ? 'fresh' : 'stale',
+          source: `สถานีจริง ${parsed.station.code}`,
+          timestamp: parsed.station.observedAt,
+          freshness,
+          error: parsed.ingestion.status === 'failed' ? 'การดึงข้อมูลรอบล่าสุดไม่สำเร็จ' : null,
+        });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setGaugeSourceStatus((previous) => ({
+          ...previous,
+          state: 'error',
+          error: error instanceof Error ? error.message : 'โหลดข้อมูลสถานีตรวจวัดไม่สำเร็จ',
+        }));
+      }
+    };
+    void loadGaugeStatus();
+    const timer = window.setInterval(loadGaugeStatus, 15 * 60_000);
+    return () => { controller.abort(); window.clearInterval(timer); };
   }, [reloadToken]);
 
   useEffect(() => {
@@ -695,7 +744,7 @@ export default function RadarPage() {
       staleAfterMinutes: status.freshness.staleAfterMinutes,
       expireAfterMinutes: status.freshness.expireAfterMinutes,
     }) : null;
-    const effectiveState = status.state === 'fresh' && fresh?.status !== 'fresh' ? 'stale' : status.state;
+    const effectiveState = status.state === 'fresh' && fresh && fresh.status !== 'fresh' ? 'stale' : status.state;
     const state = effectiveState === 'loading' ? 'กำลังโหลด' : effectiveState === 'fresh' ? 'พร้อมใช้' :
       effectiveState === 'stale' ? 'ข้อมูลเก่า' : effectiveState === 'error' ? 'ผิดพลาด' : 'รอข้อมูล';
     const color = effectiveState === 'fresh' ? '#22C55E' : effectiveState === 'loading' ? '#38BDF8' :
@@ -751,8 +800,15 @@ export default function RadarPage() {
               <div className="w-12 text-right font-mono pr-1">{v.peak}</div>
             </button>
           ))
+        ) : geoJsonStatus.state === 'loading' || geoJsonStatus.state === 'idle' ? (
+          <div role="status" className="py-10 text-center text-[#8B94A5] text-[12px] animate-pulse">กำลังโหลดขอบเขตและข้อมูล 13 หมู่บ้าน...</div>
+        ) : geoJsonStatus.state === 'error' ? (
+          <div role="alert" className="mx-2 my-6 rounded-xl border border-orange-300/35 bg-orange-300/10 p-4 text-center text-[12px] text-orange-100">
+            <p>โหลดขอบเขตหมู่บ้านไม่สำเร็จ</p>
+            <button onClick={() => setReloadToken((token) => token + 1)} className="mt-2 rounded-lg border border-orange-300/50 px-3 py-1.5 font-bold">ลองใหม่</button>
+          </div>
         ) : (
-          <div className="py-10 text-center text-[#8B94A5] text-[12px]">ไม่พบข้อมูล /geojson/block.json</div>
+          <div className="py-10 text-center text-[#8B94A5] text-[12px]">ยังไม่มีข้อมูลพยากรณ์ที่ผ่านการตรวจสอบ</div>
         )}
       </div>
     </div>
@@ -832,6 +888,7 @@ export default function RadarPage() {
                 Bo Luang Radar <span className="hidden lg:inline font-medium text-[#C7D2E5]">· Observation & Village Forecast</span>
               </h1>
               <span className="hidden sm:inline-flex rounded-full border border-cyan-200/25 bg-cyan-300/10 px-2 py-0.5 text-[8px] font-bold tracking-[.12em] text-cyan-100">PUBLIC BETA</span>
+              <span className="hidden md:inline-flex rounded-full border border-amber-200/30 bg-amber-300/10 px-2 py-0.5 text-[9px] font-bold text-amber-100">เกณฑ์ทดลอง · ยังไม่ validated</span>
             </div>
             <p className="text-[10px] md:text-[11px] text-[#AEBBD0] mt-1">เทศบาลตำบลบ่อหลวง · เครื่องมือสนับสนุนการตัดสินใจ</p>
           </div>
@@ -891,6 +948,7 @@ export default function RadarPage() {
           <DataStatusBadge status={forecastStatus} />
           <DataStatusBadge status={metNorwayStatus} />
           <DataStatusBadge status={outlookStatus} />
+          <DataStatusBadge status={gaugeSourceStatus} />
           <DataStatusBadge status={geoJsonStatus} />
         </div>
 
@@ -1105,6 +1163,38 @@ export default function RadarPage() {
                   ข้อมูลพยากรณ์หลัก{forecastStatus.state === 'error' ? 'โหลดไม่สำเร็จ' : 'ไม่สดใหม่'} · ค่าที่แสดงอาจเป็นข้อมูลรอบก่อน โปรดรีเฟรชและตรวจสอบเวลาก่อนตัดสินใจ
                 </p>
               )}
+              <div className="rounded-xl border border-cyan-200/25 bg-cyan-300/[.07] p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[13px] font-bold text-cyan-100">ข้อมูลตรวจวัดจริง · บ้านนาฟ่อน</p>
+                    <p className="mt-0.5 text-[11px] text-[#AEBBD0]">ThaiWater · {gaugeStatus?.station.code ?? 'STN0583'} · ไม่ใช่ข้อมูลแบบจำลอง</p>
+                  </div>
+                  <span className="rounded-md border border-amber-200/30 bg-amber-300/10 px-2 py-1 text-[10px] font-bold text-amber-100">กำลังสะสมข้อมูล</span>
+                </div>
+                {gaugeSourceStatus.state === 'loading' ? (
+                  <p role="status" className="mt-3 text-[12px] text-[#AEBBD0] animate-pulse">กำลังโหลดค่าจากสถานีจริง...</p>
+                ) : gaugeStatus ? (
+                  <>
+                    <div className="mt-3 grid grid-cols-2 gap-2.5">
+                      <div className="rounded-lg border border-white/10 bg-[#07111f]/70 p-2.5 text-center">
+                        <p className="text-[11px] text-[#AEBBD0]">ฝนตรวจวัด 1 ชม.</p>
+                        <p className="mt-0.5 text-[17px] font-black font-mono text-white">{fmtNumber(gaugeStatus.measurements.rain1hMm)} <span className="text-[11px] font-medium text-[#AEBBD0]">มม.</span></p>
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-[#07111f]/70 p-2.5 text-center">
+                        <p className="text-[11px] text-[#AEBBD0]">ฝนตรวจวัด 24 ชม.</p>
+                        <p className="mt-0.5 text-[17px] font-black font-mono text-white">{fmtNumber(gaugeStatus.measurements.rain24hMm)} <span className="text-[11px] font-medium text-[#AEBBD0]">มม.</span></p>
+                      </div>
+                    </div>
+                    <div className="mt-2.5 space-y-1 text-[11px] leading-relaxed text-[#AEBBD0]">
+                      <p>เวลาอ่านค่า: <span className="text-[#E5E7EB]">{fmtDate(new Date(gaugeStatus.station.observedAt))} {fmtTime(new Date(gaugeStatus.station.observedAt))} น.</span> · สถานะ {gaugeStatus.station.qualityFlag === 'provisional' ? 'ข้อมูลจริงเบื้องต้น' : 'ข้อมูลล่าช้า ต้องตรวจสอบ'}</p>
+                      <p>หน่วยงาน: <span className="text-[#E5E7EB]">{gaugeStatus.station.agencyName ?? 'ไม่ระบุ'}</span> · สะสมแล้ว {gaugeStatus.validation.observationCount} ระเบียน</p>
+                      <p className="text-amber-100">{selectedVillage.name.includes('นาฟ่อน') ? 'สถานีตั้งอยู่ในพื้นที่บ้านนาฟ่อน' : 'สถานีอยู่บ้านนาฟ่อน ไม่ใช่ค่าตรวจวัด ณ หมู่บ้านที่เลือก'} และยังไม่ใช้ยกระดับ Alert อัตโนมัติ</p>
+                    </div>
+                  </>
+                ) : (
+                  <p role="alert" className="mt-3 text-[12px] text-orange-200">ยังอ่านข้อมูลสถานีจริงไม่ได้ · {gaugeSourceStatus.error ?? 'ไม่ทราบสาเหตุ'}</p>
+                )}
+              </div>
               <div className="grid grid-cols-3 gap-2.5">
                 {[{ l: 'แบบจำลอง 1 ชม.', v: selectedVillage.rain1h }, { l: 'แบบจำลอง 3 ชม.', v: selectedVillage.rain3h }, { l: 'แบบจำลองย้อนหลัง 24 ชม.', v: selectedVillage.rain24h }].map((s) => (
                   <div key={s.l} className="bg-[#111319] border border-[#333946] rounded-xl p-2.5 text-center">
