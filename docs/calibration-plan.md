@@ -17,3 +17,16 @@
 - รันทุกชั่วโมงด้วย Supabase Cron และ Edge Function; client ไม่มีสิทธิ์เขียนตาราง observation
 
 ข้อมูลจาก Open-Meteo เป็นข้อมูลแบบจำลองและต้องไม่ถูกเรียกว่าเครื่องวัดหรือใช้เป็น field validation ระบบไม่สร้าง Virtual Station หรือข้อมูลฝนจำลองในตาราง `radar_gauge_observations`
+
+## สถานะการรับรองเกณฑ์
+
+สถานะปัจจุบันคือ `collecting_real_observations` หรือ “กำลังสะสมข้อมูลจริง” และต้องแสดงในหน้า Radar ว่าเกณฑ์ยังไม่ผ่านการยืนยัน ห้ามเปลี่ยนเป็น `validated` จนกว่าจะครบทุกข้อ:
+
+1. มีข้อมูลตรวจวัดครอบคลุมฤดูฝนอย่างน้อยหนึ่งฤดูและมีช่วงฝนหนักจริงเพียงพอสำหรับแยกผลตาม lead time
+2. มีเหตุการณ์ภาคสนามที่ยืนยันเวลา พิกัด หมู่บ้าน ประเภทเหตุ ระดับผลกระทบ และผู้ตรวจสอบ โดยแยก “ไม่เกิดเหตุ” ออกจาก “ไม่มีรายงาน”
+3. จับคู่ forecast snapshot, radar observation, gauge observation และ field event โดยใช้ข้อมูลที่มีอยู่ ณ เวลาตัดสินใจเท่านั้น
+4. รายงาน MAE, bias, RMSE, probability of detection, false alarm ratio, critical success index และ lead time แยกตามหมู่บ้าน/ฤดู
+5. แบ่งชุดข้อมูลตามเวลาเป็น calibration และ holdout validation ห้ามปรับเกณฑ์จากผลชุด holdout
+6. คณะทำงานรับรอง calibration version, ช่วงข้อมูล, metric, ข้อจำกัด และวันที่ทบทวน พร้อมบันทึก audit trail
+
+หน้า public แสดงได้เฉพาะค่าฝนล่าสุด ตัวตนสถานี หน่วยงาน เวลา observation/fetch, quality flag และจำนวน observation เท่านั้น ส่วน raw payload hash, source record ID และ ingestion error detail ยังคงเป็นข้อมูลภายใน
