@@ -51,6 +51,7 @@ const MapContainer = dynamic(() => import('react-leaflet').then((m) => m.MapCont
 const TileLayer = dynamic(() => import('react-leaflet').then((m) => m.TileLayer), { ssr: false });
 const GeoJSON = dynamic(() => import('react-leaflet').then((m) => m.GeoJSON), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then((m) => m.Marker), { ssr: false });
+const Popup = dynamic(() => import('react-leaflet').then((m) => m.Popup), { ssr: false });
 const SmoothRadar = dynamic(() => import('@/components/radar/SmoothRadar'), { ssr: false });
 
 /* ═══════════════════════════ CONFIG ═══════════════════════════ */
@@ -156,6 +157,7 @@ export default function RadarPage() {
   const [showBoluang, setShowBoluang] = useState(true);
   const [showBlock, setShowBlock] = useState(true);
   const [showRisk, setShowRisk] = useState(true);
+  const [showGaugeStation, setShowGaugeStation] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [showLandslide, setShowLandslide] = useState(false);
   const [landslideStatus, setLandslideStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -693,6 +695,23 @@ export default function RadarPage() {
       })
     : null;
 
+  const gaugeStationIcon = L
+    ? L.divIcon({
+        className: 'bg-transparent border-none',
+        html: `<div class="relative flex h-11 w-11 items-center justify-center" aria-hidden="true">
+          <div class="absolute inset-0 rounded-full border border-cyan-200/65 bg-cyan-300/15 shadow-[0_0_22px_rgba(34,211,238,.75)]"></div>
+          <div class="absolute inset-[5px] rounded-full border-2 border-white bg-gradient-to-br from-cyan-300 to-emerald-400 shadow-lg"></div>
+          <svg class="relative z-10 h-5 w-5 text-[#062238]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3.5S6.8 9.3 6.8 14a5.2 5.2 0 0 0 10.4 0C17.2 9.3 12 3.5 12 3.5Z" />
+            <path d="M9.4 14.4a2.8 2.8 0 0 0 2.8 2.7" />
+          </svg>
+        </div>`,
+        iconSize: [44, 44],
+        iconAnchor: [22, 22],
+        popupAnchor: [0, -20],
+      })
+    : null;
+
   const blockStyle = useCallback((feature: any) => {
     const v = riskByIdx.get(getIdx(feature));
     if (!showRisk || !v) return { color: '#F59E0B', weight: 1.2, fill: false, opacity: 0.6 };
@@ -727,6 +746,9 @@ export default function RadarPage() {
     ? ((radarData.pastCount - 1) / (radarData.frames.length - 1)) * 100
     : 100;
   const bm = BASEMAPS[mapStyle];
+  const gaugeLayerBadge = gaugeSourceStatus.state === 'fresh' ? 'พร้อมใช้' :
+    gaugeSourceStatus.state === 'stale' ? 'ข้อมูลเก่า' :
+    gaugeSourceStatus.state === 'error' ? 'ไม่พร้อม' : 'กำลังโหลด';
 
   /* ═══════════ UI PARTS ═══════════ */
   const LayerToggle = ({ label, checked, onChange, badge, disabled = false }: any) => (
@@ -938,6 +960,49 @@ export default function RadarPage() {
               <GeoJSON key={`blk-${villageRisk.length}-${showRisk}-${showLabels}-${riskUpdatedAt?.getTime()}-${selectedVillage?.id ?? 'x'}`}
                 data={geoBlock} style={blockStyle as any} onEachFeature={onEachBlock} />
             )}
+            {showGaugeStation && gaugeStatus && gaugeStationIcon && (
+              <Marker
+                position={[gaugeStatus.station.latitude, gaugeStatus.station.longitude]}
+                icon={gaugeStationIcon}
+                title={`สถานีตรวจวัดจริง ${gaugeStatus.station.code} ${gaugeStatus.station.name}`}
+                alt={`สถานีตรวจวัดจริง ${gaugeStatus.station.code} ${gaugeStatus.station.name}`}
+                riseOnHover
+              >
+                <Popup className="custom-popup" minWidth={280} maxWidth={320}>
+                  <div className="w-[300px] overflow-hidden rounded-2xl border border-cyan-200/30 bg-[#07111f]/95 text-[#E5E7EB] shadow-[0_18px_55px_rgba(0,0,0,.55)] backdrop-blur-xl">
+                    <div className="border-b border-white/10 bg-cyan-300/[.08] px-4 py-3.5">
+                      <div className="flex items-start justify-between gap-3 pr-5">
+                        <div>
+                          <p className="text-[13px] font-extrabold text-cyan-100">สถานีตรวจวัดจริง</p>
+                          <p className="mt-0.5 text-[12px] font-bold text-white">{gaugeStatus.station.code} · {gaugeStatus.station.name}</p>
+                        </div>
+                        <span className="rounded-md border border-emerald-200/30 bg-emerald-300/10 px-2 py-1 text-[9px] font-extrabold text-emerald-100">OBSERVED</span>
+                      </div>
+                    </div>
+                    <div className="space-y-3 px-4 py-3.5">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border border-white/10 bg-white/[.04] p-2.5 text-center">
+                          <p className="text-[10px] text-[#AEBBD0]">ฝนจริง 1 ชม.</p>
+                          <p className="mt-0.5 text-[17px] font-black text-white">{fmtNumber(gaugeStatus.measurements.rain1hMm)} <span className="text-[10px] font-medium text-[#AEBBD0]">มม.</span></p>
+                        </div>
+                        <div className="rounded-lg border border-white/10 bg-white/[.04] p-2.5 text-center">
+                          <p className="text-[10px] text-[#AEBBD0]">ฝนจริง 24 ชม.</p>
+                          <p className="mt-0.5 text-[17px] font-black text-white">{fmtNumber(gaugeStatus.measurements.rain24hMm)} <span className="text-[10px] font-medium text-[#AEBBD0]">มม.</span></p>
+                        </div>
+                      </div>
+                      <div className="space-y-1 text-[10.5px] leading-relaxed text-[#AEBBD0]">
+                        <p>เวลาอ่านค่า: <span className="text-white">{fmtDate(new Date(gaugeStatus.station.observedAt))} {fmtTime(new Date(gaugeStatus.station.observedAt))} น.</span></p>
+                        <p>หน่วยงาน: <span className="text-white">{gaugeStatus.station.agencyName ?? 'ไม่ระบุ'}</span></p>
+                        <p>คุณภาพข้อมูล: <span className={gaugeStatus.station.qualityFlag === 'provisional' ? 'text-cyan-100' : 'text-orange-200'}>{gaugeStatus.station.qualityFlag === 'provisional' ? 'ข้อมูลจริงเบื้องต้น' : 'ข้อมูลล่าช้า ต้องตรวจสอบ'}</span></p>
+                      </div>
+                      <p className="rounded-lg border border-amber-200/25 bg-amber-300/10 p-2 text-[10.5px] font-semibold leading-relaxed text-amber-100">
+                        กำลังสะสมข้อมูล · เกณฑ์ความเสี่ยงยังไม่ validated และสถานีนี้ยังไม่ใช้ยกระดับ Alert อัตโนมัติ
+                      </p>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
             <ClickableMap onMapClick={handleMapClick} onZoom={setMapZoom} />
             {clickedLocation && customPinIcon && <Marker position={[clickedLocation.lat, clickedLocation.lng]} icon={customPinIcon} />}
           </MapContainer>
@@ -1047,6 +1112,7 @@ export default function RadarPage() {
                 </div>
 
                 <LayerToggle label="ฝนสะสมคาดการณ์ 3 ชม. (รายหมู่บ้าน)" checked={showRisk} onChange={(e: any) => setShowRisk(e.target.checked)} badge="FORECAST" />
+                <LayerToggle label="สถานีตรวจวัดจริง (STN0583)" checked={showGaugeStation} onChange={(e: any) => setShowGaugeStation(e.target.checked)} badge={gaugeLayerBadge} />
                 <LayerToggle label="ป้ายชื่อหมู่บ้าน" checked={showLabels} onChange={(e: any) => setShowLabels(e.target.checked)} />
                 <div className="border-t border-[#333946] my-3" />
                 <LayerToggle label="ขอบเขตตำบลบ่อหลวง" checked={showBoluang} onChange={(e: any) => setShowBoluang(e.target.checked)} />
@@ -1458,6 +1524,14 @@ export default function RadarPage() {
                 <button onClick={() => setShowLabels(!showLabels)} className={`flex-1 py-2 rounded-lg text-[11px] font-bold border ${showLabels ? 'bg-[#4178F3]/15 border-[#4178F3]/40 text-[#4178F3]' : 'border-[#333946] text-[#8B94A5]'}`}>ป้ายหมู่บ้าน</button>
                 <button onClick={() => setShowLandslide(!showLandslide)} className={`flex-1 py-2 rounded-lg text-[11px] font-bold border ${showLandslide ? 'bg-[#F59E0B]/15 border-[#F59E0B]/40 text-[#F59E0B]' : 'border-[#333946] text-[#8B94A5]'}`}>ดินถล่ม</button>
               </div>
+              <button
+                type="button"
+                aria-pressed={showGaugeStation}
+                onClick={() => setShowGaugeStation(!showGaugeStation)}
+                className={`mb-3 w-full rounded-lg border py-2 text-[11px] font-bold ${showGaugeStation ? 'border-cyan-300/45 bg-cyan-300/10 text-cyan-100' : 'border-[#333946] text-[#8B94A5]'}`}
+              >
+                สถานีตรวจวัดจริง STN0583 · {showGaugeStation ? 'แสดงบนแผนที่' : 'ซ่อนจากแผนที่'}
+              </button>
               <RankTable height="h-[42vh]" />
             </div>
           </div>
