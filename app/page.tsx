@@ -1643,7 +1643,7 @@ export default function BoLuangDashboard() {
                 </div>
                 <div className="space-y-1">
                   <CustomToggleBox label="พยากรณ์อากาศรายพื้นที่" source="ข้อมูล: Open-Meteo & TMD" active={tmdWeather} onClick={() => setTmdWeather(!tmdWeather)} dotColor="#38bdf8" apiStatus={apiStatus.tmd} />
-                  <CustomToggleBox label="ฝนสะสม 24 ชม." source="สถานีตรวจวัดจริง สทนช." active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#facc15" apiStatus={apiStatus.tmd} />
+                  <CustomToggleBox label="ฝนจากแบบจำลอง 24 ชม." source="Open-Meteo — ไม่ใช่สถานีตรวจวัด" active={tmdRain} onClick={() => setTmdRain(!tmdRain)} dotColor="#facc15" apiStatus={apiStatus.tmd} />
                 </div>
               </div>
 
