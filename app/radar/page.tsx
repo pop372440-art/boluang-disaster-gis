@@ -71,10 +71,10 @@ const fmtDate = (value: Date | number | null | undefined) => {
 };
 /* ═══════════════════════ BASEMAPS ═══════════════════════ */
 const BASEMAPS = {
-  light: { name: 'ถนน', swatch: 'bg-[#E5E7EB]', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', subdomains: 'abcd', maxNativeZoom: 20, attr: '&copy; OSM &copy; CARTO', labels: '' },
+  light: { name: 'ถนน', swatch: 'bg-[#E5E7EB]', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', subdomains: '', maxNativeZoom: 16, attr: 'Tiles &copy; Esri', labels: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}' },
   terrain: { name: 'ภูมิประเทศ', swatch: 'bg-[#8F9779]', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', subdomains: '', maxNativeZoom: 19, attr: 'Tiles &copy; Esri', labels: '' },
   satellite: { name: 'ดาวเทียม', swatch: 'bg-[#2D4C1E]', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains: '', maxNativeZoom: 19, attr: 'Tiles &copy; Esri, Maxar', labels: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}' },
-  dark: { name: 'กลางคืน', swatch: 'bg-[#111319]', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png', subdomains: 'abcd', maxNativeZoom: 20, attr: '&copy; OSM &copy; CARTO', labels: '' },
+  dark: { name: 'กลางคืน', swatch: 'bg-[#111319]', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', subdomains: '', maxNativeZoom: 16, attr: 'Tiles &copy; Esri', labels: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}' },
 } as const;
 type BasemapId = keyof typeof BASEMAPS;
 
@@ -184,10 +184,12 @@ export default function RadarPage() {
 
   const [isTopHeaderVisible, setIsTopHeaderVisible] = useState(true);
   const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
-  const [realStats, setRealStats] = useState({ totalVisits: 0, totalUniqueVisitors: 0, todayVisits: 0, todayUniqueVisitors: 0, isLoading: true });
+  const [realStats, setRealStats] = useState({ totalVisits: 0, totalUniqueVisitors: 0, todayVisits: 0, todayUniqueVisitors: 0, isLoading: true, error: null as string | null });
 
   const mapRef = useRef<any>(null);
   const detailCloseRef = useRef<HTMLButtonElement | null>(null);
+  const statsCloseRef = useRef<HTMLButtonElement | null>(null);
+  const statsReturnFocusRef = useRef<HTMLElement | null>(null);
   const fcAbortRef = useRef<AbortController | null>(null);
   const riskAbortRef = useRef<AbortController | null>(null);
   const radarAbortRef = useRef<AbortController | null>(null);
@@ -565,6 +567,26 @@ export default function RadarPage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [selectedVillage]);
 
+  const openStatsModal = useCallback(() => {
+    statsReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setIsStatsModalOpen(true);
+  }, []);
+
+  const closeStatsModal = useCallback(() => setIsStatsModalOpen(false), []);
+
+  useEffect(() => {
+    if (!isStatsModalOpen) return;
+    statsCloseRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeStatsModal();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      statsReturnFocusRef.current?.focus();
+    };
+  }, [closeStatsModal, isStatsModalOpen]);
+
   const riskByIdx = useMemo(() => {
     const m = new Map<number, any>();
     villageRisk.forEach((v) => m.set(v.featureIndex, v));
@@ -590,7 +612,7 @@ export default function RadarPage() {
   useEffect(() => {
     if (!isStatsModalOpen) return;
     (async () => {
-      setRealStats((p) => ({ ...p, isLoading: true }));
+      setRealStats((p) => ({ ...p, isLoading: true, error: null }));
       try {
         if (!supabase) throw new Error('Supabase ยังไม่ได้ตั้งค่า');
         const { data, error } = await supabase.rpc('get_visit_stats');
@@ -602,8 +624,15 @@ export default function RadarPage() {
           todayVisits: Number(s?.today_visits || 0),
           todayUniqueVisitors: Number(s?.today_unique || 0),
           isLoading: false,
+          error: null,
         });
-      } catch (e) { console.error(e); setRealStats((p) => ({ ...p, isLoading: false })); }
+      } catch (error: unknown) {
+        setRealStats((p) => ({
+          ...p,
+          isLoading: false,
+          error: error instanceof Error ? error.message : 'โหลดสถิติไม่สำเร็จ',
+        }));
+      }
     })();
   }, [isStatsModalOpen]);
 
@@ -908,10 +937,11 @@ export default function RadarPage() {
               <h1 className="truncate text-[13px] md:text-[15px] font-extrabold tracking-[-.01em] text-[#173B69]">
                 BO LUANG RADAR <span className="hidden lg:inline font-semibold text-[#52657B]">· OBSERVATION & VILLAGE FORECAST</span>
               </h1>
-              <span className="hidden sm:inline-flex rounded-md border border-[#BBD7F7] bg-[#EAF4FF] px-2 py-0.5 text-[8px] font-bold tracking-[.12em] text-[#1D65A6]">PUBLIC BETA</span>
+              <span className="hidden lg:inline-flex rounded-md border border-[#BBD7F7] bg-[#EAF4FF] px-2 py-0.5 text-[8px] font-bold tracking-[.12em] text-[#1D65A6]">PUBLIC BETA</span>
               <span className="hidden xl:inline-flex rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[9px] font-bold text-amber-700">เกณฑ์ทดลอง · ยังไม่ validated</span>
             </div>
-            <p className="mt-0.5 truncate text-[10px] md:text-[11px] text-[#66788B]">ระบบเฝ้าระวังฝนและสาธารณภัย · เทศบาลตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่</p>
+            <p className="mt-0.5 truncate text-[10px] font-bold text-amber-700 md:hidden">ข้อมูลทดลอง · ยังไม่ validated</p>
+            <p className="mt-0.5 hidden truncate text-[11px] text-[#66788B] md:block">ระบบเฝ้าระวังฝนและสาธารณภัย · เทศบาลตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่</p>
           </div>
         </div>
         <div className="ml-3 flex shrink-0 items-center space-x-2">
@@ -925,7 +955,7 @@ export default function RadarPage() {
             <svg className={`w-4 h-4 ${riskLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M19.418 9A7.003 7.003 0 006 7.293M4.582 15A7.003 7.003 0 0018 16.707" /></svg>
             <span className="hidden md:inline text-[12px]">รีเฟรช</span>
           </button>
-          <button onClick={() => setIsStatsModalOpen(true)} className="hidden sm:flex items-center px-4 py-2 bg-[#1D65A6] border border-[#15568F] text-white hover:bg-[#15568F] rounded-lg font-semibold space-x-2 shadow-sm">
+          <button onClick={openStatsModal} className="hidden sm:flex items-center px-4 py-2 bg-[#1D65A6] border border-[#15568F] text-white hover:bg-[#15568F] rounded-lg font-semibold space-x-2 shadow-sm">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2-2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
             <span className="text-[12px]">สถิติ</span>
           </button>
@@ -1056,30 +1086,30 @@ export default function RadarPage() {
 
         {/* ══ LAYER PANEL ══ */}
         {isLayerMenuOpen ? (
-          <div className="absolute top-[80px] left-3 z-[1000] w-[332px] ops-panel flex-col hidden md:flex">
+          <div className={`absolute top-[80px] left-3 z-[1000] w-[332px] max-h-[calc(100dvh-96px)] ${isLegendOpen ? 'lg:max-h-[calc(100dvh-364px)]' : ''} ops-panel flex-col overflow-hidden hidden md:flex`}>
             <div className="px-5 py-3.5 border-b border-white/10 flex justify-between items-center liquid-subpanel rounded-t-[22px]">
               <h3 className="text-[13px] font-bold text-[#E5E7EB] flex items-center">
                 <svg className="w-4 h-4 mr-2 text-[#4178F3]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
                 จัดการชั้นข้อมูล
               </h3>
-              <button onClick={() => setIsLayerMenuOpen(false)} className="text-[#8B94A5] hover:text-white">
+              <button onClick={() => setIsLayerMenuOpen(false)} aria-label="ปิดแผงจัดการชั้นข้อมูล" className="text-[#8B94A5] hover:text-white">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div className="flex flex-col max-h-[calc(100vh-170px)]">
-              <div className="p-4 border-b border-[#333946]">
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="shrink-0 p-4 border-b border-[#333946]">
                 <div className="grid grid-cols-4 gap-2.5">
                   {(Object.keys(BASEMAPS) as BasemapId[]).map((id) => (
-                    <div key={id} onClick={() => setMapStyle(id)}
+                    <button type="button" key={id} onClick={() => setMapStyle(id)} aria-pressed={mapStyle === id}
                       className={`flex flex-col items-center p-1.5 rounded-xl border cursor-pointer transition-all ${mapStyle === id ? 'bg-[#292E38] border-[#4178F3]' : 'border-[#333946] hover:border-[#4B5563]'}`}>
                       <div className={`w-full h-7 ${BASEMAPS[id].swatch} rounded-md border border-[#333946] mb-1.5`} />
                       <span className={`text-[10px] font-bold ${mapStyle === id ? 'text-[#4178F3]' : 'text-[#8B94A5]'}`}>{BASEMAPS[id].name}</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
 
-              <div className="p-4 overflow-y-auto ops-scroll pr-2 rounded-b-xl">
+              <div className="min-h-0 flex-1 p-4 overflow-y-auto ops-scroll pr-2 rounded-b-xl">
                 <LayerToggle label="เรดาร์คอมโพสิต" checked={showRadar} onChange={(e: any) => setShowRadar(e.target.checked)} badge="LIVE" />
                 <div className="pl-7 pr-1 pb-3 pt-1.5 space-y-2">
                   <div className="flex items-center gap-1.5">
@@ -1125,7 +1155,7 @@ export default function RadarPage() {
                   ดัชนีเสี่ยง = <b className="text-[#D1D5DB]">ฝนคาด 3 ชม. × ดินอิ่มน้ำ × ความลาดชัน</b>
                 </div>
                 <div className="mt-2 text-[11px] text-[#AEBBD0] leading-relaxed">
-                  เรดาร์: RainViewer · พยากรณ์หลัก: Open-Meteo · ตรวจสอบไขว้: MET Norway · แผนที่ฐาน: Esri / CARTO / OSM
+                  เรดาร์: RainViewer · พยากรณ์หลัก: Open-Meteo · ตรวจสอบไขว้: MET Norway · แผนที่ฐาน: Esri / OSM
                 </div>
                 <div className="mt-2 rounded-lg border border-cyan-200/15 bg-cyan-300/5 p-2.5 text-[11px] leading-relaxed text-[#C7D2E5]">
                   เรดาร์ใช้ดูฝนที่ตรวจพบและ nowcast เท่านั้น ยังไม่ถูกนำไปคำนวณดัชนีเสี่ยงอัตโนมัติ
@@ -1134,7 +1164,7 @@ export default function RadarPage() {
             </div>
           </div>
         ) : (
-          <button onClick={() => setIsLayerMenuOpen(true)} className={`absolute top-[80px] left-3 z-[1000] p-2.5 bg-[#1F252B] border border-[#3B4651] rounded-lg text-[#E5E7EB] hover:bg-[#2B333B] ${isMapFocus ? 'hidden' : 'hidden md:block'}`}>
+          <button onClick={() => setIsLayerMenuOpen(true)} aria-label="เปิดแผงจัดการชั้นข้อมูล" className={`absolute top-[80px] left-3 z-[1000] p-2.5 bg-[#1F252B] border border-[#3B4651] rounded-lg text-[#E5E7EB] hover:bg-[#2B333B] ${isMapFocus ? 'hidden' : 'hidden md:block'}`}>
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
           </button>
         )}
@@ -1142,11 +1172,11 @@ export default function RadarPage() {
         {/* ══ RANKING PANEL ══ */}
         {isTablePanelOpen && !selectedVillage ? (
           <div className="absolute top-[80px] right-3 z-[900] w-[414px] ops-panel flex-col hidden xl:flex overflow-hidden">
-            <div className="flex border-b border-[#333946] bg-[#111319]">
-              <button onClick={() => setScope('village')} className={`px-4 py-3 text-[12px] font-bold ${scope === 'village' ? 'text-[#65B8FF] border-b-2 border-[#65B8FF] bg-[#1A1D24]' : 'text-[#8B94A5] hover:text-[#E5E7EB]'}`}>เรดาร์รายหมู่บ้าน</button>
-              <button onClick={() => setScope('station')} className={`px-4 py-3 text-[12px] font-bold ${scope === 'station' ? 'text-[#65B8FF] border-b-2 border-[#65B8FF] bg-[#1A1D24]' : 'text-[#8B94A5] hover:text-[#E5E7EB]'}`}>สถานีจริง</button>
-              <button onClick={() => setScope('tambon')} className={`px-4 py-3 text-[12px] font-bold ${scope === 'tambon' ? 'text-[#65B8FF] border-b-2 border-[#65B8FF] bg-[#1A1D24]' : 'text-[#8B94A5] hover:text-[#E5E7EB]'}`}>ภาพรวม</button>
-              <button onClick={() => setIsTablePanelOpen(false)} className="ml-auto px-4 text-[#8B94A5] hover:text-[#EF4444]">
+            <div role="tablist" aria-label="มุมมองการวิเคราะห์" className="flex border-b border-[#333946] bg-[#111319]">
+              <button role="tab" aria-selected={scope === 'village'} onClick={() => setScope('village')} className={`px-4 py-3 text-[12px] font-bold ${scope === 'village' ? 'text-[#65B8FF] border-b-2 border-[#65B8FF] bg-[#1A1D24]' : 'text-[#8B94A5] hover:text-[#E5E7EB]'}`}>เรดาร์รายหมู่บ้าน</button>
+              <button role="tab" aria-selected={scope === 'station'} onClick={() => setScope('station')} className={`px-4 py-3 text-[12px] font-bold ${scope === 'station' ? 'text-[#65B8FF] border-b-2 border-[#65B8FF] bg-[#1A1D24]' : 'text-[#8B94A5] hover:text-[#E5E7EB]'}`}>สถานีจริง</button>
+              <button role="tab" aria-selected={scope === 'tambon'} onClick={() => setScope('tambon')} className={`px-4 py-3 text-[12px] font-bold ${scope === 'tambon' ? 'text-[#65B8FF] border-b-2 border-[#65B8FF] bg-[#1A1D24]' : 'text-[#8B94A5] hover:text-[#E5E7EB]'}`}>ภาพรวม</button>
+              <button onClick={() => setIsTablePanelOpen(false)} aria-label="ปิดแผงวิเคราะห์" className="ml-auto px-4 text-[#8B94A5] hover:text-[#EF4444]">
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z" /></svg>
               </button>
             </div>
@@ -1245,7 +1275,7 @@ export default function RadarPage() {
             </div>
           </div>
         ) : !selectedVillage ? (
-          <button onClick={() => setIsTablePanelOpen(true)} className="absolute top-[80px] right-3 z-[900] px-4 py-2.5 bg-[#1F252B] border border-[#3B4651] rounded-lg text-[12px] font-bold text-[#E5E7EB] hidden xl:block hover:bg-[#2B333B]">
+          <button onClick={() => setIsTablePanelOpen(true)} aria-label="เปิดแผงอันดับหมู่บ้านเสี่ยง" className="absolute top-[80px] right-3 z-[900] px-4 py-2.5 bg-[#1F252B] border border-[#3B4651] rounded-lg text-[12px] font-bold text-[#E5E7EB] hidden xl:block hover:bg-[#2B333B]">
             อันดับหมู่บ้านเสี่ยง
           </button>
         ) : null}
@@ -1437,10 +1467,10 @@ export default function RadarPage() {
             }} aria-label={isMapFocus ? 'ออกจากโหมดเน้นแผนที่' : 'เข้าโหมดเน้นแผนที่'} title={isMapFocus ? 'แสดงแผงควบคุม' : 'ซ่อนแผงเพื่อดูแผนที่'} className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
               <span aria-hidden="true">{isMapFocus ? '▣' : '□'}</span>
             </button>
-            <button onClick={() => mapRef.current?.zoomIn()} className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
+            <button onClick={() => mapRef.current?.zoomIn()} aria-label="ขยายแผนที่" title="ขยายแผนที่" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m-6-6h12" /></svg>
             </button>
-            <button onClick={() => mapRef.current?.zoomOut()} className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B]">
+            <button onClick={() => mapRef.current?.zoomOut()} aria-label="ย่อแผนที่" title="ย่อแผนที่" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B]">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
             </button>
           </div>
@@ -1575,6 +1605,13 @@ export default function RadarPage() {
               >
                 สถานีตรวจวัดจริง STN0583 · {showGaugeStation ? 'แสดงบนแผนที่' : 'ซ่อนจากแผนที่'}
               </button>
+              <button
+                type="button"
+                onClick={openStatsModal}
+                className="mb-3 w-full rounded-lg border border-[#3B4651] bg-[#161B20] py-2 text-[11px] font-bold text-[#DCE8F5] hover:bg-[#202830]"
+              >
+                ดูสถิติการใช้งานที่บันทึกจริง
+              </button>
               <RankTable height="h-[42vh]" />
             </div>
           </div>
@@ -1583,24 +1620,27 @@ export default function RadarPage() {
 
       {/* ══ STATS MODAL ══ */}
       {isStatsModalOpen && (
-        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-[#18212B]/55 backdrop-blur-sm" onClick={() => setIsStatsModalOpen(false)}>
-          <div className="bg-white rounded-[18px] w-[92%] max-w-[680px] shadow-2xl overflow-hidden animate-fade-in border border-[#D8E1EB]" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-[#18212B]/55 p-3 backdrop-blur-sm" onClick={closeStatsModal}>
+          <section role="dialog" aria-modal="true" aria-labelledby="stats-modal-title" className="max-h-[calc(100dvh-24px)] w-full max-w-[680px] overflow-y-auto rounded-[18px] border border-[#D8E1EB] bg-white shadow-2xl animate-fade-in" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 md:px-6 py-4 flex justify-between items-center border-b border-[#E4EAF0] bg-white">
               <div>
-                <h2 className="text-[17px] font-extrabold text-[#172B43]">สถิติการใช้งาน</h2>
+                <h2 id="stats-modal-title" className="text-[17px] font-extrabold text-[#172B43]">สถิติการใช้งาน</h2>
                 <p className="mt-0.5 text-[10px] text-[#718096]">อัปเดตล่าสุด {fmtTime(riskUpdatedAt)} น.</p>
               </div>
-              <button onClick={() => setIsStatsModalOpen(false)} className="text-gray-400 hover:text-white bg-gray-100 hover:bg-red-500 p-1.5 rounded-lg transition-all">
+              <button ref={statsCloseRef} onClick={closeStatsModal} aria-label="ปิดสถิติการใช้งาน" className="text-gray-400 hover:text-white bg-gray-100 hover:bg-red-500 p-1.5 rounded-lg transition-all">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <div className="bg-[#F7F9FC] p-5 md:p-6">
-              <div className="mb-4 inline-flex rounded-lg border border-[#D8E1EB] bg-white p-1 text-[11px] font-bold">
-                <span className="rounded-md bg-[#E8F3FF] px-4 py-1.5 text-[#1D65A6]">วันนี้</span>
-                <span className="px-4 py-1.5 text-[#718096]">ยอดสะสม</span>
-              </div>
+              <p className="mb-4 text-[11px] font-bold text-[#51677E]">ข้อมูลวันนี้และยอดสะสมจากระบบบันทึกจริง</p>
               {realStats.isLoading ? (
-                <p className="py-12 text-center text-gray-500 text-[13px] font-bold animate-pulse">กำลังเชื่อมต่อฐานข้อมูล...</p>
+                <p role="status" className="py-12 text-center text-gray-500 text-[13px] font-bold animate-pulse">กำลังเชื่อมต่อฐานข้อมูล...</p>
+              ) : realStats.error ? (
+                <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-5 text-center">
+                  <p className="text-[13px] font-extrabold text-amber-800">ไม่สามารถอ่านสถิติจริงได้ในขณะนี้</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-amber-700">ระบบจะไม่แสดงค่า 0 แทนข้อมูลที่โหลดไม่สำเร็จ</p>
+                  <button onClick={() => { setIsStatsModalOpen(false); requestAnimationFrame(openStatsModal); }} className="mt-3 rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-[11px] font-bold text-amber-800 hover:bg-amber-100">ลองใหม่</button>
+                </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
@@ -1621,7 +1661,7 @@ export default function RadarPage() {
                 ตัวเลขแสดงเฉพาะข้อมูลที่ระบบบันทึกจริง ไม่มีการประมาณจำนวนผู้ใช้หรือสร้างข้อมูลสถิติจำลอง
               </div>
             </div>
-          </div>
+          </section>
         </div>
       )}
     </div>
