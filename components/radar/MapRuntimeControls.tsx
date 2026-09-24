@@ -6,14 +6,22 @@ import { useMap, useMapEvents } from 'react-leaflet';
 export function ClickableMap({
   onMapClick,
   onZoom,
+  coordinateMode = false,
 }: {
   onMapClick: (lat: number, lng: number) => void;
   onZoom: (zoom: number) => void;
+  coordinateMode?: boolean;
 }) {
   const map = useMapEvents({
     click(event) { onMapClick(event.latlng.lat, event.latlng.lng); },
     zoomend() { onZoom(map.getZoom()); },
   });
+  useEffect(() => {
+    const container = map.getContainer();
+    const previousCursor = container.style.cursor;
+    container.style.cursor = coordinateMode ? 'crosshair' : '';
+    return () => { container.style.cursor = previousCursor; };
+  }, [coordinateMode, map]);
   return null;
 }
 
