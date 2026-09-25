@@ -58,6 +58,7 @@ const SmoothRadar = dynamic(() => import('@/components/radar/SmoothRadar'), { ss
 const TZ = 'Asia/Bangkok';
 const RV_SCHEME_DEFAULT = 4;
 type Quality = import('@/components/radar/radarClientCache').RadarQuality;
+const isPageVisible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
 
 const toDate = (value: Date | number | null | undefined) =>
   value == null ? null : typeof value === 'number' ? new Date(value) : value;
@@ -68,6 +69,15 @@ const fmtTime = (value: Date | number | null | undefined) => {
 const fmtDate = (value: Date | number | null | undefined) => {
   const date = toDate(value);
   return date ? date.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', timeZone: TZ }) : '-';
+};
+const fmtDateInput = (value: Date | number | null | undefined) => {
+  const date = toDate(value);
+  if (!date) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TZ,
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
 };
 /* ═══════════════════════ BASEMAPS ═══════════════════════ */
 const BASEMAPS = {
@@ -168,11 +178,12 @@ export default function RadarPage() {
   const [isTablePanelOpen, setIsTablePanelOpen] = useState(true);
   const [isLegendOpen, setIsLegendOpen] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [isMapFocus, setIsMapFocus] = useState(false);
+  const [isLocatingPosition, setIsLocatingPosition] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [scope, setScope] = useState<'village' | 'tambon' | 'station'>('village');
   const [mapZoom, setMapZoom] = useState(12);
 
-  const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number; isCurrentPosition: boolean } | null>(null);
   const [forecastData, setForecastData] = useState<any>(null);
   const [isFetchingForecast, setIsFetchingForecast] = useState(false);
   const [selectedVillage, setSelectedVillage] = useState<any>(null);
@@ -274,7 +285,7 @@ export default function RadarPage() {
     };
 
     void loadRadar();
-    const timer = setInterval(() => { void loadRadar(); }, 5 * 60 * 1000);
+    const timer = setInterval(() => { if (isPageVisible()) void loadRadar(); }, 5 * 60 * 1000);
     return () => {
       clearInterval(timer);
       geoAbort.abort();
@@ -323,7 +334,7 @@ export default function RadarPage() {
       }
     };
     void loadGaugeStatus();
-    const timer = window.setInterval(loadGaugeStatus, 15 * 60_000);
+    const timer = window.setInterval(() => { if (isPageVisible()) void loadGaugeStatus(); }, 15 * 60_000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, [reloadToken]);
 
@@ -359,7 +370,7 @@ export default function RadarPage() {
       }
     };
     void loadHealth();
-    const timer = window.setInterval(loadHealth, 2 * 60_000);
+    const timer = window.setInterval(() => { if (isPageVisible()) void loadHealth(); }, 2 * 60_000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, [reloadToken]);
 
@@ -548,7 +559,7 @@ export default function RadarPage() {
   useEffect(() => {
     if (!geoBlock) return;
     computeVillageRisk(geoBlock);
-    const t = setInterval(() => computeVillageRisk(geoBlock), 10 * 60 * 1000);
+    const t = setInterval(() => { if (isPageVisible()) void computeVillageRisk(geoBlock); }, 10 * 60 * 1000);
     return () => clearInterval(t);
   }, [geoBlock, computeVillageRisk]);
 
@@ -641,19 +652,27 @@ export default function RadarPage() {
     let iv: any;
     if (isPlaying && radarData?.frames?.length) {
       iv = setInterval(() => {
-        if (isRadarTileBlocked()) return;
+        if (!isPageVisible() || isRadarTileBlocked()) return;
         setCurrentFrameIndex((p) => (p + 1 >= radarData.frames.length ? 0 : p + 1));
       }, clampAnimationFrameMs(speed));
     }
     return () => clearInterval(iv);
   }, [isPlaying, radarData, speed]);
 
-  const handleMapClick = async (lat: number, lng: number) => {
-    setClickedLocation({ lat, lng });
+  const handleMapClick = useCallback(async (lat: number, lng: number, focusPoint = false) => {
+    setClickedLocation({ lat, lng, isCurrentPosition: focusPoint });
     setIsFetchingForecast(true);
     setForecastData(null);
 
-    const hitFeat = (geoBlock?.features || []).find((f: any) => pointInPolygon(lng, lat, f.geometry));
+    if (focusPoint) {
+      const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+      mapRef.current?.flyTo([lat, lng], 17, {
+        animate: !reduceMotion,
+        duration: reduceMotion ? 0 : 1.15,
+      });
+    }
+
+    const hitFeat = focusPoint ? null : (geoBlock?.features || []).find((f: any) => pointInPolygon(lng, lat, f.geometry));
     setSelectedVillage(hitFeat ? riskByIdx.get(getIdx(hitFeat)) || null : null);
 
     fcAbortRef.current?.abort();
@@ -686,11 +705,15 @@ export default function RadarPage() {
       if (e?.name !== 'AbortError') setForecastData({ error: e?.message || 'โหลดพยากรณ์ไม่สำเร็จ', hours: [] });
     }
     finally { if (!ac.signal.aborted) setIsFetchingForecast(false); }
-  };
+  }, [geoBlock, riskByIdx]);
 
   const flyToVillage = useCallback((v: any) => {
     setSelectedVillage(v);
-    mapRef.current?.flyTo([v.centroid[1], v.centroid[0]], 15, { duration: 1.2 });
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    mapRef.current?.flyTo([v.centroid[1], v.centroid[0]], 15, {
+      animate: !reduceMotion,
+      duration: reduceMotion ? 0 : 1.2,
+    });
     setIsSheetOpen(false);
   }, []);
 
@@ -698,9 +721,65 @@ export default function RadarPage() {
     const points = (geoBoluang?.features ?? []).flatMap((feature: any) =>
       ringsOf(feature.geometry).flatMap((ring) => ring.map(([lng, lat]) => [lat, lng])),
     );
-    if (points.length) mapRef.current?.fitBounds(points, { padding: [24, 24], maxZoom: 14 });
-    else mapRef.current?.flyTo([center.lat, center.lng], 12, { duration: 1.2 });
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    if (points.length) mapRef.current?.fitBounds(points, { padding: [24, 24], maxZoom: 14, animate: !reduceMotion });
+    else mapRef.current?.flyTo([center.lat, center.lng], 12, { animate: !reduceMotion, duration: reduceMotion ? 0 : 1.2 });
   }, [geoBoluang]);
+
+  const locateCurrentPosition = useCallback(() => {
+    setLocationError(null);
+    setSelectedVillage(null);
+
+    if (!navigator.geolocation) {
+      setLocationError('อุปกรณ์หรือเบราว์เซอร์นี้ไม่รองรับการระบุตำแหน่ง');
+      return;
+    }
+
+    setIsLocatingPosition(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setIsLocatingPosition(false);
+        void handleMapClick(coords.latitude, coords.longitude, true);
+      },
+      (error) => {
+        setIsLocatingPosition(false);
+        if (error.code === error.PERMISSION_DENIED) {
+          setLocationError('ไม่สามารถเข้าถึงตำแหน่งได้ กรุณาอนุญาต Location ในเบราว์เซอร์');
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          setLocationError('ไม่พบตำแหน่งปัจจุบัน กรุณาตรวจสอบ GPS หรือเครือข่าย');
+        } else {
+          setLocationError('ค้นหาตำแหน่งนานเกินไป กรุณาลองใหม่');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 },
+    );
+  }, [handleMapClick]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.matches('input, select, textarea, [contenteditable="true"]')) return;
+      const key = event.key.toLowerCase();
+      if (key === 'c') {
+        event.preventDefault();
+        locateCurrentPosition();
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        fitOperationalBoundary();
+      } else if (event.key === '+' || event.key === '=') {
+        event.preventDefault();
+        mapRef.current?.zoomIn();
+      } else if (event.key === '-') {
+        event.preventDefault();
+        mapRef.current?.zoomOut();
+      } else if (key === 'r') {
+        event.preventDefault();
+        setReloadToken((token) => token + 1);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [fitOperationalBoundary, locateCurrentPosition]);
 
   const getRainText = (mm: number) => {
     if (mm <= 0.1) return { text: 'ไม่มีฝน', color: 'text-gray-400', icon: '☀️' };
@@ -715,17 +794,17 @@ export default function RadarPage() {
   const agreementText = (agreement: string | undefined) => agreement === 'high' ? 'สอดคล้องสูง' :
     agreement === 'medium' ? 'สอดคล้องปานกลาง' : agreement === 'low' ? 'แตกต่างมาก' : 'ข้อมูลไม่พอเปรียบเทียบ';
 
-  const L = typeof window !== 'undefined' ? require('leaflet') : null;
-  const customPinIcon = L
-    ? L.divIcon({
+  const leaflet = useMemo(() => typeof window !== 'undefined' ? require('leaflet') : null, []);
+  const customPinIcon = useMemo(() => leaflet
+    ? leaflet.divIcon({
         className: 'bg-transparent border-none',
         html: `<div class="relative flex items-center justify-center w-8 h-8"><div class="absolute inset-0 bg-blue-500 rounded-full blur-[4px] opacity-60 animate-ping"></div><div class="relative w-5 h-5 bg-[#38bdf8] border-2 border-white rounded-full shadow-lg z-10"></div></div>`,
         iconSize: [32, 32], iconAnchor: [16, 16],
       })
-    : null;
+    : null, [leaflet]);
 
-  const gaugeStationIcon = L
-    ? L.divIcon({
+  const gaugeStationIcon = useMemo(() => leaflet
+    ? leaflet.divIcon({
         className: 'bg-transparent border-none',
         html: `<div class="relative flex h-11 w-11 items-center justify-center" aria-hidden="true">
           <div class="absolute inset-0 rounded-full border border-cyan-200/65 bg-cyan-300/15 shadow-[0_0_22px_rgba(34,211,238,.75)]"></div>
@@ -739,7 +818,7 @@ export default function RadarPage() {
         iconAnchor: [22, 22],
         popupAnchor: [0, -20],
       })
-    : null;
+    : null, [leaflet]);
 
   const blockStyle = useCallback((feature: any) => {
     const v = riskByIdx.get(getIdx(feature));
@@ -766,11 +845,41 @@ export default function RadarPage() {
   }, [riskByIdx, showLabels, showRisk, flyToVillage]);
 
   const activeFrame: RadarFrame | null = radarData?.frames?.[currentFrameIndex] || null;
+  const selectedFrameDate = fmtDateInput(activeFrame ? activeFrame.time * 1000 : null);
+  const availableFrameDates = useMemo(() => Array.from(new Set(
+    (radarData?.frames ?? []).map((frame) => fmtDateInput(frame.time * 1000)),
+  )), [radarData]);
+  const framesForSelectedDate = useMemo(() => (radarData?.frames ?? [])
+    .map((frame, index) => ({ frame, index }))
+    .filter(({ frame }) => fmtDateInput(frame.time * 1000) === selectedFrameDate),
+  [radarData, selectedFrameDate]);
+  const selectFrameDate = useCallback((date: string) => {
+    const candidates = (radarData?.frames ?? [])
+      .map((frame, index) => ({ frame, index }))
+      .filter(({ frame }) => fmtDateInput(frame.time * 1000) === date);
+    if (!candidates.length) return;
+    const currentTime = activeFrame?.time ?? candidates[candidates.length - 1].frame.time;
+    const closest = candidates.reduce((best, candidate) => (
+      Math.abs(candidate.frame.time - currentTime) < Math.abs(best.frame.time - currentTime) ? candidate : best
+    ));
+    setIsPlaying(false);
+    setCurrentFrameIndex(closest.index);
+  }, [activeFrame?.time, radarData]);
   const isNowcast = activeFrame?.kind === 'nowcast';
   const latestPast = radarData?.observedFrames?.[radarData.observedFrames.length - 1];
   const minutesAgo = latestPast ? Math.round((Date.now() - latestPast.time * 1000) / 60000) : null;
   const frameOffset = radarData ? (currentFrameIndex - (radarData.pastCount - 1)) * 10 : 0;
-  const isStale = radarStatus.state === 'stale' || radarStatus.state === 'error';
+  const currentRadarFreshness = radarStatus.timestamp ? evaluateFreshness(radarStatus.timestamp, {
+    staleAfterMinutes: RISK_CONFIG.freshness.radarStaleAfterMinutes,
+    expireAfterMinutes: RISK_CONFIG.freshness.radarExpireAfterMinutes,
+  }) : null;
+  const radarExpired = currentRadarFreshness?.status === 'expired';
+  const radarUnavailable = radarStatus.state === 'error' || radarExpired;
+  const isStale = radarStatus.state === 'stale' || radarUnavailable || currentRadarFreshness?.status === 'stale';
+  const radarLayerBadge = radarStatus.state === 'loading' ? 'กำลังโหลด' :
+    radarStatus.state === 'error' ? 'ไม่พร้อม' : radarExpired ? 'หมดอายุ' :
+      isStale ? 'ข้อมูลเก่า' : 'LIVE';
+  const radarLayerBadgeTone = radarUnavailable ? 'danger' : isStale ? 'warning' : 'good';
   const observedMarkerPosition = radarData && radarData.frames.length > 1
     ? ((radarData.pastCount - 1) / (radarData.frames.length - 1)) * 100
     : 100;
@@ -780,13 +889,18 @@ export default function RadarPage() {
     gaugeSourceStatus.state === 'error' ? 'ไม่พร้อม' : 'กำลังโหลด';
 
   /* ═══════════ UI PARTS ═══════════ */
-  const LayerToggle = ({ label, checked, onChange, badge, disabled = false }: any) => (
+  const LayerToggle = ({ label, checked, onChange, badge, badgeTone = 'info', disabled = false }: any) => (
     <div className={`flex items-center justify-between group py-1 ${disabled ? 'opacity-55' : ''}`}>
       <label className={`flex items-center space-x-3 flex-1 min-w-0 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
         <input type="checkbox" checked={checked} onChange={onChange} disabled={disabled} className="ops-checkbox shrink-0" />
         <span className="text-[12px] font-medium text-[#D1D5DB] group-hover:text-white truncate">{label}</span>
       </label>
-      {badge && <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#4178F3]/15 text-[#4178F3] border border-[#4178F3]/30 font-bold shrink-0 ml-2">{badge}</span>}
+      {badge && <span className={`ml-2 shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold ${
+        badgeTone === 'good' ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-300' :
+          badgeTone === 'warning' ? 'border-amber-300/35 bg-amber-300/10 text-amber-200' :
+            badgeTone === 'danger' ? 'border-red-300/35 bg-red-300/10 text-red-200' :
+              'border-[#4178F3]/30 bg-[#4178F3]/15 text-[#4178F3]'
+      }`}>{badge}</span>}
     </div>
   );
 
@@ -795,11 +909,13 @@ export default function RadarPage() {
       staleAfterMinutes: status.freshness.staleAfterMinutes,
       expireAfterMinutes: status.freshness.expireAfterMinutes,
     }) : null;
-    const effectiveState = status.state === 'fresh' && fresh && fresh.status !== 'fresh' ? 'stale' : status.state;
+    const freshnessState = fresh?.status;
+    const effectiveState = status.state === 'fresh' && freshnessState && freshnessState !== 'fresh' ? 'stale' : status.state;
+    const isExpired = freshnessState === 'expired';
     const state = effectiveState === 'loading' ? 'กำลังโหลด' : effectiveState === 'fresh' ? 'พร้อมใช้' :
-      effectiveState === 'stale' ? 'ข้อมูลเก่า' : effectiveState === 'error' ? 'ผิดพลาด' : 'รอข้อมูล';
+      isExpired ? 'หมดอายุ' : effectiveState === 'stale' ? 'ข้อมูลเก่า' : effectiveState === 'error' ? 'ผิดพลาด' : 'รอข้อมูล';
     const color = effectiveState === 'fresh' ? '#22C55E' : effectiveState === 'loading' ? '#38BDF8' :
-      effectiveState === 'idle' ? '#94A3B8' : '#F97316';
+      effectiveState === 'idle' ? '#94A3B8' : isExpired || effectiveState === 'error' ? '#EF4444' : '#F97316';
     const detail = status.error || (fresh?.ageMinutes != null
       ? `${Math.round(fresh.ageMinutes)} นาทีที่แล้ว`
       : status.timestamp ? fmtTime(new Date(status.timestamp)) : 'ยังไม่มีเวลาอ้างอิง');
@@ -927,7 +1043,7 @@ export default function RadarPage() {
       {/* ══ TOP BAR ══ */}
       <div className="absolute top-0 left-0 w-full h-8 z-[1999]" onMouseEnter={() => setIsTopHeaderVisible(true)} />
       <header
-        className={`ops-topbar absolute top-0 left-0 w-full min-h-[72px] z-[2000] flex items-center justify-between px-3 md:px-6 py-2 transition-transform duration-500 ${isTopHeaderVisible && !isMapFocus ? 'translate-y-0' : '-translate-y-full'}`}>
+        className={`ops-topbar absolute top-0 left-0 w-full min-h-[72px] z-[2000] flex items-center justify-between px-3 md:px-6 py-2 transition-transform duration-500 ${isTopHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
         <div className="flex min-w-0 items-center space-x-3 md:space-x-4">
           <div className="w-11 h-11 md:w-12 md:h-12 bg-white rounded-full border border-[#D7E0EA] flex items-center justify-center p-1 shadow-sm shrink-0">
             <Image src="/Logogis3.png" alt="ตราสัญลักษณ์ระบบ GIS เทศบาลตำบลบ่อหลวง" width={36} height={36} priority className="w-full h-full object-contain opacity-95" />
@@ -945,13 +1061,33 @@ export default function RadarPage() {
           </div>
         </div>
         <div className="ml-3 flex shrink-0 items-center space-x-2">
-          <div className="hidden lg:flex items-center gap-2 rounded-lg border border-[#D6E0EB] bg-[#F6F9FC] px-3 py-1.5">
-            <span className="text-[10px] font-semibold text-[#64748B]">ข้อมูล ณ วันที่</span>
-            <span className="text-[11px] font-bold text-[#173B69]">{fmtDate(riskUpdatedAt)}</span>
+          <div className="hidden xl:flex items-center gap-2 rounded-lg border border-[#D6E0EB] bg-[#F6F9FC] px-2.5 py-1.5">
+            <label htmlFor="radar-frame-date" className="text-[10px] font-semibold text-[#64748B]">เฟรมวันที่</label>
+            <input
+              id="radar-frame-date"
+              type="date"
+              value={selectedFrameDate}
+              min={availableFrameDates[0] ?? ''}
+              max={availableFrameDates[availableFrameDates.length - 1] ?? ''}
+              onChange={(event) => selectFrameDate(event.target.value)}
+              disabled={!availableFrameDates.length}
+              aria-label="เลือกวันที่เฟรมเรดาร์"
+              title="เลือกได้เฉพาะวันที่ที่มีเฟรม RainViewer ในรอบปัจจุบัน"
+              className="w-[128px] bg-transparent text-[11px] font-bold text-[#173B69] outline-none disabled:opacity-50"
+            />
             <span className="h-4 w-px bg-[#D6E0EB]" />
-            <span className="font-mono text-[11px] font-bold text-[#1D65A6]">{fmtTime(riskUpdatedAt)} น.</span>
+            <select
+              value={currentFrameIndex}
+              onChange={(event) => { setIsPlaying(false); setCurrentFrameIndex(Number(event.target.value)); }}
+              aria-label="เลือกเวลาเฟรมเรดาร์จากรายการ"
+              className="max-w-[94px] bg-transparent font-mono text-[11px] font-bold text-[#1D65A6] outline-none"
+            >
+              {framesForSelectedDate.map(({ frame, index }) => (
+                <option key={`${frame.path}-${index}`} value={index}>{fmtTime(frame.time * 1000)} น.</option>
+              ))}
+            </select>
           </div>
-          <button onClick={() => setReloadToken((token) => token + 1)} className="flex items-center px-3 md:px-4 py-2 bg-white border border-[#C9D6E3] text-[#234566] hover:bg-[#F2F7FC] rounded-lg font-semibold space-x-2 shadow-sm" aria-label="โหลดข้อมูล Radar และ Forecast ใหม่">
+          <button onClick={() => setReloadToken((token) => token + 1)} className="flex items-center px-3 md:px-4 py-2 bg-white border border-[#C9D6E3] text-[#234566] hover:bg-[#F2F7FC] rounded-lg font-semibold space-x-2 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D65A6]" aria-label="โหลดข้อมูล Radar และ Forecast ใหม่" aria-keyshortcuts="R" title="รีเฟรชข้อมูล (R)">
             <svg className={`w-4 h-4 ${riskLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M19.418 9A7.003 7.003 0 006 7.293M4.582 15A7.003 7.003 0 0018 16.707" /></svg>
             <span className="hidden md:inline text-[12px]">รีเฟรช</span>
           </button>
@@ -980,7 +1116,7 @@ export default function RadarPage() {
             {bm.labels && <TileLayer key={`${mapStyle}-lbl`} url={bm.labels} maxZoom={20} maxNativeZoom={19} pane="overlayPane" />}
             <SmoothRadar
               frame={activeFrame} frames={radarData?.frames || []} frameIndex={currentFrameIndex}
-              enabled={showRadar} opacity={radarOpacity} quality={effectiveRadarQuality}
+              enabled={showRadar && !radarUnavailable} opacity={radarOpacity} quality={effectiveRadarQuality}
               colorScheme={colorScheme} gain={radarGain} cutoff={6} zIndex={300}
             />
             {showBoluang && geoBoluang && <GeoJSON data={geoBoluang} style={{ color: '#FFFFFF', weight: 2, fill: false, opacity: 0.9, dashArray: '5,5' }} />}
@@ -1039,7 +1175,7 @@ export default function RadarPage() {
           </MapContainer>
         </div>
 
-        <div className={`absolute top-[80px] left-[356px] right-4 xl:right-[438px] z-[1300] items-center justify-center gap-1.5 overflow-x-auto ops-scroll pb-1 ${isMapFocus ? 'hidden' : 'hidden md:flex'}`}>
+        <div className="absolute top-[80px] left-[356px] right-4 xl:right-[438px] z-[1300] hidden items-center justify-center gap-1.5 overflow-x-auto ops-scroll pb-1 md:flex">
           <DataStatusBadge status={radarStatus} />
           <DataStatusBadge status={forecastStatus} />
           <DataStatusBadge status={metNorwayStatus} />
@@ -1059,6 +1195,14 @@ export default function RadarPage() {
             <span aria-hidden="true">⚠️</span>
             <span className="flex-1">โหมดจำกัด: แหล่งข้อมูลบางส่วนไม่พร้อม ระบบจะไม่ใช้ข้อมูลเก่าหรือข้อมูลผิดพลาดออกสัญญาณเตือน</span>
             <button onClick={() => setReloadToken((token) => token + 1)} className="rounded-lg border border-orange-300/50 px-2 py-1 font-bold">ลองใหม่</button>
+          </div>
+        )}
+
+        {radarUnavailable && (
+          <div className={`liquid-bar absolute left-1/2 z-[1360] flex w-[92%] max-w-[660px] -translate-x-1/2 items-center gap-2 rounded-xl border-red-300/40 px-3 py-2 text-[11px] text-red-100 ${healthStatus.status === 'degraded' ? 'top-[170px]' : 'top-[124px]'}`} role="alert">
+            <span aria-hidden="true">⛔</span>
+            <span className="flex-1">ระงับการแสดง Layer เรดาร์ชั่วคราว เนื่องจากข้อมูลหมดอายุหรือแหล่งข้อมูลไม่พร้อม โปรดใช้ข้อมูลพยากรณ์และสถานีจริงโดยตรวจสอบเวลาอ้างอิง</span>
+            <button onClick={() => setReloadToken((token) => token + 1)} className="rounded-lg border border-red-300/50 px-2 py-1 font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200">ลองใหม่</button>
           </div>
         )}
 
@@ -1110,7 +1254,7 @@ export default function RadarPage() {
               </div>
 
               <div className="min-h-0 flex-1 p-4 overflow-y-auto ops-scroll pr-2 rounded-b-xl">
-                <LayerToggle label="เรดาร์คอมโพสิต" checked={showRadar} onChange={(e: any) => setShowRadar(e.target.checked)} badge="LIVE" />
+                <LayerToggle label="เรดาร์คอมโพสิต" checked={showRadar && !radarUnavailable} onChange={(e: any) => setShowRadar(e.target.checked)} badge={radarLayerBadge} badgeTone={radarLayerBadgeTone} disabled={radarUnavailable} />
                 <div className="pl-7 pr-1 pb-3 pt-1.5 space-y-2">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] text-[#8B94A5] w-[48px] shrink-0">ความทึบ</span>
@@ -1143,7 +1287,7 @@ export default function RadarPage() {
                 </div>
 
                 <LayerToggle label="ฝนสะสมคาดการณ์ 3 ชม. (รายหมู่บ้าน)" checked={showRisk} onChange={(e: any) => setShowRisk(e.target.checked)} badge="FORECAST" />
-                <LayerToggle label="สถานีตรวจวัดจริง (STN0583)" checked={showGaugeStation} onChange={(e: any) => setShowGaugeStation(e.target.checked)} badge={gaugeLayerBadge} />
+                <LayerToggle label="สถานีตรวจวัดจริง (STN0583)" checked={showGaugeStation} onChange={(e: any) => setShowGaugeStation(e.target.checked)} badge={gaugeLayerBadge} badgeTone={gaugeSourceStatus.state === 'fresh' ? 'good' : gaugeSourceStatus.state === 'stale' ? 'warning' : 'danger'} />
                 <LayerToggle label="ป้ายชื่อหมู่บ้าน" checked={showLabels} onChange={(e: any) => setShowLabels(e.target.checked)} />
                 <div className="border-t border-[#333946] my-3" />
                 <LayerToggle label="ขอบเขตตำบลบ่อหลวง" checked={showBoluang} onChange={(e: any) => setShowBoluang(e.target.checked)} />
@@ -1164,7 +1308,7 @@ export default function RadarPage() {
             </div>
           </div>
         ) : (
-          <button onClick={() => setIsLayerMenuOpen(true)} aria-label="เปิดแผงจัดการชั้นข้อมูล" className={`absolute top-[80px] left-3 z-[1000] p-2.5 bg-[#1F252B] border border-[#3B4651] rounded-lg text-[#E5E7EB] hover:bg-[#2B333B] ${isMapFocus ? 'hidden' : 'hidden md:block'}`}>
+          <button onClick={() => setIsLayerMenuOpen(true)} aria-label="เปิดแผงจัดการชั้นข้อมูล" className="absolute top-[80px] left-3 z-[1000] hidden rounded-lg border border-[#3B4651] bg-[#1F252B] p-2.5 text-[#E5E7EB] hover:bg-[#2B333B] md:block">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
           </button>
         )}
@@ -1396,8 +1540,9 @@ export default function RadarPage() {
                 <span>ฝน 3 ชม. max</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hMax)} มม.</span>
                 <span>ค่าที่ใช้ประเมิน</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hMax)} มม. (ค่าสูงสุดจากจุดตัวอย่าง)</span>
                 <span>p90 วินิจฉัย</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hP90)} มม.</span>
+                <span>Open-Meteo จุดเทียบ 3 ชม.</span><span className="text-right text-[#D1D5DB]">{!metComparisonFresh || selectedVillage.forecastComparison?.agreement === 'unavailable' ? '— (ข้อมูลไม่พร้อมเทียบ)' : `${fmtNumber(selectedVillage.forecastComparison?.primaryRain3h)} มม. (จุดตัวแทน)`}</span>
                 <span>MET Norway 3 ชม.</span><span className="text-right text-[#D1D5DB]">{!metComparisonFresh || selectedVillage.forecastComparison?.agreement === 'unavailable' ? '— (ข้อมูลไม่พร้อมเทียบ)' : `${fmtNumber(selectedVillage.forecastComparison?.referenceRain3h)} มม. (ตรวจสอบไขว้)`}</span>
-                <span>เทียบแบบจำลอง</span><span className={`text-right font-bold ${metComparisonFresh && selectedVillage.forecastComparison?.agreement === 'low' ? 'text-[#F97316]' : 'text-[#D1D5DB]'}`}>
+                <span>เทียบแบบจำลอง (จุดเดียวกัน)</span><span className={`text-right font-bold ${metComparisonFresh && selectedVillage.forecastComparison?.agreement === 'low' ? 'text-[#F97316]' : 'text-[#D1D5DB]'}`}>
                   {metComparisonFresh ? agreementText(selectedVillage.forecastComparison?.agreement) : 'ระงับการเทียบ · ข้อมูลเก่าหรือไม่พร้อม'}{metComparisonFresh && selectedVillage.forecastComparison?.differenceMm != null ? ` · ต่าง ${fmtNumber(selectedVillage.forecastComparison.differenceMm)} มม. (${fmtNumber((selectedVillage.forecastComparison.relativeDifference ?? 0) * 100, 0)}%)` : ''}
                 </span>
                 <span>โอกาสฝนสูงสุด</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.maxProb, 0)}%</span>
@@ -1417,12 +1562,36 @@ export default function RadarPage() {
           </section>
         )}
 
+        {(isLocatingPosition || locationError) && (
+          <div
+            role={locationError ? 'alert' : 'status'}
+            className={`liquid-bar absolute bottom-[294px] right-[64px] z-[1350] flex max-w-[280px] items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-semibold shadow-xl md:bottom-[146px] ${locationError ? 'border-orange-400/50 text-orange-100' : 'border-cyan-300/40 text-cyan-50'}`}
+          >
+            {isLocatingPosition ? (
+              <svg aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin text-cyan-300" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" />
+                <path className="opacity-90" fill="currentColor" d="M21 12a9 9 0 00-9-9v3a6 6 0 016 6h3z" />
+              </svg>
+            ) : (
+              <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-orange-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v3.5m0 3.5h.01M10.3 4.4 2.7 18a1.5 1.5 0 001.3 2.25h16a1.5 1.5 0 001.3-2.25L13.7 4.4a1.95 1.95 0 00-3.4 0z" />
+              </svg>
+            )}
+            <span>{isLocatingPosition ? 'กำลังค้นหาตำแหน่งปัจจุบัน…' : locationError}</span>
+            {locationError && (
+              <button onClick={() => setLocationError(null)} aria-label="ปิดข้อความแจ้งเตือน" className="ml-1 rounded p-0.5 text-orange-200 hover:bg-white/10 hover:text-white">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="m6 6 12 12M18 6 6 18" /></svg>
+              </button>
+            )}
+          </div>
+        )}
+
         {/* ══ POINT FORECAST ══ */}
         {clickedLocation && !selectedVillage && (
-          <div className="absolute top-[112px] right-5 xl:right-[442px] z-[1040] w-[326px] ops-panel animate-fade-in hidden md:block">
+          <div className="absolute top-[112px] right-3 md:right-5 xl:right-[442px] z-[1040] w-[calc(100%-1.5rem)] max-w-[326px] ops-panel animate-fade-in">
             <div className="px-5 py-4 border-b border-[#333946] flex justify-between items-center bg-[#232732] rounded-t-xl">
               <div>
-                <h3 className="text-[13px] font-bold text-[#E5E7EB]">พิกัดที่เลือก</h3>
+                <h3 className="text-[13px] font-bold text-[#E5E7EB]">{clickedLocation.isCurrentPosition ? 'ตำแหน่งปัจจุบัน' : 'พิกัดที่เลือก'}</h3>
                 <p className="text-[10px] text-[#4178F3] font-mono mt-0.5">{clickedLocation.lat.toFixed(5)}, {clickedLocation.lng.toFixed(5)}</p>
               </div>
               <button onClick={() => setClickedLocation(null)} className="text-[#8B94A5] hover:text-[#EF4444] p-1.5 rounded-lg border border-[#333946]">
@@ -1458,26 +1627,34 @@ export default function RadarPage() {
         {/* ══ MAP TOOLS ══ */}
         <div className="absolute bottom-[160px] md:bottom-5 right-3 z-[900] flex flex-col space-y-2">
           <div className="bg-[#1A1D24]/90 backdrop-blur-md border border-[#333946] rounded-xl flex flex-col overflow-hidden">
-            <button onClick={fitOperationalBoundary} aria-label="แสดงขอบเขตตำบลทั้งหมด" title="แสดงขอบเขตตำบลทั้งหมด" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
+            <button
+              onClick={locateCurrentPosition}
+              aria-label={isLocatingPosition ? 'กำลังค้นหาตำแหน่งปัจจุบัน' : 'ไปยังตำแหน่งปัจจุบัน'}
+              aria-busy={isLocatingPosition}
+              aria-keyshortcuts="C"
+              title="ไปยังตำแหน่งปัจจุบัน (C)"
+              disabled={isLocatingPosition}
+              className={`w-11 h-11 flex items-center justify-center border-b border-[#333946] hover:text-white hover:bg-[#2D323B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 disabled:cursor-wait ${isLocatingPosition ? 'bg-[#4178F3]/25 text-[#7DD3FC]' : 'text-[#8B94A5]'}`}
+            >
+              <svg className={`h-[21px] w-[21px] ${isLocatingPosition ? 'animate-pulse' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="m20.1 3.9-7.3 16.2a.9.9 0 0 1-1.7-.08l-1.65-5.47-5.47-1.65a.9.9 0 0 1-.08-1.7l16.2-7.3Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="m10 14 3.4-3.4" />
+              </svg>
+            </button>
+            <button onClick={fitOperationalBoundary} aria-label="แสดงขอบเขตตำบลทั้งหมด" aria-keyshortcuts="Home" title="แสดงขอบเขตตำบลทั้งหมด (Home)" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
             </button>
-            <button onClick={() => {
-              setIsMapFocus((value) => !value);
-              if (!isMapFocus) { setIsLayerMenuOpen(false); setIsTablePanelOpen(false); setIsLegendOpen(false); }
-            }} aria-label={isMapFocus ? 'ออกจากโหมดเน้นแผนที่' : 'เข้าโหมดเน้นแผนที่'} title={isMapFocus ? 'แสดงแผงควบคุม' : 'ซ่อนแผงเพื่อดูแผนที่'} className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
-              <span aria-hidden="true">{isMapFocus ? '▣' : '□'}</span>
-            </button>
-            <button onClick={() => mapRef.current?.zoomIn()} aria-label="ขยายแผนที่" title="ขยายแผนที่" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
+            <button onClick={() => mapRef.current?.zoomIn()} aria-label="ขยายแผนที่" aria-keyshortcuts="+" title="ขยายแผนที่ (+)" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m-6-6h12" /></svg>
             </button>
-            <button onClick={() => mapRef.current?.zoomOut()} aria-label="ย่อแผนที่" title="ย่อแผนที่" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B]">
+            <button onClick={() => mapRef.current?.zoomOut()} aria-label="ย่อแผนที่" aria-keyshortcuts="-" title="ย่อแผนที่ (-)" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
             </button>
           </div>
         </div>
 
         {/* ══ LEGEND ══ */}
-        {isLegendOpen && !isMapFocus && (
+        {isLegendOpen && (
           <div className="absolute bottom-4 left-3 z-[900] ops-panel px-3 py-3 w-[196px] hidden lg:block">
             <h3 className="text-[11.5px] font-bold text-[#E5E7EB] mb-2">ระดับความรุนแรงฝน</h3>
             <div className="space-y-1">
@@ -1565,7 +1742,7 @@ export default function RadarPage() {
         </div>
 
         {/* ══ MOBILE SHEET ══ */}
-        <div className={`${isMapFocus ? 'hidden' : 'md:hidden'} absolute left-0 right-0 bottom-0 z-[1200] transition-transform duration-300 ${isSheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-72px)]'}`}>
+        <div className={`absolute bottom-0 left-0 right-0 z-[1200] transition-transform duration-300 md:hidden ${isSheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-72px)]'}`}>
           <div className="liquid-bar border-t border-white/15 rounded-t-[26px] shadow-[0_-18px_55px_rgba(0,0,0,.48)] max-h-[76vh] flex flex-col">
             <button type="button" aria-expanded={isSheetOpen} onClick={() => setIsSheetOpen(!isSheetOpen)} className="w-full py-3 px-5 cursor-pointer text-left">
               <div className="w-10 h-1 bg-[#4B5563] rounded-full mx-auto mb-2.5" />

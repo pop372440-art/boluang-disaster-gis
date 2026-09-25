@@ -37,7 +37,7 @@ export default function SmoothRadar({
   const frameAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!enabled || !frames.length || !map || isRadarTileBlocked()) return;
+    if (!enabled || !frames.length || !map || isRadarTileBlocked() || document.visibilityState === 'hidden') return;
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       const zoom = Math.min(map.getZoom() - 1, NATIVE_ZOOM);

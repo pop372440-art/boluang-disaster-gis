@@ -1,10 +1,20 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
+import { usePathname } from 'next/navigation';
+import React, { useState, useEffect, useRef } from 'react';
+
+const PHRASES = [
+  'สวัสดีครับ! 👋',
+  "ผม 'น้องต้นสน' 🌲",
+  'AI ผู้ช่วยของคุณ 🤖',
+  'สอบถามข้อมูลได้เลย ✨',
+];
 
 export default function SmartHelper() {
+  const pathname = usePathname();
+  const isRadarPage = pathname === '/radar';
   const [isOpen, setIsOpen] = useState(false);
-  // 🌟 State ใหม่สำหรับโหมด "ซ่อนตัว (Minimize)"
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(isRadarPage);
   
   const [messages, setMessages] = useState<{sender: 'user'|'ai', text: string}[]>([
     { sender: 'ai', text: 'สวัสดีครับ! ผมคือ "น้องต้นสน" AI ประจำเทศบาล มีอะไรให้ผมช่วยเหลือหรือสอบถามข้อมูลพื้นที่ได้เลยครับ 🤖' }
@@ -18,19 +28,19 @@ export default function SmartHelper() {
   const [textIndex, setTextIndex] = useState(0);
   const [displayText, setDisplayText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const requestRef = useRef<AbortController | null>(null);
 
-  const phrases = [
-    "สวัสดีครับ! 👋",
-    "ผม 'น้องต้นสน' 🌲",
-    "AI ผู้ช่วยของคุณ 🤖",
-    "สอบถามข้อมูลได้เลย ✨"
-  ];
+  useEffect(() => {
+    if (isRadarPage) setIsMinimized(true);
+  }, [isRadarPage]);
+
+  useEffect(() => () => requestRef.current?.abort(), []);
 
   useEffect(() => {
     if (isOpen || isMinimized) return; // ถ้าเปิดแชท หรือ ซ่อนตัวอยู่ ไม่ต้องเล่นเอฟเฟกต์
 
     let typingSpeed = isDeleting ? 40 : 80;
-    const currentPhrase = phrases[textIndex];
+    const currentPhrase = PHRASES[textIndex];
 
     if (!isDeleting && displayText === currentPhrase) {
       const timeout = setTimeout(() => setIsDeleting(true), 2000);
@@ -39,7 +49,7 @@ export default function SmartHelper() {
 
     if (isDeleting && displayText === '') {
       setIsDeleting(false);
-      setTextIndex((prev) => (prev + 1) % phrases.length);
+      setTextIndex((prev) => (prev + 1) % PHRASES.length);
       const timeout = setTimeout(() => {}, 500);
       return () => clearTimeout(timeout);
     }
@@ -64,14 +74,20 @@ export default function SmartHelper() {
     setIsLoading(true);
 
     try {
+      requestRef.current?.abort();
+      const controller = new AbortController();
+      requestRef.current = controller;
       const res = await fetch('/api/chatbot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg })
+        body: JSON.stringify({ message: userMsg }),
+        signal: controller.signal,
       });
+      if (!res.ok) throw new Error(`Chatbot HTTP ${res.status}`);
       const data = await res.json();
       setMessages(prev => [...prev, { sender: 'ai', text: data.reply }]);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
       setMessages(prev => [...prev, { sender: 'ai', text: 'เกิดข้อผิดพลาดในการเชื่อมต่อครับ' }]);
     } finally {
       setIsLoading(false);
@@ -79,7 +95,7 @@ export default function SmartHelper() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999]">
+    <div className={`fixed z-[9999] ${isRadarPage ? 'bottom-4 right-[72px]' : 'bottom-6 right-6'}`}>
       
       {/* ========================================== */}
       {/* 1. หน้าต่างแชท (Chat Window) */}
@@ -89,7 +105,7 @@ export default function SmartHelper() {
           <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white font-bold flex justify-between items-center shadow-md">
             <div className="flex items-center space-x-3">
               <div className="relative flex-shrink-0 bg-white rounded-full p-0.5">
-                <img src="/mascot.png" alt="น้องต้นสน" className={`w-10 h-10 object-contain rounded-full transition-all duration-300 ${isLoading ? 'animate-pulse scale-110 shadow-blue-300' : ''}`} />
+                <Image src="/mascot.png" width={40} height={40} alt="น้องต้นสน" className={`w-10 h-10 object-contain rounded-full transition-all duration-300 ${isLoading ? 'animate-pulse scale-110 shadow-blue-300' : ''}`} />
               </div>
               <div className="flex flex-col">
                 <span className="leading-tight text-[15px]">ผู้ช่วยบ่อหลวง (AI)</span>
@@ -99,7 +115,7 @@ export default function SmartHelper() {
                 </span>
               </div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="hover:text-blue-200 hover:rotate-90 transition-transform duration-200 text-2xl leading-none -mt-1">&times;</button>
+            <button onClick={() => setIsOpen(false)} aria-label="ปิดผู้ช่วย AI" className="hover:text-blue-200 hover:rotate-90 transition-transform duration-200 text-2xl leading-none -mt-1">&times;</button>
           </div>
           
           <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-gray-50/50 custom-scrollbar">
@@ -107,7 +123,7 @@ export default function SmartHelper() {
               <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.sender === 'ai' && (
                   <div className="w-6 h-6 rounded-full mr-2 self-end mb-1 opacity-80 bg-blue-100 flex items-center justify-center flex-shrink-0">
-                    <img src="/mascot.png" alt="AI" className="w-5 h-5 object-contain" />
+                    <Image src="/mascot.png" width={20} height={20} alt="" className="w-5 h-5 object-contain" />
                   </div>
                 )}
                 <div className={`max-w-[75%] p-3 rounded-2xl text-[14px] leading-relaxed shadow-sm ${msg.sender === 'user' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-sm'}`}>
@@ -118,7 +134,7 @@ export default function SmartHelper() {
             {isLoading && (
               <div className="flex justify-start items-end">
                  <div className="w-6 h-6 rounded-full mr-2 opacity-80 bg-blue-100 flex items-center justify-center animate-bounce">
-                    <img src="/mascot.png" alt="AI" className="w-5 h-5 object-contain" />
+                    <Image src="/mascot.png" width={20} height={20} alt="" className="w-5 h-5 object-contain" />
                  </div>
                  <div className="bg-white border border-gray-100 p-3 rounded-2xl rounded-bl-sm shadow-sm flex space-x-1.5 items-center h-[38px]">
                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
@@ -166,9 +182,10 @@ export default function SmartHelper() {
             {/* 🌟 ตัวมาสคอต */}
             <button 
               onClick={() => setIsOpen(true)} 
+              aria-label="เปิดผู้ช่วย AI น้องต้นสน"
               className="relative w-16 h-16 flex items-center justify-center hover:scale-110 transition-transform duration-300 z-50 group bg-transparent focus:outline-none"
             >
-              <img src="/mascot.png" alt="เปิดแชท" className="w-full h-full object-contain drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)] transition-transform duration-500 group-hover:rotate-6" />
+              <Image src="/mascot.png" width={64} height={64} alt="" className="w-full h-full object-contain drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)] transition-transform duration-500 group-hover:rotate-6" />
             </button>
           </>
         )}
@@ -178,10 +195,11 @@ export default function SmartHelper() {
         {!isOpen && isMinimized && (
           <button 
             onClick={() => setIsOpen(true)} // พอกดก็จะเปิดแชทเลย
+            aria-label="เปิดผู้ช่วย AI น้องต้นสน"
             className="relative w-12 h-12 bg-white rounded-full shadow-[0_4px_15px_rgba(0,0,0,0.3)] flex items-center justify-center hover:scale-110 transition-all duration-300 z-50 border border-blue-100 group"
             title="เรียกใช้งานน้องต้นสน"
           >
-            <img src="/mascot.png" alt="AI" className="w-8 h-8 object-contain transition-transform group-hover:scale-110" />
+            <Image src="/mascot.png" width={32} height={32} alt="" className="w-8 h-8 object-contain transition-transform group-hover:scale-110" />
             <span className="absolute top-0 right-0 flex h-3 w-3 z-50">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500 border-2 border-white"></span>
