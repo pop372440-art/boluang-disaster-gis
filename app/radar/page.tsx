@@ -667,9 +667,10 @@ export default function RadarPage() {
 
     if (wasReadingCoordinates) {
       const currentZoom = mapRef.current?.getZoom?.() ?? 12;
+      const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
       mapRef.current?.flyTo([lat, lng], Math.max(currentZoom, 16), {
-        animate: true,
-        duration: 1,
+        animate: !reduceMotion,
+        duration: reduceMotion ? 0 : 1,
       });
     }
 
@@ -710,7 +711,11 @@ export default function RadarPage() {
 
   const flyToVillage = useCallback((v: any) => {
     setSelectedVillage(v);
-    mapRef.current?.flyTo([v.centroid[1], v.centroid[0]], 15, { duration: 1.2 });
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    mapRef.current?.flyTo([v.centroid[1], v.centroid[0]], 15, {
+      animate: !reduceMotion,
+      duration: reduceMotion ? 0 : 1.2,
+    });
     setIsSheetOpen(false);
   }, []);
 
@@ -718,9 +723,37 @@ export default function RadarPage() {
     const points = (geoBoluang?.features ?? []).flatMap((feature: any) =>
       ringsOf(feature.geometry).flatMap((ring) => ring.map(([lng, lat]) => [lat, lng])),
     );
-    if (points.length) mapRef.current?.fitBounds(points, { padding: [24, 24], maxZoom: 14 });
-    else mapRef.current?.flyTo([center.lat, center.lng], 12, { duration: 1.2 });
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    if (points.length) mapRef.current?.fitBounds(points, { padding: [24, 24], maxZoom: 14, animate: !reduceMotion });
+    else mapRef.current?.flyTo([center.lat, center.lng], 12, { animate: !reduceMotion, duration: reduceMotion ? 0 : 1.2 });
   }, [geoBoluang]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.matches('input, select, textarea, [contenteditable="true"]')) return;
+      const key = event.key.toLowerCase();
+      if (key === 'c') {
+        event.preventDefault();
+        setIsCoordinateMode((value) => !value);
+        setSelectedVillage(null);
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        fitOperationalBoundary();
+      } else if (event.key === '+' || event.key === '=') {
+        event.preventDefault();
+        mapRef.current?.zoomIn();
+      } else if (event.key === '-') {
+        event.preventDefault();
+        mapRef.current?.zoomOut();
+      } else if (key === 'r') {
+        event.preventDefault();
+        setReloadToken((token) => token + 1);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [fitOperationalBoundary]);
 
   const getRainText = (mm: number) => {
     if (mm <= 0.1) return { text: 'ไม่มีฝน', color: 'text-gray-400', icon: '☀️' };
@@ -810,7 +843,17 @@ export default function RadarPage() {
   const latestPast = radarData?.observedFrames?.[radarData.observedFrames.length - 1];
   const minutesAgo = latestPast ? Math.round((Date.now() - latestPast.time * 1000) / 60000) : null;
   const frameOffset = radarData ? (currentFrameIndex - (radarData.pastCount - 1)) * 10 : 0;
-  const isStale = radarStatus.state === 'stale' || radarStatus.state === 'error';
+  const currentRadarFreshness = radarStatus.timestamp ? evaluateFreshness(radarStatus.timestamp, {
+    staleAfterMinutes: RISK_CONFIG.freshness.radarStaleAfterMinutes,
+    expireAfterMinutes: RISK_CONFIG.freshness.radarExpireAfterMinutes,
+  }) : null;
+  const radarExpired = currentRadarFreshness?.status === 'expired';
+  const radarUnavailable = radarStatus.state === 'error' || radarExpired;
+  const isStale = radarStatus.state === 'stale' || radarUnavailable || currentRadarFreshness?.status === 'stale';
+  const radarLayerBadge = radarStatus.state === 'loading' ? 'กำลังโหลด' :
+    radarStatus.state === 'error' ? 'ไม่พร้อม' : radarExpired ? 'หมดอายุ' :
+      isStale ? 'ข้อมูลเก่า' : 'LIVE';
+  const radarLayerBadgeTone = radarUnavailable ? 'danger' : isStale ? 'warning' : 'good';
   const observedMarkerPosition = radarData && radarData.frames.length > 1
     ? ((radarData.pastCount - 1) / (radarData.frames.length - 1)) * 100
     : 100;
@@ -820,13 +863,18 @@ export default function RadarPage() {
     gaugeSourceStatus.state === 'error' ? 'ไม่พร้อม' : 'กำลังโหลด';
 
   /* ═══════════ UI PARTS ═══════════ */
-  const LayerToggle = ({ label, checked, onChange, badge, disabled = false }: any) => (
+  const LayerToggle = ({ label, checked, onChange, badge, badgeTone = 'info', disabled = false }: any) => (
     <div className={`flex items-center justify-between group py-1 ${disabled ? 'opacity-55' : ''}`}>
       <label className={`flex items-center space-x-3 flex-1 min-w-0 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
         <input type="checkbox" checked={checked} onChange={onChange} disabled={disabled} className="ops-checkbox shrink-0" />
         <span className="text-[12px] font-medium text-[#D1D5DB] group-hover:text-white truncate">{label}</span>
       </label>
-      {badge && <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#4178F3]/15 text-[#4178F3] border border-[#4178F3]/30 font-bold shrink-0 ml-2">{badge}</span>}
+      {badge && <span className={`ml-2 shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold ${
+        badgeTone === 'good' ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-300' :
+          badgeTone === 'warning' ? 'border-amber-300/35 bg-amber-300/10 text-amber-200' :
+            badgeTone === 'danger' ? 'border-red-300/35 bg-red-300/10 text-red-200' :
+              'border-[#4178F3]/30 bg-[#4178F3]/15 text-[#4178F3]'
+      }`}>{badge}</span>}
     </div>
   );
 
@@ -835,11 +883,13 @@ export default function RadarPage() {
       staleAfterMinutes: status.freshness.staleAfterMinutes,
       expireAfterMinutes: status.freshness.expireAfterMinutes,
     }) : null;
-    const effectiveState = status.state === 'fresh' && fresh && fresh.status !== 'fresh' ? 'stale' : status.state;
+    const freshnessState = fresh?.status;
+    const effectiveState = status.state === 'fresh' && freshnessState && freshnessState !== 'fresh' ? 'stale' : status.state;
+    const isExpired = freshnessState === 'expired';
     const state = effectiveState === 'loading' ? 'กำลังโหลด' : effectiveState === 'fresh' ? 'พร้อมใช้' :
-      effectiveState === 'stale' ? 'ข้อมูลเก่า' : effectiveState === 'error' ? 'ผิดพลาด' : 'รอข้อมูล';
+      isExpired ? 'หมดอายุ' : effectiveState === 'stale' ? 'ข้อมูลเก่า' : effectiveState === 'error' ? 'ผิดพลาด' : 'รอข้อมูล';
     const color = effectiveState === 'fresh' ? '#22C55E' : effectiveState === 'loading' ? '#38BDF8' :
-      effectiveState === 'idle' ? '#94A3B8' : '#F97316';
+      effectiveState === 'idle' ? '#94A3B8' : isExpired || effectiveState === 'error' ? '#EF4444' : '#F97316';
     const detail = status.error || (fresh?.ageMinutes != null
       ? `${Math.round(fresh.ageMinutes)} นาทีที่แล้ว`
       : status.timestamp ? fmtTime(new Date(status.timestamp)) : 'ยังไม่มีเวลาอ้างอิง');
@@ -1011,7 +1061,7 @@ export default function RadarPage() {
               ))}
             </select>
           </div>
-          <button onClick={() => setReloadToken((token) => token + 1)} className="flex items-center px-3 md:px-4 py-2 bg-white border border-[#C9D6E3] text-[#234566] hover:bg-[#F2F7FC] rounded-lg font-semibold space-x-2 shadow-sm" aria-label="โหลดข้อมูล Radar และ Forecast ใหม่">
+          <button onClick={() => setReloadToken((token) => token + 1)} className="flex items-center px-3 md:px-4 py-2 bg-white border border-[#C9D6E3] text-[#234566] hover:bg-[#F2F7FC] rounded-lg font-semibold space-x-2 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D65A6]" aria-label="โหลดข้อมูล Radar และ Forecast ใหม่" aria-keyshortcuts="R" title="รีเฟรชข้อมูล (R)">
             <svg className={`w-4 h-4 ${riskLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M19.418 9A7.003 7.003 0 006 7.293M4.582 15A7.003 7.003 0 0018 16.707" /></svg>
             <span className="hidden md:inline text-[12px]">รีเฟรช</span>
           </button>
@@ -1040,7 +1090,7 @@ export default function RadarPage() {
             {bm.labels && <TileLayer key={`${mapStyle}-lbl`} url={bm.labels} maxZoom={20} maxNativeZoom={19} pane="overlayPane" />}
             <SmoothRadar
               frame={activeFrame} frames={radarData?.frames || []} frameIndex={currentFrameIndex}
-              enabled={showRadar} opacity={radarOpacity} quality={effectiveRadarQuality}
+              enabled={showRadar && !radarUnavailable} opacity={radarOpacity} quality={effectiveRadarQuality}
               colorScheme={colorScheme} gain={radarGain} cutoff={6} zIndex={300}
             />
             {showBoluang && geoBoluang && <GeoJSON data={geoBoluang} style={{ color: '#FFFFFF', weight: 2, fill: false, opacity: 0.9, dashArray: '5,5' }} />}
@@ -1122,6 +1172,14 @@ export default function RadarPage() {
           </div>
         )}
 
+        {radarUnavailable && (
+          <div className={`liquid-bar absolute left-1/2 z-[1360] flex w-[92%] max-w-[660px] -translate-x-1/2 items-center gap-2 rounded-xl border-red-300/40 px-3 py-2 text-[11px] text-red-100 ${healthStatus.status === 'degraded' ? 'top-[170px]' : 'top-[124px]'}`} role="alert">
+            <span aria-hidden="true">⛔</span>
+            <span className="flex-1">ระงับการแสดง Layer เรดาร์ชั่วคราว เนื่องจากข้อมูลหมดอายุหรือแหล่งข้อมูลไม่พร้อม โปรดใช้ข้อมูลพยากรณ์และสถานีจริงโดยตรวจสอบเวลาอ้างอิง</span>
+            <button onClick={() => setReloadToken((token) => token + 1)} className="rounded-lg border border-red-300/50 px-2 py-1 font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200">ลองใหม่</button>
+          </div>
+        )}
+
         {/* ══ ALERT BANNER ══ */}
         {showAlert && (
           <div className="absolute top-[132px] left-1/2 -translate-x-1/2 z-[1400] w-[92%] max-w-[680px] animate-fade-in">
@@ -1170,7 +1228,7 @@ export default function RadarPage() {
               </div>
 
               <div className="min-h-0 flex-1 p-4 overflow-y-auto ops-scroll pr-2 rounded-b-xl">
-                <LayerToggle label="เรดาร์คอมโพสิต" checked={showRadar} onChange={(e: any) => setShowRadar(e.target.checked)} badge="LIVE" />
+                <LayerToggle label="เรดาร์คอมโพสิต" checked={showRadar && !radarUnavailable} onChange={(e: any) => setShowRadar(e.target.checked)} badge={radarLayerBadge} badgeTone={radarLayerBadgeTone} disabled={radarUnavailable} />
                 <div className="pl-7 pr-1 pb-3 pt-1.5 space-y-2">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] text-[#8B94A5] w-[48px] shrink-0">ความทึบ</span>
@@ -1203,7 +1261,7 @@ export default function RadarPage() {
                 </div>
 
                 <LayerToggle label="ฝนสะสมคาดการณ์ 3 ชม. (รายหมู่บ้าน)" checked={showRisk} onChange={(e: any) => setShowRisk(e.target.checked)} badge="FORECAST" />
-                <LayerToggle label="สถานีตรวจวัดจริง (STN0583)" checked={showGaugeStation} onChange={(e: any) => setShowGaugeStation(e.target.checked)} badge={gaugeLayerBadge} />
+                <LayerToggle label="สถานีตรวจวัดจริง (STN0583)" checked={showGaugeStation} onChange={(e: any) => setShowGaugeStation(e.target.checked)} badge={gaugeLayerBadge} badgeTone={gaugeSourceStatus.state === 'fresh' ? 'good' : gaugeSourceStatus.state === 'stale' ? 'warning' : 'danger'} />
                 <LayerToggle label="ป้ายชื่อหมู่บ้าน" checked={showLabels} onChange={(e: any) => setShowLabels(e.target.checked)} />
                 <div className="border-t border-[#333946] my-3" />
                 <LayerToggle label="ขอบเขตตำบลบ่อหลวง" checked={showBoluang} onChange={(e: any) => setShowBoluang(e.target.checked)} />
@@ -1456,8 +1514,9 @@ export default function RadarPage() {
                 <span>ฝน 3 ชม. max</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hMax)} มม.</span>
                 <span>ค่าที่ใช้ประเมิน</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hMax)} มม. (ค่าสูงสุดจากจุดตัวอย่าง)</span>
                 <span>p90 วินิจฉัย</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.rain3hP90)} มม.</span>
+                <span>Open-Meteo จุดเทียบ 3 ชม.</span><span className="text-right text-[#D1D5DB]">{!metComparisonFresh || selectedVillage.forecastComparison?.agreement === 'unavailable' ? '— (ข้อมูลไม่พร้อมเทียบ)' : `${fmtNumber(selectedVillage.forecastComparison?.primaryRain3h)} มม. (จุดตัวแทน)`}</span>
                 <span>MET Norway 3 ชม.</span><span className="text-right text-[#D1D5DB]">{!metComparisonFresh || selectedVillage.forecastComparison?.agreement === 'unavailable' ? '— (ข้อมูลไม่พร้อมเทียบ)' : `${fmtNumber(selectedVillage.forecastComparison?.referenceRain3h)} มม. (ตรวจสอบไขว้)`}</span>
-                <span>เทียบแบบจำลอง</span><span className={`text-right font-bold ${metComparisonFresh && selectedVillage.forecastComparison?.agreement === 'low' ? 'text-[#F97316]' : 'text-[#D1D5DB]'}`}>
+                <span>เทียบแบบจำลอง (จุดเดียวกัน)</span><span className={`text-right font-bold ${metComparisonFresh && selectedVillage.forecastComparison?.agreement === 'low' ? 'text-[#F97316]' : 'text-[#D1D5DB]'}`}>
                   {metComparisonFresh ? agreementText(selectedVillage.forecastComparison?.agreement) : 'ระงับการเทียบ · ข้อมูลเก่าหรือไม่พร้อม'}{metComparisonFresh && selectedVillage.forecastComparison?.differenceMm != null ? ` · ต่าง ${fmtNumber(selectedVillage.forecastComparison.differenceMm)} มม. (${fmtNumber((selectedVillage.forecastComparison.relativeDifference ?? 0) * 100, 0)}%)` : ''}
                 </span>
                 <span>โอกาสฝนสูงสุด</span><span className="text-right text-[#D1D5DB]">{fmtNumber(selectedVillage.maxProb, 0)}%</span>
@@ -1531,21 +1590,22 @@ export default function RadarPage() {
               }}
               aria-label={isCoordinateMode ? 'ยกเลิกการอ่านพิกัด' : 'อ่านพิกัดจากแผนที่'}
               aria-pressed={isCoordinateMode}
-              title={isCoordinateMode ? 'ยกเลิกการอ่านพิกัด' : 'อ่านพิกัดจากแผนที่'}
-              className={`w-11 h-11 flex items-center justify-center border-b border-[#333946] hover:text-white hover:bg-[#2D323B] ${isCoordinateMode ? 'bg-[#4178F3]/25 text-[#7DD3FC]' : 'text-[#8B94A5]'}`}
+              aria-keyshortcuts="C"
+              title={isCoordinateMode ? 'ยกเลิกการอ่านพิกัด (C)' : 'อ่านพิกัดจากแผนที่ (C)'}
+              className={`w-11 h-11 flex items-center justify-center border-b border-[#333946] hover:text-white hover:bg-[#2D323B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 ${isCoordinateMode ? 'bg-[#4178F3]/25 text-[#7DD3FC]' : 'text-[#8B94A5]'}`}
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <circle cx="12" cy="12" r="3" strokeWidth="2" />
                 <path strokeLinecap="round" strokeWidth="2" d="M12 2v4m0 12v4M2 12h4m12 0h4" />
               </svg>
             </button>
-            <button onClick={fitOperationalBoundary} aria-label="แสดงขอบเขตตำบลทั้งหมด" title="แสดงขอบเขตตำบลทั้งหมด" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
+            <button onClick={fitOperationalBoundary} aria-label="แสดงขอบเขตตำบลทั้งหมด" aria-keyshortcuts="Home" title="แสดงขอบเขตตำบลทั้งหมด (Home)" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
             </button>
-            <button onClick={() => mapRef.current?.zoomIn()} aria-label="ขยายแผนที่" title="ขยายแผนที่" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
+            <button onClick={() => mapRef.current?.zoomIn()} aria-label="ขยายแผนที่" aria-keyshortcuts="+" title="ขยายแผนที่ (+)" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m-6-6h12" /></svg>
             </button>
-            <button onClick={() => mapRef.current?.zoomOut()} aria-label="ย่อแผนที่" title="ย่อแผนที่" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B]">
+            <button onClick={() => mapRef.current?.zoomOut()} aria-label="ย่อแผนที่" aria-keyshortcuts="-" title="ย่อแผนที่ (-)" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
             </button>
           </div>
