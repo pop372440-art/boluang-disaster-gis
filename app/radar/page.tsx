@@ -665,6 +665,14 @@ export default function RadarPage() {
     setIsFetchingForecast(true);
     setForecastData(null);
 
+    if (wasReadingCoordinates) {
+      const currentZoom = mapRef.current?.getZoom?.() ?? 12;
+      mapRef.current?.flyTo([lat, lng], Math.max(currentZoom, 16), {
+        animate: true,
+        duration: 1,
+      });
+    }
+
     const hitFeat = wasReadingCoordinates ? null : (geoBlock?.features || []).find((f: any) => pointInPolygon(lng, lat, f.geometry));
     setSelectedVillage(hitFeat ? riskByIdx.get(getIdx(hitFeat)) || null : null);
 
