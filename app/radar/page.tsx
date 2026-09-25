@@ -178,11 +178,12 @@ export default function RadarPage() {
   const [isTablePanelOpen, setIsTablePanelOpen] = useState(true);
   const [isLegendOpen, setIsLegendOpen] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [isCoordinateMode, setIsCoordinateMode] = useState(false);
+  const [isLocatingPosition, setIsLocatingPosition] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [scope, setScope] = useState<'village' | 'tambon' | 'station'>('village');
   const [mapZoom, setMapZoom] = useState(12);
 
-  const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number; isCurrentPosition: boolean } | null>(null);
   const [forecastData, setForecastData] = useState<any>(null);
   const [isFetchingForecast, setIsFetchingForecast] = useState(false);
   const [selectedVillage, setSelectedVillage] = useState<any>(null);
@@ -658,23 +659,20 @@ export default function RadarPage() {
     return () => clearInterval(iv);
   }, [isPlaying, radarData, speed]);
 
-  const handleMapClick = async (lat: number, lng: number) => {
-    const wasReadingCoordinates = isCoordinateMode;
-    setIsCoordinateMode(false);
-    setClickedLocation({ lat, lng });
+  const handleMapClick = useCallback(async (lat: number, lng: number, focusPoint = false) => {
+    setClickedLocation({ lat, lng, isCurrentPosition: focusPoint });
     setIsFetchingForecast(true);
     setForecastData(null);
 
-    if (wasReadingCoordinates) {
-      const currentZoom = mapRef.current?.getZoom?.() ?? 12;
+    if (focusPoint) {
       const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-      mapRef.current?.flyTo([lat, lng], Math.max(currentZoom, 16), {
+      mapRef.current?.flyTo([lat, lng], 17, {
         animate: !reduceMotion,
-        duration: reduceMotion ? 0 : 1,
+        duration: reduceMotion ? 0 : 1.15,
       });
     }
 
-    const hitFeat = wasReadingCoordinates ? null : (geoBlock?.features || []).find((f: any) => pointInPolygon(lng, lat, f.geometry));
+    const hitFeat = focusPoint ? null : (geoBlock?.features || []).find((f: any) => pointInPolygon(lng, lat, f.geometry));
     setSelectedVillage(hitFeat ? riskByIdx.get(getIdx(hitFeat)) || null : null);
 
     fcAbortRef.current?.abort();
@@ -707,7 +705,7 @@ export default function RadarPage() {
       if (e?.name !== 'AbortError') setForecastData({ error: e?.message || 'โหลดพยากรณ์ไม่สำเร็จ', hours: [] });
     }
     finally { if (!ac.signal.aborted) setIsFetchingForecast(false); }
-  };
+  }, [geoBlock, riskByIdx]);
 
   const flyToVillage = useCallback((v: any) => {
     setSelectedVillage(v);
@@ -728,21 +726,34 @@ export default function RadarPage() {
     else mapRef.current?.flyTo([center.lat, center.lng], 12, { animate: !reduceMotion, duration: reduceMotion ? 0 : 1.2 });
   }, [geoBoluang]);
 
-  const toggleCoordinateMode = useCallback(() => {
-    if (isCoordinateMode) {
-      setIsCoordinateMode(false);
+  const locateCurrentPosition = useCallback(() => {
+    setLocationError(null);
+    setSelectedVillage(null);
+
+    if (!navigator.geolocation) {
+      setLocationError('อุปกรณ์หรือเบราว์เซอร์นี้ไม่รองรับการระบุตำแหน่ง');
       return;
     }
-    setIsCoordinateMode(true);
-    setSelectedVillage(null);
-    const map = mapRef.current;
-    if (!map) return;
-    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    map.flyTo(map.getCenter(), Math.max(map.getZoom(), 15), {
-      animate: !reduceMotion,
-      duration: reduceMotion ? 0 : 0.75,
-    });
-  }, [isCoordinateMode]);
+
+    setIsLocatingPosition(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setIsLocatingPosition(false);
+        void handleMapClick(coords.latitude, coords.longitude, true);
+      },
+      (error) => {
+        setIsLocatingPosition(false);
+        if (error.code === error.PERMISSION_DENIED) {
+          setLocationError('ไม่สามารถเข้าถึงตำแหน่งได้ กรุณาอนุญาต Location ในเบราว์เซอร์');
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          setLocationError('ไม่พบตำแหน่งปัจจุบัน กรุณาตรวจสอบ GPS หรือเครือข่าย');
+        } else {
+          setLocationError('ค้นหาตำแหน่งนานเกินไป กรุณาลองใหม่');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 },
+    );
+  }, [handleMapClick]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -751,7 +762,7 @@ export default function RadarPage() {
       const key = event.key.toLowerCase();
       if (key === 'c') {
         event.preventDefault();
-        toggleCoordinateMode();
+        locateCurrentPosition();
       } else if (event.key === 'Home') {
         event.preventDefault();
         fitOperationalBoundary();
@@ -768,7 +779,7 @@ export default function RadarPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [fitOperationalBoundary, toggleCoordinateMode]);
+  }, [fitOperationalBoundary, locateCurrentPosition]);
 
   const getRainText = (mm: number) => {
     if (mm <= 0.1) return { text: 'ไม่มีฝน', color: 'text-gray-400', icon: '☀️' };
@@ -1159,7 +1170,7 @@ export default function RadarPage() {
                 </Popup>
               </Marker>
             )}
-            <ClickableMap onMapClick={handleMapClick} onZoom={setMapZoom} coordinateMode={isCoordinateMode} />
+            <ClickableMap onMapClick={handleMapClick} onZoom={setMapZoom} />
             {clickedLocation && customPinIcon && <Marker position={[clickedLocation.lat, clickedLocation.lng]} icon={customPinIcon} />}
           </MapContainer>
         </div>
@@ -1551,13 +1562,27 @@ export default function RadarPage() {
           </section>
         )}
 
-        {isCoordinateMode && (
-          <div role="status" className="liquid-bar absolute bottom-[294px] right-[64px] z-[1350] flex items-center gap-2 rounded-xl border-cyan-300/40 px-3 py-2 text-[11px] font-semibold text-cyan-50 shadow-xl md:bottom-[146px]">
-            <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 21s6-4.35 6-10a6 6 0 10-12 0c0 5.65 6 10 6 10z" />
-              <circle cx="12" cy="11" r="2" strokeWidth="2" />
-            </svg>
-            คลิกจุดบนแผนที่ · วางหมุดและซูมทันที
+        {(isLocatingPosition || locationError) && (
+          <div
+            role={locationError ? 'alert' : 'status'}
+            className={`liquid-bar absolute bottom-[294px] right-[64px] z-[1350] flex max-w-[280px] items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-semibold shadow-xl md:bottom-[146px] ${locationError ? 'border-orange-400/50 text-orange-100' : 'border-cyan-300/40 text-cyan-50'}`}
+          >
+            {isLocatingPosition ? (
+              <svg aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin text-cyan-300" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" />
+                <path className="opacity-90" fill="currentColor" d="M21 12a9 9 0 00-9-9v3a6 6 0 016 6h3z" />
+              </svg>
+            ) : (
+              <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-orange-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v3.5m0 3.5h.01M10.3 4.4 2.7 18a1.5 1.5 0 001.3 2.25h16a1.5 1.5 0 001.3-2.25L13.7 4.4a1.95 1.95 0 00-3.4 0z" />
+              </svg>
+            )}
+            <span>{isLocatingPosition ? 'กำลังค้นหาตำแหน่งปัจจุบัน…' : locationError}</span>
+            {locationError && (
+              <button onClick={() => setLocationError(null)} aria-label="ปิดข้อความแจ้งเตือน" className="ml-1 rounded p-0.5 text-orange-200 hover:bg-white/10 hover:text-white">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="m6 6 12 12M18 6 6 18" /></svg>
+              </button>
+            )}
           </div>
         )}
 
@@ -1566,7 +1591,7 @@ export default function RadarPage() {
           <div className="absolute top-[112px] right-3 md:right-5 xl:right-[442px] z-[1040] w-[calc(100%-1.5rem)] max-w-[326px] ops-panel animate-fade-in">
             <div className="px-5 py-4 border-b border-[#333946] flex justify-between items-center bg-[#232732] rounded-t-xl">
               <div>
-                <h3 className="text-[13px] font-bold text-[#E5E7EB]">พิกัดที่เลือก</h3>
+                <h3 className="text-[13px] font-bold text-[#E5E7EB]">{clickedLocation.isCurrentPosition ? 'ตำแหน่งปัจจุบัน' : 'พิกัดที่เลือก'}</h3>
                 <p className="text-[10px] text-[#4178F3] font-mono mt-0.5">{clickedLocation.lat.toFixed(5)}, {clickedLocation.lng.toFixed(5)}</p>
               </div>
               <button onClick={() => setClickedLocation(null)} className="text-[#8B94A5] hover:text-[#EF4444] p-1.5 rounded-lg border border-[#333946]">
@@ -1603,16 +1628,17 @@ export default function RadarPage() {
         <div className="absolute bottom-[160px] md:bottom-5 right-3 z-[900] flex flex-col space-y-2">
           <div className="bg-[#1A1D24]/90 backdrop-blur-md border border-[#333946] rounded-xl flex flex-col overflow-hidden">
             <button
-              onClick={toggleCoordinateMode}
-              aria-label={isCoordinateMode ? 'ยกเลิกการอ่านพิกัด' : 'อ่านพิกัดจากแผนที่'}
-              aria-pressed={isCoordinateMode}
+              onClick={locateCurrentPosition}
+              aria-label={isLocatingPosition ? 'กำลังค้นหาตำแหน่งปัจจุบัน' : 'ไปยังตำแหน่งปัจจุบัน'}
+              aria-busy={isLocatingPosition}
               aria-keyshortcuts="C"
-              title={isCoordinateMode ? 'ยกเลิกการอ่านพิกัด (C)' : 'อ่านพิกัดจากแผนที่ (C)'}
-              className={`w-11 h-11 flex items-center justify-center border-b border-[#333946] hover:text-white hover:bg-[#2D323B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 ${isCoordinateMode ? 'bg-[#4178F3]/25 text-[#7DD3FC]' : 'text-[#8B94A5]'}`}
+              title="ไปยังตำแหน่งปัจจุบัน (C)"
+              disabled={isLocatingPosition}
+              className={`w-11 h-11 flex items-center justify-center border-b border-[#333946] hover:text-white hover:bg-[#2D323B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 disabled:cursor-wait ${isLocatingPosition ? 'bg-[#4178F3]/25 text-[#7DD3FC]' : 'text-[#8B94A5]'}`}
             >
-              <svg className="h-[22px] w-[22px]" fill={isCoordinateMode ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 21s6-4.35 6-10a6 6 0 10-12 0c0 5.65 6 10 6 10z" />
-                <circle cx="12" cy="11" r="2.25" fill={isCoordinateMode ? '#1A1D24' : 'none'} strokeWidth="1.8" />
+              <svg className={`h-[21px] w-[21px] ${isLocatingPosition ? 'animate-pulse' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="m20.1 3.9-7.3 16.2a.9.9 0 0 1-1.7-.08l-1.65-5.47-5.47-1.65a.9.9 0 0 1-.08-1.7l16.2-7.3Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="m10 14 3.4-3.4" />
               </svg>
             </button>
             <button onClick={fitOperationalBoundary} aria-label="แสดงขอบเขตตำบลทั้งหมด" aria-keyshortcuts="Home" title="แสดงขอบเขตตำบลทั้งหมด (Home)" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300">
