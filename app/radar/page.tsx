@@ -70,6 +70,15 @@ const fmtDate = (value: Date | number | null | undefined) => {
   const date = toDate(value);
   return date ? date.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', timeZone: TZ }) : '-';
 };
+const fmtDateInput = (value: Date | number | null | undefined) => {
+  const date = toDate(value);
+  if (!date) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TZ,
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+};
 /* ═══════════════════════ BASEMAPS ═══════════════════════ */
 const BASEMAPS = {
   light: { name: 'ถนน', swatch: 'bg-[#E5E7EB]', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', subdomains: '', maxNativeZoom: 16, attr: 'Tiles &copy; Esri', labels: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}' },
@@ -169,7 +178,6 @@ export default function RadarPage() {
   const [isTablePanelOpen, setIsTablePanelOpen] = useState(true);
   const [isLegendOpen, setIsLegendOpen] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [isMapFocus, setIsMapFocus] = useState(false);
   const [isCoordinateMode, setIsCoordinateMode] = useState(false);
   const [scope, setScope] = useState<'village' | 'tambon' | 'station'>('village');
   const [mapZoom, setMapZoom] = useState(12);
@@ -770,6 +778,26 @@ export default function RadarPage() {
   }, [riskByIdx, showLabels, showRisk, flyToVillage]);
 
   const activeFrame: RadarFrame | null = radarData?.frames?.[currentFrameIndex] || null;
+  const selectedFrameDate = fmtDateInput(activeFrame ? activeFrame.time * 1000 : null);
+  const availableFrameDates = useMemo(() => Array.from(new Set(
+    (radarData?.frames ?? []).map((frame) => fmtDateInput(frame.time * 1000)),
+  )), [radarData]);
+  const framesForSelectedDate = useMemo(() => (radarData?.frames ?? [])
+    .map((frame, index) => ({ frame, index }))
+    .filter(({ frame }) => fmtDateInput(frame.time * 1000) === selectedFrameDate),
+  [radarData, selectedFrameDate]);
+  const selectFrameDate = useCallback((date: string) => {
+    const candidates = (radarData?.frames ?? [])
+      .map((frame, index) => ({ frame, index }))
+      .filter(({ frame }) => fmtDateInput(frame.time * 1000) === date);
+    if (!candidates.length) return;
+    const currentTime = activeFrame?.time ?? candidates[candidates.length - 1].frame.time;
+    const closest = candidates.reduce((best, candidate) => (
+      Math.abs(candidate.frame.time - currentTime) < Math.abs(best.frame.time - currentTime) ? candidate : best
+    ));
+    setIsPlaying(false);
+    setCurrentFrameIndex(closest.index);
+  }, [activeFrame?.time, radarData]);
   const isNowcast = activeFrame?.kind === 'nowcast';
   const latestPast = radarData?.observedFrames?.[radarData.observedFrames.length - 1];
   const minutesAgo = latestPast ? Math.round((Date.now() - latestPast.time * 1000) / 60000) : null;
@@ -931,7 +959,7 @@ export default function RadarPage() {
       {/* ══ TOP BAR ══ */}
       <div className="absolute top-0 left-0 w-full h-8 z-[1999]" onMouseEnter={() => setIsTopHeaderVisible(true)} />
       <header
-        className={`ops-topbar absolute top-0 left-0 w-full min-h-[72px] z-[2000] flex items-center justify-between px-3 md:px-6 py-2 transition-transform duration-500 ${isTopHeaderVisible && !isMapFocus ? 'translate-y-0' : '-translate-y-full'}`}>
+        className={`ops-topbar absolute top-0 left-0 w-full min-h-[72px] z-[2000] flex items-center justify-between px-3 md:px-6 py-2 transition-transform duration-500 ${isTopHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
         <div className="flex min-w-0 items-center space-x-3 md:space-x-4">
           <div className="w-11 h-11 md:w-12 md:h-12 bg-white rounded-full border border-[#D7E0EA] flex items-center justify-center p-1 shadow-sm shrink-0">
             <Image src="/Logogis3.png" alt="ตราสัญลักษณ์ระบบ GIS เทศบาลตำบลบ่อหลวง" width={36} height={36} priority className="w-full h-full object-contain opacity-95" />
@@ -949,11 +977,31 @@ export default function RadarPage() {
           </div>
         </div>
         <div className="ml-3 flex shrink-0 items-center space-x-2">
-          <div className="hidden lg:flex items-center gap-2 rounded-lg border border-[#D6E0EB] bg-[#F6F9FC] px-3 py-1.5">
-            <span className="text-[10px] font-semibold text-[#64748B]">ข้อมูล ณ วันที่</span>
-            <span className="text-[11px] font-bold text-[#173B69]">{fmtDate(riskUpdatedAt)}</span>
+          <div className="hidden xl:flex items-center gap-2 rounded-lg border border-[#D6E0EB] bg-[#F6F9FC] px-2.5 py-1.5">
+            <label htmlFor="radar-frame-date" className="text-[10px] font-semibold text-[#64748B]">เฟรมวันที่</label>
+            <input
+              id="radar-frame-date"
+              type="date"
+              value={selectedFrameDate}
+              min={availableFrameDates[0] ?? ''}
+              max={availableFrameDates[availableFrameDates.length - 1] ?? ''}
+              onChange={(event) => selectFrameDate(event.target.value)}
+              disabled={!availableFrameDates.length}
+              aria-label="เลือกวันที่เฟรมเรดาร์"
+              title="เลือกได้เฉพาะวันที่ที่มีเฟรม RainViewer ในรอบปัจจุบัน"
+              className="w-[128px] bg-transparent text-[11px] font-bold text-[#173B69] outline-none disabled:opacity-50"
+            />
             <span className="h-4 w-px bg-[#D6E0EB]" />
-            <span className="font-mono text-[11px] font-bold text-[#1D65A6]">{fmtTime(riskUpdatedAt)} น.</span>
+            <select
+              value={currentFrameIndex}
+              onChange={(event) => { setIsPlaying(false); setCurrentFrameIndex(Number(event.target.value)); }}
+              aria-label="เลือกเวลาเฟรมเรดาร์จากรายการ"
+              className="max-w-[94px] bg-transparent font-mono text-[11px] font-bold text-[#1D65A6] outline-none"
+            >
+              {framesForSelectedDate.map(({ frame, index }) => (
+                <option key={`${frame.path}-${index}`} value={index}>{fmtTime(frame.time * 1000)} น.</option>
+              ))}
+            </select>
           </div>
           <button onClick={() => setReloadToken((token) => token + 1)} className="flex items-center px-3 md:px-4 py-2 bg-white border border-[#C9D6E3] text-[#234566] hover:bg-[#F2F7FC] rounded-lg font-semibold space-x-2 shadow-sm" aria-label="โหลดข้อมูล Radar และ Forecast ใหม่">
             <svg className={`w-4 h-4 ${riskLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M19.418 9A7.003 7.003 0 006 7.293M4.582 15A7.003 7.003 0 0018 16.707" /></svg>
@@ -1043,7 +1091,7 @@ export default function RadarPage() {
           </MapContainer>
         </div>
 
-        <div className={`absolute top-[80px] left-[356px] right-4 xl:right-[438px] z-[1300] items-center justify-center gap-1.5 overflow-x-auto ops-scroll pb-1 ${isMapFocus ? 'hidden' : 'hidden md:flex'}`}>
+        <div className="absolute top-[80px] left-[356px] right-4 xl:right-[438px] z-[1300] hidden items-center justify-center gap-1.5 overflow-x-auto ops-scroll pb-1 md:flex">
           <DataStatusBadge status={radarStatus} />
           <DataStatusBadge status={forecastStatus} />
           <DataStatusBadge status={metNorwayStatus} />
@@ -1168,7 +1216,7 @@ export default function RadarPage() {
             </div>
           </div>
         ) : (
-          <button onClick={() => setIsLayerMenuOpen(true)} aria-label="เปิดแผงจัดการชั้นข้อมูล" className={`absolute top-[80px] left-3 z-[1000] p-2.5 bg-[#1F252B] border border-[#3B4651] rounded-lg text-[#E5E7EB] hover:bg-[#2B333B] ${isMapFocus ? 'hidden' : 'hidden md:block'}`}>
+          <button onClick={() => setIsLayerMenuOpen(true)} aria-label="เปิดแผงจัดการชั้นข้อมูล" className="absolute top-[80px] left-3 z-[1000] hidden rounded-lg border border-[#3B4651] bg-[#1F252B] p-2.5 text-[#E5E7EB] hover:bg-[#2B333B] md:block">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
           </button>
         )}
@@ -1468,15 +1516,6 @@ export default function RadarPage() {
         {/* ══ MAP TOOLS ══ */}
         <div className="absolute bottom-[160px] md:bottom-5 right-3 z-[900] flex flex-col space-y-2">
           <div className="bg-[#1A1D24]/90 backdrop-blur-md border border-[#333946] rounded-xl flex flex-col overflow-hidden">
-            <button onClick={fitOperationalBoundary} aria-label="แสดงขอบเขตตำบลทั้งหมด" title="แสดงขอบเขตตำบลทั้งหมด" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-            </button>
-            <button onClick={() => {
-              setIsMapFocus((value) => !value);
-              if (!isMapFocus) { setIsLayerMenuOpen(false); setIsTablePanelOpen(false); setIsLegendOpen(false); }
-            }} aria-label={isMapFocus ? 'ออกจากโหมดเน้นแผนที่' : 'เข้าโหมดเน้นแผนที่'} title={isMapFocus ? 'แสดงแผงควบคุม' : 'ซ่อนแผงเพื่อดูแผนที่'} className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
-              <span aria-hidden="true">{isMapFocus ? '▣' : '□'}</span>
-            </button>
             <button
               onClick={() => {
                 setIsCoordinateMode((value) => !value);
@@ -1492,6 +1531,9 @@ export default function RadarPage() {
                 <path strokeLinecap="round" strokeWidth="2" d="M12 2v4m0 12v4M2 12h4m12 0h4" />
               </svg>
             </button>
+            <button onClick={fitOperationalBoundary} aria-label="แสดงขอบเขตตำบลทั้งหมด" title="แสดงขอบเขตตำบลทั้งหมด" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+            </button>
             <button onClick={() => mapRef.current?.zoomIn()} aria-label="ขยายแผนที่" title="ขยายแผนที่" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946]">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m-6-6h12" /></svg>
             </button>
@@ -1502,7 +1544,7 @@ export default function RadarPage() {
         </div>
 
         {/* ══ LEGEND ══ */}
-        {isLegendOpen && !isMapFocus && (
+        {isLegendOpen && (
           <div className="absolute bottom-4 left-3 z-[900] ops-panel px-3 py-3 w-[196px] hidden lg:block">
             <h3 className="text-[11.5px] font-bold text-[#E5E7EB] mb-2">ระดับความรุนแรงฝน</h3>
             <div className="space-y-1">
@@ -1590,7 +1632,7 @@ export default function RadarPage() {
         </div>
 
         {/* ══ MOBILE SHEET ══ */}
-        <div className={`${isMapFocus ? 'hidden' : 'md:hidden'} absolute left-0 right-0 bottom-0 z-[1200] transition-transform duration-300 ${isSheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-72px)]'}`}>
+        <div className={`absolute bottom-0 left-0 right-0 z-[1200] transition-transform duration-300 md:hidden ${isSheetOpen ? 'translate-y-0' : 'translate-y-[calc(100%-72px)]'}`}>
           <div className="liquid-bar border-t border-white/15 rounded-t-[26px] shadow-[0_-18px_55px_rgba(0,0,0,.48)] max-h-[76vh] flex flex-col">
             <button type="button" aria-expanded={isSheetOpen} onClick={() => setIsSheetOpen(!isSheetOpen)} className="w-full py-3 px-5 cursor-pointer text-left">
               <div className="w-10 h-1 bg-[#4B5563] rounded-full mx-auto mb-2.5" />
