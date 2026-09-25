@@ -618,6 +618,20 @@ export default function RadarPage() {
     expireAfterMinutes: RISK_CONFIG.freshness.forecastExpireAfterMinutes,
   }).status === 'fresh';
   const showAlert = alertForecastFresh && alertVillages.length > 0 && alertSig !== dismissedSig;
+  const operationalSummary = useMemo(() => {
+    const topVillage = villageRisk[0] ?? null;
+    const comparisons = villageRisk
+      .map((v) => v.forecastComparison)
+      .filter((comparison) => comparison && comparison.agreement !== 'unavailable');
+    const lowAgreementCount = comparisons.filter((comparison) => comparison.agreement === 'low').length;
+    const mediumAgreementCount = comparisons.filter((comparison) => comparison.agreement === 'medium').length;
+    const agreement = !comparisons.length ? 'unavailable' : lowAgreementCount > 0 ? 'low' : mediumAgreementCount > 0 ? 'medium' : 'high';
+    return {
+      topVillage,
+      agreement,
+      comparedVillageCount: comparisons.length,
+    };
+  }, [villageRisk]);
 
   /* สถิติผ่าน RPC */
   useEffect(() => {
@@ -680,9 +694,20 @@ export default function RadarPage() {
     fcAbortRef.current = ac;
 
     try {
-      const r = await fetch(`/api/forecast?latitude=${lat}&longitude=${lng}`, { signal: ac.signal, cache: 'no-store' });
-      if (!r.ok) throw new Error(`Open-Meteo HTTP ${r.status}`);
-      const payload = parseForecastApiResponse(await r.json());
+      const [primaryResult, referenceResult] = await Promise.allSettled([
+        fetch(`/api/forecast?latitude=${lat}&longitude=${lng}`, { signal: ac.signal, cache: 'no-store' })
+          .then(async (response) => {
+            if (!response.ok) throw new Error(`Open-Meteo HTTP ${response.status}`);
+            return parseForecastApiResponse(await response.json());
+          }),
+        fetch(`/api/forecast/met-norway?latitude=${lat}&longitude=${lng}`, { signal: ac.signal, cache: 'no-store' })
+          .then(async (response) => {
+            if (!response.ok) throw new Error(`MET Norway HTTP ${response.status}`);
+            return parseMetNorwayApiResponse(await response.json());
+          }),
+      ]);
+      if (primaryResult.status === 'rejected') throw primaryResult.reason;
+      const payload = primaryResult.value;
       const d = payload.locations[0];
       const now = Date.now();
       const hours = selectNextForecastHours(
@@ -693,12 +718,34 @@ export default function RadarPage() {
       );
       const complete = hours.every((hour) => hour.rain != null);
       const total = complete ? hours.reduce((sum, hour) => sum + (hour.rain as number), 0) : null;
+      const referenceRain3h = referenceResult.status === 'fulfilled'
+        ? sumMetNorwayRain3h(referenceResult.value.locations[0])
+        : null;
+      const primaryFresh = evaluateFreshness(payload.fetchedAt, {
+        staleAfterMinutes: RISK_CONFIG.freshness.forecastStaleAfterMinutes,
+        expireAfterMinutes: RISK_CONFIG.freshness.forecastExpireAfterMinutes,
+      }).status === 'fresh';
+      const referenceFresh = referenceResult.status === 'fulfilled' && evaluateFreshness(referenceResult.value.fetchedAt, {
+        staleAfterMinutes: RISK_CONFIG.freshness.metNorwayStaleAfterMinutes,
+        expireAfterMinutes: RISK_CONFIG.freshness.metNorwayExpireAfterMinutes,
+      }).status === 'fresh';
+      const comparison = compareFreshRainForecasts(
+        total,
+        referenceRain3h,
+        primaryFresh,
+        referenceFresh,
+        RISK_CONFIG.forecastAgreement,
+      );
       if (!ac.signal.aborted) setForecastData({
         isRaining: total != null ? total > 0.5 : null,
         totalRain: total,
         hours,
         source: payload.source,
         fetchedAt: payload.fetchedAt,
+        primaryRain3h: total,
+        referenceRain3h,
+        comparison,
+        referenceError: referenceResult.status === 'rejected' ? 'MET Norway ไม่พร้อมเปรียบเทียบ' : null,
         error: complete ? null : 'ข้อมูลฝนรายชั่วโมงไม่ครบถ้วน',
       });
     } catch (e: any) {
@@ -1327,8 +1374,44 @@ export default function RadarPage() {
             <div className="p-5">
               {scope === 'village' ? (
                 <>
-                  <h3 className="text-[13.5px] font-bold text-[#E5E7EB] mb-1">ประมาณการฝนสะสม 3 ชั่วโมงล่วงหน้า</h3>
-                  <p className="text-[10.5px] text-[#8B94A5] mb-3">เรียงตามดัชนีเสี่ยง · หน่วยฝน มม. · คลิกเพื่อซูม</p>
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-[13.5px] font-bold text-[#E5E7EB]">ภาพรวมฝน 3 ชั่วโมงข้างหน้า</h3>
+                      <p className="mt-0.5 text-[10.5px] text-[#8B94A5]">สรุปเพื่อการเฝ้าระวัง · คลิกหมู่บ้านเพื่อซูม</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full border px-2 py-1 text-[9px] font-extrabold ${
+                      operationalSummary.agreement === 'high' ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-200' :
+                        operationalSummary.agreement === 'medium' ? 'border-amber-300/30 bg-amber-300/10 text-amber-100' :
+                          operationalSummary.agreement === 'low' ? 'border-orange-300/35 bg-orange-300/10 text-orange-100' :
+                            'border-white/15 bg-white/5 text-[#AEBBD0]'
+                    }`}>
+                      {operationalSummary.agreement === 'high' ? 'โมเดลสอดคล้องสูง' :
+                        operationalSummary.agreement === 'medium' ? 'โมเดลสอดคล้องปานกลาง' :
+                          operationalSummary.agreement === 'low' ? 'โมเดลต่างกัน · ตรวจสอบเพิ่ม' : 'กำลังรอผลเทียบโมเดล'}
+                    </span>
+                  </div>
+                  <div className="mb-3 grid grid-cols-3 gap-2 border-b border-[#333946] pb-3">
+                    <button
+                      type="button"
+                      onClick={() => operationalSummary.topVillage && flyToVillage(operationalSummary.topVillage)}
+                      disabled={!operationalSummary.topVillage}
+                      className="rounded-lg border border-white/10 bg-white/[.04] p-2 text-left hover:bg-white/[.08] disabled:cursor-default"
+                    >
+                      <span className="block text-[9px] text-[#8B94A5]">ฝนสูงสุด</span>
+                      <span className="mt-0.5 block truncate text-[11px] font-bold text-white">{operationalSummary.topVillage?.name ?? '—'}</span>
+                      <span className="block font-mono text-[14px] font-black text-cyan-200">{fmtNumber(operationalSummary.topVillage?.rain3h)} มม.</span>
+                    </button>
+                    <div className="rounded-lg border border-white/10 bg-white/[.04] p-2">
+                      <span className="block text-[9px] text-[#8B94A5]">ช่วงพีค</span>
+                      <span className="mt-1 block font-mono text-[14px] font-black text-white">{operationalSummary.topVillage?.peak ?? '—'}</span>
+                      <span className="block text-[9px] text-[#8B94A5]">เวลาไทย</span>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-white/[.04] p-2">
+                      <span className="block text-[9px] text-[#8B94A5]">เทียบโมเดลแล้ว</span>
+                      <span className="mt-1 block font-mono text-[14px] font-black text-white">{operationalSummary.comparedVillageCount}/13</span>
+                      <span className="block text-[9px] text-[#8B94A5]">หมู่บ้าน</span>
+                    </div>
+                  </div>
                   <div className="flex flex-wrap gap-1.5 mb-3 pb-3 border-b border-[#333946]">
                     {LEVELS.map((l) => (
                       <span key={l.key} className="flex items-center text-[9.5px] text-[#8B94A5] px-1.5 py-0.5 rounded bg-[#111319] border border-[#333946]">
@@ -1606,18 +1689,47 @@ export default function RadarPage() {
                   {forecastData.error}
                 </div>
               ) : forecastData ? (
-                <div className="grid grid-cols-3 gap-2.5">
-                  {forecastData.hours.map((h: any, i: number) => {
-                    const r = getRainText(h.rain);
-                    return (
-                      <div key={i} className="bg-[#232732] border border-[#333946] rounded-xl p-2.5 text-center">
-                        <span className="text-[9px] text-[#8B94A5] font-bold">+{i + 1} ชม.</span>
-                        <div className="text-[18px] my-0.5">{r.icon}</div>
-                        <div className="text-[9.5px] font-mono text-[#8B94A5]">{fmtTime(h.time)}</div>
-                        <div className={`text-[10px] font-bold ${r.color}`}>{fmtNumber(h.rain)} มม.</div>
+                <div className="space-y-3">
+                  <div className={`rounded-xl border p-3 ${
+                    forecastData.comparison?.agreement === 'high' ? 'border-emerald-300/30 bg-emerald-300/10' :
+                      forecastData.comparison?.agreement === 'medium' ? 'border-amber-300/30 bg-amber-300/10' :
+                        forecastData.comparison?.agreement === 'low' ? 'border-orange-300/35 bg-orange-300/10' :
+                          'border-white/10 bg-white/[.04]'
+                  }`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-extrabold text-white">ความเชื่อมั่นจาก 2 แบบจำลอง</p>
+                      <span className="text-[10px] font-bold text-[#D1D5DB]">{agreementText(forecastData.comparison?.agreement)}</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div className="rounded-lg bg-black/15 p-2">
+                        <p className="text-[9px] text-[#AEBBD0]">Open‑Meteo · 3 ชม.</p>
+                        <p className="font-mono text-[16px] font-black text-cyan-100">{fmtNumber(forecastData.primaryRain3h)} มม.</p>
                       </div>
-                    );
-                  })}
+                      <div className="rounded-lg bg-black/15 p-2">
+                        <p className="text-[9px] text-[#AEBBD0]">MET Norway · 3 ชม.</p>
+                        <p className="font-mono text-[16px] font-black text-cyan-100">{fmtNumber(forecastData.referenceRain3h)} มม.</p>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[9.5px] leading-relaxed text-[#AEBBD0]">
+                      {forecastData.referenceError ?? (forecastData.comparison?.differenceMm != null
+                        ? `ค่าต่าง ${fmtNumber(forecastData.comparison.differenceMm)} มม. · ใช้ดูความไม่แน่นอน ไม่ใช่การรับรองผล`
+                        : 'ข้อมูลยังไม่พอเปรียบเทียบ')}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {forecastData.hours.map((h: any, i: number) => {
+                      const r = getRainText(h.rain);
+                      return (
+                        <div key={i} className="bg-[#232732] border border-[#333946] rounded-xl p-2.5 text-center">
+                          <span className="text-[9px] text-[#8B94A5] font-bold">+{i + 1} ชม.</span>
+                          <div className="text-[18px] my-0.5">{r.icon}</div>
+                          <div className="text-[9.5px] font-mono text-[#8B94A5]">{fmtTime(h.time)}</div>
+                          <div className={`text-[10px] font-bold ${r.color}`}>{fmtNumber(h.rain)} มม.</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[9.5px] leading-relaxed text-[#8B94A5]">Radar = ฝนที่ตรวจพบ · Forecast = แบบจำลองล่วงหน้า ทั้งสองส่วนไม่ใช่ข้อมูลชนิดเดียวกัน</p>
                 </div>
               ) : null}
             </div>
