@@ -728,6 +728,22 @@ export default function RadarPage() {
     else mapRef.current?.flyTo([center.lat, center.lng], 12, { animate: !reduceMotion, duration: reduceMotion ? 0 : 1.2 });
   }, [geoBoluang]);
 
+  const toggleCoordinateMode = useCallback(() => {
+    if (isCoordinateMode) {
+      setIsCoordinateMode(false);
+      return;
+    }
+    setIsCoordinateMode(true);
+    setSelectedVillage(null);
+    const map = mapRef.current;
+    if (!map) return;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    map.flyTo(map.getCenter(), Math.max(map.getZoom(), 15), {
+      animate: !reduceMotion,
+      duration: reduceMotion ? 0 : 0.75,
+    });
+  }, [isCoordinateMode]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -735,8 +751,7 @@ export default function RadarPage() {
       const key = event.key.toLowerCase();
       if (key === 'c') {
         event.preventDefault();
-        setIsCoordinateMode((value) => !value);
-        setSelectedVillage(null);
+        toggleCoordinateMode();
       } else if (event.key === 'Home') {
         event.preventDefault();
         fitOperationalBoundary();
@@ -753,7 +768,7 @@ export default function RadarPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [fitOperationalBoundary]);
+  }, [fitOperationalBoundary, toggleCoordinateMode]);
 
   const getRainText = (mm: number) => {
     if (mm <= 0.1) return { text: 'ไม่มีฝน', color: 'text-gray-400', icon: '☀️' };
@@ -1537,8 +1552,12 @@ export default function RadarPage() {
         )}
 
         {isCoordinateMode && (
-          <div role="status" className="liquid-bar absolute top-[124px] left-1/2 -translate-x-1/2 z-[1350] rounded-xl border-cyan-300/40 px-3 py-2 text-[11px] font-semibold text-cyan-50 shadow-xl">
-            คลิกตำแหน่งบนแผนที่เพื่ออ่านพิกัด
+          <div role="status" className="liquid-bar absolute bottom-[294px] right-[64px] z-[1350] flex items-center gap-2 rounded-xl border-cyan-300/40 px-3 py-2 text-[11px] font-semibold text-cyan-50 shadow-xl md:bottom-[146px]">
+            <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 21s6-4.35 6-10a6 6 0 10-12 0c0 5.65 6 10 6 10z" />
+              <circle cx="12" cy="11" r="2" strokeWidth="2" />
+            </svg>
+            คลิกจุดบนแผนที่ · วางหมุดและซูมทันที
           </div>
         )}
 
@@ -1584,19 +1603,16 @@ export default function RadarPage() {
         <div className="absolute bottom-[160px] md:bottom-5 right-3 z-[900] flex flex-col space-y-2">
           <div className="bg-[#1A1D24]/90 backdrop-blur-md border border-[#333946] rounded-xl flex flex-col overflow-hidden">
             <button
-              onClick={() => {
-                setIsCoordinateMode((value) => !value);
-                setSelectedVillage(null);
-              }}
+              onClick={toggleCoordinateMode}
               aria-label={isCoordinateMode ? 'ยกเลิกการอ่านพิกัด' : 'อ่านพิกัดจากแผนที่'}
               aria-pressed={isCoordinateMode}
               aria-keyshortcuts="C"
               title={isCoordinateMode ? 'ยกเลิกการอ่านพิกัด (C)' : 'อ่านพิกัดจากแผนที่ (C)'}
               className={`w-11 h-11 flex items-center justify-center border-b border-[#333946] hover:text-white hover:bg-[#2D323B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 ${isCoordinateMode ? 'bg-[#4178F3]/25 text-[#7DD3FC]' : 'text-[#8B94A5]'}`}
             >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <circle cx="12" cy="12" r="3" strokeWidth="2" />
-                <path strokeLinecap="round" strokeWidth="2" d="M12 2v4m0 12v4M2 12h4m12 0h4" />
+              <svg className="h-[22px] w-[22px]" fill={isCoordinateMode ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 21s6-4.35 6-10a6 6 0 10-12 0c0 5.65 6 10 6 10z" />
+                <circle cx="12" cy="11" r="2.25" fill={isCoordinateMode ? '#1A1D24' : 'none'} strokeWidth="1.8" />
               </svg>
             </button>
             <button onClick={fitOperationalBoundary} aria-label="แสดงขอบเขตตำบลทั้งหมด" aria-keyshortcuts="Home" title="แสดงขอบเขตตำบลทั้งหมด (Home)" className="w-11 h-11 flex items-center justify-center text-[#8B94A5] hover:text-white hover:bg-[#2D323B] border-b border-[#333946] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300">
