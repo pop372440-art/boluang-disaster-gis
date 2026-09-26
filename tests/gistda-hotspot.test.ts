@@ -19,3 +19,17 @@ test('GISTDA parser keeps only valid points within the operational radius', () =
     assert.equal(result.hotspots[0].id, 'near');
   }
 });
+
+test('GISTDA parser supports satellite collections from the live hotspot endpoint', () => {
+  const result = parseGistdaHotspots({
+    terra: [{ date: '2026-09-26', data: [{ latitude: 18.17, longitude: 98.38 }] }],
+    aqua: [{ date: '2026-09-26', data: [] }],
+    'suomi-npp': [{ date: '2026-09-26', data: [] }],
+  }, { latitude: 18.1633, longitude: 98.3744 });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.hotspots.length, 1);
+    assert.equal(result.hotspots[0].satellite, 'terra');
+    assert.equal(result.hotspots[0].acquiredDate, '2026-09-26');
+  }
+});
