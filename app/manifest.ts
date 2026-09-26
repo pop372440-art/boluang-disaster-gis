@@ -2,10 +2,10 @@ import { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'ระบบภูมิสารสนเทศ เทศบาลตำบลบ่อหลวง',
-    short_name: 'BL GIS',
-    description: 'ระบบสารสนเทศทางภูมิศาสตร์เพื่อบริหารจัดการด้านสาธารณภัย เทศบาลตำบลบ่อหลวง',
-    start_url: '/',
+    name: 'Bo Luang Environmental Intelligence & Early Warning',
+    short_name: 'BL Intelligence',
+    description: 'ระบบติดตาม พยากรณ์ และสนับสนุนการตัดสินใจด้านอากาศ สิ่งแวดล้อม และภัยพิบัติ เทศบาลตำบลบ่อหลวง',
+    start_url: '/intelligence',
     display: 'standalone',
     background_color: '#0b132b',
     theme_color: '#38bdf8',
