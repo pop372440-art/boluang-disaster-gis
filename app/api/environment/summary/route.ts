@@ -67,6 +67,9 @@ export async function GET(request: NextRequest) {
         radiusKm: 50,
         count: nearbyHotspots.length,
         hotspots: nearbyHotspots,
+        diagnostic: fireState === 'degraded' && firePayload && typeof firePayload === 'object'
+          ? { topLevelKeys: Object.keys(firePayload).slice(0, 10) }
+          : undefined,
         message: fireState === 'ready'
           ? `พบ ${nearbyHotspots.length} จุดในรัศมี 50 กม.`
           : fireState === 'unconfigured'
