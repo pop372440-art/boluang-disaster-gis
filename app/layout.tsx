@@ -18,8 +18,8 @@ const notoSansThai = Noto_Sans_Thai({
 // 🌟 ตั้งค่า SEO และ Social Sharing (OG Image) + เก็บค่า PWA เดิมไว้
 export const metadata: Metadata = {
   metadataBase: new URL('https://boluang-disaster-gis.vercel.app'),
-  title: 'ระบบบริหารจัดการสาธารณภัย เทศบาลตำบลบ่อหลวง (Bo Luang Disaster GIS)',
-  description: 'แพลตฟอร์มแจ้งเหตุและเฝ้าระวังภัยพิบัติ (ไฟป่า, น้ำท่วม, ฝุ่น PM2.5) ตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่ ขับเคลื่อนเมืองน่าอยู่อัจฉริยะ Smart City',
+  title: 'Bo Luang Environmental Intelligence & Early Warning',
+  description: 'ระบบติดตาม พยากรณ์ และสนับสนุนการตัดสินใจด้านสภาพอากาศ ฝุ่น PM2.5 ไฟป่า และภัยพิบัติ สำหรับตำบลบ่อหลวง',
   keywords: ['บ่อหลวง', 'แจ้งเหตุ', 'ไฟป่า', 'น้ำท่วม', 'PM2.5', 'Smart City', 'เชียงใหม่', 'GIS'],
   appleWebApp: { title: 'BL GIS', statusBarStyle: 'black-translucent' },
   icons: { apple: '/android-chrome-192x192.png' },
