@@ -140,7 +140,7 @@ export default function IntelligencePage() {
           <div className="rounded-2xl border border-white/10 bg-[#0b1b2b] p-4">
             <p className="text-sm font-extrabold">สถานะแหล่งข้อมูล</p>
             <div className="mt-3 space-y-2">
-              {sourceRows.length ? sourceRows.map((source, index) => <div key={`${source.source}-${index}`} className="flex items-center justify-between gap-3 rounded-lg bg-black/10 px-3 py-2 text-xs"><span className="truncate text-slate-300">{source.source}</span><span className={`font-bold ${source.state === 'ready' ? 'text-emerald-300' : source.state === 'unconfigured' ? 'text-amber-300' : 'text-rose-300'}`}>{source.state === 'ready' ? 'พร้อมใช้' : source.state === 'unconfigured' ? 'ยังไม่ตั้งค่า' : 'ขัดข้อง'}</span></div>) : <p className="text-sm text-slate-400">กำลังตรวจสอบ…</p>}
+              {sourceRows.length ? sourceRows.map((source, index) => <div key={`${source.source}-${index}`} className="flex items-center justify-between gap-3 rounded-lg bg-black/10 px-3 py-2 text-xs"><span className="truncate text-slate-300">{source.source}{typeof source.count === 'number' ? ` · ${source.count} จุด` : ''}</span><span className={`font-bold ${source.state === 'ready' ? 'text-emerald-300' : source.state === 'unconfigured' ? 'text-amber-300' : 'text-rose-300'}`}>{source.state === 'ready' ? 'พร้อมใช้' : source.state === 'unconfigured' ? 'ยังไม่ตั้งค่า' : 'ขัดข้อง'}</span></div>) : <p className="text-sm text-slate-400">กำลังตรวจสอบ…</p>}
             </div>
           </div>
         </aside>
