@@ -40,6 +40,7 @@ import {
 } from '@/components/radar/radarClientCache';
 import { ClickableMap, MapRefBinder, MapScale } from '@/components/radar/MapRuntimeControls';
 import { parsePublicGaugeStatus, type PublicGaugeStatus } from '@/lib/radar/gauge-status';
+import { buildRadarViewSearch, parseRadarView } from '@/lib/radar/radar-view-url';
 
 /* ═══════════════════════════ SUPABASE ═══════════════════════════ */
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -186,6 +187,7 @@ export default function RadarPage() {
   const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number; isCurrentPosition: boolean } | null>(null);
   const [forecastData, setForecastData] = useState<any>(null);
   const [isFetchingForecast, setIsFetchingForecast] = useState(false);
+  const [isPointLinkCopied, setIsPointLinkCopied] = useState(false);
   const [selectedVillage, setSelectedVillage] = useState<any>(null);
 
   const [villageRisk, setVillageRisk] = useState<any[]>([]);
@@ -204,6 +206,7 @@ export default function RadarPage() {
   const fcAbortRef = useRef<AbortController | null>(null);
   const riskAbortRef = useRef<AbortController | null>(null);
   const radarAbortRef = useRef<AbortController | null>(null);
+  const initialUrlAppliedRef = useRef(false);
   const alertStatesRef = useRef(new Map<string, AlertState>());
   const center = { lat: 18.1633, lng: 98.3744 };
 
@@ -673,17 +676,30 @@ export default function RadarPage() {
     return () => clearInterval(iv);
   }, [isPlaying, radarData, speed]);
 
-  const handleMapClick = useCallback(async (lat: number, lng: number, focusPoint = false) => {
-    setClickedLocation({ lat, lng, isCurrentPosition: focusPoint });
+  const handleMapClick = useCallback(async (
+    lat: number,
+    lng: number,
+    focusPoint = false,
+    isCurrentPosition = focusPoint,
+    focusZoom?: number,
+  ) => {
+    setClickedLocation({ lat, lng, isCurrentPosition });
+    setIsPointLinkCopied(false);
     setIsFetchingForecast(true);
     setForecastData(null);
 
     if (focusPoint) {
       const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-      mapRef.current?.flyTo([lat, lng], 17, {
+      mapRef.current?.flyTo([lat, lng], focusZoom ?? 17, {
         animate: !reduceMotion,
         duration: reduceMotion ? 0 : 1.15,
       });
+    }
+
+    if (!isCurrentPosition) {
+      const zoom = focusZoom ?? mapRef.current?.getZoom?.() ?? mapZoom;
+      const search = buildRadarViewSearch({ latitude: lat, longitude: lng, zoom });
+      window.history.replaceState(null, '', `${window.location.pathname}${search}${window.location.hash}`);
     }
 
     const hitFeat = focusPoint ? null : (geoBlock?.features || []).find((f: any) => pointInPolygon(lng, lat, f.geometry));
@@ -752,7 +768,33 @@ export default function RadarPage() {
       if (e?.name !== 'AbortError') setForecastData({ error: e?.message || 'โหลดพยากรณ์ไม่สำเร็จ', hours: [] });
     }
     finally { if (!ac.signal.aborted) setIsFetchingForecast(false); }
-  }, [geoBlock, riskByIdx]);
+  }, [geoBlock, mapZoom, riskByIdx]);
+
+  useEffect(() => {
+    if (initialUrlAppliedRef.current) return;
+    const view = parseRadarView(window.location.search);
+    if (!view || !mapRef.current) return;
+    initialUrlAppliedRef.current = true;
+    void handleMapClick(view.latitude, view.longitude, true, false, view.zoom);
+  }, [handleMapClick]);
+
+  const clearSelectedPoint = useCallback(() => {
+    setClickedLocation(null);
+    setForecastData(null);
+    setIsPointLinkCopied(false);
+    if (parseRadarView(window.location.search)) {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash}`);
+    }
+  }, []);
+
+  const copySelectedPointLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setIsPointLinkCopied(true);
+    } catch {
+      setIsPointLinkCopied(false);
+    }
+  }, []);
 
   const flyToVillage = useCallback((v: any) => {
     setSelectedVillage(v);
@@ -1677,9 +1719,16 @@ export default function RadarPage() {
                 <h3 className="text-[13px] font-bold text-[#E5E7EB]">{clickedLocation.isCurrentPosition ? 'ตำแหน่งปัจจุบัน' : 'พิกัดที่เลือก'}</h3>
                 <p className="text-[10px] text-[#4178F3] font-mono mt-0.5">{clickedLocation.lat.toFixed(5)}, {clickedLocation.lng.toFixed(5)}</p>
               </div>
-              <button onClick={() => setClickedLocation(null)} className="text-[#8B94A5] hover:text-[#EF4444] p-1.5 rounded-lg border border-[#333946]">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+              <div className="flex items-center gap-1.5">
+                {!clickedLocation.isCurrentPosition && (
+                  <button onClick={copySelectedPointLink} aria-label="คัดลอกลิงก์พิกัดนี้" title="คัดลอกลิงก์พิกัดนี้" className="rounded-lg border border-[#333946] px-2 py-1.5 text-[9px] font-bold text-cyan-200 hover:bg-cyan-300/10">
+                    {isPointLinkCopied ? 'คัดลอกแล้ว' : 'แชร์พิกัด'}
+                  </button>
+                )}
+                <button onClick={clearSelectedPoint} aria-label="ปิดรายละเอียดพิกัด" className="text-[#8B94A5] hover:text-[#EF4444] p-1.5 rounded-lg border border-[#333946]">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
             </div>
             <div className="p-5">
               {isFetchingForecast ? (
