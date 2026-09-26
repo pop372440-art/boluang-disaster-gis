@@ -5,6 +5,7 @@ import {
   parseMetNorwayResponse,
 } from '@/lib/radar/met-norway-adapter';
 import type { Coordinate } from '@/lib/radar/open-meteo-adapter';
+import { fetchWithRetry } from '@/lib/radar/fetch-with-retry';
 import { logError, logInfo, logWarn, requestLogContext } from '@/lib/observability/structured-logger';
 
 export const runtime = 'nodejs';
@@ -54,11 +55,11 @@ export async function GET(request: NextRequest) {
   const timeout = setTimeout(() => controller.abort(), 12_000);
   try {
     const locations = await mapWithConcurrency(coordinates, 4, async (coordinate) => {
-      const upstream = await fetch(buildMetNorwayUrl(coordinate), {
+      const upstream = await fetchWithRetry(buildMetNorwayUrl(coordinate), {
         headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
         signal: controller.signal,
         next: { revalidate: 900 },
-      });
+      }, { attempts: 2, baseDelayMs: 300 });
       if (!upstream.ok) {
         const retryAfter = upstream.headers.get('retry-after');
         const error = new Error(`MET Norway HTTP ${upstream.status}`) as Error & { status?: number; retryAfter?: string | null };

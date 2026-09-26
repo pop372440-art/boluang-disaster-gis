@@ -4,6 +4,7 @@ import {
   parseOpenMeteoResponse,
   type Coordinate,
 } from '@/lib/radar/open-meteo-adapter';
+import { fetchWithRetry } from '@/lib/radar/fetch-with-retry';
 import { logError, logInfo, logWarn, requestLogContext } from '@/lib/observability/structured-logger';
 
 export const runtime = 'nodejs';
@@ -40,11 +41,11 @@ export async function GET(request: NextRequest) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
-    const upstream = await fetch(buildOpenMeteoUrl(coordinates), {
+    const upstream = await fetchWithRetry(buildOpenMeteoUrl(coordinates), {
       headers: { Accept: 'application/json', 'User-Agent': 'boluang-disaster-gis/1.0' },
       signal: controller.signal,
       next: { revalidate: 600 },
-    });
+    }, { attempts: 2, baseDelayMs: 300 });
     if (!upstream.ok) {
       const retryAfter = upstream.headers.get('retry-after');
       logWarn('forecast_upstream_failed', { ...context, upstreamStatus: upstream.status, durationMs: Date.now() - startedAt });
