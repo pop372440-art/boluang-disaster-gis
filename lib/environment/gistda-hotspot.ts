@@ -29,11 +29,27 @@ export const parseGistdaHotspots = (
   center: { latitude: number; longitude: number },
   radiusKm = 50,
 ): HotspotParseResult => {
-  if (!payload || typeof payload !== 'object' || !('data' in payload) || !Array.isArray(payload.data)) {
+  if (!payload || typeof payload !== 'object') {
     return { ok: false, reason: 'invalid-schema' };
   }
 
-  const hotspots = (payload.data as HotspotRecord[]).flatMap((item) => {
+  const directRecords = 'data' in payload && Array.isArray(payload.data) ? payload.data as HotspotRecord[] : null;
+  const satelliteRecords = Object.entries(payload).flatMap(([satellite, frames]) => {
+    if (!Array.isArray(frames)) return [];
+    return frames.flatMap((frame) => {
+      if (!frame || typeof frame !== 'object' || !('data' in frame) || !Array.isArray(frame.data)) return [];
+      return (frame.data as HotspotRecord[]).map((item) => ({
+        ...item,
+        satellite,
+        acquiredDate: 'date' in frame ? frame.date : undefined,
+      }));
+    });
+  });
+  const records = directRecords ?? satelliteRecords;
+  const recognized = directRecords !== null || Object.values(payload).some((frames) => Array.isArray(frames) && frames.some((frame) => frame && typeof frame === 'object' && 'data' in frame && Array.isArray(frame.data)));
+  if (!recognized) return { ok: false, reason: 'invalid-schema' };
+
+  const hotspots = records.flatMap((item) => {
     const point = coordinatesOf(item);
     if (!point) return [];
     const distance = distanceKm(center, point);
@@ -42,5 +58,5 @@ export const parseGistdaHotspots = (
       : [];
   }).sort((a, b) => a.distanceKm - b.distanceKm).slice(0, 200);
 
-  return { ok: true, hotspots, received: payload.data.length };
+  return { ok: true, hotspots, received: records.length };
 };
