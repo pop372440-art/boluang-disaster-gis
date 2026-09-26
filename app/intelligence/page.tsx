@@ -21,6 +21,7 @@ export default function IntelligencePage() {
   const [mode, setMode] = useState<SeasonalMode>(() => inferSeasonalMode(new Date().getMonth() + 1));
   const [payload, setPayload] = useState<any>(null);
   const [boundary, setBoundary] = useState<any>(null);
+  const [villageBoundaries, setVillageBoundaries] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,8 +33,9 @@ export default function IntelligencePage() {
         return response.json();
       }),
       fetch('/geojson/boluang.json', { signal: controller.signal }).then((response) => response.json()),
-    ]).then(([summary, geojson]) => {
-      setPayload(summary); setBoundary(geojson); setError(null);
+      fetch('/geojson/block.json', { signal: controller.signal }).then((response) => response.json()),
+    ]).then(([summary, tambonGeojson, villageGeojson]) => {
+      setPayload(summary); setBoundary(tambonGeojson); setVillageBoundaries(villageGeojson); setError(null);
     }).catch((reason) => {
       if (reason?.name !== 'AbortError') setError('โหลดข้อมูลสิ่งแวดล้อมไม่สำเร็จ กรุณาลองใหม่');
     }).finally(() => setLoading(false));
@@ -110,12 +112,21 @@ export default function IntelligencePage() {
           <div className="relative h-[460px] overflow-hidden rounded-2xl border border-white/10 bg-[#102235] shadow-2xl lg:h-[620px]">
             <MapContainer center={[18.1633, 98.3744]} zoom={12} minZoom={8} maxZoom={18} zoomControl className="h-full w-full">
               <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}" attribution="Tiles © Esri" />
+              {villageBoundaries && <GeoJSON
+                data={villageBoundaries}
+                style={{ color: '#b8d7e8', weight: 1.2, opacity: 0.8, fillColor: config.accent, fillOpacity: 0.06 }}
+                onEachFeature={(feature: any, layer: any) => layer.bindTooltip(feature?.properties?.own_villag ?? 'เขตหมู่บ้าน', { sticky: true, direction: 'top' })}
+              />}
               {boundary && <GeoJSON data={boundary} style={{ color: config.accent, weight: 3, fillColor: config.accent, fillOpacity: 0.08 }} />}
             </MapContainer>
             <div className="absolute left-4 top-4 z-[800] max-w-[280px] rounded-xl border border-white/15 bg-[#071522]/90 p-3 backdrop-blur-lg">
               <p className="text-xs font-bold text-cyan-300">สถานการณ์ที่กำลังติดตาม</p>
               <p className="mt-1 text-base font-extrabold text-white">{config.label}</p>
               <p className="mt-1 text-sm leading-relaxed text-slate-300">ข้อมูลบนแผนที่เป็นระดับตำบลและหมู่บ้าน ไม่ใช่ระดับแปลงหรืออาคาร</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-slate-200">
+                <span className="rounded-md border-2 px-2 py-1" style={{ borderColor: config.accent }}>ขอบเขตตำบล</span>
+                <span className="rounded-md border border-[#b8d7e8] px-2 py-1">ขอบเขต 13 หมู่บ้าน</span>
+              </div>
             </div>
             <Link href="/radar" className="absolute bottom-4 right-4 z-[800] rounded-xl bg-cyan-300 px-4 py-3 text-sm font-black text-slate-950 shadow-xl hover:bg-cyan-200">เปิดแผนที่ปฏิบัติการเต็มจอ</Link>
           </div>
