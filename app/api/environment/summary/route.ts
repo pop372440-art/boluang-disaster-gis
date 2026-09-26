@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
       sources: {
         weather: { state: weather ? 'ready' : 'degraded', source: 'Open-Meteo', fetchedAt },
         airQuality: { state: airQuality ? 'ready' : 'degraded', source: 'Open-Meteo CAMS', fetchedAt },
-        fire: { state: fireState, source: 'GISTDA Hotspot', fetchedAt: fireResponse?.ok ? fetchedAt : null, count: nearbyHotspots.length },
+        fire: { state: fireState, source: 'GISTDA Hotspot · รัศมี 50 กม.', fetchedAt: fireResponse?.ok ? fetchedAt : null, count: nearbyHotspots.length },
       },
     }, { status: weather ? 200 : 207, headers: CACHE_HEADERS });
   } finally {
