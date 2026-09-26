@@ -68,7 +68,12 @@ export async function GET(request: NextRequest) {
         count: nearbyHotspots.length,
         hotspots: nearbyHotspots,
         diagnostic: fireState === 'degraded' && firePayload && typeof firePayload === 'object'
-          ? { topLevelKeys: Object.keys(firePayload).slice(0, 10) }
+          ? { collections: Object.entries(firePayload).slice(0, 10).map(([key, value]) => ({
+            key,
+            type: Array.isArray(value) ? 'array' : typeof value,
+            length: Array.isArray(value) ? value.length : undefined,
+            sampleKeys: Array.isArray(value) && value[0] && typeof value[0] === 'object' ? Object.keys(value[0]).slice(0, 12) : undefined,
+          })) }
           : undefined,
         message: fireState === 'ready'
           ? `พบ ${nearbyHotspots.length} จุดในรัศมี 50 กม.`
