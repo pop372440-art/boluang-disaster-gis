@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     hourly: 'pm10,pm2_5,dust,european_aqi,us_aqi',
   }).toString();
   const gistdaKey = process.env.GISTDA_API_KEY;
-  const fireUrl = gistdaKey ? new URL('https://api.sphere.gistda.or.th/services/info/disaster-recurring') : null;
+  const fireUrl = gistdaKey ? new URL('https://api.sphere.gistda.or.th/services/info/disaster-hotspot') : null;
   if (fireUrl) fireUrl.search = new URLSearchParams({
     lon: String(longitude), lat: String(latitude),
     disaster_type: 'hotspot', key: gistdaKey ?? '',
