@@ -13,8 +13,10 @@ const PHRASES = [
 export default function SmartHelper() {
   const pathname = usePathname();
   const isRadarPage = pathname === '/radar';
+  const isGisPage = pathname === '/';
+  const isMapWorkspace = isRadarPage || isGisPage;
   const [isOpen, setIsOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(isRadarPage);
+  const [isMinimized, setIsMinimized] = useState(isMapWorkspace);
   
   const [messages, setMessages] = useState<{sender: 'user'|'ai', text: string}[]>([
     { sender: 'ai', text: 'สวัสดีครับ! ผมคือ "น้องต้นสน" AI ประจำเทศบาล มีอะไรให้ผมช่วยเหลือหรือสอบถามข้อมูลพื้นที่ได้เลยครับ 🤖' }
@@ -31,8 +33,8 @@ export default function SmartHelper() {
   const requestRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (isRadarPage) setIsMinimized(true);
-  }, [isRadarPage]);
+    if (isMapWorkspace) setIsMinimized(true);
+  }, [isMapWorkspace]);
 
   useEffect(() => () => requestRef.current?.abort(), []);
 
@@ -95,13 +97,13 @@ export default function SmartHelper() {
   };
 
   return (
-    <div className={`fixed z-[9999] ${isRadarPage ? 'bottom-4 right-[72px]' : 'bottom-6 right-6'}`}>
+    <div className={`fixed z-[9999] ${isRadarPage ? 'bottom-4 right-[72px]' : isGisPage ? 'bottom-4 left-4 md:left-auto md:right-[390px]' : 'bottom-6 right-6'}`}>
       
       {/* ========================================== */}
       {/* 1. หน้าต่างแชท (Chat Window) */}
       {/* ========================================== */}
       {isOpen && (
-        <div className="bg-white w-[350px] h-[450px] rounded-3xl shadow-2xl flex flex-col mb-4 border border-gray-100 overflow-hidden transform transition-all duration-300 ease-out translate-y-0 opacity-100">
+        <div className="bg-white w-[min(350px,calc(100vw-2rem))] h-[min(450px,calc(100vh-7rem))] rounded-3xl shadow-2xl flex flex-col mb-4 border border-gray-100 overflow-hidden transform transition-all duration-300 ease-out translate-y-0 opacity-100">
           <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-4 text-white font-bold flex justify-between items-center shadow-md">
             <div className="flex items-center space-x-3">
               <div className="relative flex-shrink-0 bg-white rounded-full p-0.5">
