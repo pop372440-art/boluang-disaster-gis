@@ -4,6 +4,7 @@ import { validateAndNormalizeVillageGeoJson } from '@/lib/radar/geojson-validati
 import { parseRainViewerMetadata } from '@/lib/radar/rainviewer-adapter';
 import { buildMetNorwayUrl, parseMetNorwayResponse } from '@/lib/radar/met-norway-adapter';
 import { logInfo, requestLogContext } from '@/lib/observability/structured-logger';
+import { parseGistdaHotspots } from '@/lib/environment/gistda-hotspot';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,8 +31,9 @@ export async function GET(request: Request) {
   const context = requestLogContext(request, '/api/health');
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const gistdaKey = process.env.GISTDA_API_KEY;
 
-  const [rainViewer, openMeteo, metNorway, geoJson, supabase] = await Promise.all([
+  const [rainViewer, openMeteo, metNorway, gistda, geoJson, supabase] = await Promise.all([
     timedCheck(async (signal) => {
       const response = await fetch('https://api.rainviewer.com/public/weather-maps.json', { signal, cache: 'no-store' });
       if (!response.ok) throw new Error('rainviewer unavailable');
@@ -57,6 +59,15 @@ export async function GET(request: Request) {
       if (!response.ok) throw new Error('met-norway unavailable');
       parseMetNorwayResponse(await response.json(), coordinate);
     }),
+    gistdaKey
+      ? timedCheck(async (signal) => {
+          const url = new URL('https://api.sphere.gistda.or.th/services/info/disaster-hotspot');
+          url.search = new URLSearchParams({ lon: '98.3744', lat: '18.1633', disaster_type: 'hotspot', key: gistdaKey }).toString();
+          const response = await fetch(url, { signal, cache: 'no-store' });
+          if (!response.ok) throw new Error('gistda unavailable');
+          if (!parseGistdaHotspots(await response.json(), { latitude: 18.1633, longitude: 98.3744 }).ok) throw new Error('gistda invalid schema');
+        })
+      : Promise.resolve<HealthCheck>({ status: 'unconfigured', latencyMs: 0, checkedAt: new Date().toISOString() }),
     timedCheck(async () => {
       const file = await readFile(path.join(process.cwd(), 'public/geojson/block.json'), 'utf8');
       validateAndNormalizeVillageGeoJson(JSON.parse(file));
@@ -73,7 +84,7 @@ export async function GET(request: Request) {
       : Promise.resolve<HealthCheck>({ status: 'unconfigured', latencyMs: 0, checkedAt: new Date().toISOString() }),
   ]);
 
-  const checks = { rainViewer, openMeteo, metNorway, geoJson, supabase };
+  const checks = { rainViewer, openMeteo, metNorway, gistda, geoJson, supabase };
   const degraded = Object.values(checks).some((check) => check.status !== 'ok');
   logInfo('health_check_completed', {
     ...context,
