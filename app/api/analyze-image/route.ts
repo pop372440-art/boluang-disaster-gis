@@ -1,55 +1,80 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  getIncidentAiPublicError,
+  INCIDENT_RISK_TYPES,
+  parseIncidentAiResult
+} from '@/lib/incident-ai';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type',
 };
+
+const MAX_BASE64_LENGTH = 8 * 1024 * 1024;
+const DEFAULT_MODEL = 'gemini-3.5-flash';
 
 export async function OPTIONS() {
   return new NextResponse(null, { headers: corsHeaders });
 }
 
 export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID();
+
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
+      console.error('[incident-ai] configuration missing', { requestId, code: 'API_KEY_MISSING' });
       return NextResponse.json(
-        { success: false, error: 'Server error: API Key missing' },
+        {
+          success: false,
+          code: 'CONFIGURATION_ERROR',
+          message: 'ระบบ AI ยังไม่พร้อมใช้งาน กรุณาระบุข้อมูลด้วยตนเองและแจ้งผู้ดูแลระบบ'
+        },
         { status: 500, headers: corsHeaders }
       );
     }
 
     const body = await req.json();
-    const image = body.image;
+    const image = typeof body.image === 'string' ? body.image : '';
 
     if (!image || !image.startsWith('data:')) {
       return NextResponse.json(
-        { success: false, error: 'No valid image data provided' },
+        { success: false, code: 'INVALID_IMAGE', message: 'ไม่พบข้อมูลรูปภาพที่ถูกต้อง' },
         { status: 400, headers: corsHeaders }
       );
     }
 
-    const base64Match = image.match(/^data:(image\/\w+);base64,(.*)$/);
+    const base64Match = image.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
     if (!base64Match) {
       return NextResponse.json(
-        { success: false, error: 'Invalid image format' },
+        { success: false, code: 'UNSUPPORTED_IMAGE', message: 'รองรับเฉพาะรูป JPG, PNG หรือ WebP' },
         { status: 400, headers: corsHeaders }
       );
     }
 
     const mimeType = base64Match[1];
     const base64Data = base64Match[2];
+    if (base64Data.length > MAX_BASE64_LENGTH) {
+      return NextResponse.json(
+        { success: false, code: 'IMAGE_TOO_LARGE', message: 'รูปมีขนาดใหญ่เกินไป กรุณาเลือกรูปใหม่' },
+        { status: 413, headers: corsHeaders }
+      );
+    }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+    const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
 
     const payload = {
       contents: [
         {
           parts: [
             {
-              // 🚀 อัปเกรดคำสั่ง บังคับให้ AI เลือกคำตอบจากลิสต์ให้ตรงเป๊ะ 100%
-              text: `วิเคราะห์รูปภาพนี้อย่างแม่นยำ และตอบกลับเป็น JSON เท่านั้น (ห้ามมีคำพูดอธิบายอื่นปนมาเด็ดขาด):\n{\n  "type": "เลือก 1 ข้อความจากลิสต์นี้เท่านั้น ห้ามพิมพ์ผิดแม้แต่ตัวอักษรเดียว: 'ไฟป่า / หมอกควัน', 'ดินโคลนถล่ม / ดินสไลด์', 'น้ำป่าไหลหลาก / น้ำท่วม', 'ต้นไม้ล้มขวางทาง', 'แผ่นดินไหว', 'อัคคีภัย / วาตภัย', 'เหตุด่วน / เหตุร้าย',",\n  "severity": <ตัวเลขความรุนแรง 1 ถึง 5>,\n  "description": "อธิบายสิ่งที่เห็นสั้นๆ"\n}`
+              text: `วิเคราะห์เหตุการณ์ที่มองเห็นในภาพสำหรับระบบแจ้งเหตุเทศบาลตำบลบ่อหลวง
+- เลือกประเภทเหตุจาก schema ที่กำหนดเท่านั้น
+- บรรยายเฉพาะสิ่งที่เห็น ห้ามเดาชื่อ บุคคล สถานที่ หรือข้อมูลส่วนบุคคล
+- หากเห็นต้นไม้หรือกิ่งไม้ล้ม กีดขวาง หรือมีการตัดเพื่อเปิดทาง ให้เลือก "ต้นไม้ล้มขวางทาง"
+- ระดับ 1 = เล็กน้อย, 2 = เริ่มกระทบ, 3 = ต้องส่งเจ้าหน้าที่ตรวจสอบ, 4 = กระทบคนหรือทรัพย์สินรุนแรง, 5 = อันตรายต่อชีวิตทันที
+- หากภาพไม่ตรงกับประเภทอื่น ให้เลือก "อื่นๆ" และอธิบายสิ่งที่เห็นอย่างตรงไปตรงมา`
             },
             {
               inlineData: { mimeType: mimeType, data: base64Data }
@@ -58,68 +83,122 @@ export async function POST(req: NextRequest) {
         }
       ],
       generationConfig: {
-        responseMimeType: "application/json"
+        responseMimeType: 'application/json',
+        responseJsonSchema: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', enum: INCIDENT_RISK_TYPES },
+            severity: { type: 'integer', minimum: 1, maximum: 5 },
+            description: { type: 'string', minLength: 5, maxLength: 500 }
+          },
+          required: ['type', 'severity', 'description'],
+          additionalProperties: false
+        }
       }
     };
 
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(25_000)
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      console.error("Gemini API Error:", data);
+      const publicError = getIncidentAiPublicError(response.status);
+      console.error('[incident-ai] provider request failed', {
+        requestId,
+        model,
+        status: response.status,
+        code: publicError.code,
+        providerStatus: data?.error?.status
+      });
       return NextResponse.json(
-        { success: false, error: data.error?.message || "Failed to fetch from AI API" },
+        { success: false, ...publicError },
         { status: 502, headers: corsHeaders }
       );
     }
 
     const candidate = data.candidates?.[0];
-    if (!candidate?.content?.parts?.[0]) {
+    const responseText = candidate?.content?.parts
+      ?.map((part: { text?: string }) => part.text || '')
+      .join('')
+      .trim();
+
+    if (!responseText) {
+      console.warn('[incident-ai] provider returned no content', {
+        requestId,
+        model,
+        finishReason: candidate?.finishReason,
+        blockReason: data.promptFeedback?.blockReason
+      });
       return NextResponse.json(
-        { success: false, error: 'AI returned an empty response.' },
+        {
+          success: false,
+          code: 'NO_RESULT',
+          message: 'AI ยังสรุปภาพนี้ไม่ได้ กรุณาลองอีกครั้งหรือระบุข้อมูลด้วยตนเอง'
+        },
         { status: 422, headers: corsHeaders }
       );
     }
 
-    const responseText = candidate.content.parts[0].text;
-    
-    // 🚀 THE ULTIMATE FIX: ใช้ Regex ดูดเฉพาะก้อน JSON ออกมาจากข้อความทั้งหมด
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    
     if (!jsonMatch) {
-        console.error("No JSON bracket found in AI response:", responseText);
-        return NextResponse.json(
-          { success: false, error: 'AI did not return any JSON structure.' },
-          { status: 500, headers: corsHeaders }
-        );
-    }
-
-    let aiData;
-    try {
-      // แปลงเฉพาะส่วนที่เป็น JSON จริงๆ
-      aiData = JSON.parse(jsonMatch[0]);
-    } catch (parseError) {
-      console.error("Failed to parse AI JSON response:", responseText);
+      console.warn('[incident-ai] response contained no JSON object', { requestId, model });
       return NextResponse.json(
-        { success: false, error: 'AI did not return valid JSON format.' },
-        { status: 500, headers: corsHeaders }
+        { success: false, code: 'INVALID_RESULT', message: 'AI ส่งผลลัพธ์ไม่สมบูรณ์ กรุณาลองวิเคราะห์อีกครั้ง' },
+        { status: 502, headers: corsHeaders }
       );
     }
 
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      console.warn('[incident-ai] response JSON parse failed', { requestId, model });
+      return NextResponse.json(
+        { success: false, code: 'INVALID_RESULT', message: 'AI ส่งผลลัพธ์ไม่สมบูรณ์ กรุณาลองวิเคราะห์อีกครั้ง' },
+        { status: 502, headers: corsHeaders }
+      );
+    }
+
+    const aiData = parseIncidentAiResult(parsed);
+    if (!aiData) {
+      console.warn('[incident-ai] response failed schema validation', { requestId, model });
+      return NextResponse.json(
+        { success: false, code: 'INVALID_RESULT', message: 'AI ส่งผลลัพธ์ไม่ตรงกับแบบฟอร์ม กรุณาลองวิเคราะห์อีกครั้ง' },
+        { status: 502, headers: corsHeaders }
+      );
+    }
+
+    console.info('[incident-ai] analysis completed', {
+      requestId,
+      model,
+      type: aiData.type,
+      severity: aiData.severity
+    });
     return NextResponse.json(
       { success: true, result: aiData },
       { headers: corsHeaders }
     );
 
-  } catch (error: any) {
-    console.error('🔥 Final AI Error:', error.message);
+  } catch (error: unknown) {
+    const isTimeout = error instanceof Error && error.name === 'TimeoutError';
+    console.error('[incident-ai] request failed', {
+      requestId,
+      code: isTimeout ? 'TIMEOUT' : 'UNEXPECTED_ERROR',
+      error: error instanceof Error ? error.message : String(error)
+    });
     return NextResponse.json(
-      { success: false, error: error.message },
+      {
+        success: false,
+        code: isTimeout ? 'TIMEOUT' : 'UNEXPECTED_ERROR',
+        message: isTimeout
+          ? 'AI ใช้เวลานานเกินไป กรุณาลองวิเคราะห์อีกครั้ง'
+          : 'เกิดข้อผิดพลาดขณะวิเคราะห์ภาพ กรุณาลองใหม่หรือระบุข้อมูลด้วยตนเอง'
+      },
       { status: 500, headers: corsHeaders }
     );
   }
