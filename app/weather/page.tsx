@@ -6,6 +6,11 @@ import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import Swal from 'sweetalert2';
 import {
+  CURRENT_LOCATION_ZOOM,
+  geolocationFailureCopy,
+  shouldRetryGeolocation,
+} from '@/lib/weather/geolocation';
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer, AreaChart, Area, Legend
 } from 'recharts';
@@ -121,6 +126,7 @@ export default function WeatherDashboard() {
   const [radarOn, setRadarOn] = useState(true);
   const [frameIdx, setFrameIdx] = useState(0);
   const [playing, setPlaying] = useState(true);
+  const [isLocating, setIsLocating] = useState(false);
 
   const markerRef = useRef<any>(null);
   const radarLayersRef = useRef<any[]>([]);
@@ -428,23 +434,54 @@ useEffect(() => {
     }
   };
 
-  const handleCurrentLocation = () => {
+  const handleCurrentLocation = async () => {
+    if (isLocating) return;
+
     if (!navigator.geolocation) {
       Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: 'เบราว์เซอร์ไม่รองรับ GPS', background: '#0f172a', color: '#fff' });
       return;
     }
+
+    if (!window.isSecureContext) {
+      const copy = geolocationFailureCopy({}, false);
+      Swal.fire({ icon: 'error', ...copy, background: '#0f172a', color: '#fff' });
+      return;
+    }
+
+    const getPosition = (options: PositionOptions) => new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, options);
+    });
+
+    setIsLocating(true);
     Swal.fire({ title: 'กำลังดึงพิกัด...', text: 'หากใช้คอมพิวเตอร์ พิกัดอาจอิงตามอินเทอร์เน็ตของท่าน', allowOutsideClick: false, background: '#0f172a', color: '#fff', didOpen: () => Swal.showLoading() });
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const nLat = pos.coords.latitude, nLng = pos.coords.longitude;
-        setPosition({ lat: nLat, lng: nLng });
-        fetchLocationName(nLat, nLng);
-        map?.flyTo([nLat, nLng], DEFAULT_MAP_ZOOM, { duration: 1.5 });
-        Swal.close();
-      },
-      () => Swal.fire({ icon: 'error', title: 'ไม่สามารถระบุตำแหน่งได้', background: '#0f172a', color: '#fff' }),
-      { enableHighAccuracy: true }
-    );
+
+    try {
+      let pos: GeolocationPosition;
+      try {
+        pos = await getPosition({ enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+      } catch (error) {
+        const geoError = error as GeolocationPositionError;
+        if (!shouldRetryGeolocation(geoError)) throw geoError;
+
+        Swal.update({
+          title: 'กำลังลองค้นหาตำแหน่งแบบสำรอง...',
+          text: 'ใช้ตำแหน่งจากเครือข่ายเมื่อสัญญาณ GPS ไม่พร้อม',
+        });
+        pos = await getPosition({ enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+      }
+
+      const nLat = pos.coords.latitude;
+      const nLng = pos.coords.longitude;
+      setPosition({ lat: nLat, lng: nLng });
+      fetchLocationName(nLat, nLng);
+      map?.flyTo([nLat, nLng], CURRENT_LOCATION_ZOOM, { duration: 1.5 });
+      Swal.close();
+    } catch (error) {
+      const copy = geolocationFailureCopy(error as GeolocationPositionError);
+      Swal.fire({ icon: 'warning', ...copy, confirmButtonText: 'เข้าใจแล้ว', background: '#0f172a', color: '#fff' });
+    } finally {
+      setIsLocating(false);
+    }
   };
 
   const handleResetToCenter = () => {
@@ -619,8 +656,9 @@ useEffect(() => {
             <button onClick={handleResetToCenter} className="flex-1 md:flex-none bg-gray-100 hover:bg-gray-200 text-gray-800 px-5 py-3 rounded-xl font-bold text-sm md:text-base flex items-center justify-center space-x-2 shadow-sm">
               <span>🏠</span><span className="whitespace-nowrap">กลับบ่อหลวง</span>
             </button>
-            <button onClick={handleCurrentLocation} className="flex-1 md:flex-none bg-sky-100 hover:bg-sky-200 text-sky-800 px-5 py-3 rounded-xl font-bold text-sm md:text-base flex items-center justify-center space-x-2 shadow-sm">
-              <span>📍</span><span className="whitespace-nowrap">พิกัดปัจจุบัน</span>
+            <button type="button" onClick={handleCurrentLocation} disabled={isLocating} aria-busy={isLocating}
+              className="flex-1 md:flex-none bg-sky-100 hover:bg-sky-200 text-sky-800 px-5 py-3 rounded-xl font-bold text-sm md:text-base flex items-center justify-center space-x-2 shadow-sm disabled:cursor-wait disabled:opacity-60">
+              <span>{isLocating ? '⏳' : '📍'}</span><span className="whitespace-nowrap">{isLocating ? 'กำลังระบุ...' : 'พิกัดปัจจุบัน'}</span>
             </button>
           </div>
         </div>
