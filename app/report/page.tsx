@@ -7,7 +7,12 @@ import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2'; 
 import { useMapEvents } from 'react-leaflet';
-import { INCIDENT_RISK_TYPES, type IncidentAiResult } from '@/lib/incident-ai';
+import {
+  createIncidentAiFormPatch,
+  INCIDENT_RISK_TYPES,
+  parseIncidentAiResult,
+  type IncidentAiResult
+} from '@/lib/incident-ai';
 
 // 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -501,7 +506,8 @@ export default function ReportPage() {
       });
       const data = await res.json().catch(() => null);
 
-      if (!res.ok || !data?.success || !data.result) {
+      const analyzedResult = data?.success ? parseIncidentAiResult(data.result) : null;
+      if (!res.ok || !data?.success || !analyzedResult) {
         const message = data?.message || 'AI ขัดข้องชั่วคราว กรุณาลองวิเคราะห์อีกครั้งหรือระบุข้อมูลด้วยตนเอง';
         setAiError(message);
         Swal.fire({
@@ -516,15 +522,19 @@ export default function ReportPage() {
         return;
       }
 
-      setAiResult(data.result);
+      setAiResult(analyzedResult);
       setAiProvider(data.provider === 'groq' ? 'groq' : 'gemini');
+      setFormData(prev => ({
+        ...prev,
+        ...createIncidentAiFormPatch(analyzedResult, prev.description)
+      }));
       Swal.fire({
         toast: true,
         position: 'top-end',
         icon: 'success',
         title: data.fallbackUsed
-          ? 'AI สำรองมีคำแนะนำแล้ว โปรดตรวจสอบก่อนใช้'
-          : 'AI มีคำแนะนำแล้ว โปรดตรวจสอบก่อนใช้',
+          ? 'AI สำรองใส่คำแนะนำในแบบฟอร์มแล้ว โปรดตรวจสอบ'
+          : 'AI ใส่คำแนะนำในแบบฟอร์มแล้ว โปรดตรวจสอบ',
         showConfirmButton: false,
         timer: 3000
       });
@@ -578,12 +588,9 @@ export default function ReportPage() {
 
   const applyAiSuggestion = () => {
     if (!aiResult) return;
-    const suggestedSeverity = Number(aiResult.severity);
     setFormData(prev => ({
       ...prev,
-      risk_type: INCIDENT_RISK_TYPES.includes(aiResult.type) ? aiResult.type : prev.risk_type,
-      severity_level: Number.isFinite(suggestedSeverity) ? Math.round(Math.min(5, Math.max(1, suggestedSeverity))) : prev.severity_level,
-      description: prev.description.trim() || aiResult.description || ''
+      ...createIncidentAiFormPatch(aiResult, prev.description)
     }));
     Swal.fire({
       toast: true,
@@ -972,9 +979,9 @@ export default function ReportPage() {
                   <span className="bg-white px-2.5 py-1 rounded-lg border border-indigo-100 text-[11px] text-slate-600 shadow-sm">ภัย: <span className="font-bold text-indigo-700">{aiResult.type}</span></span>
                   <span className="bg-white px-2.5 py-1 rounded-lg border border-indigo-100 text-[11px] text-slate-600 shadow-sm">รุนแรง: <span className="font-bold text-rose-600">ระดับ {aiResult.severity}</span></span>
                 </div>
-                <p className="mt-2 text-[11px] leading-relaxed text-slate-600">AI เป็นเพียงคำแนะนำและอาจคลาดเคลื่อน โปรดตรวจสอบประเภทภัย ระดับ และข้อความก่อนส่ง</p>
+                <p className="mt-2 text-[11px] leading-relaxed text-slate-600">ระบบใส่ประเภทภัยและระดับลงในแบบฟอร์มแล้ว AI อาจคลาดเคลื่อน โปรดตรวจสอบและแก้ไขให้ตรงกับเหตุจริงก่อนส่ง</p>
                 <button type="button" onClick={applyAiSuggestion} className="mt-3 w-full rounded-xl bg-indigo-600 px-3 py-2.5 text-[12px] font-extrabold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                  ใช้คำแนะนำนี้ในแบบฟอร์ม
+                  ใช้คำแนะนำนี้อีกครั้ง
                 </button>
               </div>
             )}
