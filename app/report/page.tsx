@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2'; 
 import { useMapEvents } from 'react-leaflet';
-import html2canvas from 'html2canvas';
 
 // 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -14,7 +14,28 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error("Supabase Error: Missing environment variables.");
 }
-const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
+
+const SEVERITY_OPTIONS = [
+  { level: 1, label: 'เล็กน้อย', help: 'ยังไม่กระทบการใช้ชีวิต' },
+  { level: 2, label: 'เฝ้าระวัง', help: 'เริ่มมีผลกระทบเล็กน้อย' },
+  { level: 3, label: 'เร่งด่วน', help: 'ควรส่งเจ้าหน้าที่ตรวจสอบ' },
+  { level: 4, label: 'รุนแรง', help: 'กระทบคนหรือทรัพย์สิน' },
+  { level: 5, label: 'วิกฤต', help: 'มีอันตรายทันที' }
+];
+
+const RISK_TYPES = [
+  'ไฟป่า / หมอกควัน (PM 2.5)',
+  'น้ำป่าไหลหลาก / น้ำท่วม',
+  'ดินโคลนถล่ม / ดินสไลด์',
+  'ต้นไม้ล้มขวางทาง',
+  'การลักลอบทิ้งขยะ / ขยะมูลฝอยตกค้าง',
+  'มลพิษทางน้ำ / น้ำเสีย',
+  'การบุกรุกทำลายป่า / ลักลอบตัดไม้',
+  'อัคคีภัย / วาตภัย',
+  'เหตุด่วน / เหตุร้าย',
+  'อื่นๆ'
+];
 
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
@@ -202,6 +223,7 @@ const showFallbackImage = (imageURL: string) => {
 export default function ReportPage() {
   const [mounted, setMounted] = useState(false);
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingGPS, setIsFetchingGPS] = useState(false);
   
@@ -225,6 +247,8 @@ export default function ReportPage() {
   
   const [isAnalyzingAI, setIsAnalyzingAI] = useState(false);
   const [aiResult, setAiResult] = useState<{ type: string, severity: number, description: string } | null>(null);
+  const [fileError, setFileError] = useState('');
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   
   const [mapRef, setMapRef] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
@@ -240,6 +264,18 @@ export default function ReportPage() {
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [pdpaConsent, setPdpaConsent] = useState(false);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('');
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setImagePreviewUrl('');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(selectedFile);
+    setImagePreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [selectedFile]);
 
   useEffect(() => {
     if (cooldownTime > 0) {
@@ -302,12 +338,14 @@ export default function ReportPage() {
         }
       });
     }
-    const result = Object.keys(vMap).map(name => ({ name, lat: vMap[name].sumLat / vMap[name].count, lng: vMap[name].sumLng / vMap[name].count }));
-    if (result.length > 0 && !formData.village_name) {
-      setFormData(prev => ({ ...prev, village_name: result[0].name }));
-    }
-    return result;
+    return Object.keys(vMap).map(name => ({ name, lat: vMap[name].sumLat / vMap[name].count, lng: vMap[name].sumLng / vMap[name].count }));
   }, [geoBlock]);
+
+  useEffect(() => {
+    if (villageList.length > 0 && !formData.village_name) {
+      setFormData(prev => ({ ...prev, village_name: villageList[0].name }));
+    }
+  }, [villageList, formData.village_name]);
 
   // ✅ 2. อัปเดต useEffect ให้ตรวจสอบ isManualVillage
   useEffect(() => {
@@ -352,7 +390,7 @@ export default function ReportPage() {
 
   const LocationMarker = () => {
     // 💡 ให้การคลิกบนแผนที่ถือเป็นการใช้พิกัดจริง (ปลดล็อก Auto)
-    useMapEvents({ click(e: any) { setPosition(e.latlng); setIsManualVillage(false); } });
+    useMapEvents({ click(e: any) { setPosition(e.latlng); setGpsAccuracy(null); setIsManualVillage(false); } });
     return position === null ? null : <Marker position={position} icon={customIcon}></Marker>;
   };
 
@@ -369,6 +407,7 @@ export default function ReportPage() {
       (pos) => {
         const { latitude, longitude } = pos.coords;
         setPosition({ lat: latitude, lng: longitude });
+        setGpsAccuracy(Math.round(pos.coords.accuracy));
         if (mapRef) mapRef.flyTo([latitude, longitude], 16, { duration: 1.5 });
         setIsFetchingGPS(false);
       },
@@ -400,6 +439,18 @@ export default function ReportPage() {
   const setSeverity = (level: number) => {
     setFormData(prev => ({ ...prev, severity_level: level }));
   };
+
+  const descriptionLength = formData.description.trim().length;
+  const validationItems = [
+    { id: 'location-section', label: 'ปักหมุดตำแหน่ง', valid: Boolean(position) },
+    { id: 'image-section', label: 'แนบรูปภาพ', valid: Boolean(selectedFile) },
+    { id: 'village-name', label: 'เลือกหมู่บ้าน', valid: Boolean(formData.village_name) },
+    { id: 'description', label: 'รายละเอียดอย่างน้อย 10 ตัวอักษร', valid: descriptionLength >= 10 },
+    { id: 'pdpa-consent', label: 'ยอมรับการใช้ข้อมูล', valid: pdpaConsent }
+  ];
+  const completedRequired = validationItems.filter(item => item.valid).length;
+  const invalidItems = validationItems.filter(item => !item.valid);
+  const canSubmit = invalidItems.length === 0 && !isSubmitting && cooldownTime === 0;
 
   const compressImage = (file: File, maxWidth = 1024, quality = 0.8): Promise<File> => {
     return new Promise((resolve, reject) => {
@@ -442,7 +493,19 @@ export default function ReportPage() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const originalFile = e.target.files[0];
-      
+
+      setFileError('');
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(originalFile.type)) {
+        setFileError('รองรับเฉพาะไฟล์ JPG, PNG หรือ WebP');
+        e.target.value = '';
+        return;
+      }
+      if (originalFile.size > 10 * 1024 * 1024) {
+        setFileError('ไฟล์ต้องมีขนาดไม่เกิน 10 MB');
+        e.target.value = '';
+        return;
+      }
+
       setIsAnalyzingAI(true);
       setAiResult(null);
 
@@ -467,16 +530,9 @@ export default function ReportPage() {
         
         if (data.success && data.result) {
           setAiResult(data.result);
-          setFormData(prev => ({
-            ...prev,
-            risk_type: data.result.type || prev.risk_type,
-            severity_level: data.result.severity || prev.severity_level,
-            description: `[AI วิเคราะห์] ${data.result.description}\n\nรายละเอียดเพิ่มเติม: `
-          }));
-          
           Swal.fire({
             toast: true, position: 'top-end', icon: 'success', 
-            title: 'AI ประเมินภาพเสร็จสิ้น', showConfirmButton: false, timer: 3000
+            title: 'AI มีคำแนะนำแล้ว โปรดตรวจสอบก่อนใช้', showConfirmButton: false, timer: 3000
           });
         } else {
           console.error("AI Error:", data.error);
@@ -484,6 +540,8 @@ export default function ReportPage() {
         }
       } catch (error) {
         console.error("File compression or AI Request failed:", error);
+        setSelectedFile(null);
+        setFileError('ประมวลผลรูปไม่สำเร็จ กรุณาเลือกรูปใหม่');
         Swal.fire({ icon: 'error', title: 'ประมวลผลรูปไม่สำเร็จ', text: 'กรุณาลองเลือกรูปใหม่อีกครั้ง' });
       } finally {
         setIsAnalyzingAI(false);
@@ -491,21 +549,43 @@ export default function ReportPage() {
     }
   };
 
+  const applyAiSuggestion = () => {
+    if (!aiResult) return;
+    const suggestedSeverity = Number(aiResult.severity);
+    setFormData(prev => ({
+      ...prev,
+      risk_type: RISK_TYPES.includes(aiResult.type) ? aiResult.type : prev.risk_type,
+      severity_level: Number.isFinite(suggestedSeverity) ? Math.round(Math.min(5, Math.max(1, suggestedSeverity))) : prev.severity_level,
+      description: prev.description.trim() || aiResult.description || ''
+    }));
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'success',
+      title: 'นำคำแนะนำมาใส่ในแบบฟอร์มแล้ว',
+      showConfirmButton: false,
+      timer: 2200
+    });
+  };
+
   const handleSubmit = async (e: any) => {
     e.preventDefault();
+    setSubmitAttempted(true);
 
-    if (!position) {
-      Swal.fire({ icon: 'warning', title: 'ลืมปักหมุด!', text: 'กรุณากดปุ่มดึงตำแหน่ง หรือคลิกบนแผนที่ครับ' });
+    if (invalidItems.length > 0) {
+      const firstInvalid = document.getElementById(invalidItems[0].id);
+      firstInvalid?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      firstInvalid?.focus({ preventScroll: true });
+      Swal.fire({
+        icon: 'warning',
+        title: `กรุณาตรวจสอบอีก ${invalidItems.length} รายการ`,
+        text: invalidItems.map(item => item.label).join(' • ')
+      });
       return;
     }
-    
-    if (!formData.description) {
-      Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบ', text: 'กรุณาระบุรายละเอียดของสถานการณ์' });
-      return;
-    }
 
-    if (!selectedFile) { 
-      Swal.fire({ icon: 'warning', title: 'ลืมแนบรูปภาพ!', text: 'กรุณาถ่ายภาพหรือแนบรูปสถานที่เกิดเหตุ เพื่อความรวดเร็วในการประเมินสถานการณ์ครับ' });
+    if (!supabase || !position || !selectedFile) {
+      Swal.fire({ icon: 'error', title: 'ระบบยังไม่พร้อมรับข้อมูล', text: 'กรุณาลองใหม่ภายหลังหรือติดต่อเทศบาลตำบลบ่อหลวง' });
       return;
     }
 
@@ -602,9 +682,11 @@ export default function ReportPage() {
         } else {
           setFormData({ ...formData, description: '', reporter_name: '' });
           setPosition(null);
+          setGpsAccuracy(null);
           setSelectedFile(null); 
           setPdpaConsent(false);
           setAiResult(null); 
+          setSubmitAttempted(false);
           setIsManualVillage(false);
         }
       });
@@ -625,19 +707,6 @@ export default function ReportPage() {
       <div className="text-slate-500 font-medium animate-pulse">กำลังโหลดระบบ...</div>
     </div>
   );
-
-  const riskTypes = [
-    'ไฟป่า / หมอกควัน (PM 2.5)',
-    'น้ำป่าไหลหลาก / น้ำท่วม',
-    'ดินโคลนถล่ม / ดินสไลด์',
-    'ต้นไม้ล้มขวางทาง',
-    'การลักลอบทิ้งขยะ / ขยะมูลฝอยตกค้าง',
-    'มลพิษทางน้ำ / น้ำเสีย',
-    'การบุกรุกทำลายป่า / ลักลอบตัดไม้',
-    'อัคคีภัย / วาตภัย',
-    'เหตุด่วน / เหตุร้าย',
-    'อื่นๆ'
-  ];
 
   return (
     <div className="flex h-[100dvh] w-screen bg-slate-50 font-sans overflow-hidden relative">
@@ -696,20 +765,44 @@ export default function ReportPage() {
           </div>
           
           <div className="flex items-center space-x-2">
-            <a href="/" className="p-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition shadow-sm bg-white" title="หน้าแรก">
+            <Link href="/" className="p-2 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition shadow-sm bg-white" title="หน้าแรก" aria-label="กลับหน้าแรก">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-            </a>
-            <a href="/status" className="p-2 border border-slate-200 text-indigo-600 rounded-xl hover:bg-indigo-50 transition shadow-sm bg-white" title="ติดตามสถานะ">
+            </Link>
+            <Link href="/status" className="p-2 border border-slate-200 text-indigo-600 rounded-xl hover:bg-indigo-50 transition shadow-sm bg-white" title="ติดตามสถานะ" aria-label="ติดตามสถานะเรื่องที่แจ้ง">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            </a>
+            </Link>
           </div>
         </div>
 
         {/* 📝 ส่วนเนื้อหาฟอร์มกรอกข้อมูล */}
-        <div className="p-6 overflow-y-auto flex-1 scrollbar-hide space-y-6 pb-[140px]">
+        <form id="incident-report-form" onSubmit={handleSubmit} noValidate className="p-6 overflow-y-auto flex-1 scrollbar-hide space-y-6 pb-[155px]">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4" role="note">
+            <p className="text-[13px] font-extrabold text-rose-800">กรณีมีผู้บาดเจ็บหรืออันตรายทันที</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-rose-700">โทร <a href="tel:1669" className="font-black underline underline-offset-2">1669</a> การแพทย์ฉุกเฉิน หรือ <a href="tel:191" className="font-black underline underline-offset-2">191</a> เหตุด่วน ก่อนกรอกแบบฟอร์มนี้</p>
+          </div>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="report-progress-title">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 id="report-progress-title" className="text-[13px] font-extrabold text-slate-800">ความพร้อมก่อนส่ง</h2>
+                <p className="text-[11px] text-slate-500">กรอกให้ครบเพื่อช่วยให้เจ้าหน้าที่ตรวจสอบได้เร็วขึ้น</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-indigo-50 px-3 py-1 text-[12px] font-black text-indigo-700">{completedRequired}/5</span>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
+              <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all" style={{ width: `${completedRequired * 20}%` }} />
+            </div>
+            <ul className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+              {validationItems.map(item => (
+                <li key={item.id} className={`flex items-center gap-1.5 ${item.valid ? 'font-bold text-emerald-700' : 'text-slate-500'}`}>
+                  <span aria-hidden="true">{item.valid ? '✓' : '○'}</span>{item.label}
+                </li>
+              ))}
+            </ul>
+          </section>
           
           {/* 📍 1. Card ระบุตำแหน่ง (GPS) */}
-          <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+          <div id="location-section" tabIndex={-1} className={`bg-indigo-50/50 border rounded-2xl p-5 shadow-sm relative overflow-hidden outline-none ${submitAttempted && !position ? 'border-rose-400 ring-2 ring-rose-100' : 'border-indigo-100'}`}>
             <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-200/30 rounded-full blur-2xl -mr-10 -mt-10"></div>
             <div className="flex items-start space-x-3 mb-4 relative z-10">
               <div className="p-2 bg-white rounded-xl shadow-sm border border-indigo-100 text-indigo-600">
@@ -718,7 +811,7 @@ export default function ReportPage() {
               <div>
                 <h3 className="text-sm font-bold text-slate-800">ระบุตำแหน่งเกิดเหตุ</h3>
                 <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">กรุณาอนุญาตเข้าถึง GPS หรือปักหมุดบนแผนที่</p>
-                {position && <div className="mt-1 inline-block text-[10px] font-mono font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200">{position.lat.toFixed(5)}, {position.lng.toFixed(5)}</div>}
+                {position && <div className="mt-1 inline-block text-[10px] font-mono font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200">{position.lat.toFixed(5)}, {position.lng.toFixed(5)}{gpsAccuracy ? ` · ±${gpsAccuracy} ม.` : ''}</div>}
               </div>
             </div>
             <button type="button" onClick={handleGetLocation} disabled={isFetchingGPS} className="relative z-10 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center space-x-2">
@@ -728,6 +821,8 @@ export default function ReportPage() {
                 <><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg> <span>ใช้ตำแหน่งปัจจุบันของฉัน</span></>
               )}
             </button>
+            <p className="relative z-10 mt-2 text-[10px] leading-relaxed text-indigo-700">ตรวจสอบหมุดบนแผนที่ก่อนส่ง พิกัดใช้เพื่อค้นหาจุดเกิดเหตุและประสานเจ้าหน้าที่เท่านั้น</p>
+            {submitAttempted && !position && <p className="mt-2 text-[11px] font-bold text-rose-600" role="alert">กรุณาใช้ GPS หรือแตะบนแผนที่เพื่อปักหมุด</p>}
           </div>
 
           {/* Divider */}
@@ -738,23 +833,21 @@ export default function ReportPage() {
           </div>
 
           {/* 📷 2. Upload Card (มี AI แบบ 2 ปุ่มแยกชัดเจน) */}
-          <div className="space-y-2">
+          <div id="image-section" tabIndex={-1} className="space-y-2 outline-none">
             <label className="text-[13px] font-bold text-slate-700 flex items-center">
               <svg className="w-4 h-4 mr-1.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               แนบรูปภาพประกอบ <span className="text-rose-500 ml-1">*</span>
             </label>
             
-            <div className="border-2 border-dashed border-slate-300 bg-slate-50/50 rounded-2xl p-4 flex flex-col items-center justify-center relative min-h-[140px]">
+            <div className={`border-2 border-dashed bg-slate-50/50 rounded-2xl p-4 flex flex-col items-center justify-center relative min-h-[140px] ${submitAttempted && !selectedFile ? 'border-rose-400' : 'border-slate-300'}`}>
               {selectedFile ? (
                 <div className="flex flex-col items-center relative w-full">
-                  <button type="button" onClick={() => { setSelectedFile(null); setAiResult(null); }} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1.5 shadow-md hover:bg-rose-600 z-20 transition-colors">
+                  <button type="button" onClick={() => { setSelectedFile(null); setAiResult(null); setFileError(''); }} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-2 shadow-md hover:bg-rose-600 z-20 transition-colors" aria-label="นำรูปภาพออก">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
-                  <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-2">
-                    <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                  </div>
+                  {imagePreviewUrl && <img src={imagePreviewUrl} alt="ภาพเหตุการณ์ที่เลือก" className="h-32 w-full rounded-xl object-cover" />}
                   <span className="text-[13px] font-bold text-emerald-600">แนบรูปภาพสำเร็จ</span>
-                  <span className="text-[11px] text-slate-500 truncate max-w-[200px] mt-1">{selectedFile.name}</span>
+                  <span className="text-[11px] text-slate-500 truncate max-w-[260px] mt-1">{selectedFile.name} · {(selectedFile.size / 1024).toFixed(0)} KB</span>
                 </div>
               ) : (
                 <div className="flex flex-col items-center w-full">
@@ -765,7 +858,7 @@ export default function ReportPage() {
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                       </div>
                       <span className="text-[12px] font-bold text-slate-700 group-hover:text-indigo-600">ถ่ายรูปใหม่</span>
-                      <input type="file" accept="image/*" capture="environment" onChange={handleFileChange} className="hidden" />
+                      <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={handleFileChange} className="sr-only" aria-label="ถ่ายรูปเหตุการณ์ด้วยกล้อง" />
                     </label>
 
                     {/* ปุ่มเลือกจากคลัง */}
@@ -774,7 +867,7 @@ export default function ReportPage() {
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                       </div>
                       <span className="text-[12px] font-bold text-slate-700 group-hover:text-blue-600">เลือกจากคลัง</span>
-                      <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                      <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileChange} className="sr-only" aria-label="เลือกรูปเหตุการณ์จากคลัง" />
                     </label>
                   </div>
                   
@@ -815,6 +908,9 @@ export default function ReportPage() {
                 </div>
               )}
             </div>
+            <p className="text-[10px] leading-relaxed text-slate-500">รองรับ JPG, PNG, WebP ไม่เกิน 10 MB กรุณาใช้ภาพชัดเจนและหลีกเลี่ยงใบหน้าหรือข้อมูลส่วนบุคคลที่ไม่จำเป็น</p>
+            {fileError && <p className="text-[11px] font-bold text-rose-600" role="alert">{fileError}</p>}
+            {submitAttempted && !selectedFile && !fileError && <p className="text-[11px] font-bold text-rose-600" role="alert">กรุณาถ่ายหรือเลือกรูปจุดเกิดเหตุ</p>}
 
             {/* AI Status */}
             {isAnalyzingAI && (
@@ -833,6 +929,10 @@ export default function ReportPage() {
                   <span className="bg-white px-2.5 py-1 rounded-lg border border-indigo-100 text-[11px] text-slate-600 shadow-sm">ภัย: <span className="font-bold text-indigo-700">{aiResult.type}</span></span>
                   <span className="bg-white px-2.5 py-1 rounded-lg border border-indigo-100 text-[11px] text-slate-600 shadow-sm">รุนแรง: <span className="font-bold text-rose-600">ระดับ {aiResult.severity}</span></span>
                 </div>
+                <p className="mt-2 text-[11px] leading-relaxed text-slate-600">AI เป็นเพียงคำแนะนำและอาจคลาดเคลื่อน โปรดตรวจสอบประเภทภัย ระดับ และข้อความก่อนส่ง</p>
+                <button type="button" onClick={applyAiSuggestion} className="mt-3 w-full rounded-xl bg-indigo-600 px-3 py-2.5 text-[12px] font-extrabold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                  ใช้คำแนะนำนี้ในแบบฟอร์ม
+                </button>
               </div>
             )}
           </div>
@@ -841,15 +941,16 @@ export default function ReportPage() {
           <div className="space-y-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
             <div>
               <label className="text-[13px] font-bold text-slate-700 mb-1.5 block">พื้นที่หมู่บ้านที่พบปัญหา</label>
-              <select name="village_name" value={formData.village_name} onChange={handleVillageChange} className="w-full border-0 bg-white rounded-xl p-3.5 text-[13px] text-slate-700 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+              <select id="village-name" name="village_name" value={formData.village_name} onChange={handleVillageChange} aria-invalid={submitAttempted && !formData.village_name} className={`w-full border bg-white rounded-xl p-3.5 text-[13px] text-slate-700 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${submitAttempted && !formData.village_name ? 'border-rose-400' : 'border-transparent'}`}>
                 {villageList.length > 0 ? villageList.map((v: any) => <option key={v.name} value={v.name}>{v.name}</option>) : <option value="">กำลังโหลดข้อมูล...</option>}
               </select>
+              {submitAttempted && !formData.village_name && <p className="mt-1 text-[11px] font-bold text-rose-600" role="alert">กรุณาเลือกหมู่บ้าน</p>}
             </div>
 
             <div>
               <label className="text-[13px] font-bold text-slate-700 mb-1.5 flex items-center">ประเภทสาธารณภัย <span className="text-rose-500 ml-1">*</span></label>
               <select name="risk_type" value={formData.risk_type} onChange={handleInputChange} className="w-full border-0 bg-white rounded-xl p-3.5 text-[13px] text-slate-700 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                {riskTypes.map(r => <option key={r} value={r}>{r}</option>)}
+                {RISK_TYPES.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
           </div>
@@ -857,21 +958,28 @@ export default function ReportPage() {
           {/* 🌡️ 4. ระดับความรุนแรง */}
           <div>
             <label className="text-[13px] font-bold text-slate-700 mb-2 flex items-center">ระดับความรุนแรง <span className="text-rose-500 ml-1">*</span></label>
-            <div className="flex justify-between space-x-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
-              {[1, 2, 3, 4, 5].map(level => (
-                <button type="button" key={level} onClick={() => setSeverity(level)} 
-                  className={`flex-1 py-2.5 rounded-lg font-bold text-[13px] transition-all duration-200 ${formData.severity_level === level ? (level >= 4 ? 'bg-rose-500 text-white shadow-md scale-105' : level === 3 ? 'bg-amber-500 text-white shadow-md scale-105' : 'bg-emerald-500 text-white shadow-md scale-105') : 'bg-transparent text-slate-400 hover:bg-slate-200'}`}
+            <div className="grid grid-cols-5 gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200" role="group" aria-label="เลือกระดับความรุนแรง">
+              {SEVERITY_OPTIONS.map(({ level, label }) => (
+                <button type="button" key={level} onClick={() => setSeverity(level)} aria-pressed={formData.severity_level === level} title={`ระดับ ${level} ${label}`}
+                  className={`flex min-h-12 flex-col items-center justify-center rounded-lg px-1 py-2 font-bold transition-all duration-200 ${formData.severity_level === level ? (level >= 4 ? 'bg-rose-500 text-white shadow-md scale-[1.03]' : level === 3 ? 'bg-amber-500 text-white shadow-md scale-[1.03]' : 'bg-emerald-500 text-white shadow-md scale-[1.03]') : 'bg-transparent text-slate-500 hover:bg-slate-200'}`}
                 >
-                  {level}
+                  <span className="text-[14px]">{level}</span>
+                  <span className="hidden text-[8px] leading-tight sm:block">{label}</span>
                 </button>
               ))}
             </div>
+            <p className="mt-2 text-[11px] font-semibold text-slate-600">ระดับ {formData.severity_level}: {SEVERITY_OPTIONS.find(item => item.level === formData.severity_level)?.label} — {SEVERITY_OPTIONS.find(item => item.level === formData.severity_level)?.help}</p>
           </div>
 
           {/* 📝 5. รายละเอียด */}
           <div>
             <label className="text-[13px] font-bold text-slate-700 mb-1.5 flex items-center">รายละเอียดเหตุการณ์ <span className="text-rose-500 ml-1">*</span></label>
-            <textarea name="description" value={formData.description} onChange={handleInputChange} rows={3} placeholder="อธิบายลักษณะเหตุการณ์เพิ่มเติม..." className="w-full border border-slate-200 bg-white rounded-xl p-3.5 text-[13px] text-slate-700 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all"></textarea>
+            <textarea id="description" name="description" value={formData.description} onChange={handleInputChange} rows={4} maxLength={1000} aria-invalid={submitAttempted && descriptionLength < 10} aria-describedby="description-help description-count" placeholder="เช่น ก่อนถึงวัด 100 เมตร มีต้นไม้ล้มขวางถนน รถผ่านไม่ได้ ต้องการเจ้าหน้าที่ตัดต้นไม้" className={`w-full border bg-white rounded-xl p-3.5 text-[13px] text-slate-700 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all ${submitAttempted && descriptionLength < 10 ? 'border-rose-400' : 'border-slate-200'}`}></textarea>
+            <div className="mt-1 flex items-start justify-between gap-3 text-[10px]">
+              <p id="description-help" className="leading-relaxed text-slate-500">ระบุจุดสังเกต ผลกระทบ และความช่วยเหลือที่ต้องการ</p>
+              <span id="description-count" className={`shrink-0 font-bold ${descriptionLength >= 10 ? 'text-emerald-600' : 'text-slate-400'}`}>{descriptionLength}/1000</span>
+            </div>
+            {submitAttempted && descriptionLength < 10 && <p className="mt-1 text-[11px] font-bold text-rose-600" role="alert">กรุณาระบุรายละเอียดอย่างน้อย 10 ตัวอักษร</p>}
           </div>
 
           {/* Divider */}
@@ -896,40 +1004,46 @@ export default function ReportPage() {
               </select>
             </div>
           </div>
+          <p className="-mt-3 text-[10px] leading-relaxed text-slate-500">ไม่ระบุชื่อได้ ระบบจะบันทึกเป็น “ไม่ระบุชื่อ” และยังสามารถติดตามเรื่องด้วยรหัสที่ได้รับหลังส่ง</p>
 
           {/* ⚖️ PDPA Consent */}
-          <div className={`p-4 rounded-xl border transition-all duration-300 ${pdpaConsent ? 'bg-emerald-50 border-emerald-200 shadow-sm' : 'bg-slate-50 border-slate-200'}`}>
+          <div id="pdpa-consent" tabIndex={-1} className={`p-4 rounded-xl border outline-none transition-all duration-300 ${pdpaConsent ? 'bg-emerald-50 border-emerald-200 shadow-sm' : submitAttempted ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-100' : 'bg-slate-50 border-slate-200'}`}>
             <label className="flex items-start space-x-3 cursor-pointer group">
               <div className="flex items-center h-5 mt-0.5">
-                <input type="checkbox" checked={pdpaConsent} onChange={(e) => setPdpaConsent(e.target.checked)} className="w-5 h-5 text-emerald-500 bg-white border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" />
+                <input type="checkbox" checked={pdpaConsent} onChange={(e) => setPdpaConsent(e.target.checked)} aria-invalid={submitAttempted && !pdpaConsent} className="w-5 h-5 text-emerald-500 bg-white border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" />
               </div>
               <div className="flex flex-col">
                 <span className={`text-[12px] font-bold transition-colors ${pdpaConsent ? 'text-emerald-800' : 'text-slate-700 group-hover:text-slate-900'}`}>ความยินยอมข้อมูลส่วนบุคคล (PDPA) <span className="text-rose-500">*</span></span>
-                <span className={`text-[10px] mt-1 leading-relaxed transition-colors ${pdpaConsent ? 'text-emerald-600' : 'text-slate-500'}`}>ข้าพเจ้ายินยอมให้ทางหน่วยงานเก็บรวบรวมและใช้ข้อมูล เพื่อตรวจสอบและประสานงาน ตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล</span>
+                <span className={`text-[10px] mt-1 leading-relaxed transition-colors ${pdpaConsent ? 'text-emerald-600' : 'text-slate-500'}`}>ยินยอมให้เทศบาลใช้ข้อมูล รูปภาพ และพิกัด เฉพาะเพื่อรับเรื่อง ตรวจสอบ ประสานงาน และติดตามผล โปรดหลีกเลี่ยงข้อมูลส่วนบุคคลของผู้อื่นที่ไม่จำเป็น</span>
               </div>
             </label>
+            {submitAttempted && !pdpaConsent && <p className="mt-2 text-[11px] font-bold text-rose-600" role="alert">กรุณาอ่านและให้ความยินยอมก่อนส่ง</p>}
           </div>
 
-        </div>
+        </form>
         
         {/* 🚀 Fixed Bottom Submit Button (ลอยติดอยู่ด้านล่างเสมอ z-[100000] ป้องกันโดนบัง) */}
         <div className={`absolute bottom-0 left-0 right-0 p-5 bg-white/95 backdrop-blur-xl border-t border-slate-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-[100000] flex flex-col justify-center transition-all duration-300 ${isExpanded ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto'}`}>
+          {!canSubmit && cooldownTime === 0 && !isSubmitting && (
+            <p className="mb-2 text-center text-[11px] font-semibold text-slate-500" aria-live="polite">เหลือ {invalidItems.length} รายการก่อนส่ง</p>
+          )}
           <button 
-            onClick={handleSubmit} 
-            disabled={isSubmitting || !pdpaConsent || cooldownTime > 0} 
+            type="submit"
+            form="incident-report-form"
+            disabled={isSubmitting || cooldownTime > 0}
             className={`w-full py-4 rounded-2xl font-black text-[15px] shadow-lg flex justify-center items-center space-x-2 transition-all duration-300 transform 
               ${(isSubmitting || cooldownTime > 0) 
                 ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none' 
-                : !pdpaConsent 
-                  ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none' 
-                  : 'bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-0.5 active:scale-95'}`}
+                : canSubmit
+                  ? 'bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-0.5 active:scale-95'
+                  : 'bg-amber-500 text-white shadow-amber-500/20 hover:bg-amber-600'}`}
           >
             {isSubmitting ? (
               <><svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> <span>กำลังอัปโหลดข้อมูล...</span></>
             ) : cooldownTime > 0 ? (
               <><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> <span>รอ {cooldownTime} วินาที</span></>
             ) : (
-              <><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg> <span>ยืนยันการส่งรายงาน</span></>
+              <><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg> <span>{canSubmit ? 'ยืนยันการส่งรายงาน' : 'ตรวจสอบข้อมูลก่อนส่ง'}</span></>
             )}
           </button>
         </div>
