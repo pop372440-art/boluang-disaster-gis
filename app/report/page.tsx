@@ -235,6 +235,7 @@ export default function ReportPage() {
   
   const [isAnalyzingAI, setIsAnalyzingAI] = useState(false);
   const [aiResult, setAiResult] = useState<IncidentAiResult | null>(null);
+  const [aiProvider, setAiProvider] = useState<'gemini' | 'groq' | null>(null);
   const [aiError, setAiError] = useState('');
   const [fileError, setFileError] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -482,6 +483,7 @@ export default function ReportPage() {
   const analyzeImageFile = async (file: File) => {
     setIsAnalyzingAI(true);
     setAiResult(null);
+    setAiProvider(null);
     setAiError('');
 
     try {
@@ -515,11 +517,14 @@ export default function ReportPage() {
       }
 
       setAiResult(data.result);
+      setAiProvider(data.provider === 'groq' ? 'groq' : 'gemini');
       Swal.fire({
         toast: true,
         position: 'top-end',
         icon: 'success',
-        title: 'AI มีคำแนะนำแล้ว โปรดตรวจสอบก่อนใช้',
+        title: data.fallbackUsed
+          ? 'AI สำรองมีคำแนะนำแล้ว โปรดตรวจสอบก่อนใช้'
+          : 'AI มีคำแนะนำแล้ว โปรดตรวจสอบก่อนใช้',
         showConfirmButton: false,
         timer: 3000
       });
@@ -708,6 +713,7 @@ export default function ReportPage() {
           setSelectedFile(null); 
           setPdpaConsent(false);
           setAiResult(null); 
+          setAiProvider(null);
           setAiError('');
           setSubmitAttempted(false);
           setIsManualVillage(false);
@@ -865,7 +871,7 @@ export default function ReportPage() {
             <div className={`border-2 border-dashed bg-slate-50/50 rounded-2xl p-4 flex flex-col items-center justify-center relative min-h-[140px] ${submitAttempted && !selectedFile ? 'border-rose-400' : 'border-slate-300'}`}>
               {selectedFile ? (
                 <div className="flex flex-col items-center relative w-full">
-                  <button type="button" onClick={() => { setSelectedFile(null); setAiResult(null); setAiError(''); setFileError(''); }} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-2 shadow-md hover:bg-rose-600 z-20 transition-colors" aria-label="นำรูปภาพออก">
+                  <button type="button" onClick={() => { setSelectedFile(null); setAiResult(null); setAiProvider(null); setAiError(''); setFileError(''); }} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-2 shadow-md hover:bg-rose-600 z-20 transition-colors" aria-label="นำรูปภาพออก">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                   {imagePreviewUrl && <img src={imagePreviewUrl} alt="ภาพเหตุการณ์ที่เลือก" className="h-32 w-full rounded-xl object-cover" />}
@@ -958,7 +964,9 @@ export default function ReportPage() {
               <div className="mt-2 p-3.5 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl shadow-sm">
                 <div className="flex items-center mb-2">
                   <div className="w-5 h-5 bg-gradient-to-br from-indigo-500 to-purple-500 rounded flex items-center justify-center mr-2"><svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg></div>
-                  <span className="text-[12px] font-bold text-indigo-900">วิเคราะห์โดย Gemini AI</span>
+                  <span className="text-[12px] font-bold text-indigo-900">
+                    {aiProvider === 'groq' ? 'วิเคราะห์โดย Groq AI (ระบบสำรอง)' : 'วิเคราะห์โดย Gemini AI'}
+                  </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <span className="bg-white px-2.5 py-1 rounded-lg border border-indigo-100 text-[11px] text-slate-600 shadow-sm">ภัย: <span className="font-bold text-indigo-700">{aiResult.type}</span></span>
