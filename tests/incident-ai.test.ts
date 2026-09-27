@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  createIncidentAiFormPatch,
   getIncidentAiPublicError,
   INCIDENT_RISK_TYPES,
   parseIncidentAiResult,
@@ -25,6 +26,32 @@ test('incident AI accepts only a complete result that matches the report form', 
   assert.equal(parseIncidentAiResult({ type: 'แผ่นดินไหว', severity: 3, description: 'ประเภทไม่อยู่ในแบบฟอร์ม' }), null);
   assert.equal(parseIncidentAiResult({ type: INCIDENT_RISK_TYPES[0], severity: 7, description: 'ระดับเกินช่วง' }), null);
   assert.equal(parseIncidentAiResult({ type: INCIDENT_RISK_TYPES[0], severity: 2, description: '' }), null);
+});
+
+test('incident AI form patch keeps the official category and preserves user-entered details', () => {
+  assert.deepEqual(
+    createIncidentAiFormPatch(
+      {
+        type: 'การลักลอบทิ้งขยะ / ขยะมูลฝอยตกค้าง',
+        severity: 4,
+        description: 'พบกองขยะตกค้างอยู่ข้างทาง'
+      },
+      ''
+    ),
+    {
+      risk_type: 'การลักลอบทิ้งขยะ / ขยะมูลฝอยตกค้าง',
+      severity_level: 4,
+      description: 'พบกองขยะตกค้างอยู่ข้างทาง'
+    }
+  );
+
+  assert.equal(
+    createIncidentAiFormPatch(
+      { type: 'อื่นๆ', severity: 2, description: 'คำอธิบายจาก AI' },
+      'รายละเอียดที่ผู้แจ้งพิมพ์ไว้'
+    ).description,
+    'รายละเอียดที่ผู้แจ้งพิมพ์ไว้'
+  );
 });
 
 test('incident AI falls back only for provider or configuration failures', () => {
