@@ -51,6 +51,8 @@ riskIndex = rain3h × soilFactor × terrainFactor
 
 กำหนด `MET_NORWAY_USER_AGENT` ใน Vercel ได้เพื่อระบุชื่อแอปและช่องทางติดต่อของผู้ดูแลให้ชัดเจนขึ้น หากไม่กำหนด ระบบจะใช้ชื่อโครงการและ URL ของ repository โดยอัตโนมัติ
 
+ระบบวิเคราะห์ภาพในแบบฟอร์มแจ้งเหตุใช้ Gemini เป็นผู้ให้บริการหลัก และรองรับ Groq Vision เป็นระบบสำรองเมื่อ Gemini ถูกจำกัดอัตราการใช้งาน หมดเวลา หรือขัดข้อง กำหนด `GROQ_API_KEY` เป็น server-only environment variable ใน Vercel สำหรับ Preview และ Production โดยไม่ใช้คำนำหน้า `NEXT_PUBLIC_` สามารถกำหนด `GROQ_VISION_MODEL` เพิ่มเติมได้; ค่าเริ่มต้นคือ `qwen/qwen3.8-27b` หากไม่กำหนดคีย์ ระบบยังทำงานด้วย Gemini ตามเดิม
+
 เอกสารอ้างอิงผู้ให้บริการ:
 
 - [MET Norway Locationforecast](https://api.met.no/weatherapi/locationforecast/2.0/documentation)
