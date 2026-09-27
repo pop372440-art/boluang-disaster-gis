@@ -243,6 +243,11 @@ export default function BoLuangDashboard() {
   const [disasterReports, setDisasterReports] = useState<any[]>([]); 
   const [onwrRainData, setOnwrRainData] = useState<any[]>([]);
   const [onwrWaterLevelData, setOnwrWaterLevelData] = useState<any[]>([]);
+  const [visitStats, setVisitStats] = useState<{
+    today: number | null;
+    total: number | null;
+    state: 'loading' | 'ready' | 'error';
+  }>({ today: null, total: null, state: 'loading' });
   
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
@@ -465,6 +470,51 @@ export default function BoLuangDashboard() {
     };
     fetchFaultLine();
   }, [earthquakeLayer]);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    let cancelled = false;
+    const loadVisitorStats = async () => {
+      if (!supabaseUrl || !supabaseAnonKey) {
+        if (!cancelled) setVisitStats({ today: null, total: null, state: 'error' });
+        return;
+      }
+
+      try {
+        let sessionId = sessionStorage.getItem('bl_session_id');
+        if (!sessionId) {
+          sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+          sessionStorage.setItem('bl_session_id', sessionId);
+          const { error: insertError } = await supabase.from('visitor_logs').insert([{ session_id: sessionId }]);
+          if (insertError) throw insertError;
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const [totalResult, todayResult] = await Promise.all([
+          supabase.from('visitor_logs').select('*', { count: 'exact', head: true }),
+          supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('visited_at', today.toISOString()),
+        ]);
+        if (totalResult.error) throw totalResult.error;
+        if (todayResult.error) throw todayResult.error;
+
+        if (!cancelled) {
+          setVisitStats({
+            today: todayResult.count ?? 0,
+            total: totalResult.count ?? 0,
+            state: 'ready',
+          });
+        }
+      } catch (error) {
+        console.warn('Visitor stats unavailable:', error);
+        if (!cancelled) setVisitStats({ today: null, total: null, state: 'error' });
+      }
+    };
+
+    void loadVisitorStats();
+    return () => { cancelled = true; };
+  }, [mounted]);
 
   useEffect(() => {
     if (!tmdWeather && !tmdRain) { 
@@ -1484,9 +1534,19 @@ export default function BoLuangDashboard() {
               </div>
 
               <div className="flex flex-col justify-center border-l border-[#1e293b] pl-6">
-                <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">อัปเดตหน้าจอ</span>
+                <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">ยอดผู้เข้าชม</span>
                 <div className="flex items-center text-[12px] font-mono text-gray-400">
-                  <span className="text-[#38bdf8]">{mounted ? `${currentTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.` : 'กำลังซิงค์เวลา'}</span>
+                  {visitStats.state === 'ready' ? (
+                    <>
+                      <span>วันนี้ <span className="text-[#10b981]">{visitStats.today?.toLocaleString('th-TH')}</span></span>
+                      <span className="mx-2 text-gray-600">|</span>
+                      <span>รวม <span className="text-[#38bdf8]">{visitStats.total?.toLocaleString('th-TH')}</span></span>
+                    </>
+                  ) : visitStats.state === 'error' ? (
+                    <span className="text-amber-300">ข้อมูลยังไม่พร้อม</span>
+                  ) : (
+                    <span className="animate-pulse text-slate-400">กำลังโหลด...</span>
+                  )}
                 </div>
               </div>
 
