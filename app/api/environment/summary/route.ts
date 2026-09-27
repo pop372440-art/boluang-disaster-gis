@@ -14,6 +14,16 @@ const CACHE_HEADERS = {
 const allowed = (latitude: number, longitude: number) => Number.isFinite(latitude) && Number.isFinite(longitude) &&
   latitude >= 17.5 && latitude <= 19 && longitude >= 97.5 && longitude <= 99.5;
 
+const fetchSource = async (url: URL, revalidate: number, timeoutMs: number) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetchWithRetry(url, { signal: controller.signal, next: { revalidate } }, { attempts: 2, baseDelayMs: 300 });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 export async function GET(request: NextRequest) {
   const latitude = Number(request.nextUrl.searchParams.get('latitude') ?? BO_LUANG.latitude);
   const longitude = Number(request.nextUrl.searchParams.get('longitude') ?? BO_LUANG.longitude);
@@ -39,14 +49,11 @@ export async function GET(request: NextRequest) {
     disaster_type: 'hotspot', key: gistdaKey ?? '',
   }).toString();
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12_000);
-  try {
-    const [weatherResult, airResult, fireResult] = await Promise.allSettled([
-      fetchWithRetry(weatherUrl, { signal: controller.signal, next: { revalidate: 600 } }, { attempts: 2, baseDelayMs: 300 }),
-      fetchWithRetry(airUrl, { signal: controller.signal, next: { revalidate: 900 } }, { attempts: 2, baseDelayMs: 300 }),
-      fireUrl ? fetchWithRetry(fireUrl, { signal: controller.signal, next: { revalidate: 600 } }, { attempts: 2, baseDelayMs: 300 }) : Promise.resolve(null),
-    ]);
+  const [weatherResult, airResult, fireResult] = await Promise.allSettled([
+    fetchSource(weatherUrl, 600, 8_000),
+    fetchSource(airUrl, 900, 8_000),
+    fireUrl ? fetchSource(fireUrl, 600, 5_000) : Promise.resolve(null),
+  ]);
     const weatherResponse = weatherResult.status === 'fulfilled' ? weatherResult.value : null;
     const airResponse = airResult.status === 'fulfilled' ? airResult.value : null;
     const fireResponse = fireResult.status === 'fulfilled' ? fireResult.value : null;
@@ -57,7 +64,7 @@ export async function GET(request: NextRequest) {
     const nearbyHotspots = parsedFire?.ok ? parsedFire.hotspots : [];
     const fetchedAt = new Date().toISOString();
     const fireState = !gistdaKey ? 'unconfigured' : fireResponse?.ok && parsedFire?.ok ? 'ready' : 'degraded';
-    return Response.json({
+  return Response.json({
       location: { name: 'ตำบลบ่อหลวง', latitude, longitude }, fetchedAt,
       weather,
       airQuality,
@@ -88,8 +95,5 @@ export async function GET(request: NextRequest) {
         airQuality: { state: airQuality ? 'ready' : 'degraded', source: 'Open-Meteo CAMS', fetchedAt },
         fire: { state: fireState, source: 'GISTDA Hotspot (ดาวเทียม) · รัศมี 50 กม.', fetchedAt: fireState === 'ready' ? fetchedAt : null, count: nearbyHotspots.length },
       },
-    }, { status: weather ? 200 : 207, headers: CACHE_HEADERS });
-  } finally {
-    clearTimeout(timeout);
-  }
+  }, { status: weather ? 200 : 207, headers: CACHE_HEADERS });
 }
