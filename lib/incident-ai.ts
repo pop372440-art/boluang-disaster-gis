@@ -61,3 +61,15 @@ export function getIncidentAiPublicError(status: number) {
     message: 'AI ไม่สามารถประมวลผลภาพนี้ได้ กรุณาเลือกรูป JPG, PNG หรือ WebP ที่เห็นเหตุการณ์ชัดเจน'
   };
 }
+
+const FALLBACK_ERROR_CODES = new Set([
+  'RATE_LIMITED',
+  'PROVIDER_AUTH_ERROR',
+  'PROVIDER_UNAVAILABLE',
+  'CONFIGURATION_ERROR',
+  'TIMEOUT'
+]);
+
+export function shouldUseIncidentAiFallback(code: string) {
+  return FALLBACK_ERROR_CODES.has(code);
+}
