@@ -10,6 +10,9 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           // ป้องกันเบราว์เซอร์เดาประเภทไฟล์ผิด
           { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(self)' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
           // Content-Security-Policy (CSP) ป้องกัน XSS และการแอบฝัง Script อันตราย
           // *อนุญาตให้โหลดข้อมูล/รูปภาพเฉพาะจากโดเมนที่ปลอดภัย (https) เท่านั้น
           { 
@@ -17,6 +20,12 @@ const nextConfig = {
             // 🚀 เพิ่ม frame-src ต่อท้ายสุด เพื่อปลดล็อก iframe ของ Windy และ Google Maps
             value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https:; frame-src 'self' https://embed.windy.com https://www.windy.com https://www.google.com;" 
           }
+        ],
+      },
+      {
+        source: '/geojson/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800' },
         ],
       },
       {
