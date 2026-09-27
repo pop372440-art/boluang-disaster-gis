@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2'; 
 import { useMapEvents } from 'react-leaflet';
+import { INCIDENT_RISK_TYPES, type IncidentAiResult } from '@/lib/incident-ai';
 
 // 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -22,19 +23,6 @@ const SEVERITY_OPTIONS = [
   { level: 3, label: 'เร่งด่วน', help: 'ควรส่งเจ้าหน้าที่ตรวจสอบ' },
   { level: 4, label: 'รุนแรง', help: 'กระทบคนหรือทรัพย์สิน' },
   { level: 5, label: 'วิกฤต', help: 'มีอันตรายทันที' }
-];
-
-const RISK_TYPES = [
-  'ไฟป่า / หมอกควัน (PM 2.5)',
-  'น้ำป่าไหลหลาก / น้ำท่วม',
-  'ดินโคลนถล่ม / ดินสไลด์',
-  'ต้นไม้ล้มขวางทาง',
-  'การลักลอบทิ้งขยะ / ขยะมูลฝอยตกค้าง',
-  'มลพิษทางน้ำ / น้ำเสีย',
-  'การบุกรุกทำลายป่า / ลักลอบตัดไม้',
-  'อัคคีภัย / วาตภัย',
-  'เหตุด่วน / เหตุร้าย',
-  'อื่นๆ'
 ];
 
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
@@ -246,7 +234,8 @@ export default function ReportPage() {
   }, []);
   
   const [isAnalyzingAI, setIsAnalyzingAI] = useState(false);
-  const [aiResult, setAiResult] = useState<{ type: string, severity: number, description: string } | null>(null);
+  const [aiResult, setAiResult] = useState<IncidentAiResult | null>(null);
+  const [aiError, setAiError] = useState('');
   const [fileError, setFileError] = useState('');
   const [submitAttempted, setSubmitAttempted] = useState(false);
   
@@ -490,11 +479,74 @@ export default function ReportPage() {
     });
   };
 
+  const analyzeImageFile = async (file: File) => {
+    setIsAnalyzingAI(true);
+    setAiResult(null);
+    setAiError('');
+
+    try {
+      const base64data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+      });
+
+      const res = await fetch('/api/analyze-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64data })
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.success || !data.result) {
+        const message = data?.message || 'AI ขัดข้องชั่วคราว กรุณาลองวิเคราะห์อีกครั้งหรือระบุข้อมูลด้วยตนเอง';
+        setAiError(message);
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'info',
+          title: 'ยังวิเคราะห์ภาพไม่สำเร็จ',
+          text: message,
+          showConfirmButton: false,
+          timer: 4500
+        });
+        return;
+      }
+
+      setAiResult(data.result);
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'AI มีคำแนะนำแล้ว โปรดตรวจสอบก่อนใช้',
+        showConfirmButton: false,
+        timer: 3000
+      });
+    } catch (error) {
+      console.error('AI request failed:', error);
+      const message = 'เชื่อมต่อ AI ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง';
+      setAiError(message);
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'เชื่อมต่อ AI ไม่สำเร็จ',
+        text: message,
+        showConfirmButton: false,
+        timer: 4500
+      });
+    } finally {
+      setIsAnalyzingAI(false);
+    }
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const originalFile = e.target.files[0];
 
       setFileError('');
+      setAiError('');
       if (!['image/jpeg', 'image/png', 'image/webp'].includes(originalFile.type)) {
         setFileError('รองรับเฉพาะไฟล์ JPG, PNG หรือ WebP');
         e.target.value = '';
@@ -506,45 +558,15 @@ export default function ReportPage() {
         return;
       }
 
-      setIsAnalyzingAI(true);
-      setAiResult(null);
-
       try {
         const compressedFile = await compressImage(originalFile, 1024, 0.8);
         setSelectedFile(compressedFile);
-
-        const base64data = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(compressedFile);
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = error => reject(error);
-        });
-
-        const res = await fetch('/api/analyze-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: base64data })
-        });
-        
-        const data = await res.json();
-        
-        if (data.success && data.result) {
-          setAiResult(data.result);
-          Swal.fire({
-            toast: true, position: 'top-end', icon: 'success', 
-            title: 'AI มีคำแนะนำแล้ว โปรดตรวจสอบก่อนใช้', showConfirmButton: false, timer: 3000
-          });
-        } else {
-          console.error("AI Error:", data.error);
-          Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'AI ไม่สามารถระบุได้', text: 'กรุณาระบุรายละเอียดด้วยตนเอง', showConfirmButton: false, timer: 3000 });
-        }
+        await analyzeImageFile(compressedFile);
       } catch (error) {
-        console.error("File compression or AI Request failed:", error);
+        console.error('File compression failed:', error);
         setSelectedFile(null);
         setFileError('ประมวลผลรูปไม่สำเร็จ กรุณาเลือกรูปใหม่');
         Swal.fire({ icon: 'error', title: 'ประมวลผลรูปไม่สำเร็จ', text: 'กรุณาลองเลือกรูปใหม่อีกครั้ง' });
-      } finally {
-        setIsAnalyzingAI(false);
       }
     }
   };
@@ -554,7 +576,7 @@ export default function ReportPage() {
     const suggestedSeverity = Number(aiResult.severity);
     setFormData(prev => ({
       ...prev,
-      risk_type: RISK_TYPES.includes(aiResult.type) ? aiResult.type : prev.risk_type,
+      risk_type: INCIDENT_RISK_TYPES.includes(aiResult.type) ? aiResult.type : prev.risk_type,
       severity_level: Number.isFinite(suggestedSeverity) ? Math.round(Math.min(5, Math.max(1, suggestedSeverity))) : prev.severity_level,
       description: prev.description.trim() || aiResult.description || ''
     }));
@@ -686,6 +708,7 @@ export default function ReportPage() {
           setSelectedFile(null); 
           setPdpaConsent(false);
           setAiResult(null); 
+          setAiError('');
           setSubmitAttempted(false);
           setIsManualVillage(false);
         }
@@ -842,7 +865,7 @@ export default function ReportPage() {
             <div className={`border-2 border-dashed bg-slate-50/50 rounded-2xl p-4 flex flex-col items-center justify-center relative min-h-[140px] ${submitAttempted && !selectedFile ? 'border-rose-400' : 'border-slate-300'}`}>
               {selectedFile ? (
                 <div className="flex flex-col items-center relative w-full">
-                  <button type="button" onClick={() => { setSelectedFile(null); setAiResult(null); setFileError(''); }} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-2 shadow-md hover:bg-rose-600 z-20 transition-colors" aria-label="นำรูปภาพออก">
+                  <button type="button" onClick={() => { setSelectedFile(null); setAiResult(null); setAiError(''); setFileError(''); }} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-2 shadow-md hover:bg-rose-600 z-20 transition-colors" aria-label="นำรูปภาพออก">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                   {imagePreviewUrl && <img src={imagePreviewUrl} alt="ภาพเหตุการณ์ที่เลือก" className="h-32 w-full rounded-xl object-cover" />}
@@ -919,6 +942,18 @@ export default function ReportPage() {
                 <span className="text-[12px] font-bold text-indigo-700">AI กำลังวิเคราะห์รูปภาพ...</span>
               </div>
             )}
+            {aiError && !isAnalyzingAI && selectedFile && (
+              <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3.5" role="alert">
+                <p className="text-[12px] font-extrabold text-amber-900">AI ยังวิเคราะห์ไม่สำเร็จ</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-amber-800">{aiError}</p>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <button type="button" onClick={() => analyzeImageFile(selectedFile)} className="flex-1 rounded-xl bg-amber-600 px-3 py-2.5 text-[12px] font-extrabold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2">
+                    ลองวิเคราะห์อีกครั้ง
+                  </button>
+                  <p className="flex-1 self-center text-[10px] leading-relaxed text-amber-700">ไม่ต้องรอ AI ก็กรอกประเภท ระดับ และรายละเอียดด้วยตนเองได้</p>
+                </div>
+              </div>
+            )}
             {aiResult && !isAnalyzingAI && (
               <div className="mt-2 p-3.5 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl shadow-sm">
                 <div className="flex items-center mb-2">
@@ -950,7 +985,7 @@ export default function ReportPage() {
             <div>
               <label className="text-[13px] font-bold text-slate-700 mb-1.5 flex items-center">ประเภทสาธารณภัย <span className="text-rose-500 ml-1">*</span></label>
               <select name="risk_type" value={formData.risk_type} onChange={handleInputChange} className="w-full border-0 bg-white rounded-xl p-3.5 text-[13px] text-slate-700 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
-                {RISK_TYPES.map(r => <option key={r} value={r}>{r}</option>)}
+                {INCIDENT_RISK_TYPES.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
           </div>
