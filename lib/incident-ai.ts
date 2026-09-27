@@ -19,6 +19,14 @@ export type IncidentAiResult = {
   description: string;
 };
 
+export function createIncidentAiFormPatch(result: IncidentAiResult, currentDescription: string) {
+  return {
+    risk_type: result.type,
+    severity_level: Math.round(Math.min(5, Math.max(1, result.severity))),
+    description: currentDescription.trim() || result.description
+  };
+}
+
 export function parseIncidentAiResult(value: unknown): IncidentAiResult | null {
   if (!value || typeof value !== 'object') return null;
 
