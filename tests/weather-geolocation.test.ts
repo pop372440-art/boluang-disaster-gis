@@ -19,6 +19,7 @@ test('location lookup retries only transient device errors', () => {
 
 test('location errors give an actionable Thai explanation', () => {
   assert.match(geolocationFailureCopy({ code: 1 }).title, /สิทธิ์ตำแหน่ง/);
+  assert.match(geolocationFailureCopy({ code: 1 }).text, /แตะจุดที่ต้องการบนแผนที่/);
   assert.match(geolocationFailureCopy({ code: 2 }).text, /Location/);
   assert.match(geolocationFailureCopy({ code: 3 }).text, /ลองใหม่/);
   assert.match(geolocationFailureCopy({}, false).text, /HTTPS/);
