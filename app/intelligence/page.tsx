@@ -12,6 +12,7 @@ const TileLayer = dynamic(() => import('react-leaflet').then((module) => module.
 const GeoJSON = dynamic(() => import('react-leaflet').then((module) => module.GeoJSON), { ssr: false });
 const CircleMarker = dynamic(() => import('react-leaflet').then((module) => module.CircleMarker), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then((module) => module.Popup), { ssr: false });
+const MapFocus = dynamic(() => import('@/components/intelligence/map-focus'), { ssr: false });
 
 const MODES = Object.keys(SEASONAL_MODES) as SeasonalMode[];
 const VILLAGES = ['บ้านบ่อหลวง','บ้านวังกอง','บ้านขุน','บ้านนาฟ่อน','บ้านแม่ลายเหนือ','บ้านแม่ลายใต้','บ้านพุย','บ้านกิ่วลม','บ้านแม่สะนาม','บ้านเตียนอาง','บ้านบ่อสะแง๋','บ้านบ่อพะแวน','บ้านแม่หืด'];
@@ -19,6 +20,12 @@ const VILLAGES = ['บ้านบ่อหลวง','บ้านวังก�
 const fmt = (value: unknown, digits = 0) => typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '—';
 const aqLabel = (pm25: number | null) => pm25 == null ? 'รอข้อมูล' : pm25 <= 15 ? 'ดีมาก' : pm25 <= 25 ? 'ดี' : pm25 <= 37.5 ? 'ปานกลาง' : pm25 <= 75 ? 'เริ่มมีผลกระทบ' : 'มีผลกระทบ';
 const timeLabel = (value: string | null | undefined) => value ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value)) : 'ไม่ทราบเวลา';
+const hourLabel = (value: string) => new Intl.DateTimeFormat('th-TH', { weekday: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }).format(new Date(value));
+const dayLabel = (value: string) => new Intl.DateTimeFormat('th-TH', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(value));
+const windCompass = (degree: number | null | undefined) => {
+  if (typeof degree !== 'number') return 'ไม่ทราบทิศ';
+  return ['เหนือ', 'ตะวันออกเฉียงเหนือ', 'ตะวันออก', 'ตะวันออกเฉียงใต้', 'ใต้', 'ตะวันตกเฉียงใต้', 'ตะวันตก', 'ตะวันตกเฉียงเหนือ'][Math.round(degree / 45) % 8];
+};
 
 export default function IntelligencePage() {
   const [audience, setAudience] = useState<'public' | 'ops'>('public');
@@ -27,6 +34,7 @@ export default function IntelligencePage() {
   const [boundary, setBoundary] = useState<any>(null);
   const [villageBoundaries, setVillageBoundaries] = useState<any>(null);
   const [visibleLayers, setVisibleLayers] = useState({ villages: true, hotspots: true });
+  const [selectedVillage, setSelectedVillage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,6 +61,27 @@ export default function IntelligencePage() {
   const config = SEASONAL_MODES[mode];
   const sourceRows = useMemo(() => Object.values(payload?.sources ?? {}) as any[], [payload]);
   const hotspots = useMemo(() => Array.isArray(payload?.fire?.hotspots) ? payload.fire.hotspots : [], [payload]);
+  const selectedVillageFeature = useMemo(() => villageBoundaries?.features?.find((feature: any) => feature?.properties?.own_villag === selectedVillage) ?? null, [selectedVillage, villageBoundaries]);
+  const hourlyForecast = useMemo(() => {
+    const hourly = payload?.weather?.hourly;
+    if (!Array.isArray(hourly?.time)) return [];
+    const now = Date.now();
+    return hourly.time.map((time: string, index: number) => ({
+      time,
+      temperature: hourly.temperature_2m?.[index],
+      rainProbability: hourly.precipitation_probability?.[index],
+      rain: hourly.precipitation?.[index],
+      wind: hourly.wind_speed_10m?.[index],
+      gust: hourly.wind_gusts_10m?.[index],
+    })).filter((item: any) => new Date(item.time).getTime() >= now - 30 * 60 * 1000).slice(0, 24);
+  }, [payload]);
+  const threeDayForecast = useMemo(() => Array.isArray(daily?.time) ? daily.time.slice(0, 3).map((time: string, index: number) => ({
+    time,
+    max: daily.temperature_2m_max?.[index],
+    min: daily.temperature_2m_min?.[index],
+    rain: daily.precipitation_sum?.[index],
+    rainProbability: daily.precipitation_probability_max?.[index],
+  })) : [], [daily]);
   const screening = useMemo(() => getScreeningStatus({
     precipitationMm: current?.precipitation,
     windGustKmh: current?.wind_gusts_10m,
@@ -61,10 +90,10 @@ export default function IntelligencePage() {
   }), [air?.pm2_5, current?.precipitation, current?.wind_gusts_10m, payload?.fire?.count]);
   const isStale = payload?.fetchedAt ? Date.now() - new Date(payload.fetchedAt).getTime() > 20 * 60 * 1000 : true;
   const weatherCards = [
-    { label: 'อุณหภูมิ', value: `${fmt(current?.temperature_2m, 1)}°`, meta: `รู้สึก ${fmt(current?.apparent_temperature, 1)}°C`, tone: 'text-orange-200' },
-    { label: 'ฝนขณะนี้', value: `${fmt(current?.precipitation, 1)}`, unit: 'มม.', meta: `วันนี้ ${fmt(daily?.precipitation_sum?.[0], 1)} มม.`, tone: 'text-sky-200' },
-    { label: 'ลม / ลมกระโชก', value: `${fmt(current?.wind_speed_10m)}`, unit: 'กม./ชม.', meta: `กระโชก ${fmt(current?.wind_gusts_10m)} กม./ชม.`, tone: 'text-cyan-200' },
-    { label: 'PM2.5 ประเมิน', value: `${fmt(air?.pm2_5, 1)}`, unit: 'µg/m³', meta: aqLabel(air?.pm2_5 ?? null), tone: 'text-amber-200' },
+    { label: 'อุณหภูมิ', value: `${fmt(current?.temperature_2m, 1)}°`, meta: `รู้สึก ${fmt(current?.apparent_temperature, 1)}°C`, source: 'แบบจำลอง Open-Meteo', tone: 'text-orange-200' },
+    { label: 'ฝนขณะนี้', value: `${fmt(current?.precipitation, 1)}`, unit: 'มม.', meta: `วันนี้ ${fmt(daily?.precipitation_sum?.[0], 1)} มม.`, source: 'แบบจำลอง Open-Meteo', tone: 'text-sky-200' },
+    { label: 'ลม / ลมกระโชก', value: `${fmt(current?.wind_speed_10m)}`, unit: 'กม./ชม.', meta: `${windCompass(current?.wind_direction_10m)} · กระโชก ${fmt(current?.wind_gusts_10m)} กม./ชม.`, source: 'แบบจำลอง Open-Meteo', tone: 'text-cyan-200' },
+    { label: 'PM2.5 ประเมิน', value: `${fmt(air?.pm2_5, 1)}`, unit: 'µg/m³', meta: aqLabel(air?.pm2_5 ?? null), source: 'แบบจำลอง CAMS ไม่ใช่สถานีตรวจวัด', tone: 'text-amber-200' },
   ];
 
   return (
@@ -118,9 +147,29 @@ export default function IntelligencePage() {
                 <p className="text-sm font-semibold text-slate-400">{card.label}</p>
                 <p className={`mt-2 text-3xl font-black ${card.tone}`}>{loading ? '…' : card.value} <span className="text-sm font-semibold text-slate-400">{card.unit}</span></p>
                 <p className="mt-1 text-sm text-slate-300">{card.meta}</p>
+                <p className="mt-2 text-[10px] text-slate-500">{card.source}</p>
               </article>
             ))}
           </div>
+
+          <section className="rounded-2xl border border-white/10 bg-[#0b1b2b] p-4" aria-labelledby="forecast-heading">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div><h2 id="forecast-heading" className="text-sm font-extrabold">พยากรณ์เพื่อวางแผน 24–72 ชั่วโมง</h2><p className="mt-1 text-xs text-slate-400">แบบจำลอง Open-Meteo · เวลาไทย · เลื่อนเพื่อดูรายชั่วโมง</p></div>
+              <div className="flex flex-wrap gap-2">{threeDayForecast.map((day: any) => <div key={day.time} className="rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-xs"><strong className="text-white">{dayLabel(day.time)}</strong><span className="ml-2 text-sky-200">ฝน {fmt(day.rain, 1)} มม. ({fmt(day.rainProbability)}%)</span><span className="ml-2 text-slate-300">{fmt(day.min)}–{fmt(day.max)}°C</span></div>)}</div>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-[900px] w-full text-left text-xs">
+                <caption className="sr-only">พยากรณ์อากาศรายชั่วโมง 24 ชั่วโมงสำหรับตำบลบ่อหลวง</caption>
+                <thead className="text-slate-400"><tr><th className="sticky left-0 bg-[#0b1b2b] py-2 pr-4">ตัวแปร</th>{hourlyForecast.map((hour: any) => <th key={hour.time} className="min-w-24 px-2 py-2 text-center">{hourLabel(hour.time)}</th>)}</tr></thead>
+                <tbody className="divide-y divide-white/5">
+                  <tr><th className="sticky left-0 bg-[#0b1b2b] py-2 pr-4 text-slate-300">โอกาสฝน</th>{hourlyForecast.map((hour: any) => <td key={hour.time} className="px-2 py-2 text-center font-bold text-sky-200">{fmt(hour.rainProbability)}%</td>)}</tr>
+                  <tr><th className="sticky left-0 bg-[#0b1b2b] py-2 pr-4 text-slate-300">ปริมาณฝน</th>{hourlyForecast.map((hour: any) => <td key={hour.time} className="px-2 py-2 text-center">{fmt(hour.rain, 1)} มม.</td>)}</tr>
+                  <tr><th className="sticky left-0 bg-[#0b1b2b] py-2 pr-4 text-slate-300">อุณหภูมิ</th>{hourlyForecast.map((hour: any) => <td key={hour.time} className="px-2 py-2 text-center">{fmt(hour.temperature, 1)}°</td>)}</tr>
+                  <tr><th className="sticky left-0 bg-[#0b1b2b] py-2 pr-4 text-slate-300">ลม / กระโชก</th>{hourlyForecast.map((hour: any) => <td key={hour.time} className="px-2 py-2 text-center text-cyan-100">{fmt(hour.wind)}/{fmt(hour.gust)}</td>)}</tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0b1b2b] px-4 py-3 text-xs text-slate-300">
             <span>อัปเดตล่าสุด: <strong className={isStale ? 'text-rose-300' : 'text-white'}>{timeLabel(payload?.fetchedAt)}{isStale ? ' · ข้อมูลเก่า' : ''}</strong></span>
@@ -132,10 +181,14 @@ export default function IntelligencePage() {
 
           <div className="relative h-[460px] overflow-hidden rounded-2xl border border-white/10 bg-[#102235] shadow-2xl lg:h-[620px]">
             <MapContainer center={[18.1633, 98.3744]} zoom={12} minZoom={8} maxZoom={18} zoomControl className="h-full w-full">
+              <MapFocus feature={selectedVillageFeature} />
               <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}" attribution="Tiles © Esri" />
               {visibleLayers.villages && villageBoundaries && <GeoJSON
                 data={villageBoundaries}
-                style={{ color: '#b8d7e8', weight: 1.2, opacity: 0.8, fillColor: config.accent, fillOpacity: 0.06 }}
+                key={`${mode}-${selectedVillage ?? 'all'}`}
+                style={(feature: any) => feature?.properties?.own_villag === selectedVillage
+                  ? { color: '#ffffff', weight: 3, opacity: 1, fillColor: config.accent, fillOpacity: 0.3 }
+                  : { color: '#b8d7e8', weight: 1.2, opacity: 0.8, fillColor: config.accent, fillOpacity: 0.06 }}
                 onEachFeature={(feature: any, layer: any) => layer.bindTooltip(feature?.properties?.own_villag ?? 'เขตหมู่บ้าน', { sticky: true, direction: 'top' })}
               />}
               {boundary && <GeoJSON data={boundary} style={{ color: config.accent, weight: 3, fillColor: config.accent, fillOpacity: 0.08 }} />}
@@ -144,7 +197,7 @@ export default function IntelligencePage() {
                 center={[hotspot.latitude, hotspot.longitude]}
                 radius={8}
                 pathOptions={{ color: '#fff7ed', weight: 2, fillColor: '#f97316', fillOpacity: 0.9 }}
-              ><Popup><div className="text-sm text-slate-900"><strong>จุดความร้อนจากดาวเทียม</strong><br />ห่างจากจุดกลางบ่อหลวง {fmt(hotspot.distanceKm, 1)} กม.<br />แหล่งข้อมูล: GISTDA</div></Popup></CircleMarker>)}
+              ><Popup><div className="text-sm text-slate-900"><strong>จุดความร้อนจากดาวเทียม</strong><br />ห่างจากจุดกลางบ่อหลวง {fmt(hotspot.distanceKm, 1)} กม.<br />ดาวเทียม: {hotspot.satellite ?? 'ไม่ระบุ'}<br />วันที่ตรวจพบ: {hotspot.acquiredDate ?? 'ไม่ระบุ'}<br />แหล่งข้อมูล: GISTDA</div></Popup></CircleMarker>)}
             </MapContainer>
             <div className="absolute left-4 top-4 z-[800] max-w-[280px] rounded-xl border border-white/15 bg-[#071522]/90 p-3 backdrop-blur-lg">
               <p className="text-xs font-bold text-cyan-300">สถานการณ์ที่กำลังติดตาม</p>
@@ -173,7 +226,7 @@ export default function IntelligencePage() {
           <div className="rounded-2xl border border-white/10 bg-[#0b1b2b] p-4">
             <div className="flex items-center justify-between"><p className="text-sm font-extrabold">13 หมู่บ้าน</p><Link href="/radar" className="text-xs font-bold text-cyan-300">ดูค่าฝน →</Link></div>
             <div className="mt-3 grid max-h-64 grid-cols-2 gap-2 overflow-y-auto pr-1">
-              {VILLAGES.map((village, index) => <div key={village} className="rounded-lg border border-white/8 bg-black/10 px-2.5 py-2 text-xs text-slate-300"><span className="mr-1.5 text-slate-500">{index + 1}</span>{village}</div>)}
+              {VILLAGES.map((village, index) => <button key={village} aria-pressed={selectedVillage === village} onClick={() => setSelectedVillage((value) => value === village ? null : village)} className={`rounded-lg border px-2.5 py-2 text-left text-xs transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${selectedVillage === village ? 'border-cyan-300 bg-cyan-300/10 text-white' : 'border-white/8 bg-black/10 text-slate-300 hover:bg-white/5'}`}><span className="mr-1.5 text-slate-500">{index + 1}</span>{village}</button>)}
             </div>
           </div>
 
