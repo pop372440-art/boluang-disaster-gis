@@ -1,174 +1,235 @@
-// app/api/weather/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { PNG } from 'pngjs';
+import {
+  compareRainModels,
+  degreesToThaiWindDirection,
+  evaluateWeatherFreshness
+} from '@/lib/weather/data-quality';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/* ═══════════ ค่าคงที่ ═══════════ */
 const BO_LUANG = { lat: 18.1633, lng: 98.3744 };
 const RADAR_Z = 7;
 const RADAR_BLOCK = 3;
 const RADAR_SCHEME = 0;
-const CORRIDOR_KM = [10, 20, 30, 45, 60, 80, 100, 120];
 
-/* ═══════════ ฟังก์ชันคำนวณเรดาร์ และภูมิศาสตร์ ═══════════ */
-const PX_TO_DBZ = (v: number) => (v <= 4 ? -Infinity : (v / 255) * 87 - 20);
-const DBZ_TO_MMH = (d: number) => !isFinite(d) || d < 5 ? 0 : Math.pow(Math.pow(10, d / 10) / 200, 1 / 1.6);
-const toRad = (d: number) => (d * Math.PI) / 180;
+const PX_TO_DBZ = (value: number) => (value <= 4 ? -Infinity : (value / 255) * 87 - 20);
+const DBZ_TO_MMH = (dbz: number) => !Number.isFinite(dbz) || dbz < 5 ? 0 : Math.pow(Math.pow(10, dbz / 10) / 200, 1 / 1.6);
+const toRad = (degrees: number) => (degrees * Math.PI) / 180;
 
-function lonLatToPx(lat: number, lng: number, z: number) {
-  const n = 256 * Math.pow(2, z);
-  const x = ((lng + 180) / 360) * n;
-  const s = Math.sin(toRad(lat));
-  const y = (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n;
+function bangkokLocalToIso(value: unknown): string | null {
+  if (typeof value !== 'string' || !value) return null;
+  const withZone = /(?:Z|[+-]\d\d:\d\d)$/.test(value) ? value : `${value}+07:00`;
+  const timestamp = Date.parse(withZone);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
+}
+
+function lonLatToPx(lat: number, lng: number, zoom: number) {
+  const size = 256 * Math.pow(2, zoom);
+  const x = ((lng + 180) / 360) * size;
+  const sin = Math.sin(toRad(lat));
+  const y = (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * size;
   return { x, y };
+}
+
+async function fetchJson(url: string) {
+  const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new Error(`weather upstream returned ${response.status}`);
+  return response.json();
 }
 
 async function fetchTile(url: string) {
   try {
-    const r = await fetch(url, { cache: 'no-store' });
-    if (!r.ok) return null;
-    const buf = Buffer.from(await r.arrayBuffer());
-    return await new Promise<any>((res) => new PNG().parse(buf, (e, p) => res(e ? null : p)));
-  } catch { return null; }
+    const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(8_000) });
+    if (!response.ok) return null;
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return await new Promise<any>((resolve) => new PNG().parse(buffer, (error, png) => resolve(error ? null : png)));
+  } catch {
+    return null;
+  }
 }
 
 async function buildGrid(host: string, path: string, lat: number, lng: number) {
   const center = lonLatToPx(lat, lng, RADAR_Z);
-  const tx0 = Math.floor(center.x / 256) - Math.floor(RADAR_BLOCK / 2);
-  const ty0 = Math.floor(center.y / 256) - Math.floor(RADAR_BLOCK / 2);
-  const W = RADAR_BLOCK * 256;
-  const grid = { d: new Uint8Array(W * W), w: W, h: W, ox: tx0 * 256, oy: ty0 * 256 };
-  
-  await Promise.all(Array.from({ length: RADAR_BLOCK * RADAR_BLOCK }).map((_, i) => {
-    const xi = i % RADAR_BLOCK, yi = Math.floor(i / RADAR_BLOCK);
-    return fetchTile(`${host}${path}/256/${RADAR_Z}/${tx0 + xi}/${ty0 + yi}/${RADAR_SCHEME}/1_0.png`).then(png => {
-      if (png) {
-        for (let py = 0; py < 256; py++) {
-          for (let px = 0; px < 256; px++) { 
-            const k = (py * 256 + px) << 2; 
-            grid.d[(yi * 256 + py) * W + (xi * 256 + px)] = png.data[k + 3] < 20 ? 0 : png.data[k]; 
-          }
-        }
+  const tileX = Math.floor(center.x / 256) - Math.floor(RADAR_BLOCK / 2);
+  const tileY = Math.floor(center.y / 256) - Math.floor(RADAR_BLOCK / 2);
+  const width = RADAR_BLOCK * 256;
+  const grid = { d: new Uint8Array(width * width), w: width, h: width, ox: tileX * 256, oy: tileY * 256 };
+  let loadedTiles = 0;
+
+  await Promise.all(Array.from({ length: RADAR_BLOCK * RADAR_BLOCK }).map(async (_, index) => {
+    const xIndex = index % RADAR_BLOCK;
+    const yIndex = Math.floor(index / RADAR_BLOCK);
+    const png = await fetchTile(`${host}${path}/256/${RADAR_Z}/${tileX + xIndex}/${tileY + yIndex}/${RADAR_SCHEME}/1_0.png`);
+    if (!png) return;
+    loadedTiles += 1;
+    for (let pixelY = 0; pixelY < 256; pixelY++) {
+      for (let pixelX = 0; pixelX < 256; pixelX++) {
+        const sourceIndex = (pixelY * 256 + pixelX) << 2;
+        grid.d[(yIndex * 256 + pixelY) * width + (xIndex * 256 + pixelX)] = png.data[sourceIndex + 3] < 20 ? 0 : png.data[sourceIndex];
       }
-    });
+    }
   }));
-  return grid;
+
+  return loadedTiles > 0 ? grid : null;
 }
 
-const sample = (g: any, px: number, py: number) => { 
-  const x = Math.round(px - g.ox), y = Math.round(py - g.oy); 
-  return (x < 0 || y < 0 || x >= g.w || y >= g.h) ? 0 : g.d[y * g.w + x]; 
+const sample = (grid: any, px: number, py: number) => {
+  const x = Math.round(px - grid.ox);
+  const y = Math.round(py - grid.oy);
+  return x < 0 || y < 0 || x >= grid.w || y >= grid.h ? 0 : grid.d[y * grid.w + x];
 };
 
-function sampleArea(g: any, px: number, py: number, r = 2) { 
-  let s = 0, n = 0; 
-  for (let dy = -r; dy <= r; dy++) {
-    for (let dx = -r; dx <= r; dx++) { 
-      s += sample(g, px + dx, py + dy); 
-      n++; 
+function sampleArea(grid: any, px: number, py: number, radius = 2) {
+  let sum = 0;
+  let count = 0;
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      sum += sample(grid, px + dx, py + dy);
+      count += 1;
     }
-  } 
-  return s / n; 
+  }
+  return sum / count;
 }
 
-/* ═══════════ HANDLER ═══════════ */
 export async function GET(req: NextRequest) {
-  const sp = req.nextUrl.searchParams;
-  const lat = parseFloat(sp.get('lat') ?? '') || BO_LUANG.lat;
-  const lng = parseFloat(sp.get('lng') ?? '') || BO_LUANG.lng;
-  
+  const searchParams = req.nextUrl.searchParams;
+  const requestedLat = Number(searchParams.get('lat'));
+  const requestedLng = Number(searchParams.get('lng'));
+  const lat = Number.isFinite(requestedLat) && requestedLat >= -90 && requestedLat <= 90 ? requestedLat : BO_LUANG.lat;
+  const lng = Number.isFinite(requestedLng) && requestedLng >= -180 && requestedLng <= 180 ? requestedLng : BO_LUANG.lng;
+
   try {
-    const [main, multi, aqi, rvMeta] = await Promise.all([
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,surface_pressure&hourly=precipitation_probability,temperature_2m,weather_code,cape&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max&timezone=Asia%2FBangkok&forecast_days=7`, { cache: 'no-store' }).then(r => r.json()),
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=precipitation&models=ecmwf_ifs025,gfs_seamless,icon_seamless,jma_seamless&timezone=Asia%2FBangkok&forecast_days=3`, { cache: 'no-store' }).then(r => r.json()),
-      fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm2_5&timezone=Asia%2FBangkok`, { cache: 'no-store' }).then(r => r.json()),
-      fetch('https://api.rainviewer.com/public/weather-maps.json', { cache: 'no-store' }).then(r => r.json()),
+    const [main, multi, airQuality, rainViewer] = await Promise.all([
+      fetchJson(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,surface_pressure&hourly=precipitation_probability,temperature_2m,weather_code,cape&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max&timezone=Asia%2FBangkok&forecast_days=7`),
+      fetchJson(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=precipitation&models=ecmwf_ifs025,gfs_seamless,icon_seamless,jma_seamless&timezone=Asia%2FBangkok&forecast_days=3`),
+      fetchJson(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm2_5&timezone=Asia%2FBangkok`),
+      fetchJson('https://api.rainviewer.com/public/weather-maps.json')
     ]);
 
-    const cur = main.current, times = main.hourly?.time ?? [];
-    const startIdx = Math.max(0, times.findIndex((t: string) => t >= cur.time));
-
-    const next24 = Array.from({ length: 24 }).map((_, i) => {
-      let mx = 0;
-      Object.keys(multi.hourly).filter(k => k.startsWith('precipitation')).forEach(k => {
-        const v = Number(multi.hourly[k][startIdx + i] ?? 0);
-        if (isFinite(v) && v > mx) mx = v;
-      });
-      return mx;
-    });
-
-    // ✅ คำนวณฝนสะสมเพื่อส่งให้หน้าเว็บ (แก้บั๊ก s3, s6)
-    const getSum = (hours: number) => next24.slice(0, hours).reduce((a, b) => a + (b || 0), 0);
+    const current = main?.current ?? {};
+    const times: string[] = main?.hourly?.time ?? [];
+    const currentTime = typeof current.time === 'string' ? current.time : '';
+    const startIndex = Math.max(0, times.findIndex(time => time >= currentTime));
+    const multiTimes: string[] = multi?.hourly?.time ?? [];
+    const multiStartIndex = Math.max(0, multiTimes.findIndex(time => time >= currentTime));
+    const modelKeys = Object.keys(multi?.hourly ?? {}).filter(key => key.startsWith('precipitation_'));
+    const modelSeries = modelKeys.map(key => Array.from({ length: 24 }, (_, index) => {
+      const value = Number(multi.hourly[key]?.[multiStartIndex + index]);
+      return Number.isFinite(value) && value >= 0 ? value : 0;
+    }));
+    const next24 = Array.from({ length: 24 }, (_, index) => Math.max(0, ...modelSeries.map(series => series[index] ?? 0)));
+    const getSum = (hours: number) => next24.slice(0, hours).reduce((sum, value) => sum + value, 0);
     const sums = { s3: getSum(3), s6: getSum(6), s12: getSum(12), s24: getSum(24) };
+    const modelComparison = compareRainModels(modelSeries);
 
-    const host = rvMeta?.host ?? 'https://tilecache.rainviewer.com';
-    const past = rvMeta?.radar?.past ?? [];
-    let obsMmh = 0, corridor: any[] = [], radarOk = false;
+    const host = rainViewer?.host ?? 'https://tilecache.rainviewer.com';
+    const observedFrames = Array.isArray(rainViewer?.radar?.past) ? rainViewer.radar.past : [];
+    const forecastFrames = Array.isArray(rainViewer?.radar?.nowcast) ? rainViewer.radar.nowcast : [];
+    const latestObservedFrame = observedFrames.at(-1);
+    const radarObservedAt = Number.isFinite(latestObservedFrame?.time)
+      ? new Date(latestObservedFrame.time * 1000).toISOString()
+      : null;
+    const radarFreshness = evaluateWeatherFreshness(radarObservedAt, 20, 40);
 
-    if (past.length >= 3) {
-      const gB = await buildGrid(host, past[past.length - 1].path, lat, lng);
-      if (gB) {
-        radarOk = true;
-        const c = lonLatToPx(lat, lng, RADAR_Z);
-        obsMmh = DBZ_TO_MMH(PX_TO_DBZ(sampleArea(gB, c.x, c.y, 2)));
-        corridor = CORRIDOR_KM.map(km => ({ 
-            distanceKm: km, 
-            precipitation: +DBZ_TO_MMH(PX_TO_DBZ(sampleArea(gB, c.x, c.y, 2))).toFixed(1), // ✅ เปลี่ยนเป็น precipitation ให้ตรงกับหน้าบ้าน
-            wet: true 
-        }));
+    let observedRainRate: number | null = null;
+    if (latestObservedFrame?.path && radarFreshness.status !== 'expired') {
+      const grid = await buildGrid(host, latestObservedFrame.path, lat, lng);
+      if (grid) {
+        const center = lonLatToPx(lat, lng, RADAR_Z);
+        observedRainRate = DBZ_TO_MMH(PX_TO_DBZ(sampleArea(grid, center.x, center.y, 2)));
       }
     }
 
-    const level = obsMmh >= 25 ? 'RED' : obsMmh >= 10 ? 'ORANGE' : obsMmh >= 2 ? 'YELLOW' : 'GREEN';
-    const levelColor = { GREEN: '#10b981', YELLOW: '#facc15', ORANGE: '#f97316', RED: '#ef4444' }[level];
+    const alertLevel = observedRainRate !== null
+      ? observedRainRate >= 25 ? 'RED' : observedRainRate >= 10 ? 'ORANGE' : observedRainRate >= 2 ? 'YELLOW' : 'GREEN'
+      : null;
+    const levelColors = { GREEN: '#10b981', YELLOW: '#facc15', ORANGE: '#f97316', RED: '#ef4444' } as const;
+    const weatherObservedAt = bangkokLocalToIso(current.time);
+    const airObservedAt = bangkokLocalToIso(airQuality?.current?.time);
+    const weatherFreshness = evaluateWeatherFreshness(weatherObservedAt, 90, 180);
+    const airFreshness = evaluateWeatherFreshness(airObservedAt, 90, 180);
 
-    const payload = {
-      ok: true, updatedAt: new Date().toISOString(),
-      current: { 
-          ...cur, 
-          rain_now: cur.precipitation, 
-          rain_today: main.daily?.precipitation_sum?.[0],
-          uv_max: main.daily?.uv_index_max?.[0]
-      },
-      alert: { 
-          level: level, 
-          title: 'สถานะล่าสุดจากเรดาร์', 
-          message: `ตรวจพบฝน ${obsMmh.toFixed(1)} มม./ชม.`, 
-          color: levelColor, 
-          sums: sums // ✅ ส่งข้อมูล s3, s6 ไปให้หน้าเว็บ
-      },
-      nowcast: { 
-          status: obsMmh >= 0.5 ? 'RAINING_NOW' : 'CLEAR', 
-          headline: obsMmh >= 0.5 ? `พบฝน ${obsMmh.toFixed(1)} มม./ชม.` : 'สภาพอากาศปกติ',
-          etaMinutes: 0
-      },
-      corridor: corridor,
-      aqi: {
-          us_aqi: Math.round(aqi?.current?.us_aqi ?? 0),
-          pm2_5: +(aqi?.current?.pm2_5 ?? 0).toFixed(1)
-      },
-      hourly: times.slice(startIdx, startIdx + 24).map((t: string, i: number) => ({ 
-          hour: t.slice(11, 16), 
-          rain: next24[i],
-          prob: main.hourly?.precipitation_probability?.[startIdx + i] ?? 0
-      })),
-      forecast: main.daily?.time?.map((d: string, i: number) => ({ 
-          day: i === 0 ? 'วันนี้' : new Date(d).toLocaleDateString('th-TH', { weekday: 'short' }), 
-          rain: main.daily.precipitation_sum[i],
-          maxTemp: main.daily.temperature_2m_max[i],
-          minTemp: main.daily.temperature_2m_min[i]
-      })),
-      radar: { 
-          host, 
-          frames: [...past, ...(rvMeta?.radar?.nowcast || [])].map((f: any) => ({ 
-              time: f.time, 
-              path: f.path, 
-              url: `${host}${f.path}/256/{z}/{x}/{y}/4/1_1.png` 
-          })) 
-      }
+    const sourceTimes = [weatherObservedAt, airObservedAt, radarObservedAt]
+      .map(value => value ? Date.parse(value) : NaN)
+      .filter(Number.isFinite);
+    const latestSourceTime = sourceTimes.length ? new Date(Math.max(...sourceTimes)).toISOString() : null;
+    const screeningAlert = radarFreshness.status === 'fresh' && observedRainRate !== null && alertLevel ? {
+      level: alertLevel,
+      title: 'สถานะคัดกรองล่าสุดจากเรดาร์',
+      message: `ตรวจพบฝน ${observedRainRate.toFixed(1)} มม./ชม.`,
+      color: levelColors[alertLevel],
+      sums
+    } : null;
+    const nowcast = radarFreshness.status === 'fresh' && observedRainRate !== null ? {
+      status: observedRainRate >= 0.5 ? 'RAINING_NOW' : 'CLEAR',
+      headline: observedRainRate >= 0.5 ? `พบฝน ${observedRainRate.toFixed(1)} มม./ชม.` : 'ไม่พบฝนที่พิกัดจากเฟรมล่าสุด',
+      etaMinutes: 0
+    } : {
+      status: 'UNAVAILABLE',
+      headline: radarFreshness.status === 'stale' ? 'ข้อมูลเรดาร์เก่าเกินเกณฑ์ จึงระงับการประเมิน' : 'ข้อมูลเรดาร์ไม่พร้อมสำหรับการประเมิน',
+      etaMinutes: null
     };
-    return NextResponse.json(payload);
-  } catch { return NextResponse.json({ ok: false }, { status: 502 }); }
+
+    return NextResponse.json({
+      ok: true,
+      fetchedAt: new Date().toISOString(),
+      updatedAt: latestSourceTime,
+      current: {
+        ...current,
+        wind_direction_text: degreesToThaiWindDirection(current.wind_direction_10m),
+        rain_now: current.precipitation,
+        rain_today: main?.daily?.precipitation_sum?.[0] ?? null,
+        uv_max: main?.daily?.uv_index_max?.[0] ?? null
+      },
+      alert: screeningAlert,
+      nowcast,
+      corridor: [],
+      radarOk: observedRainRate !== null,
+      aqi: {
+        us_aqi: Number.isFinite(Number(airQuality?.current?.us_aqi)) ? Math.round(Number(airQuality.current.us_aqi)) : null,
+        pm2_5: Number.isFinite(Number(airQuality?.current?.pm2_5)) ? +Number(airQuality.current.pm2_5).toFixed(1) : null
+      },
+      hourly: times.slice(startIndex, startIndex + 24).map((time, index) => ({
+        hour: time.slice(11, 16),
+        rain: next24[index] ?? null,
+        prob: main?.hourly?.precipitation_probability?.[startIndex + index] ?? null
+      })),
+      forecast: main?.daily?.time?.map((day: string, index: number) => ({
+        day: index === 0 ? 'วันนี้' : new Date(`${day}T00:00:00+07:00`).toLocaleDateString('th-TH', { weekday: 'short', timeZone: 'Asia/Bangkok' }),
+        rain: main.daily.precipitation_sum[index],
+        maxTemp: main.daily.temperature_2m_max[index],
+        minTemp: main.daily.temperature_2m_min[index]
+      })) ?? [],
+      modelComparison,
+      sources: {
+        weather: { provider: 'Open-Meteo', dataType: 'แบบจำลองพยากรณ์', freshness: weatherFreshness },
+        air: { provider: 'CAMS ผ่าน Open-Meteo', dataType: 'แบบจำลองคุณภาพอากาศ', freshness: airFreshness },
+        radar: { provider: 'RainViewer', dataType: 'ภาพเรดาร์ตรวจอากาศ', freshness: radarFreshness },
+        station: { provider: null, dataType: 'สถานีตรวจวัดจริง', status: 'ไม่มีสถานีในพื้นที่ที่เชื่อมต่อและยืนยันแล้ว' }
+      },
+      radar: {
+        host,
+        freshness: radarFreshness,
+        observedAt: radarObservedAt,
+        frames: [
+          ...observedFrames.map((frame: any) => ({ ...frame, kind: 'observed', isForecast: false })),
+          ...forecastFrames.map((frame: any) => ({ ...frame, kind: 'nowcast', isForecast: true }))
+        ].map((frame: any) => ({
+          time: frame.time,
+          path: frame.path,
+          kind: frame.kind,
+          isForecast: frame.isForecast,
+          url: `${host}${frame.path}/256/{z}/{x}/{y}/4/1_1.png`
+        }))
+      }
+    });
+  } catch (error: unknown) {
+    console.error('[weather] upstream request failed', {
+      code: 'WEATHER_UPSTREAM_FAILED',
+      error: error instanceof Error ? error.message : String(error)
+    });
+    return NextResponse.json({ ok: false, error: 'แหล่งข้อมูลสภาพอากาศขัดข้องชั่วคราว' }, { status: 502 });
+  }
 }
