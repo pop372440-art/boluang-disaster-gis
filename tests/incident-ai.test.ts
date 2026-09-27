@@ -4,7 +4,8 @@ import test from 'node:test';
 import {
   getIncidentAiPublicError,
   INCIDENT_RISK_TYPES,
-  parseIncidentAiResult
+  parseIncidentAiResult,
+  shouldUseIncidentAiFallback
 } from '../lib/incident-ai.ts';
 
 test('incident AI accepts only a complete result that matches the report form', () => {
@@ -24,6 +25,16 @@ test('incident AI accepts only a complete result that matches the report form', 
   assert.equal(parseIncidentAiResult({ type: 'แผ่นดินไหว', severity: 3, description: 'ประเภทไม่อยู่ในแบบฟอร์ม' }), null);
   assert.equal(parseIncidentAiResult({ type: INCIDENT_RISK_TYPES[0], severity: 7, description: 'ระดับเกินช่วง' }), null);
   assert.equal(parseIncidentAiResult({ type: INCIDENT_RISK_TYPES[0], severity: 2, description: '' }), null);
+});
+
+test('incident AI falls back only for provider or configuration failures', () => {
+  for (const code of ['RATE_LIMITED', 'PROVIDER_AUTH_ERROR', 'PROVIDER_UNAVAILABLE', 'CONFIGURATION_ERROR', 'TIMEOUT']) {
+    assert.equal(shouldUseIncidentAiFallback(code), true, code);
+  }
+
+  for (const code of ['INVALID_IMAGE', 'UNSUPPORTED_IMAGE', 'MODEL_REQUEST_REJECTED', 'NO_RESULT', 'INVALID_RESULT']) {
+    assert.equal(shouldUseIncidentAiFallback(code), false, code);
+  }
 });
 
 test('incident AI exposes actionable public errors without provider details', () => {
