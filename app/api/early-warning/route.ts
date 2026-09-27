@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
