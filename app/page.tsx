@@ -1800,7 +1800,7 @@ export default function BoLuangDashboard() {
             
             <div className="flex flex-col space-y-2">
               <button 
-                onClick={() => window.open('/admin/dashboard', '_blank')} 
+                onClick={() => window.open('/dashboard', '_blank')}
                 className="w-full py-2.5 bg-[#0f172a] hover:bg-[#1e293b] border border-gray-700 rounded-xl text-[13px] font-bold text-gray-300 shadow-sm flex items-center justify-center space-x-2 transition-all cursor-pointer"
               >
                 <span className="text-[#38bdf8] text-base">📈</span>
