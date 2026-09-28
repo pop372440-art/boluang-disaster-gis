@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import {
   Bar,
@@ -48,6 +49,27 @@ const EMPTY_FILTERS: DashboardFilters = {
 };
 
 const PIE_COLORS = ['#38bdf8', '#f97316', '#10b981', '#a78bfa', '#f43f5e', '#facc15'];
+
+const TOOLTIP_CONTENT_STYLE: CSSProperties = {
+  backgroundColor: '#020617',
+  border: '1px solid #38bdf8',
+  borderRadius: 12,
+  boxShadow: '0 12px 30px rgba(2, 6, 23, 0.55)',
+  color: '#f8fafc',
+  fontWeight: 700,
+  padding: '10px 12px',
+};
+
+const TOOLTIP_ITEM_STYLE: CSSProperties = {
+  color: '#f8fafc',
+  fontWeight: 700,
+};
+
+const TOOLTIP_WRAPPER_STYLE: CSSProperties = {
+  outline: 'none',
+  pointerEvents: 'none',
+  zIndex: 20,
+};
 
 const dateTimeFormatter = new Intl.DateTimeFormat('th-TH', {
   dateStyle: 'medium',
@@ -239,7 +261,7 @@ export default function PublicDashboard() {
           <article className="rounded-2xl border border-slate-700 bg-[#172033] p-5">
             <h2 className="text-lg font-bold">สัดส่วนประเภทเหตุ</h2>
             <div className="h-[330px]" role="img" aria-label={riskData.length ? `กราฟประเภทเหตุ ${riskData.map(item => `${item.name} ${item.value} รายการ`).join(', ')}` : 'ไม่พบข้อมูลประเภทเหตุ'}>
-              {riskData.length ? <ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={riskData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={68} outerRadius={108} paddingAngle={3} stroke="none">{riskData.map((item, index) => <Cell key={item.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}</Pie><Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#475569', borderRadius: 10 }} /></PieChart></ResponsiveContainer> : <p className="flex h-full items-center justify-center text-slate-400">ไม่พบข้อมูลตามตัวกรอง</p>}
+              {riskData.length ? <ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={riskData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={68} outerRadius={108} paddingAngle={3} stroke="none">{riskData.map((item, index) => <Cell key={item.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}</Pie><Tooltip cursor={false} contentStyle={TOOLTIP_CONTENT_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={{ display: 'none' }} wrapperStyle={TOOLTIP_WRAPPER_STYLE} formatter={(value, name) => [`${Number(value).toLocaleString('th-TH')} รายการ`, name]} /></PieChart></ResponsiveContainer> : <p className="flex h-full items-center justify-center text-slate-400">ไม่พบข้อมูลตามตัวกรอง</p>}
             </div>
             <ul className="grid gap-2 text-sm sm:grid-cols-2" aria-label="ข้อมูลประเภทเหตุแบบข้อความ">
               {riskData.map((item, index) => <li key={item.name} className="flex items-center justify-between gap-3 rounded-lg bg-slate-900/60 px-3 py-2"><span><span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} aria-hidden="true" />{item.name}</span><strong>{item.value.toLocaleString('th-TH')}</strong></li>)}
@@ -249,7 +271,7 @@ export default function PublicDashboard() {
             <h2 className="text-lg font-bold">5 พื้นที่ที่มีการแจ้งเหตุสูงสุด</h2>
             <p className="mt-1 text-xs text-slate-400">เป็นจำนวนรายงาน ไม่ใช่ค่าความเสี่ยงเชิงพยากรณ์</p>
             <div className="h-[330px]" role="img" aria-label={villageData.length ? `กราฟพื้นที่ ${villageData.map(item => `${item.name} ${item.value} รายการ`).join(', ')}` : 'ไม่พบข้อมูลพื้นที่'}>
-              {villageData.length ? <ResponsiveContainer width="100%" height="100%"><BarChart data={villageData} margin={{ top: 24, right: 8, left: -12, bottom: 10 }}><CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} /><XAxis dataKey="name" stroke="#cbd5e1" fontSize={11} tickLine={false} axisLine={false} /><YAxis allowDecimals={false} stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} /><Tooltip cursor={{ fill: '#334155', opacity: 0.35 }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#38bdf8', borderRadius: 10 }} /><Bar dataKey="value" name="จำนวนแจ้งเหตุ" fill="#38bdf8" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer> : <p className="flex h-full items-center justify-center text-slate-400">ไม่พบข้อมูลตามตัวกรอง</p>}
+              {villageData.length ? <ResponsiveContainer width="100%" height="100%"><BarChart data={villageData} margin={{ top: 24, right: 8, left: -12, bottom: 10 }}><CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} /><XAxis dataKey="name" stroke="#cbd5e1" fontSize={11} tickLine={false} axisLine={false} /><YAxis allowDecimals={false} stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} /><Tooltip cursor={{ fill: '#334155', opacity: 0.35 }} contentStyle={TOOLTIP_CONTENT_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={{ color: '#bae6fd', fontWeight: 700 }} wrapperStyle={TOOLTIP_WRAPPER_STYLE} formatter={value => `${Number(value).toLocaleString('th-TH')} รายการ`} /><Bar dataKey="value" name="จำนวนแจ้งเหตุ" fill="#38bdf8" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer> : <p className="flex h-full items-center justify-center text-slate-400">ไม่พบข้อมูลตามตัวกรอง</p>}
             </div>
             <ol className="space-y-2 text-sm" aria-label="อันดับพื้นที่แบบข้อความ">{villageData.map((item, index) => <li key={item.name} className="flex justify-between rounded-lg bg-slate-900/60 px-3 py-2"><span>{index + 1}. {item.name}</span><strong>{item.value.toLocaleString('th-TH')} รายการ</strong></li>)}</ol>
           </article>
