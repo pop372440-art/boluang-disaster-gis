@@ -5,6 +5,7 @@ import {
   generateTrackingToken,
   isOpaqueTrackingToken,
   maskTrackingToken,
+  normalizeTrackingToken,
   storageObjectPath,
   toPublicReportStatus,
 } from '../lib/report-status/security.ts';
@@ -15,6 +16,13 @@ test('tracking token contains at least 128 bits and is URL safe', () => {
   assert.equal(isOpaqueTrackingToken(token), true);
   assert.match(token, /^BL_[A-Za-z0-9_-]+$/);
   assert.ok(token.length >= 25);
+});
+
+test('tracking token normalization handles copied QR URLs and invisible whitespace', () => {
+  const token = 'BL_abcdefghijklmnopqrstuvwxyz123456';
+  assert.equal(normalizeTrackingToken(` \u200B${token}\n`), token);
+  assert.equal(normalizeTrackingToken(`https://example.test/status#token=${token}`), token);
+  assert.equal(normalizeTrackingToken(`https://example.test/status?token=${token}`), token);
 });
 
 test('public projection cannot select precise location or reporter fields', () => {
@@ -51,4 +59,3 @@ test('rate limiter blocks requests after the configured allowance', () => {
   assert.equal(takeRateLimit('ip:test', 2, 60_000, 3).allowed, false);
   assert.equal(takeRateLimit('ip:test', 2, 60_000, 60_002).allowed, true);
 });
-

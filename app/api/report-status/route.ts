@@ -62,24 +62,26 @@ async function signedImageUrl(client: any, value: string | null) {
 export async function POST(request: NextRequest) {
   const requestId = randomUUID();
   const ipHash = fingerprint(requestAddress(request));
-  const ipLimit = takeRateLimit(`ip:${ipHash}`, 10, 10 * 60 * 1000);
+  // Municipal and mobile networks commonly share one public IP. Keep abuse protection without
+  // blocking a whole office after a few legitimate lookups.
+  const ipLimit = takeRateLimit(`ip:${ipHash}`, 30, 10 * 60 * 1000);
   if (!ipLimit.allowed) {
     audit({ requestId, ipHash, result: 'rate_limited', scope: 'ip' });
     return json(
-      { ok: false, error: 'ลองค้นหาหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่' },
+      { ok: false, code: 'RATE_LIMITED', error: 'ลองค้นหาหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่', retryAfterSeconds: ipLimit.retryAfterSeconds },
       429,
       { 'Retry-After': String(ipLimit.retryAfterSeconds) },
     );
   }
 
   const contentLength = Number(request.headers.get('content-length') || 0);
-  if (contentLength > 2048) return json({ ok: false, error: 'คำขอไม่ถูกต้อง' }, 413);
+  if (contentLength > 2048) return json({ ok: false, code: 'INVALID_REQUEST', error: 'คำขอไม่ถูกต้อง' }, 413);
 
   let body: { token?: unknown };
   try {
     body = await request.json();
   } catch {
-    return json({ ok: false, error: 'คำขอไม่ถูกต้อง' }, 400);
+    return json({ ok: false, code: 'INVALID_REQUEST', error: 'คำขอไม่ถูกต้อง' }, 400);
   }
 
   const token = normalizeTrackingToken(body.token);
@@ -87,14 +89,19 @@ export async function POST(request: NextRequest) {
   const allowLegacy = process.env.REPORT_STATUS_ALLOW_LEGACY_CODES === 'true';
   if (!isOpaqueTrackingToken(token) && !(allowLegacy && isLegacyTrackingCode(token))) {
     audit({ requestId, ipHash, tokenHash, result: 'invalid_token' });
-    return json({ ok: false, error: 'ไม่พบคำร้อง หรือโทเคนติดตามไม่ถูกต้อง' }, 404);
+    return json({
+      ok: false,
+      code: 'INVALID_TOKEN_FORMAT',
+      error: 'รูปแบบโทเคนไม่ถูกต้อง กรุณาเปิดจาก QR Code หรือคัดลอกโทเคนใหม่ให้ครบทุกตัว',
+      receivedLength: token.length,
+    }, 400);
   }
 
-  const tokenLimit = takeRateLimit(`token:${ipHash}:${tokenHash}`, 4, 2 * 60 * 1000);
+  const tokenLimit = takeRateLimit(`token:${ipHash}:${tokenHash}`, 6, 2 * 60 * 1000);
   if (!tokenLimit.allowed) {
     audit({ requestId, ipHash, tokenHash, result: 'rate_limited', scope: 'token' });
     return json(
-      { ok: false, error: 'ลองค้นหาโทเคนนี้หลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่' },
+      { ok: false, code: 'RATE_LIMITED', error: 'ลองค้นหาโทเคนนี้หลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่', retryAfterSeconds: tokenLimit.retryAfterSeconds },
       429,
       { 'Retry-After': String(tokenLimit.retryAfterSeconds) },
     );
@@ -103,7 +110,7 @@ export async function POST(request: NextRequest) {
   const client = serverClient();
   if (!client) {
     audit({ requestId, ipHash, tokenHash, result: 'configuration_error' });
-    return json({ ok: false, error: 'ระบบติดตามยังไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง' }, 503);
+    return json({ ok: false, code: 'CONFIGURATION_ERROR', error: 'ระบบติดตามยังไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง' }, 503);
   }
 
   const { data, error } = await client
@@ -114,11 +121,11 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     audit({ requestId, ipHash, tokenHash, result: 'database_error', code: error.code });
-    return json({ ok: false, error: 'ระบบติดตามขัดข้องชั่วคราว กรุณาลองใหม่ภายหลัง' }, 503);
+    return json({ ok: false, code: 'DATABASE_ERROR', error: 'ระบบติดตามขัดข้องชั่วคราว กรุณาลองใหม่ภายหลัง' }, 503);
   }
   if (!data) {
     audit({ requestId, ipHash, tokenHash, result: 'not_found' });
-    return json({ ok: false, error: 'ไม่พบคำร้อง หรือโทเคนติดตามไม่ถูกต้อง' }, 404);
+    return json({ ok: false, code: 'NOT_FOUND', error: 'ไม่พบคำร้องที่ตรงกับโทเคนนี้ กรุณาเปิด QR Code จากสลิปฉบับล่าสุด' }, 404);
   }
 
   const [before, after] = await Promise.all([

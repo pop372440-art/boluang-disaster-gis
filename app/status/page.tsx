@@ -4,7 +4,13 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { PublicReportStatus } from '@/lib/report-status/security';
 
-type StatusResponse = { ok: true; report: PublicReportStatus } | { ok: false; error: string };
+type StatusResponse = { ok: true; report: PublicReportStatus } | {
+  ok: false;
+  code?: string;
+  error: string;
+  retryAfterSeconds?: number;
+  receivedLength?: number;
+};
 
 const statusStyle = (status: string) => {
   if (status === 'ดำเนินการเสร็จแล้ว') return 'border-emerald-200 bg-emerald-50 text-emerald-800';
@@ -38,6 +44,12 @@ export default function StatusPage() {
       });
       const payload = await response.json() as StatusResponse;
       if (!response.ok || !payload.ok) {
+        if (!payload.ok && payload.code === 'RATE_LIMITED' && payload.retryAfterSeconds) {
+          throw new Error(`${payload.error} (ประมาณ ${Math.ceil(payload.retryAfterSeconds / 60)} นาที)`);
+        }
+        if (!payload.ok && payload.code === 'INVALID_TOKEN_FORMAT' && typeof payload.receivedLength === 'number') {
+          throw new Error(`${payload.error} ระบบได้รับ ${payload.receivedLength} ตัวอักษร`);
+        }
         throw new Error(payload.ok ? 'ไม่สามารถค้นหาคำร้องได้' : payload.error);
       }
       setReport(payload.report);

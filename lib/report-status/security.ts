@@ -38,7 +38,22 @@ export function generateTrackingToken(randomValues?: Uint8Array): string {
 }
 
 export function normalizeTrackingToken(input: unknown): string {
-  return typeof input === 'string' ? input.trim() : '';
+  if (typeof input !== 'string') return '';
+  const cleaned = input.trim().replace(/[\u200B-\u200D\uFEFF\s]/g, '');
+  if (!cleaned) return '';
+
+  // Accept a copied QR destination as well as the raw token. Fragments stay out of access logs.
+  if (/^https?:\/\//i.test(cleaned)) {
+    try {
+      const url = new URL(cleaned);
+      const fragment = new URLSearchParams(url.hash.replace(/^#/, ''));
+      return (fragment.get('token') || url.searchParams.get('token') || url.searchParams.get('code') || '').trim();
+    } catch {
+      return '';
+    }
+  }
+
+  return cleaned;
 }
 
 export function isOpaqueTrackingToken(token: string): boolean {
