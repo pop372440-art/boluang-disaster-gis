@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import 'leaflet/dist/leaflet.css';
-import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2'; 
 import { useMapEvents } from 'react-leaflet';
 import {
@@ -13,15 +12,6 @@ import {
   parseIncidentAiResult,
   type IncidentAiResult
 } from '@/lib/incident-ai';
-import { generateTrackingToken } from '@/lib/report-status/security';
-
-// 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Supabase Error: Missing environment variables.");
-}
-const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 const SEVERITY_OPTIONS = [
   { level: 1, label: 'เล็กน้อย', help: 'ยังไม่กระทบการใช้ชีวิต' },
@@ -619,7 +609,7 @@ export default function ReportPage() {
       return;
     }
 
-    if (!supabase || !position || !selectedFile) {
+    if (!position || !selectedFile) {
       Swal.fire({ icon: 'error', title: 'ระบบยังไม่พร้อมรับข้อมูล', text: 'กรุณาลองใหม่ภายหลังหรือติดต่อเทศบาลตำบลบ่อหลวง' });
       return;
     }
@@ -627,47 +617,21 @@ export default function ReportPage() {
     setIsSubmitting(true);
 
     try {
-      let imageUrl = null;
-      if (selectedFile) {
-        const fileExt = selectedFile.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-        const filePath = `reports/${fileName}`;
+      const submission = new FormData();
+      submission.set('village_name', formData.village_name);
+      submission.set('risk_type', formData.risk_type);
+      submission.set('severity_level', String(formData.severity_level));
+      submission.set('description', formData.description);
+      submission.set('reporter_name', formData.reporter_name || 'ไม่ระบุชื่อ');
+      submission.set('reporter_role', formData.reporter_role);
+      submission.set('latitude', String(position.lat));
+      submission.set('longitude', String(position.lng));
+      submission.set('image', selectedFile);
 
-        const { error: uploadError } = await supabase.storage
-          .from('disaster_images')
-          .upload(filePath, selectedFile);
-
-        if (uploadError) throw uploadError;
-
-        const { data: publicUrlData } = supabase.storage
-          .from('disaster_images')
-          .getPublicUrl(filePath);
-
-        imageUrl = publicUrlData.publicUrl;
-      }
-
-      // URL-safe bearer token with 192 bits of entropy; unlike the former six-digit code it is not enumerable.
-      const trackingCode = generateTrackingToken();
-
-      const { error: insertError } = await supabase
-        .from('boluang_disaster_reports')
-        .insert([
-          {
-            village_name: formData.village_name,
-            risk_type: formData.risk_type,
-            severity_level: formData.severity_level,
-            description: formData.description,
-            reporter_name: formData.reporter_name || 'ไม่ระบุชื่อ',
-            reporter_role: formData.reporter_role,
-            latitude: position.lat,
-            longitude: position.lng,
-            image_url: imageUrl,
-            tracking_code: trackingCode,
-            status: 'รับเรื่องแล้ว'
-          }
-        ]);
-
-      if (insertError) throw insertError;
+      const response = await fetch('/api/incidents', { method: 'POST', body: submission });
+      const result = await response.json().catch(() => ({})) as { trackingToken?: string; error?: string };
+      if (!response.ok || !result.trackingToken) throw new Error(result.error || 'ส่งข้อมูลไม่สำเร็จ');
+      const trackingCode = result.trackingToken;
 
       // Keep the bearer token in the URL fragment so it never reaches server access logs or Referer headers.
       const statusUrl = `${window.location.origin}/status#token=${encodeURIComponent(trackingCode)}`;
@@ -736,7 +700,7 @@ export default function ReportPage() {
 
     } catch (error: any) {
       console.error('Error:', error.message);
-      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถส่งข้อมูลได้ กรุณาลองใหม่อีกครั้ง' });
+      Swal.fire({ icon: 'error', title: 'ส่งข้อมูลไม่สำเร็จ', text: error.message || 'ไม่สามารถส่งข้อมูลได้ กรุณาลองใหม่อีกครั้ง' });
     } finally {
       setIsSubmitting(false);
     }

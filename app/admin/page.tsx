@@ -1,447 +1,273 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { createClient, type Session } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
+import type { StaffRole } from '@/lib/staff/security';
 
-// 🌟 ตั้งค่า Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
-export default function AdminPanel() {
-  const [session, setSession] = useState<any>(null);
+type StaffSession = { id: string; email: string | null; role: StaffRole; currentAal: string; mfaRequired: true; idleTimeoutMinutes: number };
+type StaffAction = { id: string; action_kind: string; details: string; actor_role: StaffRole; created_at: string; imageUrls: Array<string | null> };
+type StaffReport = {
+  id: string; created_at: string; reporter_name: string | null; reporter_role: string | null;
+  risk_type: string; severity_level: number | null; description: string | null;
+  latitude: number; longitude: number; village_name: string | null; status: string | null;
+  workflow_state: string; resolved_at: string | null; action_taken: string | null;
+  resolved_by: string | null; closure_requested_at: string | null;
+  approved_at: string | null; approval_note: string | null; beforeImageUrl: string | null;
+  resultImageUrl: string | null; resultImageUrl2: string | null; actions: StaffAction[];
+};
+type AuditEvent = { id: number; report_id: string | null; actor_role: StaffRole | null; action: string; ip_hash: string | null; session_hash: string | null; created_at: string };
+type StaffUser = { user_id: string; role: StaffRole; active: boolean; display_name: string | null; email: string | null };
+type PortalTab = 'active' | 'pending_approval' | 'closed' | 'audit' | 'users';
+
+const ROLE_LABELS: Record<StaffRole, string> = { viewer: 'ผู้ดูข้อมูล', operator: 'เจ้าหน้าที่ปฏิบัติ', approver: 'ผู้อนุมัติ', admin: 'ผู้ดูแลระบบ' };
+const ACTION_LABELS: Record<string, string> = {
+  closure_requested: 'ส่งขออนุมัติปิดเหตุ', closure_approved: 'อนุมัติปิดเหตุ',
+  closure_rejected: 'ส่งกลับให้ดำเนินการเพิ่ม', report_updated: 'แก้ไขรายการ',
+  closure_request: 'บันทึกผลและส่งอนุมัติ', closure_approval: 'อนุมัติปิดเหตุ',
+  closure_rejection: 'ส่งกลับให้ดำเนินการเพิ่ม', staff_role_changed: 'แก้ไขสิทธิ์เจ้าหน้าที่',
+};
+
+function canOperate(role: StaffRole) { return ['operator', 'approver', 'admin'].includes(role); }
+function canApprove(role: StaffRole) { return ['approver', 'admin'].includes(role); }
+
+export default function StaffPortal() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [staff, setStaff] = useState<StaffSession | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
-  
-  // State สำหรับ Login
+  const [authError, setAuthError] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-
-  // State สำหรับข้อมูลแจ้งเหตุ & Tabs
-  const [activeTab, setActiveTab] = useState<'pending' | 'resolved'>('pending');
-  const [reports, setReports] = useState<any[]>([]);
-  const [resolvedReports, setResolvedReports] = useState<any[]>([]);
+  const [mfaFactorId, setMfaFactorId] = useState('');
+  const [mfaQr, setMfaQr] = useState('');
+  const [mfaSecret, setMfaSecret] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaMode, setMfaMode] = useState<'loading' | 'enroll' | 'challenge'>('loading');
+  const [mfaBusy, setMfaBusy] = useState(false);
+  const [activeTab, setActiveTab] = useState<PortalTab>('active');
+  const [reports, setReports] = useState<StaffReport[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
+  const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [loadingData, setLoadingData] = useState(false);
 
-  // 🔐 ตรวจสอบการ Login
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoadingAuth(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
+    if (!supabase) { setAuthError('Supabase ยังไม่ได้ตั้งค่า'); setLoadingAuth(false); return; }
+    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setLoadingAuth(false); });
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession));
+    return () => data.subscription.unsubscribe();
   }, []);
 
-  // 📥 ดึงข้อมูลเมื่อ Login สำเร็จ หรือเปลี่ยน Tab
+  const apiFetch = useCallback(async (path: string, init: RequestInit = {}) => {
+    if (!session?.access_token) throw new Error('เซสชันหมดอายุ');
+    const response = await fetch(path, { ...init, headers: { Authorization: `Bearer ${session.access_token}`, ...(init.headers || {}) } });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(payload.error || 'ระบบเจ้าหน้าที่ขัดข้อง') as Error & { code?: string };
+      error.code = payload.code;
+      throw error;
+    }
+    return payload;
+  }, [session?.access_token]);
+
+  const prepareMfa = useCallback(async () => {
+    if (!supabase) return;
+    setMfaMode('loading');
+    const { data, error } = await supabase.auth.mfa.listFactors();
+    if (error) { setAuthError('ไม่สามารถตรวจสอบ MFA ได้'); return; }
+    const verified = data.totp.find(factor => factor.status === 'verified');
+    if (verified) { setMfaFactorId(verified.id); setMfaMode('challenge'); }
+    else setMfaMode('enroll');
+  }, []);
+
   useEffect(() => {
-    if (session) {
-      if (activeTab === 'pending') fetchActiveReports(false);
-      else fetchResolvedReports(false);
+    if (!session) { setStaff(null); return; }
+    let cancelled = false;
+    setLoadingAuth(true);
+    apiFetch('/api/staff/session').then(payload => {
+      if (cancelled) return;
+      setStaff(payload.staff);
+      setAuthError('');
+      if (payload.staff.currentAal !== 'aal2') void prepareMfa();
+    }).catch(error => { if (!cancelled) { setStaff(null); setAuthError(error.message); } }).finally(() => { if (!cancelled) setLoadingAuth(false); });
+    return () => { cancelled = true; };
+  }, [session, apiFetch, prepareMfa]);
 
-      const intervalId = setInterval(() => {
-        if (activeTab === 'pending') fetchActiveReports(true);
-        else fetchResolvedReports(true);
-      }, 15000); 
+  useEffect(() => {
+    if (!staff || staff.currentAal !== 'aal2' || !supabase) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { void supabase.auth.signOut(); }, staff.idleTimeoutMinutes * 60 * 1000);
+    };
+    const events = ['pointerdown', 'keydown', 'scroll'] as const;
+    events.forEach(event => window.addEventListener(event, reset, { passive: true }));
+    reset();
+    return () => { clearTimeout(timer); events.forEach(event => window.removeEventListener(event, reset)); };
+  }, [staff]);
 
-      return () => clearInterval(intervalId);
-    }
-  }, [session, activeTab]);
-
-  const fetchActiveReports = async (isSilent = false) => {
-    if (!isSilent) setLoadingData(true);
+  const loadData = useCallback(async () => {
+    if (!staff || staff.currentAal !== 'aal2') return;
+    setLoadingData(true);
     try {
-      const { data, error } = await supabase
-        .from('boluang_disaster_reports')
-        .select('*')
-        .neq('status', 'ดำเนินการเสร็จแล้ว') 
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      if (data) setReports(data);
+      if (activeTab === 'audit') setAuditEvents((await apiFetch('/api/staff/audit')).events);
+      else if (activeTab === 'users') setStaffUsers((await apiFetch('/api/staff/users')).users);
+      else setReports((await apiFetch(`/api/staff/reports?scope=${activeTab}`)).reports);
     } catch (error) {
-      console.error('Error fetching pending:', error);
-    } finally {
-      if (!isSilent) setLoadingData(false);
-    }
+      Swal.fire({ icon: 'error', title: 'โหลดข้อมูลไม่สำเร็จ', text: error instanceof Error ? error.message : 'กรุณาลองใหม่' });
+    } finally { setLoadingData(false); }
+  }, [activeTab, apiFetch, staff]);
+
+  useEffect(() => { void loadData(); }, [loadData]);
+
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!supabase) return;
+    setIsLoggingIn(true); setAuthError('');
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) setAuthError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+    setIsLoggingIn(false);
   };
 
-  const fetchResolvedReports = async (isSilent = false) => {
-    if (!isSilent) setLoadingData(true);
-    try {
-      const { data, error } = await supabase
-        .from('boluang_disaster_reports')
-        .select('*')
-        .eq('status', 'ดำเนินการเสร็จแล้ว') 
-        .order('resolved_at', { ascending: false });
-
-      if (error) throw error;
-      if (data) setResolvedReports(data);
-    } catch (error) {
-      console.error('Error fetching resolved:', error);
-    } finally {
-      if (!isSilent) setLoadingData(false);
-    }
+  const startMfaEnrollment = async () => {
+    if (!supabase) return;
+    setMfaBusy(true); setAuthError('');
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Bo Luang Staff Portal' });
+    if (error) setAuthError('เริ่มตั้งค่า MFA ไม่สำเร็จ');
+    else { setMfaFactorId(data.id); setMfaQr(data.totp.qr_code); setMfaSecret(data.totp.secret); }
+    setMfaBusy(false);
   };
 
-  const handleLogin = async (e: any) => {
-    e.preventDefault();
-    setIsLoggingIn(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      Swal.fire({ icon: 'success', title: 'เข้าสู่ระบบสำเร็จ', timer: 1500, showConfirmButton: false });
-    } catch (error: any) {
-      Swal.fire({ icon: 'error', title: 'เข้าสู่ระบบล้มเหลว', text: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
-    } finally {
-      setIsLoggingIn(false);
-    }
+  const verifyMfa = async () => {
+    if (!supabase || !mfaFactorId || !/^\d{6}$/.test(mfaCode)) { setAuthError('กรุณากรอกรหัส 6 หลักจากแอป Authenticator'); return; }
+    setMfaBusy(true); setAuthError('');
+    const challenge = await supabase.auth.mfa.challenge({ factorId: mfaFactorId });
+    if (challenge.error) { setAuthError('สร้างคำขอ MFA ไม่สำเร็จ'); setMfaBusy(false); return; }
+    const verify = await supabase.auth.mfa.verify({ factorId: mfaFactorId, challengeId: challenge.data.id, code: mfaCode });
+    if (verify.error) { setAuthError('รหัสไม่ถูกต้องหรือหมดอายุ'); setMfaBusy(false); return; }
+    const refreshed = await supabase.auth.refreshSession();
+    if (refreshed.data.session) setSession(refreshed.data.session);
+    setMfaBusy(false);
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
-
-  const handleViewImage = (imageUrl: string) => {
-    Swal.fire({
-      imageUrl: imageUrl,
-      imageAlt: 'ภาพแจ้งเหตุ',
-      showConfirmButton: false,
-      showCloseButton: true,
-      width: 'auto',
-      padding: '1em',
-      background: '#1e293b', 
-      backdrop: 'rgba(0,0,0,0.85)',
-      customClass: {
-        popup: 'border border-gray-700 rounded-2xl shadow-2xl',
-        image: 'rounded-lg max-h-[80vh] object-contain'
-      }
-    });
-  };
-
-  const uploadImage = async (file: File) => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `resolved-${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const filePath = `reports/${fileName}`;
-    const { error } = await supabase.storage.from('disaster_images').upload(filePath, file);
-    if (error) throw error;
-    const { data } = supabase.storage.from('disaster_images').getPublicUrl(filePath);
-    return data.publicUrl;
-  };
-
-  const handleCloseJob = async (reportId: string, currentRiskType: string) => {
-    const { value: formValues } = await Swal.fire({
-      title: '📝 บันทึกการปฏิบัติงาน',
-      html: `
-        <div class="text-left mb-2 text-sm text-gray-700">ระบุรายละเอียดการแก้ไขปัญหา <b>${currentRiskType}</b></div>
-        <textarea id="swal-input-text" class="swal2-textarea" placeholder="เช่น นำรถแบคโฮเข้าเคลียร์พื้นที่เรียบร้อย..." style="margin: 0 auto 15px auto; width: 100%; font-size: 14px;"></textarea>
-        
-        <div class="text-left mb-2 text-sm font-bold text-gray-700">📷 ภาพที่ 1 (ผลการปฏิบัติงาน)</div>
-        <input type="file" id="swal-input-file-1" class="swal2-file" accept="image/*" style="display: flex; width: 100%; font-size: 14px; margin: 0 auto 15px auto;">
-
-        <div class="text-left mb-2 text-sm font-bold text-gray-700">📷 ภาพที่ 2 (มุมมองอื่น - ถ้ามี)</div>
-        <input type="file" id="swal-input-file-2" class="swal2-file" accept="image/*" style="display: flex; width: 100%; font-size: 14px; margin: 0 auto;">
-      `,
-      showCancelButton: true,
-      confirmButtonColor: '#10b981',
-      cancelButtonColor: '#ef4444',
-      confirmButtonText: 'บันทึกและปิดงาน',
-      cancelButtonText: 'ยกเลิก',
+  const submitAction = async (report: StaffReport) => {
+    const result = await Swal.fire({
+      title: 'บันทึกผลและส่งขออนุมัติปิดเหตุ',
+      html: '<textarea id="action-details" class="swal2-textarea" placeholder="รายละเอียดการดำเนินงาน"></textarea><input id="action-image-1" type="file" accept="image/jpeg,image/png,image/webp" class="swal2-file"><input id="action-image-2" type="file" accept="image/jpeg,image/png,image/webp" class="swal2-file">',
+      showCancelButton: true, confirmButtonText: 'บันทึกและส่งอนุมัติ', cancelButtonText: 'ยกเลิก',
       preConfirm: () => {
-        const text = (document.getElementById('swal-input-text') as HTMLTextAreaElement).value;
-        const file1 = (document.getElementById('swal-input-file-1') as HTMLInputElement).files?.[0] || null;
-        const file2 = (document.getElementById('swal-input-file-2') as HTMLInputElement).files?.[0] || null;
-
-        if (!text) {
-          Swal.showValidationMessage('กรุณาระบุรายละเอียดการดำเนินการครับ!');
-          return false;
-        }
-        return { text, file1, file2 };
-      }
+        const details = (document.getElementById('action-details') as HTMLTextAreaElement)?.value.trim();
+        if (!details || details.length < 3) { Swal.showValidationMessage('กรุณาระบุรายละเอียดอย่างน้อย 3 ตัวอักษร'); return false; }
+        return {
+          details,
+          image1: (document.getElementById('action-image-1') as HTMLInputElement)?.files?.[0],
+          image2: (document.getElementById('action-image-2') as HTMLInputElement)?.files?.[0],
+        };
+      },
     });
-
-    if (formValues) {
-      const { text: actionText, file1, file2 } = formValues;
-
-      try {
-        Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-        let url1 = null;
-        let url2 = null;
-
-        if (file1) url1 = await uploadImage(file1);
-        if (file2) url2 = await uploadImage(file2);
-
-        const now = new Date().toISOString();
-        const userEmail = session?.user?.email;
-
-        const { error } = await supabase
-          .from('boluang_disaster_reports')
-          .update({ 
-            status: 'ดำเนินการเสร็จแล้ว',
-            action_taken: actionText,
-            resolved_image_url: url1, 
-            resolved_image_url_2: url2,
-            resolved_at: now,
-            resolved_by: userEmail
-          })
-          .eq('id', reportId);
-
-        if (error) throw error;
-
-        Swal.fire({ icon: 'success', title: 'ปิดงานสำเร็จ!', text: 'ข้อมูลถูกบันทึกและย้ายไปที่ประวัติการแก้ไขแล้ว', confirmButtonColor: '#10b981' });
-        
-        fetchActiveReports(false); 
-        
-      } catch (error) {
-        console.error(error);
-        Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถบันทึกข้อมูลได้' });
-      }
-    }
+    if (!result.value) return;
+    const form = new FormData(); form.set('details', result.value.details);
+    if (result.value.image1) form.set('image1', result.value.image1);
+    if (result.value.image2) form.set('image2', result.value.image2);
+    try {
+      await apiFetch(`/api/staff/reports/${report.id}/action`, { method: 'POST', body: form });
+      await Swal.fire({ icon: 'success', title: 'ส่งให้ผู้อนุมัติแล้ว', text: 'รายการยังไม่ถูกปิดจนกว่าผู้มีสิทธิ์จะอนุมัติ' });
+      void loadData();
+    } catch (error) { Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: error instanceof Error ? error.message : 'กรุณาลองใหม่' }); }
   };
 
-  if (loadingAuth) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white font-sans">กำลังตรวจสอบสิทธิ์...</div>;
-  }
+  const decideClosure = async (report: StaffReport, decision: 'approve' | 'reject') => {
+    const result = await Swal.fire({
+      icon: decision === 'approve' ? 'question' : 'warning',
+      title: decision === 'approve' ? 'ยืนยันอนุมัติปิดเหตุ' : 'ส่งกลับให้ดำเนินการเพิ่ม',
+      input: 'textarea', inputLabel: 'หมายเหตุการพิจารณา', inputPlaceholder: 'ระบุเหตุผลหรือข้อสั่งการ...',
+      showCancelButton: true, confirmButtonText: decision === 'approve' ? 'อนุมัติปิดเหตุ' : 'ส่งกลับ', cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: decision === 'approve' ? '#059669' : '#d97706',
+    });
+    if (!result.isConfirmed) return;
+    try {
+      await apiFetch(`/api/staff/reports/${report.id}/approval`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, note: result.value || '' }) });
+      await Swal.fire({ icon: 'success', title: decision === 'approve' ? 'ปิดเหตุแล้ว' : 'ส่งกลับแล้ว' });
+      void loadData();
+    } catch (error) { Swal.fire({ icon: 'error', title: 'ดำเนินการไม่สำเร็จ', text: error instanceof Error ? error.message : 'กรุณาลองใหม่' }); }
+  };
 
-  // ==========================================
-  // 1. หน้า Login (สถานะตอนออกจากระบบแล้ว)
-  // ==========================================
-  if (!session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0f172a] font-sans">
-        <div className="bg-[#1e293b] p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
-              <span className="text-2xl">🛡️</span>
-            </div>
-            <h1 className="text-2xl font-bold text-white">ระบบจัดการหลังบ้าน</h1>
-            <p className="text-sm text-gray-400 mt-1">ศูนย์บัญชาการสาธารณภัย ต.บ่อหลวง</p>
-          </div>
+  const updateStaffRole = async (user: StaffUser, role: StaffRole, active: boolean) => {
+    try {
+      await apiFetch('/api/staff/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.user_id, role, active }) });
+      void loadData();
+    } catch (error) { Swal.fire({ icon: 'error', title: 'แก้ไขสิทธิ์ไม่สำเร็จ', text: error instanceof Error ? error.message : 'กรุณาลองใหม่' }); }
+  };
 
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">อีเมลเจ้าหน้าที่</label>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-[#0b132b] border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="admin@boluang.go.th" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">รหัสผ่าน</label>
-              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-[#0b132b] border border-gray-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="••••••••" />
-            </div>
-            
-            <div className="pt-2 space-y-3">
-              <button type="submit" disabled={isLoggingIn} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-lg">
-                {isLoggingIn ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
-              </button>
-              
-              {/* 🌟 1. ปุ่มกลับหน้าหลัก (สำหรับหน้าฟอร์ม Login) */}
-              <button 
-                type="button" 
-                onClick={() => window.location.href = '/'}
-                className="w-full flex items-center justify-center space-x-2 bg-[#1e293b] hover:bg-[#334155] border border-gray-600 text-gray-300 font-bold py-3 px-4 rounded-lg transition-colors shadow-sm"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                <span>กลับสู่หน้าเว็บหลัก</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
+  const visibleTabs = useMemo(() => {
+    const tabs: Array<{ id: PortalTab; label: string }> = [
+      { id: 'active', label: 'กำลังดำเนินการ' }, { id: 'pending_approval', label: 'รออนุมัติ' }, { id: 'closed', label: 'ปิดเหตุแล้ว' },
+    ];
+    if (staff?.role === 'admin') tabs.push({ id: 'audit', label: 'Audit Log' }, { id: 'users', label: 'สิทธิ์เจ้าหน้าที่' });
+    return tabs;
+  }, [staff?.role]);
 
-  // ==========================================
-  // 2. หน้า Dashboard (สถานะตอนล็อกอินแล้ว)
-  // ==========================================
+  if (loadingAuth) return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-200">กำลังตรวจสอบสิทธิ์...</div>;
+
+  if (!session) return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4 text-white">
+      <form onSubmit={handleLogin} className="w-full max-w-md space-y-5 rounded-2xl border border-slate-700 bg-slate-900 p-7 shadow-2xl">
+        <div><p className="text-xs font-bold uppercase tracking-[0.2em] text-sky-400">Staff Portal</p><h1 className="mt-2 text-2xl font-black">ระบบปฏิบัติการเจ้าหน้าที่</h1><p className="mt-1 text-sm text-slate-400">เข้าสู่ระบบด้วยบัญชีที่เทศบาลอนุมัติเท่านั้น</p></div>
+        {authError ? <p role="alert" className="rounded-lg border border-rose-800 bg-rose-950/50 p-3 text-sm text-rose-200">{authError}</p> : null}
+        <label className="block text-sm font-bold text-slate-300">อีเมล<input type="email" required autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-3 text-white" /></label>
+        <label className="block text-sm font-bold text-slate-300">รหัสผ่าน<input type="password" required autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-3 text-white" /></label>
+        <button disabled={isLoggingIn} className="w-full rounded-xl bg-sky-600 px-4 py-3 font-bold hover:bg-sky-500 disabled:opacity-60">{isLoggingIn ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}</button>
+        <Link href="/" className="block text-center text-sm text-slate-400 hover:text-white">← กลับหน้าหลัก</Link>
+      </form>
+    </div>
+  );
+
+  if (!staff) return <AccessMessage message={authError || 'บัญชีนี้ไม่ได้รับสิทธิ์ใช้งาน'} onLogout={() => supabase?.auth.signOut()} />;
+
+  if (staff.currentAal !== 'aal2') return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4 text-white">
+      <section className="w-full max-w-lg rounded-2xl border border-amber-700/60 bg-slate-900 p-7 shadow-2xl" aria-labelledby="mfa-title">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-400">บังคับใช้ MFA</p><h1 id="mfa-title" className="mt-2 text-2xl font-black">ยืนยันตัวตนสองขั้นตอน</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-300">Staff Portal ต้องใช้ระดับความมั่นใจ AAL2 ก่อนเปิดข้อมูลคำร้องหรือแก้ไขสถานะ</p>
+        {authError ? <p role="alert" className="mt-4 rounded-lg border border-rose-800 bg-rose-950/50 p-3 text-sm text-rose-200">{authError}</p> : null}
+        {mfaMode === 'loading' ? <p className="mt-6 text-slate-400">กำลังตรวจสอบอุปกรณ์ MFA...</p> : null}
+        {mfaMode === 'enroll' && !mfaQr ? <button onClick={startMfaEnrollment} disabled={mfaBusy} className="mt-6 w-full rounded-xl bg-amber-600 px-4 py-3 font-bold hover:bg-amber-500">ตั้งค่าด้วยแอป Authenticator</button> : null}
+        {mfaQr ? <div className="mt-5 rounded-xl bg-white p-4 text-center"><img src={mfaQr} alt="QR Code สำหรับตั้งค่า MFA" className="mx-auto h-52 w-52" /><p className="mt-2 break-all font-mono text-xs text-slate-700">Secret: {mfaSecret}</p></div> : null}
+        {(mfaMode === 'challenge' || mfaQr) ? <div className="mt-5 space-y-3"><label className="block text-sm font-bold text-slate-300">รหัสจาก Authenticator<input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={mfaCode} onChange={event => setMfaCode(event.target.value.replace(/\D/g, ''))} className="mt-2 w-full rounded-xl border border-slate-600 bg-slate-950 px-4 py-3 text-center font-mono text-2xl tracking-[0.4em]" /></label><button onClick={verifyMfa} disabled={mfaBusy} className="w-full rounded-xl bg-emerald-600 px-4 py-3 font-bold hover:bg-emerald-500">ยืนยันรหัส 6 หลัก</button></div> : null}
+        <button onClick={() => supabase?.auth.signOut()} className="mt-4 w-full text-sm text-slate-400 hover:text-white">ออกจากระบบ</button>
+      </section>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-[#0f172a] text-white font-sans">
-      <header className="bg-[#1e293b] border-b border-gray-700 px-6 py-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
-        
-        {/* 🌟 2.1 โลโก้คลิกเพื่อกลับหน้าหลักได้ */}
-        <div 
-          onClick={() => window.location.href = '/'} 
-          className="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition-opacity"
-          title="คลิกเพื่อกลับหน้าหลัก"
-        >
-          <span className="text-2xl">🚨</span>
-          <div>
-            <h1 className="text-lg font-bold text-white leading-tight">Admin Command Center</h1>
-            <p className="text-xs text-blue-400">ระบบจัดการคำร้องสาธารณภัย ต.บ่อหลวง</p>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-3 sm:space-x-4">
-          <div className="text-right hidden lg:block">
-            <p className="text-sm font-medium text-gray-200">เข้าสู่ระบบโดย:</p>
-            <p className="text-xs text-green-400 font-mono">{session.user.email}</p>
-          </div>
-          
-          {/* 🌟 2.2 ปุ่มกลับหน้าหลักตรง Header (ข้างปุ่มออกจากระบบ) */}
-          <button 
-            onClick={() => window.location.href = '/'} 
-            className="hidden sm:flex items-center space-x-1.5 bg-gray-700/50 hover:bg-gray-600 text-gray-200 border border-gray-600 px-4 py-2 rounded-lg text-sm font-bold transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-            <span>หน้าหลัก</span>
-          </button>
-
-          <button onClick={handleLogout} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/50 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
-            ออกจากระบบ
-          </button>
-        </div>
+    <div className="min-h-screen bg-slate-950 text-white">
+      <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-900/95 px-4 py-4 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-black">Staff Portal</h1><p className="text-xs text-slate-400">{staff.email} · {ROLE_LABELS[staff.role]} · MFA AAL2</p></div><div className="flex gap-2"><Link href="/" className="rounded-lg border border-slate-600 px-3 py-2 text-sm">หน้าหลัก</Link><button onClick={() => supabase?.auth.signOut()} className="rounded-lg border border-rose-700 px-3 py-2 text-sm text-rose-300">ออกจากระบบ</button></div></div>
       </header>
-
-      <main className="p-6 max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 space-y-4 md:space-y-0">
-          <div>
-            <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
-              <span>{activeTab === 'pending' ? 'รายการแจ้งเหตุที่ต้องดำเนินการ' : 'ประวัติการแก้ไขปัญหา'}</span>
-              <span className="relative flex h-2.5 w-2.5 ml-2 mt-1">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
-            </h2>
-            <p className="text-gray-400 mt-1 text-sm">อัปเดตข้อมูลอัตโนมัติทุก 15 วินาที</p>
-          </div>
-          
-          <div className="flex space-x-2">
-            <div className="flex bg-gray-800 p-1 rounded-lg border border-gray-700">
-              <button 
-                onClick={() => setActiveTab('pending')}
-                className={`px-4 py-2 rounded-md text-sm font-bold transition-colors ${activeTab === 'pending' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
-              >
-                🚨 รอดำเนินการ
-              </button>
-              <button 
-                onClick={() => setActiveTab('resolved')}
-                className={`px-4 py-2 rounded-md text-sm font-bold transition-colors ${activeTab === 'resolved' ? 'bg-emerald-600 text-white shadow' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
-              >
-                ✅ ปิดงานแล้ว
-              </button>
-            </div>
-            
-            <button onClick={() => activeTab === 'pending' ? fetchActiveReports(false) : fetchResolvedReports(false)} className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg text-sm flex items-center space-x-2 border border-gray-700 transition-colors">
-              <span>🔄</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-[#1e293b] rounded-xl border border-gray-700 overflow-hidden shadow-2xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-800/50 border-b border-gray-700 text-sm font-semibold text-gray-300">
-                  <th className="p-4 w-48">{activeTab === 'pending' ? 'วันเวลาที่แจ้ง' : 'วันเวลาที่ปิดงาน'}</th>
-                  <th className="p-4 w-56">ประเภทภัย / พื้นที่</th>
-                  {activeTab === 'pending' && <th className="p-4 text-center">ระดับ</th>}
-                  <th className="p-4">{activeTab === 'pending' ? 'รายละเอียดผู้แจ้ง' : 'ผลการดำเนินการ'}</th>
-                  {activeTab === 'resolved' && <th className="p-4">ผู้ดำเนินการ</th>}
-                  {activeTab === 'pending' && <th className="p-4 text-right">การจัดการ</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-700">
-                {loadingData ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-gray-500">กำลังโหลดข้อมูล...</td></tr>
-                ) : (activeTab === 'pending' ? reports : resolvedReports).length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-gray-400 text-lg">
-                    {activeTab === 'pending' ? '✨ ยอดเยี่ยม! ขณะนี้ไม่มีเหตุการณ์ที่ต้องดำเนินการ' : 'ยังไม่มีประวัติการปิดงาน'}
-                  </td></tr>
-                ) : (
-                  (activeTab === 'pending' ? reports : resolvedReports).map((report) => (
-                    <tr key={report.id} className="hover:bg-gray-800/30 transition-colors">
-                      
-                      <td className="p-4 text-sm font-mono text-gray-300 align-top">
-                        {new Date(activeTab === 'pending' ? report.created_at : report.resolved_at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })} น.
-                      </td>
-                      
-                      <td className="p-4 align-top">
-                        <div className="font-bold text-white">{report.risk_type}</div>
-                        <div className="text-sm text-blue-400 mt-0.5 flex items-center">
-                          📍 {report.village_name}
-                        </div>
-                      </td>
-
-                      {activeTab === 'pending' && (
-                        <td className="p-4 text-center align-top">
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${report.severity_level >= 4 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : report.severity_level === 3 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'}`}>
-                            ระดับ {report.severity_level}
-                          </span>
-                        </td>
-                      )}
-                      
-                      <td className="p-4 align-top">
-                        {activeTab === 'pending' ? (
-                          <div className="flex items-start space-x-3">
-                            {report.image_url && (
-                              <div className="flex-shrink-0 cursor-pointer relative group" onClick={() => handleViewImage(report.image_url)}>
-                                <img src={report.image_url} alt="รูปแจ้งเหตุ" className="w-16 h-16 object-cover rounded-lg border border-gray-600 group-hover:border-blue-400 transition-colors" />
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"><span className="text-white text-xs drop-shadow-md">🔍</span></div>
-                              </div>
-                            )}
-                            <div>
-                              <div className="text-sm text-gray-200 line-clamp-2 max-w-sm cursor-help" title={report.description}>{report.description}</div>
-                              <div className="text-xs text-gray-500 mt-1">👤 {report.reporter_name} ({report.reporter_role})</div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col space-y-2">
-                            <div className="flex space-x-2">
-                              {report.resolved_image_url && (
-                                <div className="flex-shrink-0 cursor-pointer relative group" onClick={() => handleViewImage(report.resolved_image_url)}>
-                                  <img src={report.resolved_image_url} alt="รูปผลการแก้ไข 1" className="w-16 h-16 object-cover rounded-lg border border-emerald-600 group-hover:border-emerald-400 transition-colors" />
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"><span className="text-white text-xs drop-shadow-md">🔍</span></div>
-                                </div>
-                              )}
-                              {report.resolved_image_url_2 && (
-                                <div className="flex-shrink-0 cursor-pointer relative group" onClick={() => handleViewImage(report.resolved_image_url_2)}>
-                                  <img src={report.resolved_image_url_2} alt="รูปผลการแก้ไข 2" className="w-16 h-16 object-cover rounded-lg border border-emerald-600 group-hover:border-emerald-400 transition-colors" />
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center"><span className="text-white text-xs drop-shadow-md">🔍</span></div>
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <div className="text-sm text-emerald-300 font-medium whitespace-pre-line">{report.action_taken || 'ไม่มีรายละเอียดเพิ่มเติม'}</div>
-                              <div className="text-[11px] text-gray-500 mt-2">อ้างอิง: {report.tracking_code}</div>
-                            </div>
-                          </div>
-                        )}
-                      </td>
-
-                      {activeTab === 'resolved' && (
-                        <td className="p-4 align-top">
-                          <div className="text-sm text-gray-300 break-all">{report.resolved_by || '-'}</div>
-                        </td>
-                      )}
-
-                      {activeTab === 'pending' && (
-                        <td className="p-4 align-top text-right">
-                          <div className="flex items-center justify-end space-x-2">
-                            <a href={`https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`} target="_blank" rel="noopener noreferrer" title="เปิดพิกัดใน Google Maps" className="w-8 h-8 bg-[#0f172a] hover:bg-[#1e293b] border border-[#38bdf8] text-[#38bdf8] rounded-lg flex items-center justify-center transition-all shadow-sm group">
-                              <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                            </a>
-                            <a href={`https://www.google.com/maps/dir/?api=1&destination=${report.latitude},${report.longitude}`} target="_blank" rel="noopener noreferrer" title="นำทางไปยังจุดเกิดเหตุ" className="w-8 h-8 bg-[#0f172a] hover:bg-[#1e293b] border border-[#2dd4bf] text-[#2dd4bf] rounded-lg flex items-center justify-center transition-all shadow-sm group">
-                              <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
-                            </a>
-                            <button onClick={() => handleCloseJob(report.id, report.risk_type)} title="บันทึกและปิดงาน" className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/50 hover:border-emerald-500 px-3 py-1.5 rounded-lg text-[13px] font-bold transition-all shadow-[0_0_10px_rgba(16,185,129,0.1)] hover:shadow-[0_0_15px_rgba(16,185,129,0.4)] whitespace-nowrap flex items-center space-x-1">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                              <span>ปิดจ๊อบ</span>
-                            </button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
+        <div className="rounded-xl border border-sky-800/60 bg-sky-950/30 p-4 text-xs leading-5 text-sky-100">Session policy: ออกจากระบบอัตโนมัติเมื่อไม่มีการใช้งาน {staff.idleTimeoutMinutes} นาที · ทุก API ตรวจ MFA AAL2 และ Role ซ้ำฝั่ง server · รูปภาพใช้ signed URL อายุ 5 นาที</div>
+        <nav className="flex flex-wrap gap-2" aria-label="เมนู Staff Portal">{visibleTabs.map(tab => <button key={tab.id} onClick={() => setActiveTab(tab.id)} aria-pressed={activeTab === tab.id} className={`rounded-xl px-4 py-2.5 text-sm font-bold ${activeTab === tab.id ? 'bg-sky-600 text-white' : 'border border-slate-700 bg-slate-900 text-slate-300'}`}>{tab.label}</button>)}<button onClick={() => void loadData()} className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm">รีเฟรช</button></nav>
+        {loadingData ? <p role="status" className="py-12 text-center text-slate-400">กำลังโหลดข้อมูล...</p> : null}
+        {!loadingData && activeTab === 'audit' ? <AuditTable events={auditEvents} /> : null}
+        {!loadingData && activeTab === 'users' ? <UsersTable users={staffUsers} currentUserId={staff.id} onChange={updateStaffRole} /> : null}
+        {!loadingData && !['audit', 'users'].includes(activeTab) ? <section className="space-y-4" aria-label="รายการแจ้งเหตุ">{reports.length ? reports.map(report => <ReportCard key={report.id} report={report} role={staff.role} onAction={submitAction} onDecision={decideClosure} />) : <p className="rounded-2xl border border-slate-800 bg-slate-900 p-10 text-center text-slate-400">ไม่พบรายการในสถานะนี้</p>}</section> : null}
       </main>
     </div>
   );
 }
+
+function AccessMessage({ message, onLogout }: { message: string; onLogout: () => void }) { return <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4 text-white"><div className="max-w-md rounded-2xl border border-rose-800 bg-slate-900 p-7 text-center"><h1 className="text-xl font-black">ไม่สามารถเข้า Staff Portal</h1><p className="mt-3 text-sm text-rose-200">{message}</p><button onClick={onLogout} className="mt-5 rounded-xl bg-slate-700 px-4 py-2 font-bold">ออกจากระบบ</button></div></div>; }
+
+function ReportCard({ report, role, onAction, onDecision }: { report: StaffReport; role: StaffRole; onAction: (report: StaffReport) => void; onDecision: (report: StaffReport, decision: 'approve' | 'reject') => void }) {
+  const images = [report.beforeImageUrl, report.resultImageUrl, report.resultImageUrl2].filter((value): value is string => Boolean(value));
+  return <article className="rounded-2xl border border-slate-700 bg-slate-900 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-slate-500">{new Date(report.created_at).toLocaleString('th-TH')} · {report.village_name}</p><h2 className="mt-1 text-lg font-extrabold">{report.risk_type}</h2><p className="mt-1 text-sm text-slate-300">ระดับ {report.severity_level ?? '-'} · {report.status}</p></div><span className="rounded-full border border-sky-700 bg-sky-950 px-3 py-1 text-xs font-bold text-sky-200">{report.workflow_state}</span></div><p className="mt-4 rounded-xl bg-slate-950 p-4 text-sm leading-6 text-slate-200">{report.description || 'ไม่มีรายละเอียด'}</p><p className="mt-3 text-xs text-slate-400">ผู้แจ้ง: {report.reporter_name || 'ไม่ระบุ'} ({report.reporter_role || '-'}) · <a className="text-sky-300 underline" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`}>เปิดพิกัด</a></p>{images.length ? <div className="mt-4 flex flex-wrap gap-2">{images.map((src, index) => <a key={src} href={src} target="_blank" rel="noreferrer"><img src={src} alt={`ภาพประกอบ ${index + 1}`} className="h-24 w-24 rounded-lg border border-slate-600 object-cover" /></a>)}</div> : null}{report.actions?.length ? <div className="mt-4 border-t border-slate-700 pt-4"><h3 className="text-sm font-bold">ลำดับการดำเนินงาน</h3><ul className="mt-2 space-y-2">{report.actions.map(action => <li key={action.id} className="rounded-lg bg-slate-950 p-3 text-xs leading-5 text-slate-300"><strong>{ACTION_LABELS[action.action_kind] || action.action_kind}</strong> · {ROLE_LABELS[action.actor_role]} · {new Date(action.created_at).toLocaleString('th-TH')}<br />{action.details}</li>)}</ul></div> : null}<div className="mt-5 flex flex-wrap gap-2">{canOperate(role) && report.workflow_state !== 'closed' && report.workflow_state !== 'pending_approval' ? <button onClick={() => onAction(report)} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold">บันทึกผลและส่งอนุมัติ</button> : null}{canApprove(role) && report.workflow_state === 'pending_approval' ? <><button onClick={() => onDecision(report, 'approve')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold">อนุมัติปิดเหตุ</button><button onClick={() => onDecision(report, 'reject')} className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold">ส่งกลับ</button></> : null}{role === 'viewer' ? <span className="text-xs text-slate-500">สิทธิ์ดูข้อมูลเท่านั้น</span> : null}</div></article>;
+}
+
+function AuditTable({ events }: { events: AuditEvent[] }) { return <div className="overflow-x-auto rounded-2xl border border-slate-700"><table className="min-w-full divide-y divide-slate-700 text-left text-sm"><thead className="bg-slate-900"><tr><th className="p-3">เวลา</th><th className="p-3">เหตุการณ์</th><th className="p-3">Role</th><th className="p-3">Report</th><th className="p-3">IP/Session fingerprint</th></tr></thead><tbody className="divide-y divide-slate-800 bg-slate-950">{events.map(event => <tr key={event.id}><td className="p-3">{new Date(event.created_at).toLocaleString('th-TH')}</td><td className="p-3">{ACTION_LABELS[event.action] || event.action}</td><td className="p-3">{event.actor_role ? ROLE_LABELS[event.actor_role] : '-'}</td><td className="p-3 font-mono text-xs">{event.report_id}</td><td className="p-3 font-mono text-xs">{event.ip_hash || '-'} / {event.session_hash || '-'}</td></tr>)}</tbody></table></div>; }
+
+function UsersTable({ users, currentUserId, onChange }: { users: StaffUser[]; currentUserId: string; onChange: (user: StaffUser, role: StaffRole, active: boolean) => void }) { return <div className="overflow-x-auto rounded-2xl border border-slate-700"><table className="min-w-full divide-y divide-slate-700 text-left text-sm"><thead className="bg-slate-900"><tr><th className="p-3">บัญชี</th><th className="p-3">Role</th><th className="p-3">สถานะ</th></tr></thead><tbody className="divide-y divide-slate-800 bg-slate-950">{users.map(user => <tr key={user.user_id}><td className="p-3">{user.email || user.display_name || user.user_id}{user.user_id === currentUserId ? ' (คุณ)' : ''}</td><td className="p-3"><select disabled={user.user_id === currentUserId} value={user.role} onChange={event => onChange(user, event.target.value as StaffRole, user.active)} className="rounded-lg border border-slate-600 bg-slate-900 p-2">{Object.entries(ROLE_LABELS).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></td><td className="p-3"><label className="flex items-center gap-2"><input type="checkbox" disabled={user.user_id === currentUserId} checked={user.active} onChange={event => onChange(user, user.role, event.target.checked)} /> เปิดใช้งาน</label></td></tr>)}</tbody></table></div>; }
