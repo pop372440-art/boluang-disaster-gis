@@ -42,7 +42,7 @@ riskIndex = rain3h × soilFactor × terrainFactor
 - ระดับความสอดคล้องของแบบจำลองใช้ค่าความต่างเริ่มต้น `≤2`, `≤5`, และ `>5` มม. ซึ่งอยู่ใน config และยังต้องสอบเทียบกับมาตรวัดฝน/เหตุการณ์จริง
 - ข้อมูล MET Norway ต้องให้เครดิตตามใบอนุญาตของผู้ให้บริการ ระบบไม่ใช้ชื่อ โลโก้ หรือรูปแบบหน้าตาของ Yr เพื่อทำให้เข้าใจว่าเป็นบริการอย่างเป็นทางการของ Yr, NRK หรือ MET Norway
 - ถ้า RainViewer `nowcast` ว่าง ระบบจะไม่ติดป้าย observed frame ว่า nowcast
-- Supabase client ใช้เฉพาะ anon key; ห้ามใส่ service-role key ใน client bundle และต้องตรวจ RLS ใน dashboard/database แยกต่างหาก
+- Supabase client ฝั่ง browser ใช้เฉพาะ anon/publishable key; ห้ามใส่ secret หรือ service-role key ใน client bundle และต้องตรวจ RLS ใน dashboard/database แยกต่างหาก
 - Alert ต้องผ่านเกณฑ์ 2 รอบก่อนยกระดับ ใช้ hysteresis ตอนลดระดับ และ notification จริงอยู่ในสถานะรอเจ้าหน้าที่อนุมัติ
 - ไม่มี dataset พื้นที่น้ำท่วมซ้ำซากใน repository จึงแสดง layer เป็น unavailable โดยไม่สร้างข้อมูลจำลอง
 - `boluang_landslide_risk.json` เป็น polygon hazard zones ไม่ใช่จุดสำรวจภาคสนาม
@@ -52,6 +52,8 @@ riskIndex = rain3h × soilFactor × terrainFactor
 กำหนด `MET_NORWAY_USER_AGENT` ใน Vercel ได้เพื่อระบุชื่อแอปและช่องทางติดต่อของผู้ดูแลให้ชัดเจนขึ้น หากไม่กำหนด ระบบจะใช้ชื่อโครงการและ URL ของ repository โดยอัตโนมัติ
 
 ระบบวิเคราะห์ภาพในแบบฟอร์มแจ้งเหตุใช้ Gemini เป็นผู้ให้บริการหลัก และรองรับ Groq Vision เป็นระบบสำรองเมื่อ Gemini ถูกจำกัดอัตราการใช้งาน หมดเวลา หรือขัดข้อง กำหนด `GROQ_API_KEY` เป็น server-only environment variable ใน Vercel สำหรับ Preview และ Production โดยไม่ใช้คำนำหน้า `NEXT_PUBLIC_` สามารถกำหนด `GROQ_VISION_MODEL` เพิ่มเติมได้; ค่าเริ่มต้นคือ `qwen/qwen3.8-27b` หากไม่กำหนดคีย์ ระบบยังทำงานด้วย Gemini ตามเดิม
+
+หน้า `/status` อ่านข้อมูลผ่าน `POST /api/report-status` เท่านั้น API ต้องมี `SUPABASE_SECRET_KEY` (แนะนำ) หรือ `SUPABASE_SERVICE_ROLE_KEY` เป็น server-only environment variable ใน Preview และ Production และควรกำหนด `REPORT_STATUS_AUDIT_PEPPER` แยกต่อ environment สำหรับทำ fingerprint ใน audit log โดยไม่บันทึก IP หรือโทเคนจริง รหัส `BL-123456` แบบเดิมไม่เปิดใช้โดยค่าเริ่มต้น; ตัวแปร `REPORT_STATUS_ALLOW_LEGACY_CODES=true` มีไว้สำหรับช่วงย้ายระบบชั่วคราวเท่านั้นและไม่แนะนำสำหรับ Production
 
 เอกสารอ้างอิงผู้ให้บริการ:
 

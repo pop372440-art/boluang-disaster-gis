@@ -13,6 +13,7 @@ import {
   parseIncidentAiResult,
   type IncidentAiResult
 } from '@/lib/incident-ai';
+import { generateTrackingToken } from '@/lib/report-status/security';
 
 // 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -102,7 +103,7 @@ const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
     ctx.fill();
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 38px Arial, sans-serif';
+    ctx.font = 'bold 15px monospace';
     ctx.textAlign = 'center';
     ctx.fillText(trackingCode, width / 2, 133);
 
@@ -645,7 +646,8 @@ export default function ReportPage() {
         imageUrl = publicUrlData.publicUrl;
       }
 
-      const trackingCode = `BL-${Math.floor(100000 + Math.random() * 900000)}`;
+      // URL-safe bearer token with 192 bits of entropy; unlike the former six-digit code it is not enumerable.
+      const trackingCode = generateTrackingToken();
 
       const { error: insertError } = await supabase
         .from('boluang_disaster_reports')
@@ -667,8 +669,11 @@ export default function ReportPage() {
 
       if (insertError) throw insertError;
 
-      const statusUrl = `${window.location.origin}/status?code=${trackingCode}`;
-      const qrCodeImageUrl = `https://quickchart.io/qr?text=${encodeURIComponent(statusUrl)}&size=200`;
+      // Keep the bearer token in the URL fragment so it never reaches server access logs or Referer headers.
+      const statusUrl = `${window.location.origin}/status#token=${encodeURIComponent(trackingCode)}`;
+      // Generate the QR locally: the bearer token must never be sent to a third-party QR service.
+      const { default: QRCode } = await import('qrcode');
+      const qrCodeImageUrl = await QRCode.toDataURL(statusUrl, { width: 200, margin: 1, errorCorrectionLevel: 'M' });
 
       localStorage.setItem('bl_latest_tracking_code', trackingCode);
       localStorage.setItem('bl_last_submit_time', Date.now().toString());
@@ -682,7 +687,7 @@ export default function ReportPage() {
               หมายเลขติดตามคำร้อง
             </div>
             <div style="background-color: #059669; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(5, 150, 105, 0.3);">
-              <div style="font-size: 32px; font-weight: 900; color: #ffffff; letter-spacing: 2px;">
+              <div style="font-family: monospace; font-size: 14px; font-weight: 900; color: #ffffff; overflow-wrap: anywhere;">
                 ${trackingCode}
               </div>
             </div>
