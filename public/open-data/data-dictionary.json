@@ -1,0 +1,37 @@
+{
+  "dictionary_version": "2026.09.28.1",
+  "datasets": {
+    "boluang-public-incidents": {
+      "fields": {
+        "reportDate": "วันที่รับแจ้งตามเวลา Asia/Bangkok; ไม่แสดงเวลาละเอียด",
+        "riskType": "ประเภทเหตุที่ผู้แจ้งส่งในแบบฟอร์ม",
+        "severityLevel": "ระดับความรุนแรงที่บันทึกไว้ หรือ null เมื่อไม่มีข้อมูล",
+        "villageName": "ชื่อหมู่บ้าน; ไม่รวมพิกัด",
+        "status": "สถานะการดำเนินงานล่าสุด"
+      },
+      "excluded_fields": ["ชื่อและบทบาทผู้แจ้ง", "รายละเอียดข้อความอิสระ", "รหัสติดตามคำร้อง", "รูปภาพ", "ละติจูดและลองจิจูด", "บันทึกการปฏิบัติงานภายใน"]
+    },
+    "boluang-boundary": {
+      "geometry": ["Polygon", "MultiPolygon"],
+      "crs": "EPSG:4326",
+      "use_level": "ระดับตำบล"
+    },
+    "boluang-village-boundaries": {
+      "fields": {
+        "village_id": "รหัสคงที่ moo-1 ถึง moo-13 หลัง normalization",
+        "moo": "เลขหมู่",
+        "name_th": "ชื่อหมู่บ้านภาษาไทย",
+        "__idx": "ลำดับภายใน ห้ามใช้เป็นรหัสอ้างอิง"
+      },
+      "geometry": ["Polygon", "MultiPolygon"],
+      "crs": "EPSG:4326",
+      "use_level": "ระดับหมู่บ้าน ไม่ใช่ระดับแปลง"
+    },
+    "boluang-landslide-susceptibility": {
+      "fields": { "class": "1 = สูง, 2 = ปานกลาง", "ls_desth": "คำอธิบายระดับความไวภาษาไทย" },
+      "geometry": ["Polygon", "MultiPolygon"],
+      "crs": "EPSG:4326",
+      "use_level": "ชั้นข้อมูลบริบท ไม่ใช่จุดเกิดเหตุหรือประกาศเตือนภัย"
+    }
+  }
+}
