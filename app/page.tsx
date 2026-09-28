@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import 'leaflet/dist/leaflet.css';
 import { createClient } from '@supabase/supabase-js'; 
 import Swal from 'sweetalert2';
@@ -16,6 +17,16 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const BO_LUANG_LAT = 18.1633;
 const BO_LUANG_LNG = 98.3744;
 const MAX_DISTANCE_KM = 150;
+
+const PRIMARY_NAV = [
+  { href: '/', label: 'แผนที่ GIS', icon: '🗺️' },
+  { href: '/intelligence', label: 'ศูนย์เฝ้าระวัง', icon: '🧭' },
+  { href: '/radar', label: 'เรดาร์ฝน', icon: '🌧️' },
+  { href: '/weather', label: 'พยากรณ์อากาศ', icon: '🌤️' },
+  { href: '/flood', label: 'น้ำและน้ำท่วม', icon: '🌊' },
+  { href: '/report', label: 'แจ้งเหตุ', icon: '🚨' },
+  { href: '/admin/open-data', label: 'Open Data', icon: '📥' },
+] as const;
 
 const safeZonesData = [
   { id: 1, name: 'รพ.สต. บ่อหลวง (ศูนย์การแพทย์)', lat: 18.14913, lng: 98.35532, type: 'hospital' },
@@ -110,7 +121,7 @@ const CustomToggleBox = ({ label, source, active, onClick, dotColor = '#38bdf8',
   };
 
   return (
-    <div className="flex items-center space-x-3 px-3 py-1.5 rounded-xl border border-[#1e293b] bg-[#0b132b]/50 hover:bg-[#1e293b]/80 transition-colors duration-200 cursor-pointer select-none mb-1 group" onClick={handlePress}>
+    <button type="button" aria-pressed={localActive} className="flex w-full items-center space-x-3 px-3 py-1.5 rounded-xl border border-[#1e293b] bg-[#0b132b]/50 hover:bg-[#1e293b]/80 transition-colors duration-200 cursor-pointer select-none mb-1 group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300" onClick={handlePress}>
       {isRadio ? (
         <div className={`w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 transition-colors ${localActive ? 'border-[#38bdf8]' : 'border-gray-500'}`}>
           {localActive && <div className="w-2 h-2 bg-[#38bdf8] rounded-full"></div>}
@@ -130,7 +141,7 @@ const CustomToggleBox = ({ label, source, active, onClick, dotColor = '#38bdf8',
         </div>
         {renderStatusBadge()}
       </div>
-    </div>
+    </button>
   );
 };
 
@@ -232,7 +243,11 @@ export default function BoLuangDashboard() {
   const [disasterReports, setDisasterReports] = useState<any[]>([]); 
   const [onwrRainData, setOnwrRainData] = useState<any[]>([]);
   const [onwrWaterLevelData, setOnwrWaterLevelData] = useState<any[]>([]);
-  const [visitStats, setVisitStats] = useState({ today: 0, total: 0 });
+  const [visitStats, setVisitStats] = useState<{
+    today: number | null;
+    total: number | null;
+    state: 'loading' | 'ready' | 'error';
+  }>({ today: null, total: null, state: 'loading' });
   
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
@@ -458,22 +473,47 @@ export default function BoLuangDashboard() {
 
   useEffect(() => {
     if (!mounted) return;
-    const handleVisitorCount = async () => {
+
+    let cancelled = false;
+    const loadVisitorStats = async () => {
+      if (!supabaseUrl || !supabaseAnonKey) {
+        if (!cancelled) setVisitStats({ today: null, total: null, state: 'error' });
+        return;
+      }
+
       try {
         let sessionId = sessionStorage.getItem('bl_session_id');
         if (!sessionId) {
-          sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`; 
+          sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
           sessionStorage.setItem('bl_session_id', sessionId);
-          await supabase.from('visitor_logs').insert([{ session_id: sessionId }]);
+          const { error: insertError } = await supabase.from('visitor_logs').insert([{ session_id: sessionId }]);
+          if (insertError) throw insertError;
         }
-        const { count: totalCount } = await supabase.from('visitor_logs').select('*', { count: 'exact', head: true });
+
         const today = new Date();
-        today.setHours(0, 0, 0, 0); 
-        const { count: todayCount } = await supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('visited_at', today.toISOString());
-        setVisitStats({ today: todayCount || 0, total: totalCount || 0 });
-      } catch (error) { console.error('Error fetching visitor stats:', error); }
+        today.setHours(0, 0, 0, 0);
+        const [totalResult, todayResult] = await Promise.all([
+          supabase.from('visitor_logs').select('*', { count: 'exact', head: true }),
+          supabase.from('visitor_logs').select('*', { count: 'exact', head: true }).gte('visited_at', today.toISOString()),
+        ]);
+        if (totalResult.error) throw totalResult.error;
+        if (todayResult.error) throw todayResult.error;
+
+        if (!cancelled) {
+          setVisitStats({
+            today: todayResult.count ?? 0,
+            total: totalResult.count ?? 0,
+            state: 'ready',
+          });
+        }
+      } catch (error) {
+        console.warn('Visitor stats unavailable:', error);
+        if (!cancelled) setVisitStats({ today: null, total: null, state: 'error' });
+      }
     };
-    handleVisitorCount();
+
+    void loadVisitorStats();
+    return () => { cancelled = true; };
   }, [mounted]);
 
   useEffect(() => {
@@ -831,8 +871,8 @@ export default function BoLuangDashboard() {
     <main className="relative w-screen h-screen bg-[#0b132b] font-sans text-white overflow-hidden">
       <style dangerouslySetInnerHTML={{__html: `
         .leaflet-container { background: transparent !important; cursor: crosshair !important; }
-        .leaflet-top.leaflet-left { top: 90px !important; left: 10px !important; }
-        @media (min-width: 768px) { .leaflet-top.leaflet-left { top: 90px !important; left: 370px !important; } }
+        .leaflet-top.leaflet-left { top: 134px !important; left: 10px !important; }
+        @media (min-width: 1024px) { .leaflet-top.leaflet-left { top: 134px !important; left: 370px !important; } }
         .leaflet-bar a { background-color: #0f172a !important; color: #fff !important; border: 1px solid #1e293b !important; border-radius: 8px !important; }
         .leaflet-bar a:hover { background-color: #1e293b !important; }
         .leaflet-div-icon { background: transparent !important; border: none !important; }
@@ -925,9 +965,9 @@ export default function BoLuangDashboard() {
               )}
             </div>
             <div className="flex flex-col space-y-3 w-full mt-2">
-              <a href="/report" target="_blank" rel="noopener noreferrer" className="py-3 w-full bg-gradient-to-r from-[#06b6d4] to-[#0284c7] text-white font-bold text-[15px] rounded-xl shadow-lg hover:brightness-110 transition-all flex items-center justify-center space-x-2">
+              <Link href="/report" className="py-3 w-full bg-gradient-to-r from-[#06b6d4] to-[#0284c7] text-white font-bold text-[15px] rounded-xl shadow-lg hover:brightness-110 transition-all flex items-center justify-center space-x-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
                 <span>เปิดหน้าฟอร์มแจ้งจุดเสี่ยงภัย</span>
-              </a>
+              </Link>
               <button onClick={() => setShowScanModal(false)} className="py-3 w-full bg-[#1e293b] text-gray-300 font-semibold text-[15px] rounded-xl hover:bg-[#334155] transition-colors">ปิดหน้าต่าง</button>
             </div>
           </div>
@@ -938,8 +978,8 @@ export default function BoLuangDashboard() {
       <div className="absolute inset-0 z-0 bg-[#0b132b] overflow-hidden">        
         <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>         
           <div 
-            className={`absolute top-[110px] z-[1000] flex flex-col space-y-2 transition-all duration-500 ease-in-out pointer-events-auto ${
-              isLeftPanelOpen ? 'left-[315px] md:left-[390px]' : 'left-[15px] md:left-[50px]'   
+            className={`absolute top-[150px] z-[1000] flex flex-col space-y-2 transition-all duration-500 ease-in-out pointer-events-auto ${
+              isLeftPanelOpen && !isMobile ? 'left-[390px]' : 'left-[15px] md:left-[50px]'
             }`}
           >
             <button 
@@ -1479,28 +1519,34 @@ export default function BoLuangDashboard() {
             <div className="hidden lg:flex items-center space-x-6 border-l border-[#1e293b] pl-6">
             
               <div className="flex flex-col justify-center">
-                <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถานะระบบ</span>
+                <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">ข้อมูลอากาศหลัก</span>
                 <div className="flex items-center text-[12px] font-mono text-gray-400">
                   <div className="flex items-center space-x-1.5">
                     <span className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#10b981]"></span>
+                      {headerWeather && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>}
+                      <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${headerWeather ? 'bg-[#10b981]' : 'bg-amber-400'}`}></span>
                     </span>
-                    <span className="text-[#10b981]">ONLINE</span>
+                    <span className={headerWeather ? 'text-[#10b981]' : 'text-amber-300'}>
+                      {headerWeather ? 'พร้อม · Open-Meteo' : 'กำลังตรวจสอบ'}
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div className="flex flex-col justify-center border-l border-[#1e293b] pl-6">
-                <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">สถิติผู้เข้าชม</span>
+                <span className="text-[10px] text-gray-500 font-bold tracking-widest mb-0.5">ยอดผู้เข้าชม</span>
                 <div className="flex items-center text-[12px] font-mono text-gray-400">
-                  <div className="flex items-center space-x-1.5">
-                    <span>วันนี้: <span className="text-[#10b981]">{visitStats.today.toLocaleString()}</span></span>
-                  </div>
-                  <span className="mx-2 text-gray-600">|</span>
-                  <div className="flex items-center space-x-1.5">
-                    <span>รวม: <span className="text-[#38bdf8]">{visitStats.total.toLocaleString()}</span></span>
-                  </div>
+                  {visitStats.state === 'ready' ? (
+                    <>
+                      <span>วันนี้ <span className="text-[#10b981]">{visitStats.today?.toLocaleString('th-TH')}</span></span>
+                      <span className="mx-2 text-gray-600">|</span>
+                      <span>รวม <span className="text-[#38bdf8]">{visitStats.total?.toLocaleString('th-TH')}</span></span>
+                    </>
+                  ) : visitStats.state === 'error' ? (
+                    <span className="text-amber-300">ข้อมูลยังไม่พร้อม</span>
+                  ) : (
+                    <span className="animate-pulse text-slate-400">กำลังโหลด...</span>
+                  )}
                 </div>
               </div>
 
@@ -1508,12 +1554,14 @@ export default function BoLuangDashboard() {
                 <div className="bg-[#0f172a]/60 border border-[#1e293b] rounded-full px-5 py-2 flex items-center space-x-4 shadow-sm backdrop-blur-sm cursor-default flex-shrink-0">
                   
                   <div className="flex items-center space-x-2 whitespace-nowrap">
-                    <span className="text-[20px]">
-                      {headerWeather ? getWeatherEmoji(headerWeather.wCode) : '🌤️'}
-                    </span>
-                    <span className="text-[16px] font-black text-white tracking-wide">
-                      {headerWeather ? Math.round(headerWeather.temp) : '--'}°C
-                    </span>
+                    {headerWeather ? (
+                      <>
+                        <span className="text-[20px]">{getWeatherEmoji(headerWeather.wCode)}</span>
+                        <span className="text-[16px] font-black text-white tracking-wide">{Math.round(headerWeather.temp)}°C</span>
+                      </>
+                    ) : (
+                      <span className="text-[12px] text-slate-400 animate-pulse">กำลังโหลดอากาศ...</span>
+                    )}
                   </div>
 
                   <div className="w-[1px] h-5 bg-[#1e293b]"></div>
@@ -1557,22 +1605,52 @@ export default function BoLuangDashboard() {
             <span className="text-[12px] font-bold text-white tracking-wide">ติดตั้งแอป (PWA)</span>
           </button>
 
-          <div onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer flex-shrink-0">
+          <button type="button" onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} aria-expanded={isRightPanelOpen} aria-controls="gis-layer-panel" className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
             <svg className="w-4 h-4 text-[#2dd4bf] mr-1.5 md:mr-2 transform rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
             </svg>
             <span className="text-[11px] md:text-[13px] font-mono font-medium text-gray-300 tracking-wide">
-              GIS Layers <span className="hidden md:inline text-gray-500 mx-1">· boluang</span>
+              ชั้นข้อมูล <span className="hidden md:inline text-gray-500 mx-1">· GIS บ่อหลวง</span>
             </span>
+          </button>
+        </div>
+      </header>
+
+      <nav aria-label="เมนูหลัก" className="absolute top-[72px] left-0 right-0 h-12 z-[79] border-b border-[#1e293b] bg-[#071020]/95 backdrop-blur-xl pointer-events-auto shadow-lg">
+        <div className="h-full overflow-x-auto custom-scrollbar">
+          <div className="mx-auto flex h-full min-w-max items-center gap-1 px-3 md:justify-center md:px-6">
+            {PRIMARY_NAV.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={item.href === '/' ? 'page' : undefined}
+                className={`inline-flex h-9 items-center gap-2 rounded-lg px-3 text-[12px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 ${item.href === '/' ? 'border border-sky-400/40 bg-sky-400/15 text-sky-200' : item.href === '/report' ? 'text-rose-200 hover:bg-rose-400/10' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}
+              >
+                <span aria-hidden="true">{item.icon}</span>
+                <span>{item.label}</span>
+              </Link>
+            ))}
+            <span className="mx-1 h-5 w-px bg-slate-700" aria-hidden="true" />
+            <Link href="/admin" className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-[12px] font-semibold text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
+              <span aria-hidden="true">🔒</span><span>เจ้าหน้าที่</span>
+            </Link>
           </div>
         </div>
-      </header>      
+      </nav>
       
       <aside 
-        className={`absolute top-[80px] md:top-24 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto ${isLeftPanelOpen ? 'translate-x-0 left-0 md:left-4' : 'translate-x-[-100%] left-0 md:left-4'}`}
+        aria-label="ข้อมูลอากาศและน้ำ"
+        className="absolute inset-x-0 bottom-0 lg:inset-x-auto lg:bottom-auto lg:top-[132px] lg:left-4 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto"
+        style={{ transform: isLeftPanelOpen ? 'translate(0)' : (isMobile ? 'translateY(100%)' : 'translateX(-390px)') }}
       >
-        <div className="relative flex h-full items-start">
-          <div className="w-[300px] md:w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-r-2xl md:rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.5)] p-4 md:p-5 backdrop-blur-xl max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar">
+        <div className="relative flex h-full w-full items-start">
+          <div className="w-full lg:w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-t-3xl lg:rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.5)] p-4 md:p-5 pb-20 lg:pb-5 backdrop-blur-xl max-h-[72vh] lg:max-h-[calc(100vh-148px)] overflow-y-auto custom-scrollbar">
+            <div className="mb-3 flex items-center justify-between lg:hidden">
+              <span className="text-sm font-bold text-sky-200">ข้อมูลสภาพแวดล้อม</span>
+              <button type="button" onClick={() => setIsLeftPanelOpen(false)} aria-label="ปิดแผงข้อมูล" className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
             
             {/* 🌟 ปุ่มติดตั้งแอปสำหรับมือถือ (แสดงเฉพาะหน้าจอมือถือ) */}
             <button 
@@ -1592,9 +1670,9 @@ export default function BoLuangDashboard() {
             </button>
 
             <div className="relative mb-4">
-              <div 
-                onClick={() => window.open('/weather', '_blank')}
-                className="bg-[#0f172a] border border-[#1e293b] hover:border-[#0ea5e9]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden"
+              <Link
+                href="/weather"
+                className="block bg-[#0f172a] border border-[#1e293b] hover:border-[#0ea5e9]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
                 <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#0ea5e9] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
                 <div className="flex items-start space-x-4 relative z-10">
@@ -1610,13 +1688,13 @@ export default function BoLuangDashboard() {
                     <p className="text-[11px] text-gray-400 leading-relaxed">ตรวจสอบอุณหภูมิ ปริมาณฝน และการพยากรณ์อากาศในพื้นที่</p>
                   </div>
                 </div>
-              </div>
+              </Link>
             </div>
 
             <div className="relative mb-4">
-              <div 
-                onClick={() => window.open('/flood', '_blank')}
-                className="bg-[#0f172a] border border-[#1e293b] hover:border-[#3b82f6]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden"
+              <Link
+                href="/flood"
+                className="block bg-[#0f172a] border border-[#1e293b] hover:border-[#3b82f6]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
                 <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#3b82f6] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
                 <div className="flex items-start space-x-4 relative z-10">
@@ -1631,7 +1709,7 @@ export default function BoLuangDashboard() {
                     <p className="text-[11px] text-gray-400 leading-relaxed">ติดตามระดับน้ำลำห้วย แจ้งเตือนน้ำป่าไหลหลาก และดินถล่ม</p>
                   </div>              
                 </div>
-              </div>
+              </Link>
             </div>
                       
             <div className="space-y-4">
@@ -1720,13 +1798,13 @@ export default function BoLuangDashboard() {
       </div>
 
       {/* Sidebar ขวา (แจ้งเหตุ/ภัยธรรมชาติ/แผนที่) */}
-      <aside className={`absolute top-[80px] md:top-24 right-0 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto`} style={{ transform: isRightPanelOpen ? 'translateX(0)' : (isMobile ? 'translateX(100%)' : 'translateX(360px)') }}>
-        <div className="relative md:mr-5 flex w-full md:w-auto">
-          <button onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="hidden md:flex absolute -left-[32px] top-4 w-[32px] h-14 bg-[#0b132b]/95 border-y border-l border-[#1e293b] rounded-l-lg items-center justify-center text-gray-400 hover:text-white hover:bg-[#1e293b] transition-colors shadow-[-4px_0_10px_rgba(0,0,0,0.3)] backdrop-blur-md z-50 cursor-pointer">
+      <aside id="gis-layer-panel" aria-label="จัดการชั้นข้อมูลแผนที่" className="absolute inset-x-0 bottom-0 lg:inset-x-auto lg:bottom-auto lg:top-[132px] lg:right-0 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto" style={{ transform: isRightPanelOpen ? 'translate(0)' : (isMobile ? 'translateY(100%)' : 'translateX(390px)') }}>
+        <div className="relative lg:mr-5 flex w-full lg:w-auto">
+          <button onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="hidden lg:flex absolute -left-[32px] top-4 w-[32px] h-14 bg-[#0b132b]/95 border-y border-l border-[#1e293b] rounded-l-lg items-center justify-center text-gray-400 hover:text-white hover:bg-[#1e293b] transition-colors shadow-[-4px_0_10px_rgba(0,0,0,0.3)] backdrop-blur-md z-50 cursor-pointer">
             <svg className={`w-5 h-5 transform transition-transform duration-300 ${isRightPanelOpen ? 'rotate-0' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
           </button>
           
-          <div className="w-[300px] md:w-[360px] ml-auto bg-[#0b132b]/95 border border-[#1e293b] rounded-l-2xl md:rounded-xl shadow-2xl p-4 md:p-5 backdrop-blur-xl max-h-[calc(100vh-100px)] overflow-y-auto custom-scrollbar">
+          <div className="w-full lg:w-[360px] ml-auto bg-[#0b132b]/95 border border-[#1e293b] rounded-t-3xl lg:rounded-xl shadow-2xl p-4 md:p-5 pb-20 lg:pb-5 backdrop-blur-xl max-h-[72vh] lg:max-h-[calc(100vh-148px)] overflow-y-auto custom-scrollbar">
             
             <div className="mb-4 bg-[#0f172a] p-1.5 rounded-xl border border-[#1e293b] flex shadow-inner">
               <form onSubmit={handleSearchSubmit} className="flex w-full">
@@ -1744,7 +1822,7 @@ export default function BoLuangDashboard() {
             </div>
 
             <div className="mb-4 flex flex-col items-start border-b border-[#1e293b] pb-4 relative">
-              <button onClick={() => setIsRightPanelOpen(false)} className="md:hidden absolute top-0 right-0 text-gray-500 hover:text-white">
+              <button onClick={() => setIsRightPanelOpen(false)} aria-label="ปิดแผงชั้นข้อมูล" className="lg:hidden absolute top-0 right-0 rounded-lg p-1 text-gray-500 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
               
@@ -1755,13 +1833,13 @@ export default function BoLuangDashboard() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                     </svg>
                   </div>
-                  <h2 className="text-[18px] md:text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">Layers</h2>
+                  <h2 className="text-[18px] md:text-[22px] font-serif font-bold tracking-wide text-[#7dd3fc]">ชั้นข้อมูลแผนที่</h2>
                 </div>
                 
                 <div className="flex items-center space-x-2">
                   <div className="flex items-center px-2 py-1 rounded-full border border-[#1e293b] bg-[#0f172a]/50 shadow-inner">
                     <div className="w-1.5 h-1.5 rounded-full bg-[#2dd4bf] mr-1.5 shadow-[0_0_5px_#2dd4bf]"></div>
-                    <span className="text-[10px] md:text-[11px] font-bold text-gray-300 tracking-wide">Act: <span className="text-white ml-0.5">{activeLayersCount}</span></span>
+                    <span className="text-[10px] md:text-[11px] font-bold text-gray-300 tracking-wide">เปิด: <span className="text-white ml-0.5">{activeLayersCount}</span></span>
                   </div>
                   <div className="flex items-center px-2 py-1 rounded-full border border-[#1e293b] bg-[#0f172a]/50 shadow-inner">
                     <span className="text-[10px] md:text-[11px] font-bold text-gray-300 tracking-wide">Zoom: <span className="text-white ml-0.5">{currentZoom}</span></span>
@@ -1799,21 +1877,21 @@ export default function BoLuangDashboard() {
             </div>
             
             <div className="flex flex-col space-y-2">
-              <button 
-                onClick={() => window.open('/dashboard', '_blank')}
-                className="w-full py-2.5 bg-[#0f172a] hover:bg-[#1e293b] border border-gray-700 rounded-xl text-[13px] font-bold text-gray-300 shadow-sm flex items-center justify-center space-x-2 transition-all cursor-pointer"
+              <Link
+                href="/dashboard"
+                className="w-full py-2.5 bg-[#0f172a] hover:bg-[#1e293b] border border-gray-700 rounded-xl text-[13px] font-bold text-gray-300 shadow-sm flex items-center justify-center space-x-2 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
                 <span className="text-[#38bdf8] text-base">📈</span>
                 <span>สรุปสถิติสถานการณ์ (Dashboard)</span>
-              </button>
+              </Link>
               
-              <button 
-                onClick={() => window.open('/admin/open-data', '_blank')} 
-                className="w-full py-2.5 bg-gradient-to-r from-[#0284c7] to-[#2563eb] hover:from-[#0369a1] hover:to-[#1d4ed8] border border-[#38bdf8]/50 rounded-xl text-[13px] font-bold text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)] flex items-center justify-center space-x-2 transition-transform hover:-translate-y-0.5 cursor-pointer"
+              <Link
+                href="/admin/open-data"
+                className="w-full py-2.5 bg-gradient-to-r from-[#0284c7] to-[#2563eb] hover:from-[#0369a1] hover:to-[#1d4ed8] border border-[#38bdf8]/50 rounded-xl text-[13px] font-bold text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)] flex items-center justify-center space-x-2 transition-transform hover:-translate-y-0.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
                 <span className="text-white text-base">📥</span>
                 <span>ดาวน์โหลดชุดข้อมูล (Open Data)</span>
-              </button>
+              </Link>
             </div>
           </div>
 
@@ -1867,16 +1945,16 @@ export default function BoLuangDashboard() {
 
               {/* 🔒 ปุ่ม Admin ลับ (Discrete Staff Portal) */}
               <div className="mt-3 flex justify-center pb-2">
-                <button 
-                  onClick={() => window.location.href = '/admin'} 
-                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-[#475569] hover:text-[#94a3b8] hover:bg-[#0f172a] border border-transparent hover:border-[#1e293b] transition-all duration-300 group"
+                <Link
+                  href="/admin"
+                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-[#475569] hover:text-[#94a3b8] hover:bg-[#0f172a] border border-transparent hover:border-[#1e293b] transition-all duration-300 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
                   title="เข้าสู่ระบบหลังบ้าน (เฉพาะเจ้าหน้าที่)"
                 >
                   <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
                   <span className="text-[10px] font-mono tracking-widest font-semibold uppercase">Staff Portal</span>
-                </button>
+                </Link>
               </div>
 
             </div>
