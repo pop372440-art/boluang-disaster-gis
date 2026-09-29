@@ -109,6 +109,8 @@ function freshnessLabel(status?: string) {
   return { text: 'ไม่ทราบอายุข้อมูล', tone: 'slate' as const };
 }
 
+const nwpFreshnessLabel = (status?: string) => status === 'fresh' ? 'สดตามเกณฑ์' : status === 'stale' ? 'เริ่มเก่า' : status === 'expired' ? 'หมดอายุ' : 'ไม่ทราบอายุ';
+
 /* ================= 3. MAIN ================= */
 export default function WeatherDashboard() {
   const [windyLayer, setWindyLayer] = useState('radar');
@@ -117,6 +119,8 @@ export default function WeatherDashboard() {
   const [locationName, setLocationName] = useState('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
 
   const [data, setData] = useState<any>(null);
+  const [nwp, setNwp] = useState<any>(null);
+  const [nwpView, setNwpView] = useState<'overview' | 'ecmwf' | 'gfs'>('overview');
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -160,10 +164,21 @@ export default function WeatherDashboard() {
   const loadWeather = useCallback(async (lat: number, lng: number) => {
     setLoading(true); setErr(null);
     try {
-      const res = await fetch(`/api/weather?lat=${lat}&lng=${lng}`, { cache: 'no-store' });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || 'ดึงข้อมูลไม่สำเร็จ');
-      setData(json);
+      const [weatherResult, nwpResult] = await Promise.allSettled([
+        fetch(`/api/weather?lat=${lat}&lng=${lng}`, { cache: 'no-store' }).then(async (response) => {
+          const json = await response.json();
+          if (!response.ok || !json.ok) throw new Error(json.error || 'ดึงข้อมูลไม่สำเร็จ');
+          return json;
+        }),
+        fetch('/api/weather/nwp', { cache: 'no-store' }).then(async (response) => {
+          const json = await response.json();
+          if (!response.ok || !json.ok) throw new Error(json.error || 'NWP ไม่พร้อม');
+          return json;
+        }),
+      ]);
+      if (weatherResult.status === 'rejected') throw weatherResult.reason;
+      setData(weatherResult.value);
+      setNwp(nwpResult.status === 'fulfilled' ? nwpResult.value : null);
     } catch (e: any) {
       setErr(e.message ?? 'เกิดข้อผิดพลาด');
     } finally {
@@ -510,6 +525,12 @@ useEffect(() => {
     ? new Date(activeFrame.time * 1000).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
     : '--:--';
   const radarDegraded = radarOn && mapZoom > RADAR_MAX_NATIVE_ZOOM;
+  const nwpModels = Object.fromEntries((nwp?.models ?? []).map((model: any) => [model.id, model]));
+  const nwpChart = (nwp?.hourly ?? []).map((item: any) => ({
+    ...item,
+    label: new Intl.DateTimeFormat('th-TH', { weekday: 'short', hour: '2-digit', timeZone: 'Asia/Bangkok' }).format(new Date(item.time)),
+  }));
+  const nwpAgreementTone = nwp?.consensus?.agreement === 'high' ? 'emerald' : nwp?.consensus?.agreement === 'medium' ? 'sky' : 'amber';
 
   const Skeleton = ({ h = 'h-24' }: { h?: string }) => <div className={`${h} w-full bg-gray-200 animate-pulse rounded-2xl`} />;
 
@@ -834,6 +855,75 @@ useEffect(() => {
             </div>
           </div>
 
+          <section id="nwp" className="col-span-1 md:col-span-4 overflow-hidden rounded-3xl border border-sky-200 bg-white shadow-sm" aria-labelledby="nwp-heading">
+            <div className="border-b border-sky-100 bg-gradient-to-r from-[#071f3a] to-[#0f4a8a] p-5 text-white md:p-7">
+              <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+                <div>
+                  <p className="text-xs font-black tracking-[.16em] text-sky-200">NUMERICAL WEATHER PREDICTION</p>
+                  <h3 id="nwp-heading" className="mt-1 text-xl font-black md:text-2xl">เปรียบเทียบแบบจำลองฝน 24–72 ชั่วโมง</h3>
+                  <p className="mt-2 max-w-3xl text-xs leading-relaxed text-sky-100 md:text-sm">ECMWF และ GFS จากรอบรันเดียวกัน ใช้ดูแนวโน้มพื้นที่ ไม่ใช่เรดาร์ สถานีตรวจวัด หรือค่าฝนรายหมู่บ้าน</p>
+                </div>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="เลือกแบบจำลองที่แสดง">
+                  {([['overview', 'ภาพรวม'], ['ecmwf', 'ECMWF'], ['gfs', 'GFS']] as const).map(([value, label]) => (
+                    <button key={value} type="button" aria-pressed={nwpView === value} onClick={() => setNwpView(value)} className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-bold ${nwpView === value ? 'border-white bg-white text-[#0f4a8a]' : 'border-white/30 bg-white/10 text-white hover:bg-white/20'}`}>{label}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5">รอบรัน: {nwp?.runAt ? new Date(nwp.runAt).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'short', timeStyle: 'short' }) : 'ไม่พร้อม'}</span>
+                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5">{nwp?.consensus?.label ?? 'เปรียบเทียบไม่ได้'}</span>
+                <span className="rounded-full border border-amber-300/50 bg-amber-300/10 px-3 py-1.5 text-amber-100">ไม่สร้างคำเตือนอัตโนมัติ</span>
+              </div>
+            </div>
+
+            {!nwp ? (
+              <div className="m-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800" role="status">ผล ECMWF/GFS ยังไม่ครบ ระบบระงับการเปรียบเทียบและไม่ตีความว่าไม่มีฝน</div>
+            ) : (
+              <div className="space-y-5 p-5 md:p-7">
+                <div className="grid gap-3 md:grid-cols-3">
+                  {[0, 1, 2].map((index) => {
+                    const left = nwpModels.ecmwf?.windows?.[index];
+                    const right = nwpModels.gfs?.windows?.[index];
+                    return <article key={left?.key ?? index} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-extrabold text-slate-500">ช่วง {left?.label ?? '—'}</p>
+                      <div className="mt-3 grid grid-cols-2 gap-3">
+                        <div><p className="text-[10px] font-bold text-sky-700">ECMWF</p><p className="text-2xl font-black text-[#0f4a8a]">{left?.totalMm?.toFixed(1) ?? '—'} <span className="text-xs">มม.</span></p></div>
+                        <div><p className="text-[10px] font-bold text-emerald-700">GFS</p><p className="text-2xl font-black text-emerald-700">{right?.totalMm?.toFixed(1) ?? '—'} <span className="text-xs">มม.</span></p></div>
+                      </div>
+                    </article>;
+                  })}
+                </div>
+
+                <div className="h-[300px] w-full" role="img" aria-label="กราฟเปรียบเทียบฝนรายชั่วโมงจาก ECMWF และ GFS ใน 72 ชั่วโมงข้างหน้า">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={nwpChart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                      <XAxis dataKey="label" stroke="#64748b" fontSize={10} interval={11} />
+                      <YAxis stroke="#64748b" fontSize={11} unit=" มม." />
+                      <RechartsTooltip labelFormatter={(_, rows) => rows?.[0]?.payload?.time ? new Date(rows[0].payload.time).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }) : ''} contentStyle={{ borderRadius: 12 }} />
+                      {(nwpView === 'overview' || nwpView === 'ecmwf') && <Area type="monotone" name="ECMWF (มม.)" dataKey="ecmwfMm" stroke="#0369a1" fill="#38bdf833" strokeWidth={3} connectNulls={false} />}
+                      {(nwpView === 'overview' || nwpView === 'gfs') && <Area type="monotone" name="GFS (มม.)" dataKey="gfsMm" stroke="#059669" fill="#34d39922" strokeWidth={3} connectNulls={false} />}
+                      <Legend />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-wrap items-center gap-2"><SourceBadge label={nwp.consensus.label} tone={nwpAgreementTone} /><span className="text-xs text-slate-500">ความสอดคล้องไม่ใช่การรับรองความแม่นยำ</span></div>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-700">{nwp.consensus.summary}</p>
+                    <p className="mt-2 text-[10px] text-slate-500">ECMWF: {nwpFreshnessLabel(nwpModels.ecmwf?.freshness)} ({nwpModels.ecmwf?.ageHours ?? '—'} ชม.) · GFS: {nwpFreshnessLabel(nwpModels.gfs?.freshness)} ({nwpModels.gfs?.ageHours ?? '—'} ชม.)</p>
+                    <p className="mt-1 text-[10px] text-slate-500">กริด ECMWF {nwpModels.ecmwf?.gridLatitude?.toFixed(3)}, {nwpModels.ecmwf?.gridLongitude?.toFixed(3)} · GFS {nwpModels.gfs?.gridLatitude?.toFixed(3)}, {nwpModels.gfs?.gridLongitude?.toFixed(3)} · ดึงข้อมูล {new Date(nwp.generatedAt).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <a href="https://www.windy.com/?rain,18.163,98.374,9" target="_blank" rel="noopener noreferrer" className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs font-extrabold text-sky-800">ตรวจแผนที่ Windy ↗</a>
+                    <a href="https://www.tropicaltidbits.com/analysis/models/" target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-extrabold text-slate-700">ตรวจ Tropical Tidbits ↗</a>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+
           <div className="col-span-1 md:col-span-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:p-5">
             <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
               <div>
@@ -926,7 +1016,7 @@ useEffect(() => {
         {/* ⚖️ ข้อความสงวนสิทธิ์ */}
         <div className="bg-gray-100 border border-gray-300 rounded-2xl p-4 md:p-5 text-[11px] md:text-xs text-gray-600 leading-relaxed">
           <span className="font-extrabold text-gray-700">⚖️ ข้อจำกัดความรับผิดชอบ: </span>
-          ข้อมูลในหน้านี้เป็นการประมวลผลอัตโนมัติจากแบบจำลองพยากรณ์อากาศ (Open-Meteo / ECMWF) และภาพเรดาร์ตรวจอากาศ (RainViewer, Windy)
+          ข้อมูลในหน้านี้เป็นการประมวลผลอัตโนมัติจากแบบจำลองพยากรณ์อากาศ (ECMWF และ NOAA GFS ผ่าน Open-Meteo) และภาพเรดาร์ตรวจอากาศ (RainViewer) โดย Windy และ Tropical Tidbits เป็นลิงก์ตรวจสอบภายนอกเท่านั้น
           เพื่อใช้ประกอบการตัดสินใจเบื้องต้นเท่านั้น <span className="font-bold">มิใช่ประกาศเตือนภัยอย่างเป็นทางการ</span>
           การแจ้งเตือนภัยอย่างเป็นทางการให้ยึดตามประกาศของกรมอุตุนิยมวิทยาและกรมป้องกันและบรรเทาสาธารณภัยเป็นสำคัญ
           หากพบความผิดปกติของระบบ โปรดแจ้งเจ้าหน้าที่ผู้ดูแลระบบ เทศบาลตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่

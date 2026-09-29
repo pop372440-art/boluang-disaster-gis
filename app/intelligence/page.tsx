@@ -31,6 +31,7 @@ export default function IntelligencePage() {
   const [audience, setAudience] = useState<'public' | 'ops'>('public');
   const [mode, setMode] = useState<SeasonalMode>(() => inferSeasonalMode(new Date().getMonth() + 1));
   const [payload, setPayload] = useState<any>(null);
+  const [nwp, setNwp] = useState<any>(null);
   const [boundary, setBoundary] = useState<any>(null);
   const [villageBoundaries, setVillageBoundaries] = useState<any>(null);
   const [visibleLayers, setVisibleLayers] = useState({ villages: true, hotspots: true });
@@ -47,8 +48,9 @@ export default function IntelligencePage() {
       }),
       fetch('/geojson/boluang.json', { signal: controller.signal }).then((response) => response.json()),
       fetch('/geojson/block.json', { signal: controller.signal }).then((response) => response.json()),
-    ]).then(([summary, tambonGeojson, villageGeojson]) => {
-      setPayload(summary); setBoundary(tambonGeojson); setVillageBoundaries(villageGeojson); setError(null);
+      fetch('/api/weather/nwp', { signal: controller.signal }).then(async (response) => response.ok ? response.json() : null),
+    ]).then(([summary, tambonGeojson, villageGeojson, nwpComparison]) => {
+      setPayload(summary); setBoundary(tambonGeojson); setVillageBoundaries(villageGeojson); setNwp(nwpComparison); setError(null);
     }).catch((reason) => {
       if (reason?.name !== 'AbortError') setError('โหลดข้อมูลสิ่งแวดล้อมไม่สำเร็จ กรุณาลองใหม่');
     }).finally(() => setLoading(false));
@@ -154,9 +156,20 @@ export default function IntelligencePage() {
 
           <section className="rounded-2xl border border-white/10 bg-[#0b1b2b] p-4" aria-labelledby="forecast-heading">
             <div className="flex flex-wrap items-end justify-between gap-2">
-              <div><h2 id="forecast-heading" className="text-sm font-extrabold">พยากรณ์เพื่อวางแผน 24–72 ชั่วโมง</h2><p className="mt-1 text-xs text-slate-400">แบบจำลอง Open-Meteo · เวลาไทย · เลื่อนเพื่อดูรายชั่วโมง</p></div>
-              <div className="flex flex-wrap gap-2">{threeDayForecast.map((day: any) => <div key={day.time} className="rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-xs"><strong className="text-white">{dayLabel(day.time)}</strong><span className="ml-2 text-sky-200">ฝน {fmt(day.rain, 1)} มม. ({fmt(day.rainProbability)}%)</span><span className="ml-2 text-slate-300">{fmt(day.min)}–{fmt(day.max)}°C</span></div>)}</div>
+              <div><h2 id="forecast-heading" className="text-sm font-extrabold">พยากรณ์เพื่อวางแผน 24–72 ชั่วโมง</h2><p className="mt-1 text-xs text-slate-400">เปรียบเทียบ ECMWF/GFS รอบเดียวกัน · ไม่ใช่ Radar หรือสถานีตรวจวัด</p></div>
+              <Link href="/weather#nwp" className="rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-2 text-xs font-bold text-cyan-200">เปิดรายละเอียด NWP →</Link>
             </div>
+            {nwp?.consensus?.usable ? (
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                {[0, 1, 2].map((index) => {
+                  const ecmwf = nwp.models?.find((model: any) => model.id === 'ecmwf')?.windows?.[index];
+                  const gfs = nwp.models?.find((model: any) => model.id === 'gfs')?.windows?.[index];
+                  return <div key={ecmwf?.key ?? index} className="rounded-xl border border-white/10 bg-black/10 p-3 text-xs"><strong className="text-white">{ecmwf?.label}</strong><p className="mt-1 text-sky-200">ECMWF {fmt(ecmwf?.totalMm, 1)} · GFS {fmt(gfs?.totalMm, 1)} มม.</p></div>;
+                })}
+                <p className="sm:col-span-3 text-[11px] text-slate-400">{nwp.consensus.label} · รอบรัน {timeLabel(nwp.runAt)} · ความสอดคล้องไม่ใช่การรับรองความแม่นยำ</p>
+              </div>
+            ) : <p className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-xs font-bold text-amber-200">ข้อมูล ECMWF/GFS ไม่ครบหรือหมดอายุ จึงระงับการสรุปความสอดคล้อง</p>}
+            <div className="mt-4 flex flex-wrap gap-2">{threeDayForecast.map((day: any) => <div key={day.time} className="rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-xs"><strong className="text-white">{dayLabel(day.time)}</strong><span className="ml-2 text-sky-200">ฝน {fmt(day.rain, 1)} มม. ({fmt(day.rainProbability)}%)</span><span className="ml-2 text-slate-300">{fmt(day.min)}–{fmt(day.max)}°C</span></div>)}</div>
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-[900px] w-full text-left text-xs">
                 <caption className="sr-only">พยากรณ์อากาศรายชั่วโมง 24 ชั่วโมงสำหรับตำบลบ่อหลวง</caption>

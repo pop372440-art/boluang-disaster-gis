@@ -102,6 +102,7 @@ export default function FloodWatchDashboard() {
   const [windyLayer, setWindyLayer] = useState('radar');
   const [windyZoom, setWindyZoom] = useState(10);
   const [apiStatus, setApiStatus] = useState({ water: 'กำลังเชื่อมต่อ...', rain: 'กำลังเชื่อมต่อ...' });
+  const [nwp, setNwp] = useState<any>(null);
 
   // ตัวแปรเก็บชื่อสถานที่ที่ถูกต้อง
   const [locationName, setLocationName] = useState('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
@@ -114,6 +115,15 @@ export default function FloodWatchDashboard() {
     setCurrentTime(new Date());
     const timer = setInterval(() => setCurrentTime(new Date()), 60_000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/weather/nwp', { signal: controller.signal })
+      .then(async (response) => response.ok ? response.json() : null)
+      .then(setNwp)
+      .catch((error) => { if (error?.name !== 'AbortError') setNwp(null); });
+    return () => controller.abort();
   }, []);
 
   // 📡 ดึงข้อมูล API สทนช. + TMD
@@ -583,6 +593,27 @@ export default function FloodWatchDashboard() {
             </div>
           </div>
         </div>
+
+        <section className="rounded-xl border border-sky-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="flood-nwp-heading">
+          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+            <div>
+              <p className="text-xs font-black tracking-wider text-sky-700">PLANNING INPUT — ไม่ใช่ข้อมูลตรวจวัด</p>
+              <h3 id="flood-nwp-heading" className="mt-1 text-lg font-extrabold text-[#0f4a8a]">แนวโน้มฝนจาก ECMWF/GFS 24–72 ชั่วโมง</h3>
+              <p className="mt-1 text-xs text-slate-500">ใช้ประกอบการเฝ้าระวังน้ำป่าเท่านั้น ไม่เปลี่ยนระดับความเสี่ยงของสถานีและไม่ออกประกาศอัตโนมัติ</p>
+            </div>
+            <Link href="/weather#nwp" className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-xs font-extrabold text-sky-800">ดูรายละเอียดแบบจำลอง →</Link>
+          </div>
+          {nwp?.consensus?.usable ? (
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {[0, 1, 2].map((index) => {
+                const ecmwf = nwp.models?.find((model: any) => model.id === 'ecmwf')?.windows?.[index];
+                const gfs = nwp.models?.find((model: any) => model.id === 'gfs')?.windows?.[index];
+                return <div key={ecmwf?.key ?? index} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-bold text-slate-500">{ecmwf?.label}</p><p className="mt-2 text-sm font-extrabold text-slate-800">ECMWF {ecmwf?.totalMm?.toFixed(1) ?? '—'} · GFS {gfs?.totalMm?.toFixed(1) ?? '—'} มม.</p></div>;
+              })}
+              <p className="md:col-span-3 text-xs text-slate-500">{nwp.consensus.label} · รอบรัน {new Date(nwp.runAt).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })} · ต้องตรวจสอบร่วมกับ Radar สถานีจริง ประกาศทางการ และภาคสนาม</p>
+            </div>
+          ) : <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800">ผลสองแบบจำลองไม่ครบหรือหมดอายุ จึงไม่ใช้ประกอบการคัดกรองในรอบนี้</p>}
+        </section>
 
         {/* 📋 Card 2: สถานีอ้างอิงรอบตำบลบ่อหลวง */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-6">

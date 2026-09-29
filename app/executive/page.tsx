@@ -22,6 +22,11 @@ type SituationData = {
     source: string; providerStatus: SourceStatus; retrievedAt: string; horizon: string;
     memberCount: number; peakMedianMm: number | null; peakDate: string | null;
   };
+  nwpComparison: {
+    runAt: string | null;
+    models: Array<{ id: 'ecmwf' | 'gfs'; name: string; freshness: FreshnessStatus; gridLatitude: number | null; gridLongitude: number | null; windows: Array<{ key: string; label: string; totalMm: number | null }> }>;
+    consensus: { usable: boolean; agreement: string; label: string; summary: string; officialWarningAllowed: false; requiresHumanApproval: true };
+  };
   derived: { antecedentRainProxy: number | null; label: string; method: string };
   assessment: {
     level: SituationLevel; label: string; summary: string; dataQuality: 'ready' | 'limited' | 'unavailable';
@@ -190,6 +195,27 @@ export default function ExecutiveSituationOverview() {
             </div>
             <p className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">{data.planningOutlook.horizon} ความไม่แน่นอนเพิ่มขึ้นตามระยะพยากรณ์</p>
           </article>
+        </section>
+
+        <section className="rounded-3xl border border-cyan-500/30 bg-slate-900 p-6 md:p-8" aria-labelledby="executive-nwp-title">
+          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">NWP Comparison · Planning Input</p>
+              <h2 id="executive-nwp-title" className="mt-2 text-xl font-black">ECMWF และ GFS ช่วง 24–72 ชั่วโมง</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{data.nwpComparison.consensus.summary}</p>
+            </div>
+            <span className={`self-start rounded-full px-4 py-2 text-xs font-black ${data.nwpComparison.consensus.usable ? 'bg-cyan-500/15 text-cyan-200' : 'bg-amber-500/15 text-amber-200'}`}>{data.nwpComparison.consensus.label}</span>
+          </div>
+          {data.nwpComparison.consensus.usable ? (
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              {[0, 1, 2].map((index) => {
+                const ecmwf = data.nwpComparison.models.find((model) => model.id === 'ecmwf')?.windows[index];
+                const gfs = data.nwpComparison.models.find((model) => model.id === 'gfs')?.windows[index];
+                return <article key={ecmwf?.key ?? index} className="rounded-2xl border border-slate-700 bg-slate-950/70 p-4"><p className="text-xs font-bold text-slate-400">{ecmwf?.label}</p><p className="mt-2 text-sm font-black text-white">ECMWF {formatMetric(ecmwf?.totalMm ?? null)} · GFS {formatMetric(gfs?.totalMm ?? null)} มม.</p></article>;
+              })}
+            </div>
+          ) : <p className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm font-bold text-amber-100">ข้อมูลสองแบบจำลองไม่ผ่าน Data Quality Guard จึงไม่นำมาแสดงเป็นสถานการณ์หรือคำสั่ง</p>}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400"><span>รอบรันเดียวกัน: {formatDateTime(data.nwpComparison.runAt)} · ความสอดคล้องไม่ใช่การรับรองความแม่นยำ</span><Link href="/weather#nwp" className="rounded-lg border border-slate-700 px-3 py-2 text-slate-200">เปิดรายละเอียดแบบจำลอง →</Link></div>
         </section>
 
         <section className="rounded-3xl border border-amber-500/40 bg-amber-950/20 p-6 md:p-8" aria-labelledby="approval-title">

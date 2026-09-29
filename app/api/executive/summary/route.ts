@@ -4,6 +4,7 @@ import {
   finiteNonNegative,
   median,
 } from '@/lib/executive/situation-quality';
+import { getNwpComparison } from '@/lib/weather/nwp-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -103,10 +104,11 @@ function ensembleSummary(payload: JsonRecord | null) {
 
 export async function GET() {
   const fetchedAt = new Date().toISOString();
-  const [modelResult, stationResult, ensembleResult] = await Promise.allSettled([
+  const [modelResult, stationResult, ensembleResult, nwpResult] = await Promise.allSettled([
     fetchJson(OPEN_METEO_URL, 10_000),
     fetchJson(THAIWATER_URL, 10_000),
     fetchJson(ENSEMBLE_URL, 12_000),
+    getNwpComparison(),
   ]);
 
   const modelPayload = modelResult.status === 'fulfilled' ? modelResult.value : null;
@@ -162,6 +164,18 @@ export async function GET() {
       retrievedAt: fetchedAt,
       horizon: '15 วัน — ใช้เพื่อวางแผน ไม่ใช้แจ้งเตือน',
       ...outlook,
+    },
+    nwpComparison: nwpResult.status === 'fulfilled' ? nwpResult.value : {
+      runAt: null,
+      models: [],
+      consensus: {
+        usable: false,
+        agreement: 'unavailable',
+        label: 'เปรียบเทียบไม่ได้',
+        summary: 'ข้อมูล ECMWF/GFS ไม่ครบหรือหมดอายุ จึงไม่ใช้ประกอบภาพรวมผู้บริหาร',
+        officialWarningAllowed: false,
+        requiresHumanApproval: true,
+      },
     },
     derived: {
       antecedentRainProxy: assessment.antecedentRainProxy,
