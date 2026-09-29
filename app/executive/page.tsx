@@ -97,18 +97,19 @@ export default function ExecutiveSituationOverview() {
   }, []);
 
   if (loading) {
-    return <main className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-200"><p role="status">กำลังตรวจสอบข้อมูลและเวลาอ้างอิง...</p></main>;
+    return <main className="min-h-screen bg-slate-950 text-slate-200"><CenterNav /><div className="flex min-h-[70vh] items-center justify-center"><p role="status">กำลังตรวจสอบข้อมูลและเวลาอ้างอิง...</p></div></main>;
   }
 
   if (!data || error) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 p-6 text-white">
-        <section className="max-w-lg rounded-2xl border border-rose-500/40 bg-slate-900 p-7 text-center">
+      <main className="min-h-screen bg-slate-950 text-white">
+        <CenterNav />
+        <div className="flex min-h-[70vh] items-center justify-center p-6"><section className="max-w-lg rounded-2xl border border-rose-500/40 bg-slate-900 p-7 text-center">
           <h1 className="text-2xl font-black">Executive Situation Overview — Experimental</h1>
           <p className="mt-4 text-rose-200">{error || 'ไม่สามารถประเมินสถานการณ์ได้'}</p>
           <p className="mt-2 text-sm text-slate-400">ระบบไม่สร้างสถานะปกติหรือคำสั่งปฏิบัติการเมื่อข้อมูลไม่พร้อม</p>
-          <Link href="/" className="mt-6 inline-block rounded-xl border border-slate-600 px-4 py-2">กลับหน้าหลัก</Link>
-        </section>
+          <Link href="/center" className="mt-6 inline-block rounded-xl border border-slate-600 px-4 py-2">กลับศูนย์สถานการณ์</Link>
+        </section></div>
       </main>
     );
   }
@@ -140,7 +141,7 @@ export default function ExecutiveSituationOverview() {
           </div>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-4 text-xs text-slate-400">
             <span>สร้างสรุปล่าสุด: {formatDateTime(data.generatedAt)}</span>
-            <Link href="/" className="rounded-lg border border-slate-700 px-3 py-2 text-slate-200 hover:bg-slate-800">← กลับหน้าหลัก</Link>
+            <Link href="/center" className="rounded-lg border border-slate-700 px-3 py-2 text-slate-200 hover:bg-slate-800">← กลับศูนย์สถานการณ์</Link>
           </div>
         </header>
 

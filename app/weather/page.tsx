@@ -554,8 +554,8 @@ useEffect(() => {
             <p className="text-[12px] md:text-[13px] text-gray-400 mt-1">ตรวจสอบอุณหภูมิ ปริมาณฝน และการพยากรณ์อากาศในพื้นที่</p>
           </div>
         </div>
-        <Link href="/" className="flex items-center justify-center space-x-2 bg-[#1e293b] hover:bg-[#334155] border border-gray-700 px-4 py-2.5 rounded-xl text-sm md:text-base font-bold text-white transition-all shadow-sm w-full md:w-auto">
-          <span>⬅️</span><span>กลับหน้าแผนที่หลัก</span>
+        <Link href="/center" className="flex items-center justify-center space-x-2 bg-[#1e293b] hover:bg-[#334155] border border-gray-700 px-4 py-2.5 rounded-xl text-sm md:text-base font-bold text-white transition-all shadow-sm w-full md:w-auto">
+          <span>⬅️</span><span>กลับศูนย์สถานการณ์</span>
         </Link>
       </header>
 
