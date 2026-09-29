@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { FreshnessStatus, SituationLevel } from '@/lib/executive/situation-quality';
+import CenterNav from '@/components/center/CenterNav';
 
 type SourceStatus = 'available' | 'unavailable';
 type SituationData = {
@@ -117,7 +118,9 @@ export default function ExecutiveSituationOverview() {
   const maxDaily = Math.max(10, ...data.sevenDayForecast.precipitationSum.filter((value): value is number => value !== null));
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-6 text-slate-100 md:px-8">
+    <main className="min-h-screen bg-slate-950 text-slate-100">
+      <CenterNav />
+      <div className="px-4 py-6 md:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="rounded-3xl border border-slate-800 bg-slate-900/90 p-6 shadow-2xl md:p-8">
           <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
@@ -215,7 +218,7 @@ export default function ExecutiveSituationOverview() {
               })}
             </div>
           ) : <p className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm font-bold text-amber-100">ข้อมูลสองแบบจำลองไม่ผ่าน Data Quality Guard จึงไม่นำมาแสดงเป็นสถานการณ์หรือคำสั่ง</p>}
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400"><span>รอบรันเดียวกัน: {formatDateTime(data.nwpComparison.runAt)} · ความสอดคล้องไม่ใช่การรับรองความแม่นยำ</span><Link href="/weather#nwp" className="rounded-lg border border-slate-700 px-3 py-2 text-slate-200">เปิดรายละเอียดแบบจำลอง →</Link></div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400"><span>รอบรันเดียวกัน: {formatDateTime(data.nwpComparison.runAt)} · ความสอดคล้องไม่ใช่การรับรองความแม่นยำ</span><Link href="/center/weather#nwp" className="rounded-lg border border-slate-700 px-3 py-2 text-slate-200">เปิดรายละเอียดแบบจำลอง →</Link></div>
         </section>
 
         <section className="rounded-3xl border border-amber-500/40 bg-amber-950/20 p-6 md:p-8" aria-labelledby="approval-title">
@@ -232,6 +235,7 @@ export default function ExecutiveSituationOverview() {
             {data.assessment.reviewItems.map((item) => <li key={item} className="rounded-xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-200">□ {item}</li>)}
           </ul>
         </section>
+      </div>
       </div>
     </main>
   );

@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import { inferSeasonalMode, SEASONAL_MODES, type SeasonalMode } from '@/lib/environment/seasonal-mode';
 import { getScreeningStatus } from '@/lib/environment/screening-status';
+import CenterNav from '@/components/center/CenterNav';
 
 const MapContainer = dynamic(() => import('react-leaflet').then((module) => module.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then((module) => module.TileLayer), { ssr: false });
@@ -100,6 +101,7 @@ export default function IntelligencePage() {
 
   return (
     <main className="min-h-screen bg-[#06111e] text-slate-100">
+      <CenterNav />
       <header className="sticky top-0 z-[1200] border-b border-white/10 bg-[#071522]/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-3 lg:px-6">
           <div className="min-w-0">
@@ -157,7 +159,7 @@ export default function IntelligencePage() {
           <section className="rounded-2xl border border-white/10 bg-[#0b1b2b] p-4" aria-labelledby="forecast-heading">
             <div className="flex flex-wrap items-end justify-between gap-2">
               <div><h2 id="forecast-heading" className="text-sm font-extrabold">พยากรณ์เพื่อวางแผน 24–72 ชั่วโมง</h2><p className="mt-1 text-xs text-slate-400">เปรียบเทียบ ECMWF/GFS รอบเดียวกัน · ไม่ใช่ Radar หรือสถานีตรวจวัด</p></div>
-              <Link href="/weather#nwp" className="rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-2 text-xs font-bold text-cyan-200">เปิดรายละเอียด NWP →</Link>
+              <Link href="/center/weather#nwp" className="rounded-lg border border-cyan-300/30 bg-cyan-300/10 px-3 py-2 text-xs font-bold text-cyan-200">เปิดรายละเอียด NWP →</Link>
             </div>
             {nwp?.consensus?.usable ? (
               <div className="mt-4 grid gap-2 sm:grid-cols-3">

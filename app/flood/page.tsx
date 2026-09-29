@@ -5,6 +5,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import Swal from 'sweetalert2';
+import CenterNav from '@/components/center/CenterNav';
 import {
   assessStationRisk,
   evaluateStationFreshness,
@@ -476,6 +477,7 @@ export default function FloodWatchDashboard() {
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] font-sans text-gray-800 pb-10 flex flex-col">
+      <CenterNav />
       
       {/* 🚀 Header */}
       <header className="bg-[#0b132b] px-6 py-4 flex flex-col items-start border-b border-[#1e293b]">
@@ -601,7 +603,7 @@ export default function FloodWatchDashboard() {
               <h3 id="flood-nwp-heading" className="mt-1 text-lg font-extrabold text-[#0f4a8a]">แนวโน้มฝนจาก ECMWF/GFS 24–72 ชั่วโมง</h3>
               <p className="mt-1 text-xs text-slate-500">ใช้ประกอบการเฝ้าระวังน้ำป่าเท่านั้น ไม่เปลี่ยนระดับความเสี่ยงของสถานีและไม่ออกประกาศอัตโนมัติ</p>
             </div>
-            <Link href="/weather#nwp" className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-xs font-extrabold text-sky-800">ดูรายละเอียดแบบจำลอง →</Link>
+            <Link href="/center/weather#nwp" className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-xs font-extrabold text-sky-800">ดูรายละเอียดแบบจำลอง →</Link>
           </div>
           {nwp?.consensus?.usable ? (
             <div className="mt-4 grid gap-3 md:grid-cols-3">

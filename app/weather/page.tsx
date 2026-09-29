@@ -5,6 +5,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import Swal from 'sweetalert2';
+import CenterNav from '@/components/center/CenterNav';
 import {
   CURRENT_LOCATION_ZOOM,
   geolocationFailureCopy,
@@ -536,6 +537,8 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] text-gray-800 font-sans selection:bg-[#0ea5e9] selection:text-white pb-10 flex flex-col">
+
+      <CenterNav />
 
       {/* Header */}
       <header className="bg-[#0b132b] px-6 py-4 flex flex-col md:flex-row justify-between md:items-center border-b border-[#1e293b] space-y-4 md:space-y-0">

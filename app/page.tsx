@@ -20,11 +20,9 @@ const MAX_DISTANCE_KM = 150;
 
 const PRIMARY_NAV = [
   { href: '/', label: 'แผนที่ GIS', icon: '🗺️' },
-  { href: '/intelligence', label: 'ศูนย์เฝ้าระวัง', icon: '🧭' },
-  { href: '/radar', label: 'เรดาร์ฝน', icon: '🌧️' },
-  { href: '/weather', label: 'พยากรณ์อากาศ', icon: '🌤️' },
-  { href: '/flood', label: 'น้ำและน้ำท่วม', icon: '🌊' },
+  { href: '/center', label: 'ศูนย์สถานการณ์', icon: '🧭' },
   { href: '/report', label: 'แจ้งเหตุ', icon: '🚨' },
+  { href: '/dashboard', label: 'สถานการณ์สาธารณะ', icon: '📊' },
   { href: '/admin/open-data', label: 'Open Data', icon: '📥' },
 ] as const;
 
@@ -1671,7 +1669,7 @@ export default function BoLuangDashboard() {
 
             <div className="relative mb-4">
               <Link
-                href="/weather"
+                href="/center/weather"
                 className="block bg-[#0f172a] border border-[#1e293b] hover:border-[#0ea5e9]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
                 <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#0ea5e9] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
@@ -1693,7 +1691,7 @@ export default function BoLuangDashboard() {
 
             <div className="relative mb-4">
               <Link
-                href="/flood"
+                href="/center/flood"
                 className="block bg-[#0f172a] border border-[#1e293b] hover:border-[#3b82f6]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
                 <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#3b82f6] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
