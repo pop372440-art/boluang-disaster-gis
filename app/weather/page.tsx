@@ -896,10 +896,10 @@ useEffect(() => {
 
                 <div className="h-[300px] w-full" role="img" aria-label="กราฟเปรียบเทียบฝนรายชั่วโมงจาก ECMWF และ GFS ใน 72 ชั่วโมงข้างหน้า">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={nwpChart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <AreaChart data={nwpChart} margin={{ top: 10, right: 10, left: 8, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                       <XAxis dataKey="label" stroke="#64748b" fontSize={10} interval={11} />
-                      <YAxis stroke="#64748b" fontSize={11} unit=" มม." />
+                      <YAxis stroke="#64748b" fontSize={11} width={56} tickFormatter={(value: number) => value.toFixed(1)} unit=" มม." />
                       <RechartsTooltip labelFormatter={(_, rows) => rows?.[0]?.payload?.time ? new Date(rows[0].payload.time).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }) : ''} contentStyle={{ borderRadius: 12 }} />
                       {(nwpView === 'overview' || nwpView === 'ecmwf') && <Area type="monotone" name="ECMWF (มม.)" dataKey="ecmwfMm" stroke="#0369a1" fill="#38bdf833" strokeWidth={3} connectNulls={false} />}
                       {(nwpView === 'overview' || nwpView === 'gfs') && <Area type="monotone" name="GFS (มม.)" dataKey="gfsMm" stroke="#059669" fill="#34d39922" strokeWidth={3} connectNulls={false} />}
