@@ -4,8 +4,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import 'leaflet/dist/leaflet.css';
-import { createClient } from '@supabase/supabase-js';
 import { evaluateFreshness } from '@/lib/radar/data-freshness';
+import { getBrowserSupabaseClient } from '@/lib/supabase/browser';
 import { validateAndNormalizeVillageGeoJson, validatePolygonFeatureCollection } from '@/lib/radar/geojson-validation';
 import { parseForecastApiResponse } from '@/lib/radar/open-meteo-adapter';
 import { parseOpenMeteoOutlookApiResponse } from '@/lib/radar/open-meteo-outlook-adapter';
@@ -46,7 +46,7 @@ import { buildRadarViewSearch, parseRadarView } from '@/lib/radar/radar-view-url
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
   ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = supabaseUrl && supabasePublishableKey ? createClient(supabaseUrl, supabasePublishableKey) : null;
+const supabase = getBrowserSupabaseClient();
 
 const MapContainer = dynamic(() => import('react-leaflet').then((m) => m.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import('react-leaflet').then((m) => m.TileLayer), { ssr: false });

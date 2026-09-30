@@ -4,15 +4,13 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import 'leaflet/dist/leaflet.css';
-import { createClient } from '@supabase/supabase-js'; 
 import Swal from 'sweetalert2';
+import { getBrowserSupabaseClient } from '@/lib/supabase/browser';
 
 // ==========================================
 // 🌟 1. การตั้งค่าระบบ (Config)
 // ==========================================
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = getBrowserSupabaseClient();
 
 const BO_LUANG_LAT = 18.1633;
 const BO_LUANG_LNG = 98.3744;
@@ -474,7 +472,7 @@ export default function BoLuangDashboard() {
 
     let cancelled = false;
     const loadVisitorStats = async () => {
-      if (!supabaseUrl || !supabaseAnonKey) {
+      if (!supabase) {
         if (!cancelled) setVisitStats({ today: null, total: null, state: 'error' });
         return;
       }
@@ -623,7 +621,7 @@ export default function BoLuangDashboard() {
   }, [onwrWaterLevel]);
 
   useEffect(() => {
-    if (!citizenReport) return;
+    if (!citizenReport || !supabase) return;
     const fetchReports = async () => {
       try {
         const { data, error } = await supabase.from('boluang_disaster_reports').select('*').neq('status', 'ดำเนินการเสร็จแล้ว').order('created_at', { ascending: false }); 

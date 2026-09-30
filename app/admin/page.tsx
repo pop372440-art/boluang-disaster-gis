@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { createClient, type Session } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 import Swal from 'sweetalert2';
 import type { StaffRole } from '@/lib/staff/security';
+import { getBrowserSupabaseClient } from '@/lib/supabase/browser';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
+const supabase = getBrowserSupabaseClient();
 
 type StaffSession = { id: string; email: string | null; role: StaffRole; currentAal: string; mfaRequired: true; idleTimeoutMinutes: number };
 type StaffAction = { id: string; action_kind: string; details: string; actor_role: StaffRole; created_at: string; imageUrls: Array<string | null> };
