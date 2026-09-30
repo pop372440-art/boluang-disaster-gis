@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import type { FreshnessStatus, SituationLevel } from '@/lib/executive/situation-quality';
 import CenterNav from '@/components/center/CenterNav';
 
-type SourceStatus = 'available' | 'unavailable';
+type SourceStatus = 'available' | 'fallback' | 'unavailable';
 type SituationData = {
   generatedAt: string;
   experimental: true;
@@ -21,7 +21,9 @@ type SituationData = {
   sevenDayForecast: { source: string; referenceAt: string | null; time: string[]; precipitationSum: Array<number | null> };
   planningOutlook: {
     source: string; providerStatus: SourceStatus; retrievedAt: string; horizon: string;
-    memberCount: number; peakMedianMm: number | null; peakDate: string | null;
+    referenceAt: string | null; memberCount: number; peakMedianMm: number | null; peakDate: string | null;
+    modelVersion: 'weathernext3' | 'weathernext2_fallback'; accessStatus: 'ready' | 'not_configured' | 'error';
+    method: string; dailyMedianMm: Array<{ date: string; precipitationMm: number }>;
   };
   nwpComparison: {
     runAt: string | null;
@@ -64,10 +66,11 @@ function formatMetric(value: number | null, digits = 1) {
 
 function SourceBadge({ label, status }: { label: string; status: SourceStatus }) {
   const available = status === 'available';
+  const fallback = status === 'fallback';
   return (
-    <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${available ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-rose-500/30 bg-rose-500/10 text-rose-200'}`}>
-      <span className={`h-2 w-2 rounded-full ${available ? 'bg-emerald-400' : 'bg-rose-400'}`} aria-hidden="true" />
-      {label}: {available ? 'พร้อมใช้' : 'ขัดข้อง'}
+    <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold ${available ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : fallback ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-rose-500/30 bg-rose-500/10 text-rose-200'}`}>
+      <span className={`h-2 w-2 rounded-full ${available ? 'bg-emerald-400' : fallback ? 'bg-amber-400' : 'bg-rose-400'}`} aria-hidden="true" />
+      {label}: {available ? 'พร้อมใช้' : fallback ? 'ใช้ข้อมูลสำรอง' : 'ขัดข้อง'}
     </span>
   );
 }
@@ -136,7 +139,7 @@ export default function ExecutiveSituationOverview() {
             <div className="flex flex-wrap gap-2 lg:max-w-md lg:justify-end">
               <SourceBadge label="Open-Meteo model" status={data.currentModel.providerStatus} />
               <SourceBadge label="ThaiWater reference" status={data.groundReference.providerStatus} />
-              <SourceBadge label="WeatherNext ensemble" status={data.planningOutlook.providerStatus} />
+              <SourceBadge label={data.planningOutlook.modelVersion === 'weathernext3' ? 'WeatherNext 3' : 'WeatherNext 3 / fallback'} status={data.planningOutlook.providerStatus} />
             </div>
           </div>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-4 text-xs text-slate-400">
@@ -190,13 +193,19 @@ export default function ExecutiveSituationOverview() {
 
           <article className="rounded-3xl border border-violet-500/30 bg-slate-900 p-6 md:p-8">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-violet-300">Planning Outlook</p>
-            <h2 className="mt-2 text-xl font-black">Open-Meteo ensemble · Google WeatherNext 2</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-300">สรุปด้วยค่ามัธยฐานของสมาชิกแบบจำลอง {data.planningOutlook.memberCount} ชุด เพื่อลดผลจากสมาชิกที่รุนแรงที่สุดเพียงชุดเดียว</p>
+            <h2 className="mt-2 text-xl font-black">{data.planningOutlook.source}</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-300">สรุปด้วยค่ามัธยฐานของ ensemble {data.planningOutlook.memberCount} สมาชิก เพื่อลดผลจากสมาชิกที่รุนแรงที่สุดเพียงชุดเดียว</p>
+            {data.planningOutlook.modelVersion !== 'weathernext3' && (
+              <p className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
+                ระบบรองรับ WeatherNext 3 แล้ว แต่{data.planningOutlook.accessStatus === 'not_configured' ? 'ยังไม่ได้ตั้งค่าสิทธิ์ BigQuery/allowlist' : 'การเชื่อมต่อ BigQuery ขัดข้อง'} จึงแสดง WeatherNext 2 เป็นข้อมูลสำรองโดยไม่เปลี่ยนชื่อแหล่งข้อมูลให้คลาดเคลื่อน
+              </p>
+            )}
             <div className="mt-6 rounded-2xl bg-slate-950 p-5">
               <p className="text-sm text-slate-400">ค่าสูงสุดของมัธยฐานรายวันในช่วงแผน</p>
               <p className="mt-2 text-4xl font-black text-violet-300">{formatMetric(data.planningOutlook.peakMedianMm)} <span className="text-base text-slate-500">มม./วัน</span></p>
-              <p className="mt-2 text-xs text-slate-400">วันที่แบบจำลองชี้: {data.planningOutlook.peakDate || 'ไม่มีข้อมูล'} · เรียกข้อมูลเมื่อ {formatDateTime(data.planningOutlook.retrievedAt)}</p>
+              <p className="mt-2 text-xs text-slate-400">วันที่แบบจำลองชี้: {data.planningOutlook.peakDate || 'ไม่มีข้อมูล'} · รอบแบบจำลอง {formatDateTime(data.planningOutlook.referenceAt)} · เรียกข้อมูลเมื่อ {formatDateTime(data.planningOutlook.retrievedAt)}</p>
             </div>
+            <p className="mt-4 text-xs leading-5 text-slate-400">วิธีคำนวณ: {data.planningOutlook.method}</p>
             <p className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">{data.planningOutlook.horizon} ความไม่แน่นอนเพิ่มขึ้นตามระยะพยากรณ์</p>
           </article>
         </section>

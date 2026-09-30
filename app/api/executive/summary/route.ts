@@ -5,6 +5,7 @@ import {
   median,
 } from '@/lib/executive/situation-quality';
 import { getNwpComparison } from '@/lib/weather/nwp-server';
+import { getWeatherNext3Outlook, weatherNext3Configuration } from '@/lib/weather/weathernext3';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -104,10 +105,11 @@ function ensembleSummary(payload: JsonRecord | null) {
 
 export async function GET() {
   const fetchedAt = new Date().toISOString();
-  const [modelResult, stationResult, ensembleResult, nwpResult] = await Promise.allSettled([
+  const [modelResult, stationResult, ensembleResult, weatherNext3Result, nwpResult] = await Promise.allSettled([
     fetchJson(OPEN_METEO_URL, 10_000),
     fetchJson(THAIWATER_URL, 10_000),
     fetchJson(ENSEMBLE_URL, 12_000),
+    getWeatherNext3Outlook(),
     getNwpComparison(),
   ]);
 
@@ -128,6 +130,25 @@ export async function GET() {
     stationDistanceKm: station?.distanceKm ?? null,
   });
   const outlook = ensembleSummary(ensemblePayload);
+  const weatherNext3 = weatherNext3Result.status === 'fulfilled' ? weatherNext3Result.value : null;
+  const weatherNext3Configured = weatherNext3Configuration() !== null;
+  const planningOutlook = weatherNext3 ? {
+    ...weatherNext3,
+    modelVersion: 'weathernext3' as const,
+    accessStatus: 'ready' as const,
+    horizon: '15 วัน — ใช้เพื่อวางแผน ไม่ใช้แจ้งเตือน',
+  } : {
+    source: 'Open-Meteo ensemble · Google WeatherNext 2 (fallback)',
+    providerStatus: ensembleResult.status === 'fulfilled' ? 'fallback' as const : 'unavailable' as const,
+    accessStatus: weatherNext3Configured ? 'error' as const : 'not_configured' as const,
+    modelVersion: 'weathernext2_fallback' as const,
+    referenceAt: null,
+    retrievedAt: fetchedAt,
+    horizon: '15 วัน — ใช้เพื่อวางแผน ไม่ใช้แจ้งเตือน',
+    method: 'ค่ามัธยฐานรายวันจาก WeatherNext 2 ผ่าน Open-Meteo ใช้ชั่วคราวจนกว่า WeatherNext 3 จะพร้อม',
+    dailyMedianMm: [],
+    ...outlook,
+  };
 
   return Response.json({
     generatedAt: fetchedAt,
@@ -158,13 +179,7 @@ export async function GET() {
         ? (daily.precipitation_sum as unknown[]).map(finiteNonNegative)
         : [],
     },
-    planningOutlook: {
-      source: 'Open-Meteo ensemble · Google WeatherNext 2',
-      providerStatus: ensembleResult.status === 'fulfilled' ? 'available' : 'unavailable',
-      retrievedAt: fetchedAt,
-      horizon: '15 วัน — ใช้เพื่อวางแผน ไม่ใช้แจ้งเตือน',
-      ...outlook,
-    },
+    planningOutlook,
     nwpComparison: nwpResult.status === 'fulfilled' ? nwpResult.value : {
       runAt: null,
       models: [],

@@ -6,6 +6,7 @@ import {
   bangkokLocalToIso,
   median,
 } from '../lib/executive/situation-quality.ts';
+import { aggregateWeatherNext3Daily } from '../lib/weather/weathernext3.ts';
 
 const now = Date.parse('2026-09-29T02:00:00.000Z');
 
@@ -59,4 +60,18 @@ test('a distant gauge cannot be used as local ground truth or soil saturation', 
 test('ensemble summaries use the median instead of a worst-member maximum', () => {
   assert.equal(median([2, 3, 80, 4, 3]), 3);
   assert.equal(median([]), null);
+});
+
+test('WeatherNext 3 hourly p50 precipitation is aggregated by Bangkok calendar day', () => {
+  const result = aggregateWeatherNext3Daily([
+    { forecastTime: '2026-09-29T16:00:00Z', precipitationMm: 1.2 },
+    { forecastTime: '2026-09-29T17:00:00Z', precipitationMm: 2.3 },
+    { forecastTime: '2026-09-30T16:00:00Z', precipitationMm: 0.5 },
+    { forecastTime: 'invalid', precipitationMm: 99 },
+    { forecastTime: '2026-09-30T17:00:00Z', precipitationMm: -1 },
+  ]);
+  assert.deepEqual(result, [
+    { date: '2026-09-29', precipitationMm: 1.2 },
+    { date: '2026-09-30', precipitationMm: 2.8 },
+  ]);
 });
