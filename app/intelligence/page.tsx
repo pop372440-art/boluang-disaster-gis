@@ -25,6 +25,7 @@ type VillageSnapshot = { village_id: string; observed_at: string; rain_1h_mm: nu
 type RadarFrame = { host: string; path: string; time: number };
 
 const RISK_COLORS: Record<string, string> = { normal: '#22c55e', watch: '#facc15', warning: '#f97316', danger: '#ef4444', critical: '#a855f7', unknown: '#64748b' };
+const FALLBACK_VILLAGE_COLOR = '#22d3ee';
 
 const fmt = (value: unknown, digits = 0) => typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '—';
 const aqLabel = (pm25: number | null) => pm25 == null ? 'รอข้อมูล' : pm25 <= 15 ? 'ดีมาก' : pm25 <= 25 ? 'ดี' : pm25 <= 37.5 ? 'ปานกลาง' : pm25 <= 75 ? 'เริ่มมีผลกระทบ' : 'มีผลกระทบ';
@@ -109,6 +110,12 @@ export default function IntelligencePage() {
   const sourceRows = useMemo(() => Object.values(payload?.sources ?? {}) as any[], [payload]);
   const hotspots = useMemo(() => Array.isArray(payload?.fire?.hotspots) ? payload.fire.hotspots : [], [payload]);
   const selectedVillageFeature = useMemo(() => villageBoundaries?.features?.find((feature: any) => feature?.properties?.own_villag === selectedVillage) ?? null, [selectedVillage, villageBoundaries]);
+  const villageColors = useMemo(() => new Map<string, string>(
+    (villageBoundaries?.features ?? []).map((feature: any) => [
+      feature?.properties?.own_villag,
+      feature?.properties?.fill ?? FALLBACK_VILLAGE_COLOR,
+    ]),
+  ), [villageBoundaries]);
   const snapshotsByVillage = useMemo(() => new Map(villageSnapshots.map((snapshot) => [snapshot.village_id, snapshot])), [villageSnapshots]);
   const selectedVillageSnapshot = selectedVillage ? snapshotsByVillage.get(VILLAGE_IDS.get(selectedVillage) ?? '') ?? null : null;
   const hourlyForecast = useMemo(() => {
@@ -298,12 +305,17 @@ export default function IntelligencePage() {
                 style={(feature: any) => {
                   const name = feature?.properties?.own_villag;
                   const snapshot = snapshotsByVillage.get(VILLAGE_IDS.get(name) ?? '');
-                  const fillColor = visibleLayers.villageRain && snapshot ? RISK_COLORS[snapshot.risk_level] ?? RISK_COLORS.unknown : config.accent;
+                  const villageColor = feature?.properties?.fill ?? FALLBACK_VILLAGE_COLOR;
+                  const fillColor = visibleLayers.villageRain && snapshot ? RISK_COLORS[snapshot.risk_level] ?? RISK_COLORS.unknown : villageColor;
                   return name === selectedVillage
-                    ? { color: '#ffffff', weight: 3, opacity: 1, fillColor, fillOpacity: 0.42 }
-                    : { color: '#b8d7e8', weight: 1.2, opacity: 0.8, fillColor, fillOpacity: visibleLayers.villageRain && snapshot ? 0.28 : 0.06 };
+                    ? { color: villageColor, weight: 4, opacity: 1, fillColor, fillOpacity: 0.42 }
+                    : { color: villageColor, weight: 2.2, opacity: 0.95, fillColor, fillOpacity: visibleLayers.villageRain && snapshot ? 0.28 : 0.14 };
                 }}
-                onEachFeature={(feature: any, layer: any) => layer.bindTooltip(feature?.properties?.own_villag ?? 'เขตหมู่บ้าน', { sticky: true, direction: 'top' })}
+                onEachFeature={(feature: any, layer: any) => {
+                  const name = feature?.properties?.own_villag ?? 'เขตหมู่บ้าน';
+                  layer.bindTooltip(name, { sticky: true, direction: 'top' });
+                  if (name !== 'เขตหมู่บ้าน') layer.on('click', () => setSelectedVillage(name));
+                }}
               />}
               {boundary && <GeoJSON data={boundary} style={{ color: config.accent, weight: 3, fillColor: config.accent, fillOpacity: 0.08 }} />}
               {visibleLayers.hotspots && hotspots.map((hotspot: any, index: number) => <CircleMarker
@@ -322,7 +334,7 @@ export default function IntelligencePage() {
               <p className="mt-1 text-sm leading-relaxed text-slate-300">ข้อมูลบนแผนที่เป็นระดับตำบลและหมู่บ้าน ไม่ใช่ระดับแปลงหรืออาคาร</p>
               <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-slate-200">
                 <span className="rounded-md border-2 px-2 py-1" style={{ borderColor: config.accent }}>ขอบเขตตำบล</span>
-                <span className="rounded-md border border-[#b8d7e8] px-2 py-1">ขอบเขต 13 หมู่บ้าน</span>
+                <span className="rounded-md border border-cyan-200/50 px-2 py-1">เส้นสี = ขอบเขตแต่ละหมู่บ้าน</span>
                 {visibleLayers.villageRain && villageSnapshots.length ? <span className="rounded-md border border-violet-300/50 px-2 py-1">สี polygon = ระดับคัดกรอง snapshot</span> : null}
                 {visibleLayers.radar && radarFrame ? <span className="rounded-md border border-sky-300/50 px-2 py-1">Radar {timeLabel(new Date(radarFrame.time * 1000).toISOString())}</span> : null}
               </div>
@@ -350,9 +362,18 @@ export default function IntelligencePage() {
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-[#0b1b2b] p-4">
-            <div className="flex items-center justify-between"><p className="text-sm font-extrabold">13 หมู่บ้าน</p><Link href="/radar" className="text-xs font-bold text-cyan-300">ดูค่าฝน →</Link></div>
+            <div className="flex items-center justify-between"><div><p className="text-sm font-extrabold">13 หมู่บ้าน</p><p className="mt-1 text-[10px] text-slate-500">สีหน้าชื่อใช้ตรงกับเส้นขอบบนแผนที่</p></div><Link href="/radar" className="text-xs font-bold text-cyan-300">ดูค่าฝน →</Link></div>
             <div className="mt-3 grid max-h-64 grid-cols-2 gap-2 overflow-y-auto pr-1">
-              {VILLAGES.map((village, index) => <button key={village} aria-pressed={selectedVillage === village} onClick={() => setSelectedVillage((value) => value === village ? null : village)} className={`rounded-lg border px-2.5 py-2 text-left text-xs transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${selectedVillage === village ? 'border-cyan-300 bg-cyan-300/10 text-white' : 'border-white/8 bg-black/10 text-slate-300 hover:bg-white/5'}`}><span className="mr-1.5 text-slate-500">{index + 1}</span>{village}</button>)}
+              {VILLAGES.map((village, index) => {
+                const villageColor = villageColors.get(village) ?? FALLBACK_VILLAGE_COLOR;
+                return <button
+                  key={village}
+                  aria-pressed={selectedVillage === village}
+                  onClick={() => setSelectedVillage((value) => value === village ? null : village)}
+                  className={`flex items-center rounded-lg border px-2.5 py-2 text-left text-xs transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${selectedVillage === village ? 'bg-white/10 text-white' : 'border-white/8 bg-black/10 text-slate-300 hover:bg-white/5'}`}
+                  style={selectedVillage === village ? { borderColor: villageColor, boxShadow: `inset 0 0 0 1px ${villageColor}55` } : undefined}
+                ><span aria-hidden="true" className="mr-2 h-3 w-3 shrink-0 rounded-sm border border-white/40" style={{ backgroundColor: villageColor }} /><span><span className="mr-1 text-slate-500">{index + 1}</span>{village}</span></button>;
+              })}
             </div>
             {selectedVillage ? <div className="mt-4 rounded-xl border border-cyan-300/20 bg-cyan-300/5 p-3">
               <div className="flex items-center justify-between gap-2"><p className="text-xs font-extrabold text-cyan-100">{selectedVillage}</p><span className="text-[9px] font-bold text-slate-400">{selectedVillageSnapshot ? 'SNAPSHOT รายหมู่บ้าน' : 'ยังไม่มี SNAPSHOT'}</span></div>
