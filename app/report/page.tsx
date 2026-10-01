@@ -249,7 +249,7 @@ export default function ReportPage() {
   });
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [pdpaConsent, setPdpaConsent] = useState(false);
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
   const [imagePreviewUrl, setImagePreviewUrl] = useState('');
 
   useEffect(() => {
@@ -432,7 +432,7 @@ export default function ReportPage() {
     { id: 'image-section', label: 'แนบรูปภาพ', valid: Boolean(selectedFile) },
     { id: 'village-name', label: 'เลือกหมู่บ้าน', valid: Boolean(formData.village_name) },
     { id: 'description', label: 'รายละเอียดอย่างน้อย 10 ตัวอักษร', valid: descriptionLength >= 10 },
-    { id: 'pdpa-consent', label: 'ยอมรับการใช้ข้อมูล', valid: pdpaConsent }
+    { id: 'privacy-notice', label: 'รับทราบประกาศความเป็นส่วนตัว', valid: privacyAcknowledged }
   ];
   const completedRequired = validationItems.filter(item => item.valid).length;
   const invalidItems = validationItems.filter(item => !item.valid);
@@ -567,7 +567,9 @@ export default function ReportPage() {
       try {
         const compressedFile = await compressImage(originalFile, 1024, 0.8);
         setSelectedFile(compressedFile);
-        await analyzeImageFile(compressedFile);
+        setAiResult(null);
+        setAiProvider(null);
+        setAiError('');
       } catch (error) {
         console.error('File compression failed:', error);
         setSelectedFile(null);
@@ -687,7 +689,7 @@ export default function ReportPage() {
           setPosition(null);
           setGpsAccuracy(null);
           setSelectedFile(null); 
-          setPdpaConsent(false);
+          setPrivacyAcknowledged(false);
           setAiResult(null); 
           setAiProvider(null);
           setAiError('');
@@ -895,10 +897,10 @@ export default function ReportPage() {
         
                 <div className="text-left">
                 <h4 className="text-[14px] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-700 to-purple-600">
-                วิเคราะห์ภาพด้วย Gemini AI
+                AI ช่วยวิเคราะห์ภาพ (ไม่บังคับ)
           </h4>
           <p className="text-[11px] text-slate-500 font-bold mt-0.5">
-            ระบบช่วยประเมินประเภทภัยและระดับความรุนแรง
+            หลังเลือกภาพ ท่านเป็นผู้กดเริ่มวิเคราะห์เอง
           </p>
         </div>
       </div>
@@ -916,6 +918,16 @@ export default function ReportPage() {
             <p className="text-[10px] leading-relaxed text-slate-500">รองรับ JPG, PNG, WebP ไม่เกิน 10 MB กรุณาใช้ภาพชัดเจนและหลีกเลี่ยงใบหน้าหรือข้อมูลส่วนบุคคลที่ไม่จำเป็น</p>
             {fileError && <p className="text-[11px] font-bold text-rose-600" role="alert">{fileError}</p>}
             {submitAttempted && !selectedFile && !fileError && <p className="text-[11px] font-bold text-rose-600" role="alert">กรุณาถ่ายหรือเลือกรูปจุดเกิดเหตุ</p>}
+
+            {selectedFile && !isAnalyzingAI && !aiResult && !aiError && (
+              <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3.5">
+                <p className="text-[12px] font-extrabold text-indigo-900">AI เป็นตัวเลือก ไม่จำเป็นต่อการส่งคำร้อง</p>
+                <p className="mt-1 text-[10px] leading-relaxed text-indigo-800">เมื่อกดปุ่มด้านล่าง ภาพจะถูกส่งไปยัง Google Gemini และอาจใช้ Groq เป็นระบบสำรองเพื่อเสนอประเภทภัยและระดับความรุนแรง ท่านสามารถกรอกข้อมูลเองโดยไม่ส่งภาพให้ AI ได้</p>
+                <button type="button" onClick={() => analyzeImageFile(selectedFile)} className="mt-3 w-full rounded-xl bg-indigo-600 px-3 py-2.5 text-[12px] font-extrabold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                  วิเคราะห์ภาพด้วย AI (ไม่บังคับ)
+                </button>
+              </div>
+            )}
 
             {/* AI Status */}
             {isAnalyzingAI && (
@@ -1025,18 +1037,21 @@ export default function ReportPage() {
           </div>
           <p className="-mt-3 text-[10px] leading-relaxed text-slate-500">ไม่ระบุชื่อได้ ระบบจะบันทึกเป็น “ไม่ระบุชื่อ” และยังสามารถติดตามเรื่องด้วยรหัสที่ได้รับหลังส่ง</p>
 
-          {/* ⚖️ PDPA Consent */}
-          <div id="pdpa-consent" tabIndex={-1} className={`p-4 rounded-xl border outline-none transition-all duration-300 ${pdpaConsent ? 'bg-emerald-50 border-emerald-200 shadow-sm' : submitAttempted ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-100' : 'bg-slate-50 border-slate-200'}`}>
+          {/* ⚖️ Privacy notice acknowledgement */}
+          <div id="privacy-notice" tabIndex={-1} className={`p-4 rounded-xl border outline-none transition-all duration-300 ${privacyAcknowledged ? 'bg-emerald-50 border-emerald-200 shadow-sm' : submitAttempted ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-100' : 'bg-slate-50 border-slate-200'}`}>
             <label className="flex items-start space-x-3 cursor-pointer group">
               <div className="flex items-center h-5 mt-0.5">
-                <input type="checkbox" checked={pdpaConsent} onChange={(e) => setPdpaConsent(e.target.checked)} aria-invalid={submitAttempted && !pdpaConsent} className="w-5 h-5 text-emerald-500 bg-white border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" />
+                <input type="checkbox" checked={privacyAcknowledged} onChange={(e) => setPrivacyAcknowledged(e.target.checked)} aria-invalid={submitAttempted && !privacyAcknowledged} className="w-5 h-5 text-emerald-500 bg-white border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" />
               </div>
               <div className="flex flex-col">
-                <span className={`text-[12px] font-bold transition-colors ${pdpaConsent ? 'text-emerald-800' : 'text-slate-700 group-hover:text-slate-900'}`}>ความยินยอมข้อมูลส่วนบุคคล (PDPA) <span className="text-rose-500">*</span></span>
-                <span className={`text-[10px] mt-1 leading-relaxed transition-colors ${pdpaConsent ? 'text-emerald-600' : 'text-slate-500'}`}>ยินยอมให้เทศบาลใช้ข้อมูล รูปภาพ และพิกัด เฉพาะเพื่อรับเรื่อง ตรวจสอบ ประสานงาน และติดตามผล โปรดหลีกเลี่ยงข้อมูลส่วนบุคคลของผู้อื่นที่ไม่จำเป็น</span>
+                <span className={`text-[12px] font-bold transition-colors ${privacyAcknowledged ? 'text-emerald-800' : 'text-slate-700 group-hover:text-slate-900'}`}>รับทราบประกาศความเป็นส่วนตัว <span className="text-rose-500">*</span></span>
+                <span className={`text-[10px] mt-1 leading-relaxed transition-colors ${privacyAcknowledged ? 'text-emerald-600' : 'text-slate-500'}`}>ข้าพเจ้าได้อ่านและรับทราบว่าเทศบาลจะใช้ข้อมูล รูปภาพ และพิกัดเพื่อรับเรื่อง ตรวจสอบ ประสานงาน และติดตามผลตามภารกิจสาธารณะ การทำเครื่องหมายนี้เป็นการยืนยันการรับทราบ ไม่ใช่การยินยอมแบบเหมารวม</span>
+                <a href="/privacy" target="_blank" rel="noreferrer" className="mt-2 w-fit text-[10px] font-bold text-indigo-700 underline decoration-indigo-300 underline-offset-2 hover:text-indigo-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                  อ่านนโยบายความเป็นส่วนตัวฉบับเต็ม (เปิดแท็บใหม่)
+                </a>
               </div>
             </label>
-            {submitAttempted && !pdpaConsent && <p className="mt-2 text-[11px] font-bold text-rose-600" role="alert">กรุณาอ่านและให้ความยินยอมก่อนส่ง</p>}
+            {submitAttempted && !privacyAcknowledged && <p className="mt-2 text-[11px] font-bold text-rose-600" role="alert">กรุณาอ่านประกาศความเป็นส่วนตัวและยืนยันการรับทราบก่อนส่ง</p>}
           </div>
 
         </form>
