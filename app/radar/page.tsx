@@ -1009,7 +1009,7 @@ export default function RadarPage() {
     </div>
   );
 
-  const DataStatusBadge = ({ status }: { status: DataSourceStatus }) => {
+  const DataStatusBadge = ({ status, compactLabel }: { status: DataSourceStatus; compactLabel?: string }) => {
     const fresh = status.freshness && status.timestamp ? evaluateFreshness(status.timestamp, {
       staleAfterMinutes: status.freshness.staleAfterMinutes,
       expireAfterMinutes: status.freshness.expireAfterMinutes,
@@ -1024,12 +1024,19 @@ export default function RadarPage() {
     const detail = status.error || (fresh?.ageMinutes != null
       ? `${Math.round(fresh.ageMinutes)} นาทีที่แล้ว`
       : status.timestamp ? fmtTime(new Date(status.timestamp)) : 'ยังไม่มีเวลาอ้างอิง');
+    const compactState = effectiveState === 'fresh'
+      ? `✓${fresh?.ageMinutes != null ? ` ${Math.round(fresh.ageMinutes)}น.` : ''}`
+      : isExpired ? '× หมดอายุ'
+        : effectiveState === 'stale' ? '⚠ เก่า'
+          : effectiveState === 'error' ? '× ผิดพลาด'
+            : effectiveState === 'loading' ? '… โหลด'
+              : '— รอ';
     return (
-      <div title={`${status.source}: ${detail}`} aria-label={`${status.source} ${state} ${detail}`} className="liquid-bar flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] whitespace-nowrap">
+      <div title={`${status.source}: ${state} · ${detail}`} aria-label={`${status.source} ${state} ${detail}`} className={`liquid-bar flex shrink-0 items-center rounded-full whitespace-nowrap ${compactLabel ? 'gap-1 px-2 py-1.5 text-[10px]' : 'gap-1.5 px-3 py-1.5 text-[11px]'}`}>
         <span className="w-2 h-2 rounded-full ring-2 ring-white/10" style={{ background: color }} aria-hidden="true" />
-        <span className="text-[#E1E9F7]">{status.source}</span>
-        <span style={{ color }}>{state}</span>
-        {fresh?.ageMinutes != null && <span className="font-mono text-[#AEBBD0]">· {Math.round(fresh.ageMinutes)} นาที</span>}
+        <span className="text-[#E1E9F7]">{compactLabel ?? status.source}</span>
+        <span className="font-semibold" style={{ color }}>{compactLabel ? compactState : state}</span>
+        {!compactLabel && fresh?.ageMinutes != null && <span className="font-mono text-[#AEBBD0]">· {Math.round(fresh.ageMinutes)} นาที</span>}
       </div>
     );
   };
@@ -1319,12 +1326,12 @@ export default function RadarPage() {
 
         <div aria-label="สถานะแหล่งข้อมูล เลื่อนแนวนอนเพื่อดูทั้งหมด" className="ops-scroll absolute left-[356px] right-4 top-[80px] z-[1300] hidden overflow-x-auto overscroll-x-contain px-2 pb-2 md:block xl:right-[438px]">
           <div className="flex min-w-max snap-x snap-proximity items-center justify-start gap-1.5 pr-3">
-            <div className="snap-start"><DataStatusBadge status={radarStatus} /></div>
-            <div className="snap-start"><DataStatusBadge status={forecastStatus} /></div>
-            <div className="snap-start"><DataStatusBadge status={metNorwayStatus} /></div>
-            <div className="snap-start"><DataStatusBadge status={outlookStatus} /></div>
-            <div className="snap-start"><DataStatusBadge status={gaugeSourceStatus} /></div>
-            <div className="snap-start"><DataStatusBadge status={geoJsonStatus} /></div>
+            <div className="snap-start"><DataStatusBadge status={radarStatus} compactLabel="Radar" /></div>
+            <div className="snap-start"><DataStatusBadge status={forecastStatus} compactLabel="พยากรณ์" /></div>
+            <div className="snap-start"><DataStatusBadge status={metNorwayStatus} compactLabel="MET" /></div>
+            <div className="snap-start"><DataStatusBadge status={outlookStatus} compactLabel="D+7–9" /></div>
+            <div className="snap-start"><DataStatusBadge status={gaugeSourceStatus} compactLabel="STN0583" /></div>
+            <div className="snap-start"><DataStatusBadge status={geoJsonStatus} compactLabel="GIS" /></div>
           </div>
         </div>
 
