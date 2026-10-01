@@ -1,32 +1,55 @@
 {
-  "schema_version": "1.0",
+  "catalog_version": "2026.09.28.1",
+  "published_at": "2026-09-28",
+  "owner": "เทศบาลตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่",
+  "contact_url": "https://baulaung.go.th/",
+  "license": null,
+  "license_status": "รอเทศบาลอนุมัติและประกาศสัญญาอนุญาตอย่างเป็นทางการ",
   "crs": "EPSG:4326",
   "datasets": {
     "boluang.json": {
+      "dataset_id": "boluang-boundary",
       "title": "ขอบเขตตำบลบ่อหลวง",
+      "version": "boundary-2026.09.28.1",
+      "release_date": "2026-09-28",
+      "source_updated_at": null,
+      "update_frequency": "เมื่อมีข้อมูลที่ผ่านการตรวจสอบ",
       "geometry": ["Polygon", "MultiPolygon"],
-      "status": "local operational copy",
-      "source_agency": "not recorded in source file",
-      "survey_date": null,
-      "limitations": "Do not infer parcel or building accuracy."
+      "status": "เผยแพร่เพื่อใช้อ้างอิงระดับตำบล",
+      "source_agency": null,
+      "source_note": "ไฟล์ต้นทางใน repository ไม่บันทึกหน่วยงานเจ้าของหรือวันที่สำรวจ",
+      "sha256": "a1b1138b5ff405ec145a87065ed3a6c1324303e89e3123b621d645721fe0e486",
+      "limitations": "ห้ามตีความเป็นแนวเขตทางกฎหมาย ระดับแปลง หรือระดับอาคาร"
     },
     "block.json": {
+      "dataset_id": "boluang-village-boundaries",
       "title": "ขอบเขต 13 หมู่บ้าน ตำบลบ่อหลวง",
+      "version": "villages-2026.09.28.1",
+      "release_date": "2026-09-28",
+      "source_updated_at": null,
+      "update_frequency": "เมื่อมีข้อมูลที่ผ่านการตรวจสอบ",
       "geometry": ["Polygon", "MultiPolygon"],
-      "stable_id": "village_id (moo-1 through moo-13 after normalization)",
-      "status": "local operational copy",
-      "source_agency": "not recorded in source file",
-      "survey_date": null,
-      "limitations": "Village-scale analysis only."
+      "stable_id": "village_id (moo-1 ถึง moo-13 หลัง normalization)",
+      "status": "เผยแพร่เพื่อการวิเคราะห์ระดับหมู่บ้าน",
+      "source_agency": null,
+      "source_note": "ชื่อเดิมอ้างถึงแผนที่ภาษี แต่ไฟล์ต้นทางไม่บันทึก provenance และวันที่สำรวจ",
+      "sha256": "3fdab093b644718af2b1bebce2aa6b4fc9bed95bc93a2c6a1633c171e4639e09",
+      "limitations": "ใช้วิเคราะห์ระดับหมู่บ้านเท่านั้น ไม่ใช่แนวเขตแปลงที่ดิน"
     },
     "boluang_landslide_risk.json": {
+      "dataset_id": "boluang-landslide-susceptibility",
       "title": "พื้นที่ความไวต่อดินถล่ม",
+      "version": "landslide-2026.09.28.1",
+      "release_date": "2026-09-28",
+      "source_updated_at": null,
+      "update_frequency": "เมื่อมีข้อมูลที่ผ่านการตรวจสอบ",
       "geometry": ["Polygon", "MultiPolygon"],
       "classification": { "1": "สูง", "2": "ปานกลาง" },
-      "status": "context layer",
-      "source_agency": "not recorded in source file",
-      "survey_date": null,
-      "limitations": "Hazard susceptibility polygons, not surveyed incident points."
+      "status": "ชั้นข้อมูลบริบท ไม่ใช่ประกาศเตือนภัย",
+      "source_agency": null,
+      "source_note": "ไฟล์ต้นทางใน repository ไม่บันทึกหลักฐานหน่วยงานเจ้าของหรือวันที่สำรวจ",
+      "sha256": "086a6ca6c5a997daf192d3dbdb5e695923742a7ffb642d2f1dc0347e04fae75e",
+      "limitations": "เป็น polygon ความไวต่อภัย ไม่ใช่จุดเกิดเหตุที่สำรวจภาคสนาม"
     }
   }
 }

@@ -10,6 +10,7 @@
 | Hourly/daily precipitation | Open-Meteo | sampling 3–5 จุดต่อหมู่บ้าน, ฝน T+1 ถึง T+3 และฝนย้อนหลัง 7 วัน | stale 15 นาที, expired 30 นาที |
 | Independent forecast cross-check | MET Norway Locationforecast 2.0 | จุดตัวแทน 1 จุดต่อหมู่บ้าน ใช้เปรียบเทียบฝน 3 ชั่วโมงกับ Open-Meteo เท่านั้น | stale 90 นาที, expired 180 นาที |
 | Planning outlook D+7–D+9 | Open-Meteo daily + MET Norway | เปรียบเทียบฝนรายวัน, model spread, probability, อุณหภูมิและลม เพื่อวางแผนเท่านั้น | stale 120 นาที, expired 360 นาที |
+| Executive planning outlook | Google WeatherNext 3 ผ่าน BigQuery; WeatherNext 2 ผ่าน Open-Meteo เป็น fallback | มัธยฐาน ensemble (p50) รายชั่วโมงรวมเป็นฝนรายวันสำหรับแผน 15 วันเท่านั้น | แสดงรอบแบบจำลองและเวลาเรียกข้อมูลทุกครั้ง |
 | ขอบเขตตำบล/หมู่บ้าน | GeoJSON ของโครงการ | ขอบเขตตำบลและ 13 หมู่บ้าน | ตรวจ schema ทุกครั้งก่อนใช้ |
 | Usage statistics | Supabase RPC | สถิติการใช้งาน | ตามเวลาตอบกลับของฐานข้อมูล |
 
@@ -42,7 +43,7 @@ riskIndex = rain3h × soilFactor × terrainFactor
 - ระดับความสอดคล้องของแบบจำลองใช้ค่าความต่างเริ่มต้น `≤2`, `≤5`, และ `>5` มม. ซึ่งอยู่ใน config และยังต้องสอบเทียบกับมาตรวัดฝน/เหตุการณ์จริง
 - ข้อมูล MET Norway ต้องให้เครดิตตามใบอนุญาตของผู้ให้บริการ ระบบไม่ใช้ชื่อ โลโก้ หรือรูปแบบหน้าตาของ Yr เพื่อทำให้เข้าใจว่าเป็นบริการอย่างเป็นทางการของ Yr, NRK หรือ MET Norway
 - ถ้า RainViewer `nowcast` ว่าง ระบบจะไม่ติดป้าย observed frame ว่า nowcast
-- Supabase client ใช้เฉพาะ anon key; ห้ามใส่ service-role key ใน client bundle และต้องตรวจ RLS ใน dashboard/database แยกต่างหาก
+- Supabase client ฝั่ง browser ใช้เฉพาะ anon/publishable key; ห้ามใส่ secret หรือ service-role key ใน client bundle และต้องตรวจ RLS ใน dashboard/database แยกต่างหาก
 - Alert ต้องผ่านเกณฑ์ 2 รอบก่อนยกระดับ ใช้ hysteresis ตอนลดระดับ และ notification จริงอยู่ในสถานะรอเจ้าหน้าที่อนุมัติ
 - ไม่มี dataset พื้นที่น้ำท่วมซ้ำซากใน repository จึงแสดง layer เป็น unavailable โดยไม่สร้างข้อมูลจำลอง
 - `boluang_landslide_risk.json` เป็น polygon hazard zones ไม่ใช่จุดสำรวจภาคสนาม
@@ -53,12 +54,25 @@ riskIndex = rain3h × soilFactor × terrainFactor
 
 ระบบวิเคราะห์ภาพในแบบฟอร์มแจ้งเหตุใช้ Gemini เป็นผู้ให้บริการหลัก และรองรับ Groq Vision เป็นระบบสำรองเมื่อ Gemini ถูกจำกัดอัตราการใช้งาน หมดเวลา หรือขัดข้อง กำหนด `GROQ_API_KEY` เป็น server-only environment variable ใน Vercel สำหรับ Preview และ Production โดยไม่ใช้คำนำหน้า `NEXT_PUBLIC_` สามารถกำหนด `GROQ_VISION_MODEL` เพิ่มเติมได้; ค่าเริ่มต้นคือ `qwen/qwen3.8-27b` หากไม่กำหนดคีย์ ระบบยังทำงานด้วย Gemini ตามเดิม
 
+หน้า `/status` อ่านข้อมูลผ่าน `POST /api/report-status` เท่านั้น API ต้องมี `SUPABASE_SECRET_KEY` (แนะนำ) หรือ `SUPABASE_SERVICE_ROLE_KEY` เป็น server-only environment variable ใน Preview และ Production และควรกำหนด `REPORT_STATUS_AUDIT_PEPPER` แยกต่อ environment สำหรับทำ fingerprint ใน audit log โดยไม่บันทึก IP หรือโทเคนจริง รหัส `BL-123456` แบบเดิมไม่เปิดใช้โดยค่าเริ่มต้น; ตัวแปร `REPORT_STATUS_ALLOW_LEGACY_CODES=true` มีไว้สำหรับช่วงย้ายระบบชั่วคราวเท่านั้นและไม่แนะนำสำหรับ Production
+
+หน้า `/center/executive` รองรับ Google WeatherNext 3 จาก BigQuery Analytics Hub หลังบัญชี Google Cloud ได้รับ allowlist และ subscribe ชุดข้อมูลแล้ว ให้สร้าง service account ที่มีสิทธิ์อ่าน linked dataset และรัน BigQuery job จากนั้นกำหนดตัวแปร server-only ต่อไปนี้ใน Vercel Preview และ Production (ห้ามใช้คำนำหน้า `NEXT_PUBLIC_`):
+
+- `GOOGLE_WEATHERNEXT3_PROJECT_ID` — Google Cloud project ที่ใช้รัน query และมี linked dataset
+- `GOOGLE_WEATHERNEXT3_DATASET_ID` — ชื่อ linked dataset ที่มีตาราง `weathernext_3_0_0_0p1deg`
+- `GOOGLE_WEATHERNEXT3_SERVICE_ACCOUNT_EMAIL` — อีเมล service account
+- `GOOGLE_WEATHERNEXT3_PRIVATE_KEY` — private key แบบ PEM; ใส่เป็น secret และรองรับทั้ง newline จริงหรือ `\n`
+
+หากตัวแปรไม่ครบ การอนุญาตยังไม่สำเร็จ หรือ BigQuery ขัดข้อง ระบบจะติดป้ายชัดเจนและใช้ WeatherNext 2 ผ่าน Open-Meteo เป็นข้อมูลสำรอง โดยไม่แอบเปลี่ยนชื่อเป็น WeatherNext 3 ข้อมูล WeatherNext 3 ใช้ `total_precipitation_1hr_p50` หน่วยเมตร แปลงเป็นมิลลิเมตรและรวมตามวันปฏิทินเวลาไทย ไม่ใช้เป็นประกาศเตือนหรือคำสั่งปฏิบัติการอัตโนมัติ
+
 เอกสารอ้างอิงผู้ให้บริการ:
 
 - [MET Norway Locationforecast](https://api.met.no/weatherapi/locationforecast/2.0/documentation)
 - [MET Norway data model](https://docs.api.met.no/doc/locationforecast/datamodel.html)
 - [MET Weather API Terms of Service](https://developer.yr.no/doc/TermsOfService/)
 - [Open-Meteo Forecast API](https://open-meteo.com/en/docs)
+- [Google WeatherNext 3 access guide](https://developers.google.com/weathernext/guides/access-forecast)
+- [WeatherNext forecasts on BigQuery](https://developers.google.com/weathernext/guides/bigquery)
 
 ข้อมูลระยะ 7 วันขึ้นไปมีความไม่แน่นอนสูงขึ้นตาม forecast horizon และความละเอียดแบบจำลอง Global ไม่ใช่ความละเอียดระดับหมู่บ้าน การแสดงผลรายหมู่บ้านหมายถึงค่าจากจุดตัวแทนของ polygon เท่านั้น ห้ามตีความเป็นการตรวจวัด ณ ทุกจุดในหมู่บ้าน
 

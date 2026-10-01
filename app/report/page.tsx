@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import 'leaflet/dist/leaflet.css';
-import { createClient } from '@supabase/supabase-js';
 import Swal from 'sweetalert2'; 
 import { useMapEvents } from 'react-leaflet';
 import {
@@ -13,14 +12,6 @@ import {
   parseIncidentAiResult,
   type IncidentAiResult
 } from '@/lib/incident-ai';
-
-// 🌟 ตั้งค่า Supabase (ดึงจาก Environment Variables)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Supabase Error: Missing environment variables.");
-}
-const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 const SEVERITY_OPTIONS = [
   { level: 1, label: 'เล็กน้อย', help: 'ยังไม่กระทบการใช้ชีวิต' },
@@ -102,7 +93,7 @@ const downloadSlipImage = async (trackingCode: string, qrUrlStr: string) => {
     ctx.fill();
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 38px Arial, sans-serif';
+    ctx.font = 'bold 15px monospace';
     ctx.textAlign = 'center';
     ctx.fillText(trackingCode, width / 2, 133);
 
@@ -258,7 +249,7 @@ export default function ReportPage() {
   });
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [pdpaConsent, setPdpaConsent] = useState(false);
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
   const [imagePreviewUrl, setImagePreviewUrl] = useState('');
 
   useEffect(() => {
@@ -441,7 +432,7 @@ export default function ReportPage() {
     { id: 'image-section', label: 'แนบรูปภาพ', valid: Boolean(selectedFile) },
     { id: 'village-name', label: 'เลือกหมู่บ้าน', valid: Boolean(formData.village_name) },
     { id: 'description', label: 'รายละเอียดอย่างน้อย 10 ตัวอักษร', valid: descriptionLength >= 10 },
-    { id: 'pdpa-consent', label: 'ยอมรับการใช้ข้อมูล', valid: pdpaConsent }
+    { id: 'privacy-notice', label: 'รับทราบประกาศความเป็นส่วนตัว', valid: privacyAcknowledged }
   ];
   const completedRequired = validationItems.filter(item => item.valid).length;
   const invalidItems = validationItems.filter(item => !item.valid);
@@ -576,7 +567,9 @@ export default function ReportPage() {
       try {
         const compressedFile = await compressImage(originalFile, 1024, 0.8);
         setSelectedFile(compressedFile);
-        await analyzeImageFile(compressedFile);
+        setAiResult(null);
+        setAiProvider(null);
+        setAiError('');
       } catch (error) {
         console.error('File compression failed:', error);
         setSelectedFile(null);
@@ -618,7 +611,7 @@ export default function ReportPage() {
       return;
     }
 
-    if (!supabase || !position || !selectedFile) {
+    if (!position || !selectedFile) {
       Swal.fire({ icon: 'error', title: 'ระบบยังไม่พร้อมรับข้อมูล', text: 'กรุณาลองใหม่ภายหลังหรือติดต่อเทศบาลตำบลบ่อหลวง' });
       return;
     }
@@ -626,49 +619,27 @@ export default function ReportPage() {
     setIsSubmitting(true);
 
     try {
-      let imageUrl = null;
-      if (selectedFile) {
-        const fileExt = selectedFile.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-        const filePath = `reports/${fileName}`;
+      const submission = new FormData();
+      submission.set('village_name', formData.village_name);
+      submission.set('risk_type', formData.risk_type);
+      submission.set('severity_level', String(formData.severity_level));
+      submission.set('description', formData.description);
+      submission.set('reporter_name', formData.reporter_name || 'ไม่ระบุชื่อ');
+      submission.set('reporter_role', formData.reporter_role);
+      submission.set('latitude', String(position.lat));
+      submission.set('longitude', String(position.lng));
+      submission.set('image', selectedFile);
 
-        const { error: uploadError } = await supabase.storage
-          .from('disaster_images')
-          .upload(filePath, selectedFile);
+      const response = await fetch('/api/incidents', { method: 'POST', body: submission });
+      const result = await response.json().catch(() => ({})) as { trackingToken?: string; error?: string };
+      if (!response.ok || !result.trackingToken) throw new Error(result.error || 'ส่งข้อมูลไม่สำเร็จ');
+      const trackingCode = result.trackingToken;
 
-        if (uploadError) throw uploadError;
-
-        const { data: publicUrlData } = supabase.storage
-          .from('disaster_images')
-          .getPublicUrl(filePath);
-
-        imageUrl = publicUrlData.publicUrl;
-      }
-
-      const trackingCode = `BL-${Math.floor(100000 + Math.random() * 900000)}`;
-
-      const { error: insertError } = await supabase
-        .from('boluang_disaster_reports')
-        .insert([
-          {
-            village_name: formData.village_name,
-            risk_type: formData.risk_type,
-            severity_level: formData.severity_level,
-            description: formData.description,
-            reporter_name: formData.reporter_name || 'ไม่ระบุชื่อ',
-            reporter_role: formData.reporter_role,
-            latitude: position.lat,
-            longitude: position.lng,
-            image_url: imageUrl,
-            tracking_code: trackingCode,
-            status: 'รับเรื่องแล้ว'
-          }
-        ]);
-
-      if (insertError) throw insertError;
-
-      const statusUrl = `${window.location.origin}/status?code=${trackingCode}`;
-      const qrCodeImageUrl = `https://quickchart.io/qr?text=${encodeURIComponent(statusUrl)}&size=200`;
+      // Keep the bearer token in the URL fragment so it never reaches server access logs or Referer headers.
+      const statusUrl = `${window.location.origin}/status#token=${encodeURIComponent(trackingCode)}`;
+      // Generate the QR locally: the bearer token must never be sent to a third-party QR service.
+      const { default: QRCode } = await import('qrcode');
+      const qrCodeImageUrl = await QRCode.toDataURL(statusUrl, { width: 200, margin: 1, errorCorrectionLevel: 'M' });
 
       localStorage.setItem('bl_latest_tracking_code', trackingCode);
       localStorage.setItem('bl_last_submit_time', Date.now().toString());
@@ -682,7 +653,7 @@ export default function ReportPage() {
               หมายเลขติดตามคำร้อง
             </div>
             <div style="background-color: #059669; padding: 15px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(5, 150, 105, 0.3);">
-              <div style="font-size: 32px; font-weight: 900; color: #ffffff; letter-spacing: 2px;">
+              <div style="font-family: monospace; font-size: 14px; font-weight: 900; color: #ffffff; overflow-wrap: anywhere;">
                 ${trackingCode}
               </div>
             </div>
@@ -718,7 +689,7 @@ export default function ReportPage() {
           setPosition(null);
           setGpsAccuracy(null);
           setSelectedFile(null); 
-          setPdpaConsent(false);
+          setPrivacyAcknowledged(false);
           setAiResult(null); 
           setAiProvider(null);
           setAiError('');
@@ -731,7 +702,7 @@ export default function ReportPage() {
 
     } catch (error: any) {
       console.error('Error:', error.message);
-      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถส่งข้อมูลได้ กรุณาลองใหม่อีกครั้ง' });
+      Swal.fire({ icon: 'error', title: 'ส่งข้อมูลไม่สำเร็จ', text: error.message || 'ไม่สามารถส่งข้อมูลได้ กรุณาลองใหม่อีกครั้ง' });
     } finally {
       setIsSubmitting(false);
     }
@@ -926,10 +897,10 @@ export default function ReportPage() {
         
                 <div className="text-left">
                 <h4 className="text-[14px] font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-700 to-purple-600">
-                วิเคราะห์ภาพด้วย Gemini AI
+                AI ช่วยวิเคราะห์ภาพ (ไม่บังคับ)
           </h4>
           <p className="text-[11px] text-slate-500 font-bold mt-0.5">
-            ระบบช่วยประเมินประเภทภัยและระดับความรุนแรง
+            หลังเลือกภาพ ท่านเป็นผู้กดเริ่มวิเคราะห์เอง
           </p>
         </div>
       </div>
@@ -947,6 +918,16 @@ export default function ReportPage() {
             <p className="text-[10px] leading-relaxed text-slate-500">รองรับ JPG, PNG, WebP ไม่เกิน 10 MB กรุณาใช้ภาพชัดเจนและหลีกเลี่ยงใบหน้าหรือข้อมูลส่วนบุคคลที่ไม่จำเป็น</p>
             {fileError && <p className="text-[11px] font-bold text-rose-600" role="alert">{fileError}</p>}
             {submitAttempted && !selectedFile && !fileError && <p className="text-[11px] font-bold text-rose-600" role="alert">กรุณาถ่ายหรือเลือกรูปจุดเกิดเหตุ</p>}
+
+            {selectedFile && !isAnalyzingAI && !aiResult && !aiError && (
+              <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3.5">
+                <p className="text-[12px] font-extrabold text-indigo-900">AI เป็นตัวเลือก ไม่จำเป็นต่อการส่งคำร้อง</p>
+                <p className="mt-1 text-[10px] leading-relaxed text-indigo-800">เมื่อกดปุ่มด้านล่าง ภาพจะถูกส่งไปยัง Google Gemini และอาจใช้ Groq เป็นระบบสำรองเพื่อเสนอประเภทภัยและระดับความรุนแรง ท่านสามารถกรอกข้อมูลเองโดยไม่ส่งภาพให้ AI ได้</p>
+                <button type="button" onClick={() => analyzeImageFile(selectedFile)} className="mt-3 w-full rounded-xl bg-indigo-600 px-3 py-2.5 text-[12px] font-extrabold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                  วิเคราะห์ภาพด้วย AI (ไม่บังคับ)
+                </button>
+              </div>
+            )}
 
             {/* AI Status */}
             {isAnalyzingAI && (
@@ -1056,18 +1037,21 @@ export default function ReportPage() {
           </div>
           <p className="-mt-3 text-[10px] leading-relaxed text-slate-500">ไม่ระบุชื่อได้ ระบบจะบันทึกเป็น “ไม่ระบุชื่อ” และยังสามารถติดตามเรื่องด้วยรหัสที่ได้รับหลังส่ง</p>
 
-          {/* ⚖️ PDPA Consent */}
-          <div id="pdpa-consent" tabIndex={-1} className={`p-4 rounded-xl border outline-none transition-all duration-300 ${pdpaConsent ? 'bg-emerald-50 border-emerald-200 shadow-sm' : submitAttempted ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-100' : 'bg-slate-50 border-slate-200'}`}>
+          {/* ⚖️ Privacy notice acknowledgement */}
+          <div id="privacy-notice" tabIndex={-1} className={`p-4 rounded-xl border outline-none transition-all duration-300 ${privacyAcknowledged ? 'bg-emerald-50 border-emerald-200 shadow-sm' : submitAttempted ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-100' : 'bg-slate-50 border-slate-200'}`}>
             <label className="flex items-start space-x-3 cursor-pointer group">
               <div className="flex items-center h-5 mt-0.5">
-                <input type="checkbox" checked={pdpaConsent} onChange={(e) => setPdpaConsent(e.target.checked)} aria-invalid={submitAttempted && !pdpaConsent} className="w-5 h-5 text-emerald-500 bg-white border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" />
+                <input type="checkbox" checked={privacyAcknowledged} onChange={(e) => setPrivacyAcknowledged(e.target.checked)} aria-invalid={submitAttempted && !privacyAcknowledged} className="w-5 h-5 text-emerald-500 bg-white border-slate-300 rounded focus:ring-emerald-500 cursor-pointer" />
               </div>
               <div className="flex flex-col">
-                <span className={`text-[12px] font-bold transition-colors ${pdpaConsent ? 'text-emerald-800' : 'text-slate-700 group-hover:text-slate-900'}`}>ความยินยอมข้อมูลส่วนบุคคล (PDPA) <span className="text-rose-500">*</span></span>
-                <span className={`text-[10px] mt-1 leading-relaxed transition-colors ${pdpaConsent ? 'text-emerald-600' : 'text-slate-500'}`}>ยินยอมให้เทศบาลใช้ข้อมูล รูปภาพ และพิกัด เฉพาะเพื่อรับเรื่อง ตรวจสอบ ประสานงาน และติดตามผล โปรดหลีกเลี่ยงข้อมูลส่วนบุคคลของผู้อื่นที่ไม่จำเป็น</span>
+                <span className={`text-[12px] font-bold transition-colors ${privacyAcknowledged ? 'text-emerald-800' : 'text-slate-700 group-hover:text-slate-900'}`}>รับทราบประกาศความเป็นส่วนตัว <span className="text-rose-500">*</span></span>
+                <span className={`text-[10px] mt-1 leading-relaxed transition-colors ${privacyAcknowledged ? 'text-emerald-600' : 'text-slate-500'}`}>ข้าพเจ้าได้อ่านและรับทราบว่าเทศบาลจะใช้ข้อมูล รูปภาพ และพิกัดเพื่อรับเรื่อง ตรวจสอบ ประสานงาน และติดตามผลตามภารกิจสาธารณะ การทำเครื่องหมายนี้เป็นการยืนยันการรับทราบ ไม่ใช่การยินยอมแบบเหมารวม</span>
+                <a href="/privacy" target="_blank" rel="noreferrer" className="mt-2 w-fit text-[10px] font-bold text-indigo-700 underline decoration-indigo-300 underline-offset-2 hover:text-indigo-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                  อ่านนโยบายความเป็นส่วนตัวฉบับเต็ม (เปิดแท็บใหม่)
+                </a>
               </div>
             </label>
-            {submitAttempted && !pdpaConsent && <p className="mt-2 text-[11px] font-bold text-rose-600" role="alert">กรุณาอ่านและให้ความยินยอมก่อนส่ง</p>}
+            {submitAttempted && !privacyAcknowledged && <p className="mt-2 text-[11px] font-bold text-rose-600" role="alert">กรุณาอ่านประกาศความเป็นส่วนตัวและยืนยันการรับทราบก่อนส่ง</p>}
           </div>
 
         </form>

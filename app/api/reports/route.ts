@@ -1,54 +1,55 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import {
+  OPEN_DATA_INCIDENT_VERSION,
+  fetchPublicIncidents,
+  openDataServerClient,
+} from '@/lib/open-data/incidents';
 
-// เปลี่ยน Runtime เป็น Edge เพื่อให้ API โหลดเร็วที่สุด
-export const runtime = 'edge';
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const ERROR_HEADERS = {
+  'Cache-Control': 'no-store, max-age=0',
+  'X-Content-Type-Options': 'nosniff',
+};
 
 export async function GET() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.json({ error: 'Database configuration missing' }, { status: 500 });
+  const client = openDataServerClient();
+  if (!client) {
+    return NextResponse.json({ ok: false, error: 'ระบบข้อมูลเปิดยังไม่พร้อมใช้งาน' }, { status: 503, headers: ERROR_HEADERS });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
   try {
-    // ดึงเฉพาะข้อมูลที่เปิดเผยได้ (ไม่ดึงชื่อผู้แจ้งเพื่อป้องกัน PDPA)
-    const { data, error } = await supabase
-      .from('boluang_disaster_reports')
-      .select('tracking_code, risk_type, severity_level, latitude, longitude, village_name, status, created_at')
-      .order('created_at', { ascending: false })
-      .limit(100); // จำกัดแค่ 100 รายการล่าสุดเพื่อประสิทธิภาพ
-
-    if (error) throw error;
-
-    // 🌟 ขั้นตอนที่เพิ่มเข้ามา: ปัดเศษพิกัด GPS ให้เหลือ 4 ทศนิยมก่อนส่งออกไป
-    const formattedData = data.map((item: any) => ({
-      ...item,
-      // เช็คว่ามีค่าพิกัดหรือไม่ ถ้ามีให้แปลงเป็น Number -> ปัดเศษ 4 ตำแหน่ง -> คืนค่าเป็น Number
-      latitude: item.latitude ? Number(Number(item.latitude).toFixed(4)) : null,
-      longitude: item.longitude ? Number(Number(item.longitude).toFixed(4)) : null,
-    }));
-
+    const { records, truncated } = await fetchPublicIncidents(client);
     return NextResponse.json({
       metadata: {
-        source: 'เทศบาลตำบลบ่อหลวง จ.เชียงใหม่',
-        license: 'Open Data (Public Domain)',
-        total_returned: formattedData.length,
-        timestamp: new Date().toISOString()
+        datasetId: 'boluang-public-incidents',
+        title: 'ข้อมูลสรุปการรับแจ้งเหตุสาธารณะ ตำบลบ่อหลวง',
+        owner: 'เทศบาลตำบลบ่อหลวง',
+        version: OPEN_DATA_INCIDENT_VERSION,
+        generatedAt: new Date().toISOString(),
+        frequency: 'ข้อมูล ณ เวลาที่เรียก API; CDN cache ประมาณ 60 วินาที',
+        license: null,
+        licenseStatus: 'รอเทศบาลอนุมัติและประกาศสัญญาอนุญาต',
+        recordCount: records.length,
+        truncated,
+        privacy: 'ไม่รวมชื่อผู้แจ้ง รายละเอียดอิสระ รหัสติดตาม รูปภาพ หรือพิกัด',
       },
-      data: formattedData // ส่งข้อมูลที่ปัดเศษพิกัดแล้วกลับไป
+      data: records,
     }, {
-      status: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*', // อนุญาตให้ทุกคนดึง Open Data ไปใช้ได้
-        'Cache-Control': 's-maxage=60, stale-while-revalidate=300' // Cache บน CDN 1 นาที
-      }
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Dataset-Version': OPEN_DATA_INCIDENT_VERSION,
+      },
     });
-
-  } catch (error: any) {
-    return NextResponse.json({ error: 'Failed to fetch Open Data', details: error.message }, { status: 500 });
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'open_data_incident_api_failed',
+      at: new Date().toISOString(),
+      code: typeof error === 'object' && error && 'code' in error ? error.code : 'unknown',
+    }));
+    return NextResponse.json({ ok: false, error: 'ไม่สามารถโหลดชุดข้อมูลได้ในขณะนี้' }, { status: 503, headers: ERROR_HEADERS });
   }
 }

@@ -4,7 +4,7 @@ import type { AlertState, OperationalAlertLevel } from '../alert-state-machine';
 
 const adminClient = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRoleKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceRoleKey) return null;
   return createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 };
@@ -30,9 +30,11 @@ export async function readLatestVillageSnapshots() {
   if (!client) return null;
   const { data, error } = await client
     .from('radar_village_snapshots')
-    .select('*, radar_forecast_runs(source, model, model_run_at, fetched_at, freshness)')
+    .select('village_id,observed_at,rain_1h_mm,rain_3h_mm,rain_24h_mm,api_7d_mm,risk_index,risk_level,confidence,sample_count,sample_coverage,radar_forecast_runs(source,model,model_run_at,fetched_at,freshness)')
     .order('observed_at', { ascending: false })
-    .limit(13);
+    .limit(260);
   if (error) throw error;
-  return data;
+  const latest = new Map<string, (typeof data)[number]>();
+  for (const row of data ?? []) if (!latest.has(row.village_id)) latest.set(row.village_id, row);
+  return [...latest.values()].slice(0, 13);
 }

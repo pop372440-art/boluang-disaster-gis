@@ -1,0 +1,67 @@
+{
+  "catalog_version": "2026.09.28.1",
+  "published_at": "2026-09-28",
+  "owner": "เทศบาลตำบลบ่อหลวง อำเภอฮอด จังหวัดเชียงใหม่",
+  "contact_url": "https://baulaung.go.th/",
+  "license": null,
+  "license_status": "รอเทศบาลอนุมัติและประกาศสัญญาอนุญาตอย่างเป็นทางการ",
+  "datasets": [
+    {
+      "dataset_id": "boluang-public-incidents",
+      "title": "ข้อมูลสรุปการรับแจ้งเหตุสาธารณะ",
+      "version": "incidents-public-v1.0",
+      "format": ["CSV", "JSON"],
+      "updated_at": "สร้าง ณ เวลาที่เรียก API",
+      "frequency": "ประมาณ 60 วินาทีตามรอบ cache",
+      "owner": "เทศบาลตำบลบ่อหลวง",
+      "publication_status": "published_public_safe",
+      "privacy": "ตัดชื่อผู้แจ้ง รายละเอียดอิสระ รหัสติดตาม รูปภาพ และพิกัดออก",
+      "checksum": "ดู Digest, ETag และ X-Dataset-Version ใน response headers ของ CSV"
+    },
+    {
+      "dataset_id": "boluang-safe-zones",
+      "title": "ศูนย์พักพิงและจุดปลอดภัย",
+      "version": null,
+      "format": [],
+      "updated_at": null,
+      "frequency": "หลังเจ้าหน้าที่ตรวจรับรอง",
+      "owner": "รอยืนยัน",
+      "publication_status": "withheld_pending_official_verification",
+      "privacy": "ระงับการเผยแพร่พิกัด hard-coded เดิม",
+      "checksum": null
+    },
+    {
+      "dataset_id": "boluang-boundary",
+      "title": "ขอบเขตตำบลบ่อหลวง",
+      "version": "boundary-2026.09.28.1",
+      "format": ["GeoJSON"],
+      "updated_at": "2026-09-28 (วันออกรุ่น ไม่ใช่วันสำรวจ)",
+      "frequency": "เมื่อมีข้อมูลที่ผ่านการตรวจสอบ",
+      "owner": "เทศบาลตำบลบ่อหลวง (ผู้ดูแลสำเนาใช้งาน)",
+      "publication_status": "published_with_provenance_warning",
+      "checksum": "sha256:a1b1138b5ff405ec145a87065ed3a6c1324303e89e3123b621d645721fe0e486"
+    },
+    {
+      "dataset_id": "boluang-landslide-susceptibility",
+      "title": "พื้นที่ความไวต่อดินถล่ม",
+      "version": "landslide-2026.09.28.1",
+      "format": ["GeoJSON"],
+      "updated_at": "2026-09-28 (วันออกรุ่น ไม่ใช่วันสำรวจ)",
+      "frequency": "เมื่อมีข้อมูลที่ผ่านการตรวจสอบ",
+      "owner": "รอยืนยันหน่วยงานเจ้าของข้อมูลต้นทาง",
+      "publication_status": "published_context_only",
+      "checksum": "sha256:086a6ca6c5a997daf192d3dbdb5e695923742a7ffb642d2f1dc0347e04fae75e"
+    },
+    {
+      "dataset_id": "boluang-village-boundaries",
+      "title": "ขอบเขต 13 หมู่บ้าน",
+      "version": "villages-2026.09.28.1",
+      "format": ["GeoJSON"],
+      "updated_at": "2026-09-28 (วันออกรุ่น ไม่ใช่วันสำรวจ)",
+      "frequency": "เมื่อมีข้อมูลที่ผ่านการตรวจสอบ",
+      "owner": "เทศบาลตำบลบ่อหลวง (ผู้ดูแลสำเนาใช้งาน)",
+      "publication_status": "published_with_provenance_warning",
+      "checksum": "sha256:3fdab093b644718af2b1bebce2aa6b4fc9bed95bc93a2c6a1633c171e4639e09"
+    }
+  ]
+}

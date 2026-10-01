@@ -41,6 +41,7 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, run: (item: T
 export async function GET(request: NextRequest) {
   const startedAt = Date.now();
   const context = requestLogContext(request, '/api/forecast/met-norway');
+  const forceRefresh = request.nextUrl.searchParams.has('refresh');
   const latitudes = parseCoordinateList(request.nextUrl.searchParams.get('latitude'));
   const longitudes = parseCoordinateList(request.nextUrl.searchParams.get('longitude'));
   if (!latitudes.length || latitudes.length !== longitudes.length || latitudes.length > 13) {
@@ -58,7 +59,9 @@ export async function GET(request: NextRequest) {
       const upstream = await fetchWithRetry(buildMetNorwayUrl(coordinate), {
         headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
         signal: controller.signal,
-        next: { revalidate: 900 },
+        ...(forceRefresh
+          ? { cache: 'no-store' as const }
+          : { next: { revalidate: 900 } }),
       }, { attempts: 2, baseDelayMs: 300 });
       if (!upstream.ok) {
         const retryAfter = upstream.headers.get('retry-after');
@@ -80,7 +83,7 @@ export async function GET(request: NextRequest) {
       source: MET_NORWAY_SOURCE,
       fetchedAt: new Date(fetchedAt).toISOString(),
       locations,
-    }, { headers: CACHE_HEADERS });
+    }, { headers: forceRefresh ? { 'Cache-Control': 'no-store' } : CACHE_HEADERS });
   } catch (error) {
     const isTimeout = error instanceof Error && error.name === 'AbortError';
     const upstreamStatus = (error as Error & { status?: number }).status;

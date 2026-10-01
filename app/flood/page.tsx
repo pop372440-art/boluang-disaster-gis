@@ -5,6 +5,19 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import Swal from 'sweetalert2';
+import CenterNav from '@/components/center/CenterNav';
+import {
+  assessStationRisk,
+  evaluateStationFreshness,
+  finiteMeasurement,
+  measurementDisplay,
+  stationDistanceLabel,
+} from '@/lib/flood/station-quality';
+import {
+  CURRENT_LOCATION_ZOOM,
+  geolocationFailureCopy,
+  shouldRetryGeolocation,
+} from '@/lib/weather/geolocation';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
@@ -51,12 +64,12 @@ const fetchWithCache = async (url: string, cacheKey: string, timeoutMs = 15000) 
     if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
     const data = await res.json();
     
-    try { sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data })); } catch (e) {}
-    return { data, status: '🟢 เชื่อมต่อสำเร็จ' };
+    try { sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data })); } catch {}
+    return { data, status: '🟢 ข้อมูลสดจาก API', mode: 'live' as const };
   } catch (error) {
     const cached = sessionStorage.getItem(cacheKey);
-    if (cached) return { data: JSON.parse(cached).data, status: '🟢 เชื่อมต่อสำเร็จ (Cached)' };
-    return { data: null, status: '🔴 การเชื่อมต่อขัดข้อง (Timeout)' };
+    if (cached) return { data: JSON.parse(cached).data, status: '🟠 ใช้ข้อมูลจากแคช', mode: 'cache' as const };
+    return { data: null, status: '🔴 การเชื่อมต่อขัดข้อง', mode: 'error' as const };
   }
 };
 
@@ -84,10 +97,13 @@ export default function FloodWatchDashboard() {
   const [filterRisk, setFilterRisk] = useState('ทุกระดับความเสี่ยง');
   const [useRadius, setUseRadius] = useState(true);
   const [radiusKm, setRadiusKm] = useState(MAX_DISTANCE_KM);
+  const [positionSource, setPositionSource] = useState<'bo_luang' | 'device'>('bo_luang');
+  const [isLocating, setIsLocating] = useState(false);
   
   const [windyLayer, setWindyLayer] = useState('radar');
-  const [windyZoom, setWindyZoom] = useState(5); 
+  const [windyZoom, setWindyZoom] = useState(10);
   const [apiStatus, setApiStatus] = useState({ water: 'กำลังเชื่อมต่อ...', rain: 'กำลังเชื่อมต่อ...' });
+  const [nwp, setNwp] = useState<any>(null);
 
   // ตัวแปรเก็บชื่อสถานที่ที่ถูกต้อง
   const [locationName, setLocationName] = useState('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
@@ -98,8 +114,17 @@ export default function FloodWatchDashboard() {
 
   useEffect(() => {
     setCurrentTime(new Date());
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    const timer = setInterval(() => setCurrentTime(new Date()), 60_000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/weather/nwp', { signal: controller.signal })
+      .then(async (response) => response.ok ? response.json() : null)
+      .then(setNwp)
+      .catch((error) => { if (error?.name !== 'AbortError') setNwp(null); });
+    return () => controller.abort();
   }, []);
 
   // 📡 ดึงข้อมูล API สทนช. + TMD
@@ -107,21 +132,7 @@ export default function FloodWatchDashboard() {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        let merged: any[] = [];
-        
-        const getRisk = (val: number, type: 'water' | 'rain') => {
-          if (type === 'rain') {
-            if (val >= 90) return { color: '#ef4444', label: 'วิกฤต', level: 'critical' };
-            if (val >= 60) return { color: '#f97316', label: 'เสี่ยงสูง', level: 'high' };
-            if (val >= 35) return { color: '#facc15', label: 'เฝ้าระวัง', level: 'warning' };
-            return { color: '#10b981', label: 'ปกติ', level: 'normal' };
-          } else {
-            if (val >= 8) return { color: '#ef4444', label: 'วิกฤต', level: 'critical' };
-            if (val >= 5) return { color: '#f97316', label: 'เสี่ยงสูง', level: 'high' };
-            if (val >= 3) return { color: '#facc15', label: 'เฝ้าระวัง', level: 'warning' };
-            return { color: '#10b981', label: 'ปกติ', level: 'normal' };
-          }
-        };
+        const merged: any[] = [];
 
         const extractArrayData = (json: any): any[] => {
           let arrData: any[] = [];
@@ -160,20 +171,38 @@ export default function FloodWatchDashboard() {
           const amp = cleanName(s?.station?.geocode?.amphoe_name?.th || s?.geocode?.amphoe_name?.th || s?.amphoe_name?.th || s?.station?.amphoe_name || '');
           const tum = cleanName(s?.station?.geocode?.tumbon_name?.th || s?.geocode?.tumbon_name?.th || s?.tumbon_name?.th || s?.station?.tumbon_name || '');
 
-          let val = 0; let trend = 'steady'; let time = '';
+          let val: number | null = null;
+          let trend = 'steady';
+          let time = '';
 
           if (type === 'water') {
-            val = parseFloat(s?.water_level || s?.waterlevel || s?.wl || 0);
+            val = finiteMeasurement(s?.water_level, s?.waterlevel, s?.wl);
             const tnd = s?.waterlevel_tendency || s?.tendency;
             if (tnd === 'UP' || tnd > 0) trend = 'up';
             else if (tnd === 'DOWN' || tnd < 0) trend = 'down';
-            time = s?.waterlevel_datetime || s?.datetime || '';
+            time = s?.waterlevel_datetime || s?.waterlevel_date || s?.datetime || '';
           } else {
-            val = parseFloat(s?.rain_24h || s?.rain24h || s?.rain || 0);
-            time = s?.rain_datetime || s?.datetime || '';
+            val = finiteMeasurement(s?.rain_24h, s?.rain24h, s?.rain);
+            time = s?.rainfall_datetime || s?.rain_datetime || s?.datetime || '';
           }
 
-          return { id: Math.random().toString(), name, prov, amp, tum, lat, lng, type, val, trend, time, risk: getRisk(val, type), source: 'ONWR' };
+          const code = String(s?.station?.tele_station_oldcode || s?.tele_station_oldcode || s?.station?.id || s?.id || `${lat}-${lng}`);
+          return {
+            id: `${type}-${code}`,
+            code,
+            name,
+            prov,
+            amp,
+            tum,
+            lat,
+            lng,
+            type,
+            val,
+            trend,
+            time,
+            source: type === 'water' ? 'thaiwater:waterlevel_load' : 'thaiwater:rain_24h',
+            sourceLabel: 'สถานีตรวจวัด ThaiWater / สทนช.',
+          };
         };
 
         // 1. ดึงระดับน้ำ สทนช.
@@ -200,7 +229,10 @@ export default function FloodWatchDashboard() {
 
   // 🎛️ Filter Engine
   useEffect(() => {
-    let result = stations;
+    let result = stations.map((station) => {
+      const freshness = evaluateStationFreshness(station.time, currentTime?.getTime() ?? Date.now());
+      return { ...station, freshness, risk: assessStationRisk(station.val, station.type, freshness) };
+    });
 
     if (searchQuery) {
       const q = cleanName(searchQuery.toLowerCase());
@@ -216,19 +248,12 @@ export default function FloodWatchDashboard() {
     if (filterAmp !== 'ทุกอำเภอ') result = result.filter(s => cleanName(s.amp).includes(cleanName(filterAmp)));
     if (filterRisk !== 'ทุกระดับความเสี่ยง') result = result.filter(s => s.risk.label === filterRisk);
 
-    if (useRadius && radiusKm > 0) {
-      result = result.filter(s => {
-        const dist = calculateDistance(position.lat, position.lng, s.lat, s.lng);
-        s.distance = dist;
-        return dist <= radiusKm;
-      });
-    } else {
-      result = result.map(s => ({...s, distance: calculateDistance(position.lat, position.lng, s.lat, s.lng)}));
-    }
+    result = result.map(s => ({ ...s, distance: calculateDistance(position.lat, position.lng, s.lat, s.lng) }));
+    if (useRadius && radiusKm > 0) result = result.filter(s => s.distance <= radiusKm);
     
     result.sort((a, b) => (a.distance || 0) - (b.distance || 0));
     setFilteredStations(result);
-  }, [searchQuery, filterProv, filterAmp, filterRisk, useRadius, radiusKm, position, stations]);
+  }, [searchQuery, filterProv, filterAmp, filterRisk, useRadius, radiusKm, position, stations, currentTime]);
 
   const createMyPinIcon = useMemo(() => {
     if (!L) return () => null;
@@ -241,15 +266,10 @@ export default function FloodWatchDashboard() {
 
   const fetchLocationName = async (lat: number, lng: number) => {
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&accept-language=th`);
+      const res = await fetch(`/api/geocode?mode=reverse&lat=${lat}&lng=${lng}`);
       const data = await res.json();
-      if (data && data.display_name) {
-        const parts = data.display_name.split(',').slice(0, 3).reverse().map((s: string) => s.trim()).join(' • ');
-        setLocationName(parts || data.display_name);
-      }
-    } catch (error) {
-      console.error('Reverse geocoding failed', error);
-    }
+      if (data?.name) setLocationName(data.name);
+    } catch { /* ใช้ชื่อจุดอ้างอิงเดิมต่อเมื่อ geocoder ไม่พร้อม */ }
   };
 
   const handleMarkerDragEnd = () => {
@@ -257,6 +277,7 @@ export default function FloodWatchDashboard() {
     if (marker != null) {
       const latlng = marker.getLatLng();
       setPosition({ lat: latlng.lat, lng: latlng.lng });
+      setPositionSource('bo_luang');
       fetchLocationName(latlng.lat, latlng.lng);
     }
   };
@@ -266,27 +287,49 @@ export default function FloodWatchDashboard() {
   const handleSetRadius = () => { setFilterProv('ทุกจังหวัด'); setFilterAmp('ทุกอำเภอ'); setUseRadius(true); setRadiusKm(50); };
   const handleReset = () => { 
     setSearchQuery(''); setFilterProv('ทุกจังหวัด'); setFilterAmp('ทุกอำเภอ'); setFilterRisk('ทุกระดับความเสี่ยง'); setUseRadius(false); setPosition({lat: INITIAL_LAT, lng: INITIAL_LNG});
-    setLocationName('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
+    setLocationName('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่'); setPositionSource('bo_luang');
     if(mapRef.current) mapRef.current.flyTo([INITIAL_LAT, INITIAL_LNG], 10);
   };
 
-  const handleCurrentLocation = () => {
-    Swal.fire({ title: 'ดึงพิกัด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setPosition({ lat: latitude, lng: longitude });
-        fetchLocationName(latitude, longitude);
-        if (mapRef.current) mapRef.current.flyTo([latitude, longitude], 12); 
-        Swal.close(); 
-      },
-      () => {
-        setPosition({ lat: INITIAL_LAT, lng: INITIAL_LNG });
-        if (mapRef.current) mapRef.current.flyTo([INITIAL_LAT, INITIAL_LNG], 12);
-        Swal.close();
-      },
-      { enableHighAccuracy: true, timeout: 5000 }
-    );
+  const handleCurrentLocation = async () => {
+    if (isLocating) return;
+    if (!navigator.geolocation) {
+      Swal.fire({ icon: 'error', title: 'เบราว์เซอร์ไม่รองรับตำแหน่ง', text: 'ยังใช้จุดอ้างอิงตำบลบ่อหลวงต่อไป' });
+      return;
+    }
+    if (!window.isSecureContext) {
+      Swal.fire({ icon: 'error', ...geolocationFailureCopy({}, false) });
+      return;
+    }
+
+    const getPosition = (options: PositionOptions) => new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, options);
+    });
+
+    setIsLocating(true);
+    Swal.fire({ title: 'กำลังดึงพิกัด...', text: 'ระบบจะเปลี่ยนจุดอ้างอิงหลังได้รับตำแหน่งสำเร็จเท่านั้น', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+      let result: GeolocationPosition;
+      try {
+        result = await getPosition({ enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+      } catch (error) {
+        const geoError = error as GeolocationPositionError;
+        if (!shouldRetryGeolocation(geoError)) throw geoError;
+        Swal.update({ title: 'กำลังลองตำแหน่งจากเครือข่าย...', text: 'ใช้วิธีสำรองเมื่อสัญญาณ GPS ไม่พร้อม' });
+        result = await getPosition({ enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+      }
+
+      const { latitude, longitude } = result.coords;
+      setPosition({ lat: latitude, lng: longitude });
+      setPositionSource('device');
+      fetchLocationName(latitude, longitude);
+      mapRef.current?.flyTo([latitude, longitude], CURRENT_LOCATION_ZOOM, { duration: 1.5 });
+      Swal.close();
+    } catch (error) {
+      Swal.fire({ icon: 'warning', ...geolocationFailureCopy(error as GeolocationPositionError), confirmButtonText: 'ใช้จุดบ่อหลวงต่อ' });
+    } finally {
+      setIsLocating(false);
+    }
   };
 
   const uniqueProvs = Array.from(new Set(['เชียงใหม่', 'แม่ฮ่องสอน', 'ลำพูน', 'เชียงราย', ...stations.map(s => s.prov).filter(Boolean)])).sort();
@@ -295,32 +338,38 @@ export default function FloodWatchDashboard() {
   // 🧮 คำนวณ 13 กล่อง
   const totalWater = filteredStations.filter(s => s.type === 'water').length;
   const totalRain = filteredStations.filter(s => s.type === 'rain').length;
-  const waterUp = filteredStations.filter(s => s.type === 'water' && s.trend === 'up').length;
-  const waterDown = filteredStations.filter(s => s.type === 'water' && s.trend === 'down').length;
-  const waterSteady = filteredStations.filter(s => s.type === 'water' && s.trend === 'steady').length;
+  const freshCount = filteredStations.filter(s => s.freshness.status === 'fresh' && s.val !== null).length;
+  const staleCount = filteredStations.filter(s => ['stale', 'expired'].includes(s.freshness.status)).length;
+  const unavailableCount = filteredStations.filter(s => s.val === null || s.freshness.status === 'unknown').length;
+  const distantCount = filteredStations.filter(s => s.distance > 10).length;
+  const waterUp = filteredStations.filter(s => s.type === 'water' && s.freshness.status === 'fresh' && s.trend === 'up').length;
+  const waterDown = filteredStations.filter(s => s.type === 'water' && s.freshness.status === 'fresh' && s.trend === 'down').length;
+  const waterSteady = filteredStations.filter(s => s.type === 'water' && s.freshness.status === 'fresh' && s.trend === 'steady').length;
   const watchCount = filteredStations.filter(s => s.risk.level === 'warning').length;
   const highRiskCount = filteredStations.filter(s => s.risk.level === 'high').length;
   const criticalCount = filteredStations.filter(s => s.risk.level === 'critical').length;
   
   const rainStations = filteredStations.filter(s => s.type === 'rain');
-  let maxRainData = { val: 0, amp: '' };
-  if (rainStations.length > 0) {
-    const maxS = rainStations.reduce((prev, current) => (prev.val > current.val) ? prev : current);
+  const usableRainStations = rainStations.filter(s => s.freshness.status === 'fresh' && s.val !== null);
+  let maxRainData: { val: number | null; amp: string } = { val: null, amp: 'ไม่มีข้อมูลสด' };
+  if (usableRainStations.length > 0) {
+    const maxS = usableRainStations.reduce((prev, current) => (prev.val > current.val) ? prev : current);
     maxRainData = { val: maxS.val, amp: maxS.name || maxS.amp || 'ไม่ระบุ' };
   }
 
   // 📊 เตรียมข้อมูลกราฟแท่ง
-  const topRainStations = [...rainStations]
-    .filter(s => s.val > 0)
+  const topRainStations = [...usableRainStations]
+    .filter(s => s.val !== null && s.val > 0)
     .sort((a, b) => b.val - a.val)
     .slice(0, 10)
     .map(s => ({
       name: s.name.length > 20 ? s.name.substring(0, 20) + '...' : s.name, 
       val: s.val,
-      source: s.source 
+      source: s.sourceLabel,
+      ageMinutes: s.freshness.ageMinutes,
     }));
 
-  const waterStationsTable = [...filteredStations].filter(s => s.type === 'water').sort((a, b) => (a.distance || 0) - (b.distance || 0)).slice(0, 15);
+  const referenceStationsTable = [...filteredStations].sort((a, b) => (a.distance || 0) - (b.distance || 0));
 
   // ==========================================
   // 🎨 แถบอธิบายสี (Horizontal Custom Legend - Solid Blocks)
@@ -428,6 +477,7 @@ export default function FloodWatchDashboard() {
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] font-sans text-gray-800 pb-10 flex flex-col">
+      <CenterNav />
       
       {/* 🚀 Header */}
       <header className="bg-[#0b132b] px-6 py-4 flex flex-col items-start border-b border-[#1e293b]">
@@ -479,30 +529,32 @@ export default function FloodWatchDashboard() {
                 <option value="เฝ้าระวัง">เฝ้าระวัง</option>
                 <option value="เสี่ยงสูง">เสี่ยงสูง</option>
                 <option value="วิกฤต">วิกฤต</option>
+                <option value="ประเมินไม่ได้">ประเมินไม่ได้</option>
               </select>
             </div>
 
             <div className="flex items-center space-x-3 mb-5">
               <input type="checkbox" id="radius1" checked={useRadius} onChange={(e) => setUseRadius(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-[#0f4a8a] cursor-pointer" /> 
-              <label htmlFor="radius1" className="text-gray-700 text-[14px] md:text-[15px] font-medium cursor-pointer select-none">ค้นหาในรัศมีจากตำแหน่งของฉัน</label>
+              <label htmlFor="radius1" className="text-gray-700 text-[14px] md:text-[15px] font-medium cursor-pointer select-none">
+                ค้นหาในรัศมีจาก{positionSource === 'device' ? 'ตำแหน่งอุปกรณ์' : 'จุดอ้างอิงตำบลบ่อหลวง'}
+              </label>
             </div>
 
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-gray-100 pb-6 mb-6">
               <div className="flex items-center space-x-3 w-full md:w-auto text-gray-700 text-sm md:text-base mb-4 md:mb-0">
                 <input type="number" value={radiusKm} onChange={(e) => setRadiusKm(Number(e.target.value))} disabled={!useRadius} className="border border-gray-300 rounded-md px-3 py-1.5 w-20 text-center disabled:bg-gray-100 font-bold" /> 
                 <span className="font-bold text-gray-800">กม.</span>
-                <button onClick={handleCurrentLocation} className="ml-4 flex items-center text-gray-600 bg-gray-50 px-4 py-2 rounded-full border border-gray-200 hover:bg-gray-100 transition shadow-sm text-sm font-bold">
-                  <span className="text-red-500 mr-2 text-base">📍</span> ใช้ตำแหน่งของฉัน
+                <button type="button" onClick={handleCurrentLocation} disabled={isLocating} aria-busy={isLocating} className="ml-4 flex items-center text-gray-600 bg-gray-50 px-4 py-2 rounded-full border border-gray-200 hover:bg-gray-100 transition shadow-sm text-sm font-bold disabled:cursor-wait disabled:opacity-60">
+                  <span className="text-red-500 mr-2 text-base">{isLocating ? '⏳' : '📍'}</span> {isLocating ? 'กำลังระบุ...' : 'ใช้ตำแหน่งอุปกรณ์'}
                 </button>
                 <span className="ml-5 text-gray-400 text-[12px] md:text-[13px] hidden lg:inline">
-                  จุดอ้างอิง: {position.lat.toFixed(6)}, {position.lng.toFixed(6)} 
-                  <span className="text-green-500 ml-2 font-semibold">ละติจูด {position.lat.toFixed(6)} - ลองจิจูด {position.lng.toFixed(6)} (±82 ม.)</span>
+                  จุดอ้างอิง: {positionSource === 'device' ? 'ตำแหน่งอุปกรณ์' : 'ศูนย์กลางตำบลบ่อหลวง'} • {position.lat.toFixed(6)}, {position.lng.toFixed(6)}
                 </span>
               </div>
               <div className="flex flex-wrap gap-2 md:gap-3">
                 <button onClick={handleSetChiangMai} className="border border-gray-300 bg-white px-4 py-2 rounded-full text-gray-600 text-[12px] md:text-[13px] font-bold hover:bg-gray-50 transition shadow-sm">เฉพาะจังหวัดเชียงใหม่</button>
                 <button onClick={handleSetHod} className="border border-gray-300 bg-white px-4 py-2 rounded-full text-gray-600 text-[12px] md:text-[13px] font-bold hover:bg-gray-50 transition shadow-sm">อำเภอฮอด</button>
-                <button onClick={handleSetRadius} className="bg-[#0f172a] text-white px-5 py-2 rounded-full text-[12px] md:text-[13px] font-bold shadow-md hover:bg-gray-800 transition">รอบตำแหน่งของฉัน</button>
+                <button onClick={handleSetRadius} className="bg-[#0f172a] text-white px-5 py-2 rounded-full text-[12px] md:text-[13px] font-bold shadow-md hover:bg-gray-800 transition">รอบจุดอ้างอิง</button>
                 <button onClick={handleReset} className="border border-gray-300 bg-white px-4 py-2 rounded-full text-gray-500 text-[12px] md:text-[13px] font-bold hover:bg-gray-50 transition shadow-sm flex items-center">✕ รีเซ็ต</button>
               </div>
             </div>
@@ -512,15 +564,15 @@ export default function FloodWatchDashboard() {
                 {isLoading ? <span className="text-blue-500 font-bold animate-pulse">กำลังโหลดข้อมูลและค้นหาสถานี...</span> : <>พบข้อมูล <span className="font-extrabold text-[#0f4a8a] text-lg mx-1">{filteredStations.length}</span> รายการ</>}
               </div>
               <div className="hidden md:block text-[11px] md:text-[12px] text-gray-400 font-mono">
-                *เกณฑ์การเตือนภัยอ้างอิงจากระดับน้ำวิกฤตของแต่ละสถานี (ข้อมูล สทนช.)
+                *ใช้ข้อมูลอายุไม่เกิน 2 ชั่วโมงคัดกรองเท่านั้น และต้องให้เจ้าหน้าที่ตรวจสอบก่อนประกาศเตือน
               </div>
             </div>
 
             {/* 13 กล่อง Grid (ปรับไซส์ให้ใหญ่และสมส่วน) */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-5">
-              <div className="border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]"><span className="text-[12px] md:text-[14px] text-gray-500 font-bold">สถานีวัดน้ำทั้งหมด</span><span className="text-3xl md:text-4xl font-extrabold text-[#0f4a8a]">{totalWater}</span></div>
-              <div className="border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]"><span className="text-[12px] md:text-[14px] text-gray-500 font-bold">สถานีวัดฝนทั้งหมด</span><span className="text-3xl md:text-4xl font-extrabold text-[#0f4a8a]">{totalRain}</span></div>
-              <div className="border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]"><span className="text-[12px] md:text-[14px] text-gray-500 font-bold">สถานีที่มีข้อมูลล่าสุด</span><span className="text-3xl md:text-4xl font-extrabold text-[#0f4a8a]">{filteredStations.length}</span></div>
+              <div className="border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]"><span className="text-[12px] md:text-[14px] text-gray-500 font-bold">สถานีอ้างอิงระดับน้ำ</span><span className="text-3xl md:text-4xl font-extrabold text-[#0f4a8a]">{totalWater}</span></div>
+              <div className="border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]"><span className="text-[12px] md:text-[14px] text-gray-500 font-bold">สถานีอ้างอิงฝน</span><span className="text-3xl md:text-4xl font-extrabold text-[#0f4a8a]">{totalRain}</span></div>
+              <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]"><span className="text-[12px] md:text-[14px] text-emerald-700 font-bold">ข้อมูลสด ใช้คัดกรองได้</span><span className="text-3xl md:text-4xl font-extrabold text-emerald-700">{freshCount}</span></div>
               <div className="border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]"><span className="text-[12px] md:text-[14px] text-gray-500 font-bold">ระดับน้ำเพิ่มขึ้น ↑</span><span className="text-3xl md:text-4xl font-extrabold text-[#0f4a8a]">{waterUp}</span></div>
               <div className="border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]"><span className="text-[12px] md:text-[14px] text-gray-500 font-bold">ระดับน้ำลดลง ↓</span><span className="text-3xl md:text-4xl font-extrabold text-[#0f4a8a]">{waterDown}</span></div>
               
@@ -532,50 +584,76 @@ export default function FloodWatchDashboard() {
               <div className="border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]">
                 <span className="text-[12px] md:text-[14px] text-gray-500 font-bold">ปริมาณฝนสูงสุด 24 ชม.</span>
                 <div className="flex flex-col">
-                  <div className="flex items-baseline"><span className="text-3xl md:text-4xl font-extrabold text-[#0f4a8a]">{maxRainData.val.toFixed(1)}</span><span className="text-[11px] md:text-[13px] ml-1.5 font-bold text-[#0f4a8a]">มม.</span></div>
+                  <div className="flex items-baseline"><span className="text-3xl md:text-4xl font-extrabold text-[#0f4a8a]">{maxRainData.val === null ? '--' : maxRainData.val.toFixed(1)}</span><span className="text-[11px] md:text-[13px] ml-1.5 font-bold text-[#0f4a8a]">มม.</span></div>
                   <span className="text-[10px] md:text-[12px] text-gray-400 truncate mt-0.5">{maxRainData.amp}</span>
                 </div>
               </div>
 
-              <div className="border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]"><span className="text-[12px] md:text-[14px] text-gray-500 font-bold">พื้นที่เสี่ยง</span><span className="text-3xl md:text-4xl font-extrabold text-[#0f4a8a]">0</span></div>
-              <div className="border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]"><span className="text-[12px] md:text-[14px] text-gray-500 font-bold">เหตุการณ์น้ำท่วม</span><span className="text-3xl md:text-4xl font-extrabold text-[#0f4a8a]">0</span></div>
-              <div className="border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]"><span className="text-[12px] md:text-[14px] text-gray-500 font-bold">ประกาศเตือน</span><span className="text-3xl md:text-4xl font-extrabold text-[#0f4a8a]">0</span></div>
+              <div className="border border-amber-200 bg-amber-50 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]"><span className="text-[12px] md:text-[14px] text-amber-700 font-bold">ข้อมูลเก่า / หมดอายุ</span><span className="text-3xl md:text-4xl font-extrabold text-amber-700">{staleCount}</span></div>
+              <div className="border border-slate-200 bg-slate-50 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]"><span className="text-[12px] md:text-[14px] text-slate-600 font-bold">ไม่มีค่า / ไม่ทราบเวลา</span><span className="text-3xl md:text-4xl font-extrabold text-slate-700">{unavailableCount}</span></div>
+              <div className="border border-blue-200 bg-blue-50 rounded-xl p-4 shadow-sm flex flex-col justify-between min-h-[100px] md:h-[110px]"><span className="text-[12px] md:text-[14px] text-blue-700 font-bold">สถานีอ้างอิงนอกตำบล</span><span className="text-3xl md:text-4xl font-extrabold text-blue-700">{distantCount}</span></div>
             </div>
           </div>
         </div>
 
-        {/* 📋 Card 2: ตารางสถานการณ์น้ำรอบตำบลบ่อหลวง */}
+        <section className="rounded-xl border border-sky-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="flood-nwp-heading">
+          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+            <div>
+              <p className="text-xs font-black tracking-wider text-sky-700">PLANNING INPUT — ไม่ใช่ข้อมูลตรวจวัด</p>
+              <h3 id="flood-nwp-heading" className="mt-1 text-lg font-extrabold text-[#0f4a8a]">แนวโน้มฝนจาก ECMWF/GFS 24–72 ชั่วโมง</h3>
+              <p className="mt-1 text-xs text-slate-500">ใช้ประกอบการเฝ้าระวังน้ำป่าเท่านั้น ไม่เปลี่ยนระดับความเสี่ยงของสถานีและไม่ออกประกาศอัตโนมัติ</p>
+            </div>
+            <Link href="/center/weather#nwp" className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-xs font-extrabold text-sky-800">ดูรายละเอียดแบบจำลอง →</Link>
+          </div>
+          {nwp?.consensus?.usable ? (
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {[0, 1, 2].map((index) => {
+                const ecmwf = nwp.models?.find((model: any) => model.id === 'ecmwf')?.windows?.[index];
+                const gfs = nwp.models?.find((model: any) => model.id === 'gfs')?.windows?.[index];
+                return <div key={ecmwf?.key ?? index} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-bold text-slate-500">{ecmwf?.label}</p><p className="mt-2 text-sm font-extrabold text-slate-800">ECMWF {ecmwf?.totalMm?.toFixed(1) ?? '—'} · GFS {gfs?.totalMm?.toFixed(1) ?? '—'} มม.</p></div>;
+              })}
+              <p className="md:col-span-3 text-xs text-slate-500">{nwp.consensus.label} · รอบรัน {new Date(nwp.runAt).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })} · ต้องตรวจสอบร่วมกับ Radar สถานีจริง ประกาศทางการ และภาคสนาม</p>
+            </div>
+          ) : <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800">ผลสองแบบจำลองไม่ครบหรือหมดอายุ จึงไม่ใช้ประกอบการคัดกรองในรอบนี้</p>}
+        </section>
+
+        {/* 📋 Card 2: สถานีอ้างอิงรอบตำบลบ่อหลวง */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-6">
           <div className="px-5 md:px-6 py-4 border-b border-gray-100 bg-white">
-            <h3 className="text-[#0f4a8a] text-[18px] md:text-[20px] font-extrabold flex items-center"><span className="mr-2 text-xl md:text-2xl">🌊</span> สถานการณ์น้ำรอบพื้นที่</h3>
-            <p className="text-[12px] md:text-[14px] text-gray-500 mt-1">เรียงตามระยะทางจากจุดอ้างอิง ({position.lat.toFixed(6)}, {position.lng.toFixed(6)})</p>
+            <h3 className="text-[#0f4a8a] text-[18px] md:text-[20px] font-extrabold flex items-center"><span className="mr-2 text-xl md:text-2xl">🌊</span> สถานีอ้างอิงรอบตำบล</h3>
+            <p className="text-[12px] md:text-[14px] text-gray-500 mt-1">สถานีเหล่านี้อาจอยู่นอกตำบลบ่อหลวง เรียงตามระยะจาก{positionSource === 'device' ? 'ตำแหน่งอุปกรณ์' : 'จุดอ้างอิงบ่อหลวง'} และต้องพิจารณาอายุข้อมูลก่อนใช้งาน</p>
           </div>
           <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
             <table className="w-full text-[13px] md:text-[15px] text-left font-sans">
               <thead className="text-[#0f4a8a] bg-[#f8fafc] border-b border-blue-100 sticky top-0 z-10 shadow-sm text-[14px] md:text-[16px]">
                 <tr>
                   <th className="px-6 py-4 font-extrabold whitespace-nowrap">สถานี</th>
+                  <th className="px-6 py-4 font-extrabold whitespace-nowrap">ประเภท</th>
                   <th className="px-6 py-4 font-extrabold whitespace-nowrap">พื้นที่</th>
                   <th className="px-6 py-4 font-extrabold text-center">ระยะ (กม.)</th>
-                  <th className="px-6 py-4 font-extrabold text-center">ระดับน้ำ</th>
-                  <th className="px-6 py-4 font-extrabold text-center">แนวโน้ม</th>
-                  <th className="px-6 py-4 font-extrabold text-center">ความเสี่ยง</th>
-                  <th className="px-6 py-4 font-extrabold text-right">เวลาวัด</th>
+                  <th className="px-6 py-4 font-extrabold text-center">ค่าล่าสุดและหน่วย</th>
+                  <th className="px-6 py-4 font-extrabold text-center">ความสดข้อมูล</th>
+                  <th className="px-6 py-4 font-extrabold text-center">สถานะคัดกรอง</th>
+                  <th className="px-6 py-4 font-extrabold text-right">ที่มา / เวลาวัด</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
-                {waterStationsTable.length > 0 ? waterStationsTable.map((st, i) => (
-                  <tr key={i} className="hover:bg-blue-50/30 transition-colors">
+                {referenceStationsTable.length > 0 ? referenceStationsTable.map((st) => (
+                  <tr key={st.id} className="hover:bg-blue-50/30 transition-colors">
                     <td className="px-6 py-4 font-bold text-gray-800 whitespace-nowrap">
-                      {st.name} <span className="ml-2 text-[10px] md:text-[11px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded border border-blue-200 font-normal">วัดจริง</span>
+                      <div>{st.name}</div>
+                      <div className="mt-1 text-[10px] font-mono font-normal text-gray-400">{st.code}</div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap"><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${st.type === 'water' ? 'bg-blue-100 text-blue-700' : 'bg-sky-100 text-sky-700'}`}>{st.type === 'water' ? 'ระดับน้ำ' : 'ฝนสะสม 24 ชม.'}</span></td>
                     <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{st.tum} {st.amp} {st.prov}</td>
-                    <td className="px-6 py-4 text-gray-600 text-center font-mono">{st.distance?.toFixed(1)}</td>
-                    <td className="px-6 py-4 font-bold text-gray-800 text-center font-mono text-base md:text-lg">{st.val.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-gray-600 text-center text-[12px] md:text-[14px]">
-                      {st.trend === 'up' && <span className="text-red-500">↑ เพิ่มขึ้น</span>}
-                      {st.trend === 'down' && <span className="text-green-500">↓ ลดลง</span>}
-                      {st.trend === 'steady' && <span className="text-gray-500">→ คงที่</span>}
+                    <td className="px-6 py-4 text-center font-mono">
+                      <div className="font-bold text-gray-700">{st.distance?.toFixed(1)}</div>
+                      <div className={`mt-1 text-[10px] font-sans ${st.distance > 10 ? 'text-amber-600' : 'text-emerald-600'}`}>{stationDistanceLabel(st.distance)}</div>
+                    </td>
+                    <td className="px-6 py-4 font-bold text-gray-800 text-center font-mono whitespace-nowrap">{measurementDisplay(st.val, st.type)}</td>
+                    <td className="px-6 py-4 text-center whitespace-nowrap">
+                      <span className={`rounded-full border px-2 py-1 text-[11px] font-bold ${st.freshness.status === 'fresh' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : st.freshness.status === 'stale' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>{st.freshness.label}</span>
+                      <div className="mt-1 text-[10px] text-gray-400">{st.freshness.ageMinutes === null ? 'ไม่ทราบอายุ' : `${st.freshness.ageMinutes} นาทีที่แล้ว`}</div>
                     </td>
                     <td className="px-6 py-4 text-center flex justify-center">
                       <div className="flex items-center space-x-2 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
@@ -583,10 +661,13 @@ export default function FloodWatchDashboard() {
                         <span className="font-bold text-[12px] md:text-[13px]" style={{color: st.risk.color}}>{st.risk.label}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-gray-400 font-mono text-right text-[12px] md:text-[13px] whitespace-nowrap">{st.time ? new Date(st.time).toLocaleString('en-GB') : '-'}</td>
+                    <td className="px-6 py-4 text-right whitespace-nowrap">
+                      <div className="text-[11px] font-bold text-gray-600">ThaiWater / สทนช.</div>
+                      <div className="mt-1 text-[11px] font-mono text-gray-400">{st.freshness.observedAt ? new Date(st.freshness.observedAt).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }) : 'ไม่มีเวลาวัด'}</div>
+                    </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-400 text-[14px]">ไม่มีข้อมูลสถานีวัดน้ำในระยะที่กำหนด</td></tr>
+                  <tr><td colSpan={8} className="px-6 py-8 text-center text-gray-400 text-[14px]">ไม่มีสถานีอ้างอิงตรงตามตัวกรอง</td></tr>
                 )}
               </tbody>
             </table>
@@ -613,9 +694,9 @@ export default function FloodWatchDashboard() {
                 />
               )}
 
-              {filteredStations.map((st, idx) => (
+              {filteredStations.map((st) => (
                 <CircleMarker 
-                  key={idx} center={[st.lat, st.lng]} radius={7} 
+                  key={st.id} center={[st.lat, st.lng]} radius={7}
                   pathOptions={{ 
                     color: st.risk.color, fillColor: st.type === 'water' ? st.risk.color : '#ffffff',
                     fillOpacity: st.type === 'water' ? 0.9 : 0.4, weight: st.type === 'water' ? 1 : 2.5 
@@ -625,17 +706,16 @@ export default function FloodWatchDashboard() {
                     <div className="w-[190px] p-1 font-sans text-gray-800">
                       <div className="font-bold text-[13px] leading-tight mb-1 text-gray-900 border-b pb-1 border-gray-200 flex items-center justify-between">
                         <span className="truncate pr-2">{st.name}</span>
-                        {st.source === 'TMD' ? 
-                          <span className="text-[9px] bg-purple-100 text-purple-600 px-1 rounded border border-purple-200 whitespace-nowrap">ดาวเทียม</span> : 
-                          <span className="text-[9px] bg-emerald-100 text-emerald-600 px-1 rounded border border-emerald-200 whitespace-nowrap">สถานีจริง</span>
-                        }
+                        <span className="text-[9px] bg-emerald-100 text-emerald-600 px-1 rounded border border-emerald-200 whitespace-nowrap">สถานีตรวจวัด</span>
                       </div>
                       <div className="text-[11px] leading-[1.6] text-gray-600 mt-1.5">
                         <div>{st.tum} {st.amp} {st.prov}</div>
-                        <div>{st.type === 'water' ? `ระดับน้ำ: ${st.val.toFixed(2)} ม.` : `ฝน 24 ชม.: ${st.val.toFixed(1)} มม.`}</div>
-                        <div className="flex items-center">ความเสี่ยง: <span style={{color: st.risk.color}} className="font-bold ml-1">{st.risk.label}</span></div>
+                        <div>{st.type === 'water' ? 'ระดับน้ำ' : 'ฝนสะสม 24 ชม.'}: <b>{measurementDisplay(st.val, st.type)}</b></div>
+                        <div>คุณภาพข้อมูล: <b>{st.freshness.label}</b>{st.freshness.ageMinutes !== null ? ` • ${st.freshness.ageMinutes} นาที` : ''}</div>
+                        <div className="flex items-center">สถานะคัดกรอง: <span style={{color: st.risk.color}} className="font-bold ml-1">{st.risk.label}</span></div>
                         <div>ระยะ: {st.distance?.toFixed(1) || '0.0'} กม.</div>
-                        <div>{st.time ? new Date(st.time).toLocaleString('en-GB') : '--/--/---- --:--:--'}</div>
+                        <div>{stationDistanceLabel(st.distance)}</div>
+                        <div>ที่มา: ThaiWater / สทนช.</div>
                         <div className="text-gray-400 mt-1">พิกัด: {st.lat.toFixed(6)}, {st.lng.toFixed(6)}</div>
                       </div>
                       <a href={`https://www.google.com/maps/dir/?api=1&destination=${st.lat},${st.lng}`} target="_blank" rel="noopener noreferrer" className="mt-2.5 w-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white flex items-center justify-center space-x-1.5 py-1.5 rounded-md text-[11px] font-bold shadow-md transition-colors">
@@ -654,10 +734,11 @@ export default function FloodWatchDashboard() {
             <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-[#facc15] mr-2"></span> เฝ้าระวัง</span>
             <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-[#f97316] mr-2"></span> เสี่ยงสูง</span>
             <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-[#ef4444] mr-2"></span> วิกฤต</span>
+            <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-slate-500 mr-2"></span> ข้อมูลเก่า/ประเมินไม่ได้</span>
             <span className="text-gray-300 hidden md:inline">|</span>
             <span className="flex items-center"><span className="w-4 h-4 rounded-full bg-gray-500 mr-2"></span> วงกลมทึบ = สถานีวัดระดับน้ำ</span>
             <span className="flex items-center"><span className="w-4 h-4 rounded-full border-[2px] border-gray-500 mr-2 bg-transparent"></span> วงกลมขอบสี = สถานีวัดปริมาณฝน</span>
-            <span className="flex items-center ml-auto md:ml-0"><span className="text-red-600 mr-1.5 text-base">📍</span> ตำแหน่งของฉัน</span>
+            <span className="flex items-center ml-auto md:ml-0"><span className="text-red-600 mr-1.5 text-base">📍</span> {positionSource === 'device' ? 'ตำแหน่งอุปกรณ์' : 'จุดอ้างอิงบ่อหลวง'}</span>
           </div>
         </div>
 
@@ -665,7 +746,7 @@ export default function FloodWatchDashboard() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-6">
           <div className="px-5 md:px-6 py-4 bg-white border-b border-gray-100 flex justify-between items-center">
             <h3 className="text-[#0f4a8a] text-[18px] md:text-[20px] font-extrabold flex items-center"><span className="mr-2 text-xl md:text-2xl">🌧️</span> สถานีที่มีปริมาณฝนสูงสุด (24 ชม.)</h3>
-            <span className="text-[12px] md:text-[14px] text-gray-400 font-medium">ข้อมูลรวมจาก สทนช. + ดาวเทียมเรดาร์</span>
+            <span className="text-[12px] md:text-[14px] text-gray-400 font-medium">เฉพาะสถานี ThaiWater / สทนช. ที่มีข้อมูลสด</span>
           </div>
           <div className="w-full h-[400px] md:h-[500px] p-5 md:p-6">
             {topRainStations.length > 0 ? (
@@ -685,7 +766,7 @@ export default function FloodWatchDashboard() {
                             <p className="font-bold text-[15px] text-gray-800 border-b border-gray-100 pb-2 mb-2">{data.name}</p>
                             <p className="text-[16px] text-[#1d4ed8] font-bold mb-2">ปริมาณฝน: {data.val.toFixed(1)} มม.</p>
                             <p className="text-[12px] text-gray-500 font-mono">
-                              แหล่งข้อมูล: {data.source === 'TMD' ? 'ดาวเทียมเรดาร์ (TMD/Open-Meteo)' : 'สถานีวัดจริง (ONWR)'}
+                              แหล่งข้อมูล: {data.source} • อายุ {data.ageMinutes} นาที
                             </p>
                           </div>
                         );
@@ -699,7 +780,7 @@ export default function FloodWatchDashboard() {
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 text-sm md:text-base">
                 <span className="text-3xl mb-3">☀️</span>
-                ขณะนี้ไม่มีตรวจพบปริมาณฝนสะสมในพื้นที่ที่เลือก (0 มม.)
+                ไม่มีสถานีข้อมูลสดที่รายงานฝนมากกว่า 0 มม. โปรดตรวจสถานะรายสถานีด้านบน
               </div>
             )}
           </div>
@@ -713,14 +794,14 @@ export default function FloodWatchDashboard() {
             <div className="flex items-center space-x-3 w-full md:w-auto mb-4 md:mb-0">
               <span className="text-2xl md:text-3xl">🛰️</span>
               <div className="flex flex-col">
-                <span className="text-[#0f4a8a] font-extrabold text-[18px] md:text-[20px] leading-tight">แผนที่อากาศเรียลไทม์ (Windy)</span>
+                <span className="text-[#0f4a8a] font-extrabold text-[18px] md:text-[20px] leading-tight">แผนที่อากาศอ้างอิง (Windy)</span>
                 <span className="text-gray-500 font-medium text-[11px] md:text-sm mt-0.5 pr-2 truncate max-w-[250px] md:max-w-none">เรดาร์ฝน ลม เมฆ • {locationName}</span>
               </div>
             </div>
             
             <div className="flex items-center space-x-2 md:space-x-3 w-full md:w-auto">
-               <button onClick={handleCurrentLocation} className="flex-1 md:flex-none justify-center bg-[#0f172a] text-white px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold shadow-sm flex items-center hover:bg-gray-800 transition">
-                 <span className="mr-1.5 text-red-500 text-sm md:text-base">📍</span> ตำแหน่งของฉัน
+               <button type="button" onClick={handleCurrentLocation} disabled={isLocating} className="flex-1 md:flex-none justify-center bg-[#0f172a] text-white px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold shadow-sm flex items-center hover:bg-gray-800 transition disabled:cursor-wait disabled:opacity-60">
+                 <span className="mr-1.5 text-red-500 text-sm md:text-base">{isLocating ? '⏳' : '📍'}</span> {isLocating ? 'กำลังระบุ...' : 'ใช้ตำแหน่งอุปกรณ์'}
                </button>
                <div className="flex flex-1 md:flex-none justify-between md:justify-center items-center space-x-2 bg-gray-100 rounded-xl px-2 md:px-3 py-1.5 md:py-1.5 border border-gray-200">
                   <button onClick={() => setWindyZoom(Math.max(1, windyZoom - 1))} className="w-7 h-7 md:w-8 md:h-8 rounded-lg bg-white text-[#0ea5e9] hover:bg-sky-50 flex items-center justify-center font-bold shadow-sm transition-colors text-base md:text-lg">-</button>
@@ -789,13 +870,13 @@ export default function FloodWatchDashboard() {
                 <span className="text-2xl mr-2">📡</span> แหล่งข้อมูลอ้างอิง (Data Sources)
               </h3>
               <p className="text-[12px] md:text-[14px] text-gray-500 mt-1.5">
-                ดึงข้อมูลล่าสุด {currentTime ? currentTime.toLocaleTimeString('en-GB') : '--:--:--'} - ระบบมีกลไก Cache ป้องกัน API ล่ม
+                เวลาตรวจหน้าจอ {currentTime ? currentTime.toLocaleTimeString('th-TH') : '--:--:--'} • แยกข้อมูลสด ข้อมูลแคช และอายุข้อมูลรายสถานี
               </p>
             </div>
             
             <div className="flex items-center space-x-3 bg-blue-50 px-4 py-2.5 rounded-lg border border-blue-100">
               <span className="text-blue-500 text-2xl">⚖️</span>
-              <span className="text-[12px] md:text-[13px] text-blue-800 font-mono leading-tight"><b>Data Honesty:</b><br/>ข้อมูลในหน้านี้ดึงตรงจากหน่วยงาน<br/>โดยไม่มีการดัดแปลงหรือพยากรณ์เอง</span>
+              <span className="text-[12px] md:text-[13px] text-blue-800 font-mono leading-tight"><b>Data Honesty:</b><br/>ข้อมูลสถานีจาก ThaiWater / สทนช.<br/>ข้อมูลเก่าหรือไม่ครบจะไม่ใช้ยกระดับเตือน</span>
             </div>
           </div>
 
@@ -818,8 +899,8 @@ export default function FloodWatchDashboard() {
                     <td className="px-6 py-4 font-semibold text-gray-800">National ThaiWater (ONWR)</td>
                     <td className="px-6 py-4 text-gray-500 text-[12px] md:text-[13px] font-mono"><span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded mr-1">สถานีวัดจริง</span> (ระดับน้ำ)</td>
                     <td className="px-6 py-4 font-bold flex items-center">
-                      <span className={`w-3 h-3 rounded-full mr-2.5 ${apiStatus.water.includes('สำเร็จ') ? 'bg-[#10b981]' : 'bg-red-500'}`}></span> 
-                      <span className={apiStatus.water.includes('สำเร็จ') ? 'text-[#10b981]' : 'text-red-500'}>{apiStatus.water}</span>
+                      <span className={`w-3 h-3 rounded-full mr-2.5 ${apiStatus.water.includes('สด') ? 'bg-emerald-500' : apiStatus.water.includes('แคช') ? 'bg-amber-500' : 'bg-red-500'}`}></span>
+                      <span className={apiStatus.water.includes('สด') ? 'text-emerald-600' : apiStatus.water.includes('แคช') ? 'text-amber-600' : 'text-red-500'}>{apiStatus.water}</span>
                     </td>
                     <td className="px-6 py-4 text-gray-400 font-mono text-[11px] md:text-[12px] truncate max-w-[150px] md:max-w-none">/waterlevel_load</td>
                   </tr>
@@ -827,8 +908,8 @@ export default function FloodWatchDashboard() {
                     <td className="px-6 py-4 font-semibold text-gray-800">National ThaiWater (ONWR)</td>
                     <td className="px-6 py-4 text-gray-500 text-[12px] md:text-[13px] font-mono"><span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded mr-1">สถานีวัดจริง</span> (ฝน 24 ชม.)</td>
                     <td className="px-6 py-4 font-bold flex items-center">
-                      <span className={`w-3 h-3 rounded-full mr-2.5 ${apiStatus.rain.includes('สำเร็จ') ? 'bg-[#10b981]' : 'bg-red-500'}`}></span> 
-                      <span className={apiStatus.rain.includes('สำเร็จ') ? 'text-[#10b981]' : 'text-red-500'}>{apiStatus.rain}</span>
+                      <span className={`w-3 h-3 rounded-full mr-2.5 ${apiStatus.rain.includes('สด') ? 'bg-emerald-500' : apiStatus.rain.includes('แคช') ? 'bg-amber-500' : 'bg-red-500'}`}></span>
+                      <span className={apiStatus.rain.includes('สด') ? 'text-emerald-600' : apiStatus.rain.includes('แคช') ? 'text-amber-600' : 'text-red-500'}>{apiStatus.rain}</span>
                     </td>
                     <td className="px-6 py-4 text-gray-400 font-mono text-[11px] md:text-[12px] truncate max-w-[150px] md:max-w-none">/rain_24h</td>
                   </tr>

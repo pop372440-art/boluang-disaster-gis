@@ -4,15 +4,13 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import 'leaflet/dist/leaflet.css';
-import { createClient } from '@supabase/supabase-js'; 
 import Swal from 'sweetalert2';
+import { getBrowserSupabaseClient } from '@/lib/supabase/browser';
 
 // ==========================================
 // 🌟 1. การตั้งค่าระบบ (Config)
 // ==========================================
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = getBrowserSupabaseClient();
 
 const BO_LUANG_LAT = 18.1633;
 const BO_LUANG_LNG = 98.3744;
@@ -20,11 +18,9 @@ const MAX_DISTANCE_KM = 150;
 
 const PRIMARY_NAV = [
   { href: '/', label: 'แผนที่ GIS', icon: '🗺️' },
-  { href: '/intelligence', label: 'ศูนย์เฝ้าระวัง', icon: '🧭' },
-  { href: '/radar', label: 'เรดาร์ฝน', icon: '🌧️' },
-  { href: '/weather', label: 'พยากรณ์อากาศ', icon: '🌤️' },
-  { href: '/flood', label: 'น้ำและน้ำท่วม', icon: '🌊' },
+  { href: '/center', label: 'ศูนย์สถานการณ์', icon: '🧭' },
   { href: '/report', label: 'แจ้งเหตุ', icon: '🚨' },
+  { href: '/dashboard', label: 'สถานการณ์สาธารณะ', icon: '📊' },
   { href: '/admin/open-data', label: 'Open Data', icon: '📥' },
 ] as const;
 
@@ -476,7 +472,7 @@ export default function BoLuangDashboard() {
 
     let cancelled = false;
     const loadVisitorStats = async () => {
-      if (!supabaseUrl || !supabaseAnonKey) {
+      if (!supabase) {
         if (!cancelled) setVisitStats({ today: null, total: null, state: 'error' });
         return;
       }
@@ -625,7 +621,7 @@ export default function BoLuangDashboard() {
   }, [onwrWaterLevel]);
 
   useEffect(() => {
-    if (!citizenReport) return;
+    if (!citizenReport || !supabase) return;
     const fetchReports = async () => {
       try {
         const { data, error } = await supabase.from('boluang_disaster_reports').select('*').neq('status', 'ดำเนินการเสร็จแล้ว').order('created_at', { ascending: false }); 
@@ -1671,7 +1667,7 @@ export default function BoLuangDashboard() {
 
             <div className="relative mb-4">
               <Link
-                href="/weather"
+                href="/center/weather"
                 className="block bg-[#0f172a] border border-[#1e293b] hover:border-[#0ea5e9]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
                 <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#0ea5e9] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
@@ -1693,7 +1689,7 @@ export default function BoLuangDashboard() {
 
             <div className="relative mb-4">
               <Link
-                href="/flood"
+                href="/center/flood"
                 className="block bg-[#0f172a] border border-[#1e293b] hover:border-[#3b82f6]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
                 <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#3b82f6] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
@@ -1878,7 +1874,7 @@ export default function BoLuangDashboard() {
             
             <div className="flex flex-col space-y-2">
               <Link
-                href="/admin/dashboard"
+                href="/dashboard"
                 className="w-full py-2.5 bg-[#0f172a] hover:bg-[#1e293b] border border-gray-700 rounded-xl text-[13px] font-bold text-gray-300 shadow-sm flex items-center justify-center space-x-2 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
                 <span className="text-[#38bdf8] text-base">📈</span>

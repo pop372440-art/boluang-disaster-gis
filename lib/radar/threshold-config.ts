@@ -25,6 +25,8 @@ export const RISK_CONFIG = {
     forecastExpireAfterMinutes: 30,
     metNorwayStaleAfterMinutes: 90,
     metNorwayExpireAfterMinutes: 180,
+    gaugeStaleAfterMinutes: 120,
+    gaugeExpireAfterMinutes: 360,
     outlookStaleAfterMinutes: 120,
     outlookExpireAfterMinutes: 360,
   },
