@@ -7,7 +7,8 @@ export const dynamic = 'force-dynamic';
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const uploadedPaths: string[] = [];
   try {
     const staff = await authenticateStaff(request, { minimumRole: 'operator' });

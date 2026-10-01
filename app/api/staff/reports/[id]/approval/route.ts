@@ -3,7 +3,8 @@ import { authenticateStaff, staffErrorResponse } from '@/lib/staff/security';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const staff = await authenticateStaff(request, { minimumRole: 'approver' });
     const payload = await request.json().catch(() => ({})) as { decision?: string; note?: string };

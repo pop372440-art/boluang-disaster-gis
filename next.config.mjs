@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Next.js 15's built-in lint runner does not support this project's flat
+  // ESLint configuration. CI runs `npm run lint` as a separate required check.
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   async headers() {
     return [
       {
