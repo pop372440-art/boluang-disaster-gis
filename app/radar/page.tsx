@@ -1025,7 +1025,7 @@ export default function RadarPage() {
       ? `${Math.round(fresh.ageMinutes)} นาทีที่แล้ว`
       : status.timestamp ? fmtTime(new Date(status.timestamp)) : 'ยังไม่มีเวลาอ้างอิง');
     return (
-      <div title={`${status.source}: ${detail}`} aria-label={`${status.source} ${state} ${detail}`} className="liquid-bar flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] whitespace-nowrap">
+      <div title={`${status.source}: ${detail}`} aria-label={`${status.source} ${state} ${detail}`} className="liquid-bar flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] whitespace-nowrap">
         <span className="w-2 h-2 rounded-full ring-2 ring-white/10" style={{ background: color }} aria-hidden="true" />
         <span className="text-[#E1E9F7]">{status.source}</span>
         <span style={{ color }}>{state}</span>
@@ -1159,7 +1159,7 @@ export default function RadarPage() {
         .ops-checkbox:checked::after { content:''; position:absolute; left:3.5px; top:.5px; width:4px; height:8px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg); }
         .ops-slider { -webkit-appearance:none; width:100%; height:5px; background:rgba(255,255,255,.15); border-radius:999px; outline:none; }
         .ops-slider::-webkit-slider-thumb { -webkit-appearance:none; width:17px; height:17px; border-radius:50%; background:#eef8ff; cursor:pointer; border:4px solid #3a9ff4; box-shadow:0 3px 14px rgba(0,0,0,.45),0 0 0 3px rgba(80,174,255,.18); }
-        .ops-scroll::-webkit-scrollbar { width:6px; }
+        .ops-scroll::-webkit-scrollbar { width:6px; height:6px; }
         .ops-scroll::-webkit-scrollbar-track { background:transparent; }
         .ops-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,.2); border-radius:999px; }
         .village-label { background:rgba(8,20,36,.9) !important; backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.22) !important; color:#f5f8ff !important; font-size:12px !important; padding:4px 8px !important; border-radius:9px !important; box-shadow:0 6px 18px rgba(0,0,0,.24) !important; }
@@ -1317,13 +1317,15 @@ export default function RadarPage() {
           </MapContainer>
         </div>
 
-        <div className="absolute top-[80px] left-[356px] right-4 xl:right-[438px] z-[1300] hidden items-center justify-center gap-1.5 overflow-x-auto ops-scroll pb-1 md:flex">
-          <DataStatusBadge status={radarStatus} />
-          <DataStatusBadge status={forecastStatus} />
-          <DataStatusBadge status={metNorwayStatus} />
-          <DataStatusBadge status={outlookStatus} />
-          <DataStatusBadge status={gaugeSourceStatus} />
-          <DataStatusBadge status={geoJsonStatus} />
+        <div aria-label="สถานะแหล่งข้อมูล เลื่อนแนวนอนเพื่อดูทั้งหมด" className="ops-scroll absolute left-[356px] right-4 top-[80px] z-[1300] hidden overflow-x-auto overscroll-x-contain px-2 pb-2 md:block xl:right-[438px]">
+          <div className="flex min-w-max snap-x snap-proximity items-center justify-start gap-1.5 pr-3">
+            <div className="snap-start"><DataStatusBadge status={radarStatus} /></div>
+            <div className="snap-start"><DataStatusBadge status={forecastStatus} /></div>
+            <div className="snap-start"><DataStatusBadge status={metNorwayStatus} /></div>
+            <div className="snap-start"><DataStatusBadge status={outlookStatus} /></div>
+            <div className="snap-start"><DataStatusBadge status={gaugeSourceStatus} /></div>
+            <div className="snap-start"><DataStatusBadge status={geoJsonStatus} /></div>
+          </div>
         </div>
 
         {mapZoom > 13 && (
