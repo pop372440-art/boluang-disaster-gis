@@ -41,6 +41,7 @@ import {
 import { ClickableMap, MapRefBinder, MapScale } from '@/components/radar/MapRuntimeControls';
 import { parsePublicGaugeStatus, type PublicGaugeStatus } from '@/lib/radar/gauge-status';
 import { buildRadarViewSearch, parseRadarView } from '@/lib/radar/radar-view-url';
+import { buildRadarSituationReport } from '@/lib/radar/report-export';
 
 /* ═══════════════════════════ SUPABASE ═══════════════════════════ */
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -206,6 +207,7 @@ export default function RadarPage() {
   const fcAbortRef = useRef<AbortController | null>(null);
   const riskAbortRef = useRef<AbortController | null>(null);
   const radarAbortRef = useRef<AbortController | null>(null);
+  const lastForegroundRefreshRef = useRef(Date.now());
   const initialUrlAppliedRef = useRef(false);
   const alertStatesRef = useRef(new Map<string, AlertState>());
   const center = { lat: 18.1633, lng: 98.3744 };
@@ -250,13 +252,14 @@ export default function RadarPage() {
       }));
     });
 
-    const loadRadar = async () => {
+    const loadRadar = async (forceRefresh = false) => {
       radarAbortRef.current?.abort();
       const controller = new AbortController();
       radarAbortRef.current = controller;
       setRadarStatus((previous) => ({ ...previous, state: 'loading', error: null }));
       try {
-        const response = await fetch('/api/radar/frames', { signal: controller.signal, cache: 'no-store' });
+        const radarUrl = forceRefresh ? `/api/radar/frames?refresh=${Date.now()}` : '/api/radar/frames';
+        const response = await fetch(radarUrl, { signal: controller.signal, cache: 'no-store' });
         if (!response.ok) throw new Error(`Radar metadata HTTP ${response.status}`);
         const metadata = parseRainViewerMetadata(await response.json());
         const latestObserved = metadata.observedFrames[metadata.observedFrames.length - 1];
@@ -274,9 +277,9 @@ export default function RadarPage() {
           freshness,
           error: null,
         });
-        setCurrentFrameIndex((previous) => (
-          previous === 0 ? metadata.pastCount - 1 : Math.min(previous, metadata.frames.length - 1)
-        ));
+        setCurrentFrameIndex((previous) => forceRefresh
+          ? metadata.pastCount - 1
+          : Math.min(previous, metadata.frames.length - 1));
       } catch (error: unknown) {
         if (controller.signal.aborted) return;
         setRadarStatus((previous) => ({
@@ -287,7 +290,7 @@ export default function RadarPage() {
       }
     };
 
-    void loadRadar();
+    void loadRadar(true);
     const timer = setInterval(() => { if (isPageVisible()) void loadRadar(); }, 5 * 60 * 1000);
     return () => {
       clearInterval(timer);
@@ -295,6 +298,19 @@ export default function RadarPage() {
       radarAbortRef.current?.abort();
     };
   }, [reloadToken]);
+
+  /* รีเฟรชข้อมูลปฏิบัติการเมื่อผู้ใช้กลับมาที่แท็บ โดยกัน event ซ้ำระยะสั้น */
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastForegroundRefreshRef.current < 30_000) return;
+      lastForegroundRefreshRef.current = now;
+      setReloadToken((token) => token + 1);
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, []);
 
   /* สถานีตรวจวัดจริง: อ่านผ่าน Edge Function ที่คืนเฉพาะข้อมูล public-safe */
   useEffect(() => {
@@ -315,13 +331,13 @@ export default function RadarPage() {
         if (!response.ok) throw new Error(`สถานีตรวจวัด HTTP ${response.status}`);
         const parsed = parsePublicGaugeStatus(await response.json());
         const freshness = evaluateFreshness(parsed.station.observedAt, {
-          staleAfterMinutes: 360,
-          expireAfterMinutes: 720,
+          staleAfterMinutes: RISK_CONFIG.freshness.gaugeStaleAfterMinutes,
+          expireAfterMinutes: RISK_CONFIG.freshness.gaugeExpireAfterMinutes,
         });
         if (controller.signal.aborted) return;
         setGaugeStatus(parsed);
         setGaugeSourceStatus({
-          state: freshness.status === 'fresh' ? 'fresh' : 'stale',
+          state: freshness.status === 'fresh' && parsed.station.qualityFlag !== 'suspect_stale' ? 'fresh' : 'stale',
           source: `สถานีจริง ${parsed.station.code}`,
           timestamp: parsed.station.observedAt,
           freshness,
@@ -399,7 +415,7 @@ export default function RadarPage() {
       const metNorwayResultPromise = (async () => {
         const latitude = representativePoints.map((point) => point[1].toFixed(5)).join(',');
         const longitude = representativePoints.map((point) => point[0].toFixed(5)).join(',');
-        const response = await fetch(`/api/forecast/met-norway?latitude=${latitude}&longitude=${longitude}`, {
+        const response = await fetch(`/api/forecast/met-norway?latitude=${latitude}&longitude=${longitude}&refresh=${Date.now()}`, {
           signal: controller.signal,
           cache: 'no-store',
         });
@@ -716,7 +732,7 @@ export default function RadarPage() {
             if (!response.ok) throw new Error(`Open-Meteo HTTP ${response.status}`);
             return parseForecastApiResponse(await response.json());
           }),
-        fetch(`/api/forecast/met-norway?latitude=${lat}&longitude=${lng}`, { signal: ac.signal, cache: 'no-store' })
+        fetch(`/api/forecast/met-norway?latitude=${lat}&longitude=${lng}&refresh=${Date.now()}`, { signal: ac.signal, cache: 'no-store' })
           .then(async (response) => {
             if (!response.ok) throw new Error(`MET Norway HTTP ${response.status}`);
             return parseMetNorwayApiResponse(await response.json());
@@ -1009,10 +1025,11 @@ export default function RadarPage() {
       ? `${Math.round(fresh.ageMinutes)} นาทีที่แล้ว`
       : status.timestamp ? fmtTime(new Date(status.timestamp)) : 'ยังไม่มีเวลาอ้างอิง');
     return (
-      <div title={`${status.source}: ${detail}`} className="liquid-bar flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] whitespace-nowrap">
+      <div title={`${status.source}: ${detail}`} aria-label={`${status.source} ${state} ${detail}`} className="liquid-bar flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] whitespace-nowrap">
         <span className="w-2 h-2 rounded-full ring-2 ring-white/10" style={{ background: color }} aria-hidden="true" />
         <span className="text-[#E1E9F7]">{status.source}</span>
         <span style={{ color }}>{state}</span>
+        {fresh?.ageMinutes != null && <span className="font-mono text-[#AEBBD0]">· {Math.round(fresh.ageMinutes)} นาที</span>}
       </div>
     );
   };
@@ -1027,6 +1044,39 @@ export default function RadarPage() {
       staleAfterMinutes: RISK_CONFIG.freshness.metNorwayStaleAfterMinutes,
       expireAfterMinutes: RISK_CONFIG.freshness.metNorwayExpireAfterMinutes,
     }).status === 'fresh';
+
+  const exportRadarReport = useCallback(() => {
+    const refreshStatus = (status: DataSourceStatus): DataSourceStatus => {
+      if (!status.freshness || !status.timestamp) return status;
+      const freshness = evaluateFreshness(status.timestamp, {
+        staleAfterMinutes: status.freshness.staleAfterMinutes,
+        expireAfterMinutes: status.freshness.expireAfterMinutes,
+      });
+      return {
+        ...status,
+        freshness,
+        state: status.state === 'error' ? 'error' : freshness.status === 'fresh' ? 'fresh' : 'stale',
+      };
+    };
+    const report = buildRadarSituationReport({
+      radarData,
+      radarStatus: refreshStatus(radarStatus),
+      forecastStatus: refreshStatus(forecastStatus),
+      metNorwayStatus: refreshStatus(metNorwayStatus),
+      gaugeStatus,
+      gaugeSourceStatus: refreshStatus(gaugeSourceStatus),
+      villages: villageRisk,
+    });
+    const blob = new Blob([`${JSON.stringify(report, null, 2)}\n`], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `bo-luang-radar-report-${report.generatedAt.replace(/[:.]/g, '-')}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, [forecastStatus, gaugeSourceStatus, gaugeStatus, metNorwayStatus, radarData, radarStatus, villageRisk]);
 
   const RankTable = ({ height = 'h-[320px]' }: any) => (
     <div className="w-full text-[12px]">
@@ -1179,6 +1229,9 @@ export default function RadarPage() {
           <button onClick={() => setReloadToken((token) => token + 1)} className="flex items-center px-3 md:px-4 py-2 bg-white border border-[#C9D6E3] text-[#234566] hover:bg-[#F2F7FC] rounded-lg font-semibold space-x-2 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D65A6]" aria-label="โหลดข้อมูล Radar และ Forecast ใหม่" aria-keyshortcuts="R" title="รีเฟรชข้อมูล (R)">
             <svg className={`w-4 h-4 ${riskLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582M20 20v-5h-.581M19.418 9A7.003 7.003 0 006 7.293M4.582 15A7.003 7.003 0 0018 16.707" /></svg>
             <span className="hidden md:inline text-[12px]">รีเฟรช</span>
+          </button>
+          <button onClick={exportRadarReport} className="hidden lg:flex items-center rounded-lg border border-[#C9D6E3] bg-white px-3 py-2 text-[12px] font-semibold text-[#234566] shadow-sm hover:bg-[#F2F7FC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D65A6]" aria-label="ส่งออกรายงาน Radar พร้อมเวลาและรุ่นแหล่งข้อมูล" title="ส่งออกรายงาน JSON พร้อม provenance">
+            ส่งออกรายงาน
           </button>
           <button onClick={openStatsModal} className="hidden sm:flex items-center px-4 py-2 bg-[#1D65A6] border border-[#15568F] text-white hover:bg-[#15568F] rounded-lg font-semibold space-x-2 shadow-sm">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2-2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
@@ -1427,7 +1480,7 @@ export default function RadarPage() {
                           operationalSummary.agreement === 'low' ? 'border-orange-300/35 bg-orange-300/10 text-orange-100' :
                             'border-white/15 bg-white/5 text-[#AEBBD0]'
                     }`}>
-                      {operationalSummary.agreement === 'high' ? 'โมเดลสอดคล้องสูง' :
+                      {!metComparisonFresh ? 'ระงับการเทียบ · ข้อมูลเก่าหรือไม่พร้อม' : operationalSummary.agreement === 'high' ? 'โมเดลสอดคล้องสูง' :
                         operationalSummary.agreement === 'medium' ? 'โมเดลสอดคล้องปานกลาง' :
                           operationalSummary.agreement === 'low' ? 'โมเดลต่างกัน · ตรวจสอบเพิ่ม' : 'กำลังรอผลเทียบโมเดล'}
                     </span>
@@ -1450,8 +1503,8 @@ export default function RadarPage() {
                     </div>
                     <div className="rounded-lg border border-white/10 bg-white/[.04] p-2">
                       <span className="block text-[9px] text-[#8B94A5]">เทียบโมเดลแล้ว</span>
-                      <span className="mt-1 block font-mono text-[14px] font-black text-white">{operationalSummary.comparedVillageCount}/13</span>
-                      <span className="block text-[9px] text-[#8B94A5]">หมู่บ้าน</span>
+                      <span className={`mt-1 block font-mono text-[14px] font-black ${metComparisonFresh ? 'text-white' : 'text-amber-200'}`}>{metComparisonFresh ? `${operationalSummary.comparedVillageCount}/${geoBlock?.features?.length ?? 13}` : 'ระงับ'}</span>
+                      <span className="block text-[9px] text-[#8B94A5]">{metComparisonFresh ? 'หมู่บ้าน' : 'MET Norway เก่าหรือไม่พร้อม'}</span>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1.5 mb-3 pb-3 border-b border-[#333946]">
@@ -1469,6 +1522,12 @@ export default function RadarPage() {
                     <div>
                       <h3 className="text-[14px] font-bold text-[#E5E7EB]">สถานีตรวจวัดจริง บ้านนาฟ่อน</h3>
                       <p className="mt-1 text-[10.5px] text-[#8B94A5]">ThaiWater · STN0583 · ไม่ใช่ข้อมูลแบบจำลอง</p>
+                      {gaugeStatus && (
+                        <p className={`mt-1.5 text-[12px] font-extrabold ${gaugeSourceStatus.state === 'fresh' ? 'text-cyan-100' : 'text-amber-200'}`}>
+                          ข้อมูล ณ {fmtDate(new Date(gaugeStatus.station.observedAt))} {fmtTime(new Date(gaugeStatus.station.observedAt))} น.
+                          {gaugeSourceStatus.freshness?.ageMinutes != null && ` · ${Math.round(gaugeSourceStatus.freshness.ageMinutes)} นาทีที่แล้ว`}
+                        </p>
+                      )}
                     </div>
                     <span className={`rounded px-2 py-1 text-[9px] font-bold ${gaugeSourceStatus.state === 'fresh' ? 'bg-emerald-400/15 text-emerald-300' : gaugeSourceStatus.state === 'error' ? 'bg-red-400/15 text-red-300' : 'bg-amber-400/15 text-amber-200'}`}>{gaugeLayerBadge}</span>
                   </div>
@@ -1949,6 +2008,13 @@ export default function RadarPage() {
                 className="mb-3 w-full rounded-lg border border-[#3B4651] bg-[#161B20] py-2 text-[11px] font-bold text-[#DCE8F5] hover:bg-[#202830]"
               >
                 ดูสถิติการใช้งานที่บันทึกจริง
+              </button>
+              <button
+                type="button"
+                onClick={exportRadarReport}
+                className="mb-3 w-full rounded-lg border border-cyan-300/35 bg-cyan-300/10 py-2 text-[11px] font-bold text-cyan-100"
+              >
+                ส่งออกรายงานพร้อมเวลาและแหล่งข้อมูล
               </button>
               <RankTable height="h-[42vh]" />
             </div>
