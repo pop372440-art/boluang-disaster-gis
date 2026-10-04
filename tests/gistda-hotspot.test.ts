@@ -29,7 +29,19 @@ test('GISTDA parser supports satellite collections from the live hotspot endpoin
   assert.equal(result.ok, true);
   if (result.ok) {
     assert.equal(result.hotspots.length, 1);
-    assert.equal(result.hotspots[0].satellite, 'terra');
     assert.equal(result.hotspots[0].acquiredDate, '2026-09-26');
+    assert.equal(result.hotspots[0].satellite, 'terra');
+    assert.equal(result.hotspots[0].acquiredAt, '2026-09-26T00:00:00.000Z');
+  }
+});
+
+test('GISTDA parser deduplicates the same satellite acquisition and coordinates', () => {
+  const point = { latitude: 18.17, longitude: 98.38, satellite: 'VIIRS', acquiredAt: '2026-10-04T08:00:00Z' };
+  const result = parseGistdaHotspots({ data: [point, { ...point }] }, { latitude: 18.1633, longitude: 98.3744 });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.received, 2);
+    assert.equal(result.hotspots.length, 1);
+    assert.match(result.hotspots[0].dedupeKey, /viirs/);
   }
 });

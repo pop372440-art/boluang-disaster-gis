@@ -111,8 +111,10 @@ const CustomToggleBox = ({ label, source, active, onClick, dotColor = '#38bdf8',
 
   const renderStatusBadge = () => {
     if (!apiStatus) return null;
-    if (apiStatus === 'LIVE') return <span className="ml-auto text-[8px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="ดึงข้อมูลสดสำเร็จ">LIVE</span>;
-    if (apiStatus === 'CACHED') return <span className="ml-auto text-[8px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="ใช้ข้อมูลสำรองเนื่องจากต้นทางล่าช้า">CACHED</span>;
+    if (apiStatus === 'FRESH' || apiStatus === 'LIVE') return <span className="ml-auto text-[8px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="ข้อมูลอยู่ในเกณฑ์อายุที่กำหนด">FRESH</span>;
+    if (apiStatus === 'STALE' || apiStatus === 'CACHED') return <span className="ml-auto text-[8px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="ข้อมูลเก่ากว่าเกณฑ์ กรุณาใช้ด้วยความระมัดระวัง">STALE</span>;
+    if (apiStatus === 'EXPIRED') return <span className="ml-auto text-[8px] bg-orange-500/20 text-orange-300 border border-orange-500/50 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="ข้อมูลหมดอายุและไม่ใช้สร้างคำเตือน">EXPIRED</span>;
+    if (apiStatus === 'INVALID_SCHEMA' || apiStatus === 'UNKNOWN') return <span className="ml-auto text-[8px] bg-violet-500/20 text-violet-300 border border-violet-500/50 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="รูปแบบข้อมูลหรือเวลาอ้างอิงไม่สมบูรณ์">INVALID</span>;
     return <span className="ml-auto text-[8px] bg-red-500/20 text-red-400 border border-red-500/50 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="ระบบต้นทางขัดข้อง">OFFLINE</span>;
   };
 
@@ -250,6 +252,7 @@ export default function BoLuangDashboard() {
   const [geoParcel, setGeoParcel] = useState<any>(null);
   const [geoLandslide, setGeoLandslide] = useState<any>(null); 
   const [hotspotData, setHotspotData] = useState<any>(null);
+  const [hotspotMeta, setHotspotMeta] = useState<{ acquisitionTime: string | null; satelliteTypes: string[] }>({ acquisitionTime: null, satelliteTypes: [] });
   const [mapRef, setMapRef] = useState<any>(null);
   const [FaultLineData, setFaultLineData] = useState<any>(null);
 
@@ -405,21 +408,27 @@ export default function BoLuangDashboard() {
     }
     const fetchHotspot = async () => {
       try {
-        const { data, status } = await fetchWithCache('/api/proxy?service=gistda-hotspot&lat=18.1633&lon=98.3744', 'gistda_hotspot_cache');
-        if (status === 'ERROR' || !data) {
+        const response = await fetch('/api/environment/summary?latitude=18.1633&longitude=98.3744', { cache: 'no-store' });
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data?.fire) {
            setApiStatus(prev => ({ ...prev, gistda: 'OFFLINE' }));
            setHotspotData(null);
            return;
         }
-        setApiStatus(prev => ({ ...prev, gistda: status }));   
-        if (data?.data && Array.isArray(data.data)) {
+        const quality = String(data.fire.quality?.state || 'unknown').toUpperCase();
+        setApiStatus(prev => ({ ...prev, gistda: quality }));
+        setHotspotMeta({
+          acquisitionTime: data.fire.acquisitionTime || null,
+          satelliteTypes: Array.isArray(data.fire.satelliteTypes) ? data.fire.satelliteTypes : [],
+        });
+        if (Array.isArray(data.fire.hotspots) && ['FRESH', 'STALE'].includes(quality)) {
            const geoJsonData = {
              type: 'FeatureCollection',
-             features: data.data.map((item: any) => ({
+             features: data.fire.hotspots.map((item: any) => ({
                type: 'Feature',
                geometry: {
                  type: 'Point',
-                 coordinates: [parseFloat(item.longitude || item.lon || 0), parseFloat(item.latitude || item.lat || 0)]
+                 coordinates: [Number(item.longitude), Number(item.latitude)]
                },
                properties: { ...item, title: 'จุดความร้อน (Hotspot)', source: 'GISTDA' }
              })).filter((feature: any) => feature.geometry.coordinates[0] !== 0 && feature.geometry.coordinates[1] !== 0)
@@ -554,23 +563,37 @@ export default function BoLuangDashboard() {
       const urlWx = `/api/proxy?service=weather-tmd&lats=${lats}&lons=${lngs}`;
       
       const [aqiResult, wxResult] = await Promise.all([ fetchWithCache(urlAqi, 'pm25_aqi_cache'), fetchWithCache(urlWx, 'pm25_wx_cache') ]);
-      setApiStatus(prev => ({ ...prev, pm25: aqiResult.status === 'LIVE' && wxResult.status === 'LIVE' ? 'LIVE' : (aqiResult.status === 'OFFLINE' ? 'OFFLINE' : 'CACHED') }));
 
       const aqiData = aqiResult.data; 
       const wxData = wxResult.data;
       if (Array.isArray(aqiData) && Array.isArray(wxData)) {
-        const formatted = localAirStations.map((station, i) => ({
-          ...station, 
-          pm25Val: aqiData[i]?.current?.pm2_5 || 0, 
-          pm10Val: aqiData[i]?.current?.pm10 || '—',
-          coVal: aqiData[i]?.current?.carbon_monoxide || '—', 
-          no2Val: aqiData[i]?.current?.nitrogen_dioxide || '—',
-          so2Val: aqiData[i]?.current?.sulphur_dioxide || '—', 
-          o3Val: aqiData[i]?.current?.ozone || '—',
-          time: aqiData[i]?.current?.time || new Date().toISOString(), 
-          wCode: wxData[i]?.current?.weathercode || 0
-        }));
+        const formatted = localAirStations.map((station, i) => {
+          const time = typeof aqiData[i]?.current?.time === 'string' ? aqiData[i].current.time : null;
+          const observedAt = time ? Date.parse(time) : Number.NaN;
+          const ageMinutes = Number.isFinite(observedAt) ? Math.max(0, (Date.now() - observedAt) / 60_000) : null;
+          const quality = ageMinutes == null ? 'UNKNOWN' : ageMinutes > 720 ? 'EXPIRED' : ageMinutes > 180 ? 'STALE' : 'FRESH';
+          const numeric = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : null;
+          return {
+            ...station,
+            pm25Val: numeric(aqiData[i]?.current?.pm2_5),
+            pm10Val: numeric(aqiData[i]?.current?.pm10),
+            coVal: numeric(aqiData[i]?.current?.carbon_monoxide),
+            no2Val: numeric(aqiData[i]?.current?.nitrogen_dioxide),
+            so2Val: numeric(aqiData[i]?.current?.sulphur_dioxide),
+            o3Val: numeric(aqiData[i]?.current?.ozone),
+            time,
+            quality,
+            ageMinutes,
+            wCode: wxData[i]?.current?.weathercode ?? null,
+          };
+        });
         setLocalAirData(formatted);
+        const qualities = formatted.map(item => item.quality);
+        const status = aqiResult.status === 'ERROR' ? 'OFFLINE' : qualities.includes('EXPIRED') ? 'EXPIRED' : qualities.includes('UNKNOWN') ? 'UNKNOWN' : qualities.includes('STALE') ? 'STALE' : 'FRESH';
+        setApiStatus(prev => ({ ...prev, pm25: status }));
+      } else {
+        setLocalAirData([]);
+        setApiStatus(prev => ({ ...prev, pm25: 'OFFLINE' }));
       }
     };
     fetchLocalAir();
@@ -1215,13 +1238,12 @@ export default function BoLuangDashboard() {
               );
             })}
 
-            {pm25 && localAirData.map((station, i) => {
+            {pm25 && localAirData.filter(station => typeof station.pm25Val === 'number' && station.quality !== 'EXPIRED').map((station) => {
               const { aqi, text, color } = getAirQualityDetails(station.pm25Val);
-              const formattedTime = new Date(station.time).toISOString().replace('T', ' ').substring(0, 16);
-              const stationId = `BL-AIR-${(i + 1).toString().padStart(3, '0')}`;
+              const formattedTime = station.time ? new Date(station.time).toLocaleString('th-TH') : 'ไม่ทราบเวลา';
               
               return (
-                <Marker key={`national-pm25-${i}`} position={[station.lat, station.lng]} icon={createPm25Icon(station.pm25Val)}>
+                <Marker key={`cams-pm25-${station.name}`} position={[station.lat, station.lng]} icon={createPm25Icon(station.pm25Val)}>
                   <Popup className="popup-pm25-custom">
                     <div className="flex flex-col">
                       <div style={{ backgroundColor: color }} className="px-4 py-3 font-bold text-[#0f172a] text-[15px] flex items-center shadow-sm rounded-t-lg relative">
@@ -1230,9 +1252,7 @@ export default function BoLuangDashboard() {
                       
                       <div className="p-4 bg-[#0b132b] text-[14px] text-gray-200 font-medium rounded-b-lg">
                         <div className="font-bold text-white mb-3 pb-2 border-b border-[#1e293b] flex items-center">
-                          จุดตรวจวัด: {station.name}
-                          {station.type === 'local' && <span className="bg-[#10b981] text-white px-1.5 py-0.5 rounded text-[10px] ml-2 font-mono">Micro-climate</span>}
-                          {station.type === 'district' && <span className="bg-[#f59e0b] text-white px-1.5 py-0.5 rounded text-[10px] ml-2">ระดับอำเภอ</span>}
+                          จุดประเมินแบบจำลอง: {station.name}
                         </div>
 
                         <div className="space-y-1.5 font-bold text-[15px]">
@@ -1246,23 +1266,24 @@ export default function BoLuangDashboard() {
                           </div>
                           <div className="flex items-center text-white">
                             <span className="w-16">PM10:</span>
-                            <span className="font-normal">{station.pm10Val !== '—' ? `${station.pm10Val} µg/m³` : '—'}</span>
+                            <span className="font-normal">{station.pm10Val != null ? `${station.pm10Val} µg/m³` : 'ไม่มีข้อมูล'}</span>
                           </div>
                           <div className="flex items-center text-white pt-1">
-                            <span className="font-bold">O₃:</span> <span className="font-normal ml-1">{station.o3Val}</span>
+                            <span className="font-bold">O₃:</span> <span className="font-normal ml-1">{station.o3Val ?? 'ไม่มีข้อมูล'}</span>
                             <span className="mx-2 text-gray-500">·</span> 
-                            <span className="font-bold">CO:</span> <span className="font-normal ml-1">{station.coVal}</span>
+                            <span className="font-bold">CO:</span> <span className="font-normal ml-1">{station.coVal ?? 'ไม่มีข้อมูล'}</span>
                           </div>
                           <div className="flex items-center text-white">
-                            <span className="font-bold">NO₂:</span> <span className="font-normal ml-1">{station.no2Val}</span>
+                            <span className="font-bold">NO₂:</span> <span className="font-normal ml-1">{station.no2Val ?? 'ไม่มีข้อมูล'}</span>
                             <span className="mx-2 text-gray-500">·</span> 
-                            <span className="font-bold">SO₂:</span> <span className="font-normal ml-1">{station.so2Val}</span>
+                            <span className="font-bold">SO₂:</span> <span className="font-normal ml-1">{station.so2Val ?? 'ไม่มีข้อมูล'}</span>
                           </div>
                         </div>
 
                         <div className="border-t border-[#1e293b] my-3"></div>
                         <div className="text-[11px] text-gray-400 font-mono tracking-wide leading-relaxed">
-                          แหล่งที่มา: ดาวเทียม Open-Meteo · {formattedTime} · Station ID:<br/>{stationId}
+                          แหล่งที่มา: แบบจำลอง CAMS ผ่าน Open-Meteo — ไม่ใช่สถานีตรวจวัด<br/>
+                          เวลาอ้างอิง: {formattedTime} · สถานะ {station.quality}
                         </div>
                       </div>
                     </div>
@@ -1429,7 +1450,9 @@ export default function BoLuangDashboard() {
                           ตำบล: <span className="text-white">{tamName}</span>
                         </div>
                         <div className="border-t border-[#1e293b] pt-3 text-[11px] text-gray-500 font-mono">
-                          แหล่งที่มา: ดาวเทียม GISTDA Sphere API
+                          แหล่งที่มา: ดาวเทียม GISTDA Sphere API<br/>
+                          ดาวเทียม: {props.satellite || hotspotMeta.satelliteTypes.join(', ') || 'ไม่ระบุ'}<br/>
+                          เวลาตรวจพบ: {props.acquiredAt ? new Date(props.acquiredAt).toLocaleString('th-TH') : hotspotMeta.acquisitionTime ? new Date(hotspotMeta.acquisitionTime).toLocaleString('th-TH') : 'ไม่ทราบเวลา'}
                         </div>
                       </div>
                     </div>
@@ -1728,7 +1751,7 @@ export default function BoLuangDashboard() {
                   <div className="flex-1 border-t border-[#1e293b] ml-4"></div>
                 </div>
                 <div className="space-y-1">
-                  <CustomToggleBox label="ค่าฝุ่น PM2.5" source="ดาวเทียมวิเคราะห์ Open-Meteo" active={pm25} onClick={() => setPm25(!pm25)} dotColor="#06b6d4" apiStatus={apiStatus.pm25} />
+                  <CustomToggleBox label="ค่าฝุ่น PM2.5" source="แบบจำลอง CAMS ผ่าน Open-Meteo — ไม่ใช่สถานีตรวจวัด" active={pm25} onClick={() => setPm25(!pm25)} dotColor="#06b6d4" apiStatus={apiStatus.pm25} />
                 </div>
               </div>
 

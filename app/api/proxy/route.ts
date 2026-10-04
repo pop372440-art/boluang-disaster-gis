@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
     if (service === 'gistda-hotspot') {
       if (!GISTDA_API_KEY) return NextResponse.json({ error: 'Missing API Key' }, { status: 500 });
-      targetUrl = `https://api.sphere.gistda.or.th/services/info/disaster-recurring?lon=${lon}&lat=${lat}&disaster_type=hotspot&key=${GISTDA_API_KEY}`;
+      targetUrl = `https://api.sphere.gistda.or.th/services/info/disaster-hotspot?lon=${lon}&lat=${lat}&disaster_type=hotspot&key=${GISTDA_API_KEY}`;
     } 
     else if (service === 'onwr-rain') {
       targetUrl = 'https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h';

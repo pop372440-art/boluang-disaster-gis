@@ -3,6 +3,7 @@ import { INCIDENT_RISK_TYPES } from '@/lib/incident-ai';
 import { takeRateLimit } from '@/lib/report-status/rate-limit';
 import { safeImageExtension } from '@/lib/staff/report-data';
 import { staffServerClient } from '@/lib/staff/security';
+import { createEnvironmentalCandidate, reportAlertLevel } from '@/lib/environment/server/alert-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
     if (uploadError) throw uploadError;
 
     const trackingToken = `BL_${randomBytes(24).toString('base64url')}`;
-    const { error: insertError } = await client.from('boluang_disaster_reports').insert({
+    const { data: report, error: insertError } = await client.from('boluang_disaster_reports').insert({
       village_name: villageName,
       risk_type: riskType,
       severity_level: severityLevel,
@@ -69,8 +70,25 @@ export async function POST(request: Request) {
       tracking_code: trackingToken,
       status: 'รับเรื่องแล้ว',
       workflow_state: 'received',
-    });
+    }).select('id,created_at').single();
     if (insertError) throw insertError;
+
+    if (riskType === 'ไฟป่า / หมอกควัน (PM 2.5)') {
+      try {
+        await createEnvironmentalCandidate({
+          sourceKind: 'citizen_report',
+          level: reportAlertLevel(severityLevel),
+          reason: `รับแจ้งเหตุ ${riskType} ระดับ ${severityLevel} จาก ${villageName} — รอเจ้าหน้าที่ตรวจสอบ`,
+          evidence: { reportId: report.id, severityLevel, latitude, longitude, imageAttached: true },
+          villageName,
+          riskType,
+          reportId: report.id,
+          occurredAt: report.created_at,
+        }, client);
+      } catch {
+        console.error(JSON.stringify({ event: 'environment_candidate_from_report_failed', reportId: report.id, at: new Date().toISOString() }));
+      }
+    }
 
     return noStore({ ok: true, trackingToken }, 201);
   } catch (error) {
@@ -81,4 +99,3 @@ export async function POST(request: Request) {
     return noStore({ ok: false, error: 'ไม่สามารถส่งข้อมูลได้ในขณะนี้ กรุณาลองใหม่ภายหลัง' }, 503);
   }
 }
-

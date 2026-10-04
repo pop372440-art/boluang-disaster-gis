@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { fetchWithRetry } from '@/lib/radar/fetch-with-retry';
 import { parseGistdaHotspots } from '@/lib/environment/gistda-hotspot';
+import { assessSourceQuality } from '@/lib/environment/source-quality';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -64,6 +65,13 @@ export async function GET(request: NextRequest) {
     const nearbyHotspots = parsedFire?.ok ? parsedFire.hotspots : [];
     const fetchedAt = new Date().toISOString();
     const fireState = !gistdaKey ? 'unconfigured' : fireResponse?.ok && parsedFire?.ok ? 'ready' : 'degraded';
+    const fireQuality = assessSourceQuality(parsedFire?.ok ? parsedFire.observedAt : null, {
+      staleAfterMinutes: 360,
+      expireAfterMinutes: 1_440,
+      invalidSchema: Boolean(fireResponse?.ok && parsedFire && !parsedFire.ok),
+    });
+    const airObservedAt = typeof airQuality?.current?.time === 'string' ? airQuality.current.time : null;
+    const airQualityState = assessSourceQuality(airObservedAt, { staleAfterMinutes: 180, expireAfterMinutes: 720 });
   return Response.json({
       location: { name: 'ตำบลบ่อหลวง', latitude, longitude }, fetchedAt,
       weather,
@@ -74,6 +82,9 @@ export async function GET(request: NextRequest) {
         radiusKm: 50,
         count: nearbyHotspots.length,
         hotspots: nearbyHotspots,
+        acquisitionTime: parsedFire?.ok ? parsedFire.observedAt : null,
+        satelliteTypes: parsedFire?.ok ? parsedFire.satelliteTypes : [],
+        quality: fireQuality,
         diagnostic: fireState === 'degraded' && firePayload && typeof firePayload === 'object'
           ? { collections: Object.entries(firePayload).slice(0, 10).map(([key, value]) => ({
             key,
@@ -92,8 +103,15 @@ export async function GET(request: NextRequest) {
       },
       sources: {
         weather: { state: weather ? 'ready' : 'degraded', source: 'Open-Meteo', fetchedAt },
-        airQuality: { state: airQuality ? 'ready' : 'degraded', source: 'Open-Meteo CAMS', fetchedAt },
-        fire: { state: fireState, source: 'GISTDA Hotspot (ดาวเทียม) · รัศมี 50 กม.', fetchedAt: fireState === 'ready' ? fetchedAt : null, count: nearbyHotspots.length },
+        airQuality: {
+          state: airQuality ? 'ready' : 'degraded', source: 'Open-Meteo CAMS (แบบจำลอง ไม่ใช่สถานีตรวจวัด)',
+          fetchedAt, observedAt: airQualityState.observedAt, quality: airQualityState,
+        },
+        fire: {
+          state: fireState, source: 'GISTDA Hotspot (ดาวเทียม) · รัศมี 50 กม.',
+          fetchedAt: fireState === 'ready' ? fetchedAt : null, observedAt: fireQuality.observedAt,
+          quality: fireQuality, satelliteTypes: parsedFire?.ok ? parsedFire.satelliteTypes : [], count: nearbyHotspots.length,
+        },
       },
   }, { status: weather ? 200 : 207, headers: CACHE_HEADERS });
 }
