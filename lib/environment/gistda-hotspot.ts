@@ -1,3 +1,5 @@
+import { parseSourceTimestamp } from './source-quality.ts';
+
 export type HotspotRecord = Record<string, unknown>;
 
 export type NormalizedHotspot = HotspotRecord & {
@@ -27,8 +29,8 @@ const acquiredAtOf = (item: HotspotRecord) => {
   const time = stringValue(item.acquiredTime ?? item.acq_time ?? item.time);
   const candidate = direct ?? (date && time ? `${date}T${time}` : date);
   if (!candidate) return null;
-  const parsed = Date.parse(candidate);
-  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+  const parsed = parseSourceTimestamp(candidate);
+  return parsed == null ? null : new Date(parsed).toISOString();
 };
 
 const satelliteOf = (item: HotspotRecord) =>
@@ -96,8 +98,8 @@ export const parseGistdaHotspots = (
       if (!frame || typeof frame !== 'object') return [];
       const date = 'date' in frame ? stringValue(frame.date) : null;
       const time = 'time' in frame ? stringValue(frame.time) : null;
-      const parsed = Date.parse(date && time ? `${date}T${time}` : date ?? '');
-      return Number.isFinite(parsed) ? [{ at: parsed, satellite }] : [];
+      const parsed = parseSourceTimestamp(date && time ? `${date}T${time}` : date);
+      return parsed != null ? [{ at: parsed, satellite }] : [];
     });
   });
   const itemTimes = hotspots.flatMap((item) => item.acquiredAt ? [Date.parse(item.acquiredAt)] : []).filter(Number.isFinite);

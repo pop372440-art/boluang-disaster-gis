@@ -9,6 +9,19 @@ export type SourceQuality = {
   expireAfterMinutes: number;
 };
 
+export function parseSourceTimestamp(value: string | null | undefined, assumedOffset = '+07:00') {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(trimmed);
+  const normalized = hasZone
+    ? trimmed
+    : /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+      ? `${trimmed}T00:00:00${assumedOffset}`
+      : `${trimmed}${assumedOffset}`;
+  const parsed = Date.parse(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function assessSourceQuality(
   observedAt: string | null | undefined,
   options: { staleAfterMinutes: number; expireAfterMinutes: number; now?: number; invalidSchema?: boolean },
@@ -19,8 +32,8 @@ export function assessSourceQuality(
     state: 'invalid_schema', observedAt: null, checkedAt, ageMinutes: null,
     staleAfterMinutes: options.staleAfterMinutes, expireAfterMinutes: options.expireAfterMinutes,
   };
-  const observedAtMs = observedAt ? Date.parse(observedAt) : Number.NaN;
-  if (!Number.isFinite(observedAtMs)) return {
+  const observedAtMs = parseSourceTimestamp(observedAt);
+  if (observedAtMs == null) return {
     state: 'unknown', observedAt: null, checkedAt, ageMinutes: null,
     staleAfterMinutes: options.staleAfterMinutes, expireAfterMinutes: options.expireAfterMinutes,
   };

@@ -31,7 +31,7 @@ test('GISTDA parser supports satellite collections from the live hotspot endpoin
     assert.equal(result.hotspots.length, 1);
     assert.equal(result.hotspots[0].acquiredDate, '2026-09-26');
     assert.equal(result.hotspots[0].satellite, 'terra');
-    assert.equal(result.hotspots[0].acquiredAt, '2026-09-26T00:00:00.000Z');
+    assert.equal(result.hotspots[0].acquiredAt, '2026-09-25T17:00:00.000Z');
   }
 });
 

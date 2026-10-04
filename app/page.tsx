@@ -6,6 +6,7 @@ import Link from 'next/link';
 import 'leaflet/dist/leaflet.css';
 import Swal from 'sweetalert2';
 import { getBrowserSupabaseClient } from '@/lib/supabase/browser';
+import { parseSourceTimestamp } from '@/lib/environment/source-quality';
 
 // ==========================================
 // 🌟 1. การตั้งค่าระบบ (Config)
@@ -569,8 +570,8 @@ export default function BoLuangDashboard() {
       if (Array.isArray(aqiData) && Array.isArray(wxData)) {
         const formatted = localAirStations.map((station, i) => {
           const time = typeof aqiData[i]?.current?.time === 'string' ? aqiData[i].current.time : null;
-          const observedAt = time ? Date.parse(time) : Number.NaN;
-          const ageMinutes = Number.isFinite(observedAt) ? Math.max(0, (Date.now() - observedAt) / 60_000) : null;
+          const observedAt = parseSourceTimestamp(time);
+          const ageMinutes = observedAt != null ? Math.max(0, (Date.now() - observedAt) / 60_000) : null;
           const quality = ageMinutes == null ? 'UNKNOWN' : ageMinutes > 720 ? 'EXPIRED' : ageMinutes > 180 ? 'STALE' : 'FRESH';
           const numeric = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : null;
           return {
