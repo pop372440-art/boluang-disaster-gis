@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types tests/*.test.ts"
+    "test": "node --test --experimental-strip-types tests/*.test.ts",
+    "backtest:environment": "node --experimental-strip-types scripts/backtest-environment.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

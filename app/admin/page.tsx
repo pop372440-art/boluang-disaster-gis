@@ -22,8 +22,7 @@ type StaffReport = {
 };
 type AuditEvent = { id: number; report_id: string | null; actor_role: StaffRole | null; action: string; ip_hash: string | null; session_hash: string | null; created_at: string };
 type StaffUser = { user_id: string; role: StaffRole; active: boolean; display_name: string | null; email: string | null };
-type EnvironmentAlert = { id: string; village_id: string; from_level: string | null; to_level: string; decision: string; reason: string | null; created_at: string };
-type EnvironmentAlertState = { village_id: string; current_level: string; changed_at: string; notification_status: string; suppression_reason: string | null; updated_at: string };
+type EnvironmentAlert = { id: string; source_kind: string; level: string; status: string; reason: string; village_name: string | null; risk_type: string | null; occurred_at: string; review_note: string | null; created_at: string };
 type PortalTab = 'active' | 'pending_approval' | 'closed' | 'environment_alerts' | 'audit' | 'users';
 
 const ROLE_LABELS: Record<StaffRole, string> = { viewer: 'ผู้ดูข้อมูล', operator: 'เจ้าหน้าที่ปฏิบัติ', approver: 'ผู้อนุมัติ', admin: 'ผู้ดูแลระบบ' };
@@ -57,7 +56,6 @@ export default function StaffPortal() {
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [environmentAlerts, setEnvironmentAlerts] = useState<EnvironmentAlert[]>([]);
-  const [environmentAlertStates, setEnvironmentAlertStates] = useState<EnvironmentAlertState[]>([]);
   const [loadingData, setLoadingData] = useState(false);
 
   useEffect(() => {
@@ -122,7 +120,7 @@ export default function StaffPortal() {
       if (activeTab === 'audit') setAuditEvents((await apiFetch('/api/staff/audit')).events);
       else if (activeTab === 'environment_alerts') {
         const payload = await apiFetch('/api/staff/environment-alerts');
-        setEnvironmentAlerts(payload.events); setEnvironmentAlertStates(payload.states);
+        setEnvironmentAlerts(payload.candidates);
       }
       else if (activeTab === 'users') setStaffUsers((await apiFetch('/api/staff/users')).users);
       else setReports((await apiFetch(`/api/staff/reports?scope=${activeTab}`)).reports);
@@ -221,7 +219,7 @@ export default function StaffPortal() {
     });
     if (!result.isConfirmed) return;
     try {
-      await apiFetch('/api/staff/environment-alerts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eventId: event.id, decision, note: result.value || '' }) });
+      await apiFetch('/api/staff/environment-alerts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidateId: event.id, decision, note: result.value || '' }) });
       await loadData();
     } catch (error) { Swal.fire({ icon: 'error', title: 'บันทึกการพิจารณาไม่สำเร็จ', text: error instanceof Error ? error.message : 'กรุณาลองใหม่' }); }
   };
@@ -277,7 +275,7 @@ export default function StaffPortal() {
         {loadingData ? <p role="status" className="py-12 text-center text-slate-400">กำลังโหลดข้อมูล...</p> : null}
         {!loadingData && activeTab === 'audit' ? <AuditTable events={auditEvents} /> : null}
         {!loadingData && activeTab === 'users' ? <UsersTable users={staffUsers} currentUserId={staff.id} onChange={updateStaffRole} /> : null}
-        {!loadingData && activeTab === 'environment_alerts' ? <EnvironmentAlerts events={environmentAlerts} states={environmentAlertStates} role={staff.role} onDecision={decideEnvironmentAlert} /> : null}
+        {!loadingData && activeTab === 'environment_alerts' ? <EnvironmentAlerts events={environmentAlerts} role={staff.role} onDecision={decideEnvironmentAlert} /> : null}
         {!loadingData && !['environment_alerts', 'audit', 'users'].includes(activeTab) ? <section className="space-y-4" aria-label="รายการแจ้งเหตุ">{reports.length ? reports.map(report => <ReportCard key={report.id} report={report} role={staff.role} onAction={submitAction} onDecision={decideClosure} />) : <p className="rounded-2xl border border-slate-800 bg-slate-900 p-10 text-center text-slate-400">ไม่พบรายการในสถานะนี้</p>}</section> : null}
       </main>
     </div>
@@ -291,17 +289,15 @@ function ReportCard({ report, role, onAction, onDecision }: { report: StaffRepor
   return <article className="rounded-2xl border border-slate-700 bg-slate-900 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-slate-500">{new Date(report.created_at).toLocaleString('th-TH')} · {report.village_name}</p><h2 className="mt-1 text-lg font-extrabold">{report.risk_type}</h2><p className="mt-1 text-sm text-slate-300">ระดับ {report.severity_level ?? '-'} · {report.status}</p></div><span className="rounded-full border border-sky-700 bg-sky-950 px-3 py-1 text-xs font-bold text-sky-200">{report.workflow_state}</span></div><p className="mt-4 rounded-xl bg-slate-950 p-4 text-sm leading-6 text-slate-200">{report.description || 'ไม่มีรายละเอียด'}</p><p className="mt-3 text-xs text-slate-400">ผู้แจ้ง: {report.reporter_name || 'ไม่ระบุ'} ({report.reporter_role || '-'}) · <a className="text-sky-300 underline" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`}>เปิดพิกัด</a></p>{images.length ? <div className="mt-4 flex flex-wrap gap-2">{images.map((src, index) => <a key={src} href={src} target="_blank" rel="noreferrer"><img src={src} alt={`ภาพประกอบ ${index + 1}`} className="h-24 w-24 rounded-lg border border-slate-600 object-cover" /></a>)}</div> : null}{report.actions?.length ? <div className="mt-4 border-t border-slate-700 pt-4"><h3 className="text-sm font-bold">ลำดับการดำเนินงาน</h3><ul className="mt-2 space-y-2">{report.actions.map(action => <li key={action.id} className="rounded-lg bg-slate-950 p-3 text-xs leading-5 text-slate-300"><strong>{ACTION_LABELS[action.action_kind] || action.action_kind}</strong> · {ROLE_LABELS[action.actor_role]} · {new Date(action.created_at).toLocaleString('th-TH')}<br />{action.details}</li>)}</ul></div> : null}<div className="mt-5 flex flex-wrap gap-2">{canOperate(role) && report.workflow_state !== 'closed' && report.workflow_state !== 'pending_approval' ? <button onClick={() => onAction(report)} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold">บันทึกผลและส่งอนุมัติ</button> : null}{canApprove(role) && report.workflow_state === 'pending_approval' ? <><button onClick={() => onDecision(report, 'approve')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold">อนุมัติปิดเหตุ</button><button onClick={() => onDecision(report, 'reject')} className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold">ส่งกลับ</button></> : null}{role === 'viewer' ? <span className="text-xs text-slate-500">สิทธิ์ดูข้อมูลเท่านั้น</span> : null}</div></article>;
 }
 
-function EnvironmentAlerts({ events, states, role, onDecision }: { events: EnvironmentAlert[]; states: EnvironmentAlertState[]; role: StaffRole; onDecision: (event: EnvironmentAlert, decision: 'approve' | 'reject') => void }) {
-  const stateByVillage = new Map(states.map(state => [state.village_id, state]));
+function EnvironmentAlerts({ events, role, onDecision }: { events: EnvironmentAlert[]; role: StaffRole; onDecision: (event: EnvironmentAlert, decision: 'approve' | 'reject') => void }) {
   return <section className="space-y-4" aria-labelledby="environment-alerts-title">
     <div className="rounded-2xl border border-violet-700/50 bg-violet-950/20 p-5"><h2 id="environment-alerts-title" className="text-lg font-black">ข้อเสนอเตือนสิ่งแวดล้อมและประวัติการอนุมัติ</h2><p className="mt-2 text-sm leading-6 text-slate-300">ข้อเสนอจาก screening engine ยังไม่ใช่ประกาศเตือน ผู้อนุมัติต้องตรวจ Radar สถานีอ้างอิง ประกาศทางการ และรายงานภาคสนามก่อนตัดสินใจ</p></div>
     {events.length ? events.map(event => {
-      const state = stateByVillage.get(event.village_id);
       return <article key={event.id} className="rounded-2xl border border-slate-700 bg-slate-900 p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-slate-500">{new Date(event.created_at).toLocaleString('th-TH')} · {event.village_id}</p><h3 className="mt-1 text-lg font-extrabold">{event.from_level || 'unknown'} → {event.to_level}</h3></div><span className={`rounded-full px-3 py-1 text-xs font-black ${event.decision === 'proposed' ? 'bg-amber-500/15 text-amber-200' : event.decision === 'approved' ? 'bg-emerald-500/15 text-emerald-200' : 'bg-slate-700 text-slate-200'}`}>{event.decision}</span></div>
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-slate-500">{new Date(event.occurred_at).toLocaleString('th-TH')} · {event.village_name || 'ตำบลบ่อหลวง'} · {event.source_kind}</p><h3 className="mt-1 text-lg font-extrabold">{event.risk_type || 'สิ่งแวดล้อม'} · {event.level}</h3></div><span className={`rounded-full px-3 py-1 text-xs font-black ${event.status === 'proposed' ? 'bg-amber-500/15 text-amber-200' : event.status === 'approved' ? 'bg-emerald-500/15 text-emerald-200' : 'bg-slate-700 text-slate-200'}`}>{event.status}</span></div>
         <p className="mt-3 text-sm text-slate-300">{event.reason || 'ไม่มีเหตุผลประกอบ'}</p>
-        <p className="mt-3 text-xs text-slate-500">สถานะปัจจุบัน: {state?.current_level || 'ไม่มีข้อมูล'} · notification: {state?.notification_status || 'ไม่มีข้อมูล'} · อัปเดต {state ? new Date(state.updated_at).toLocaleString('th-TH') : '-'}</p>
-        {event.decision === 'proposed' ? <div className="mt-4 flex flex-wrap gap-2">{canApprove(role) ? <><button onClick={() => onDecision(event, 'approve')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold">อนุมัติหลังตรวจสอบ</button><button onClick={() => onDecision(event, 'reject')} className="rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-bold">ปฏิเสธ</button></> : <span className="text-xs text-slate-500">ต้องใช้สิทธิ์ approver หรือ admin</span>}</div> : null}
+        {event.review_note ? <p className="mt-3 text-xs text-slate-500">หมายเหตุผู้พิจารณา: {event.review_note}</p> : null}
+        {event.status === 'proposed' ? <div className="mt-4 flex flex-wrap gap-2">{canApprove(role) ? <><button onClick={() => onDecision(event, 'approve')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold">อนุมัติและเข้าคิว LINE สาธารณะ</button><button onClick={() => onDecision(event, 'reject')} className="rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-bold">ปฏิเสธ</button></> : <span className="text-xs text-slate-500">ต้องใช้สิทธิ์ approver หรือ admin</span>}</div> : null}
       </article>;
     }) : <p className="rounded-2xl border border-slate-800 bg-slate-900 p-10 text-center text-slate-400">ยังไม่มีข้อเสนอเตือนหรือประวัติการอนุมัติ</p>}
   </section>;
