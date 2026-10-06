@@ -22,7 +22,8 @@ type StaffReport = {
 };
 type AuditEvent = { id: number; report_id: string | null; actor_role: StaffRole | null; action: string; ip_hash: string | null; session_hash: string | null; created_at: string };
 type StaffUser = { user_id: string; role: StaffRole; active: boolean; display_name: string | null; email: string | null };
-type EnvironmentAlert = { id: string; source_kind: string; level: string; status: string; reason: string; village_name: string | null; risk_type: string | null; occurred_at: string; review_note: string | null; created_at: string };
+type EnvironmentDelivery = { audience: 'staff' | 'public'; notification_kind: 'preliminary' | 'official_confirmed' | 'official_rejected'; status: 'pending' | 'sent' | 'failed' | 'dead'; attempt_count: number; last_error: string | null; sent_at: string | null };
+type EnvironmentAlert = { id: string; source_kind: string; level: string; status: string; reason: string; village_name: string | null; risk_type: string | null; occurred_at: string; review_note: string | null; created_at: string; environment_notification_outbox?: EnvironmentDelivery[] };
 type PortalTab = 'active' | 'pending_approval' | 'closed' | 'environment_alerts' | 'audit' | 'users';
 
 const ROLE_LABELS: Record<StaffRole, string> = { viewer: 'ผู้ดูข้อมูล', operator: 'เจ้าหน้าที่ปฏิบัติ', approver: 'ผู้อนุมัติ', admin: 'ผู้ดูแลระบบ' };
@@ -32,6 +33,7 @@ const ACTION_LABELS: Record<string, string> = {
   closure_request: 'บันทึกผลและส่งอนุมัติ', closure_approval: 'อนุมัติปิดเหตุ',
   closure_rejection: 'ส่งกลับให้ดำเนินการเพิ่ม', staff_role_changed: 'แก้ไขสิทธิ์เจ้าหน้าที่',
   environment_alert_approved: 'อนุมัติข้อเสนอเตือนสิ่งแวดล้อม', environment_alert_rejected: 'ปฏิเสธข้อเสนอเตือนสิ่งแวดล้อม',
+  environment_alert_delivery_retry: 'สั่งส่ง LINE ซ้ำหลังระบบขัดข้อง',
 };
 
 function canOperate(role: StaffRole) { return ['operator', 'approver', 'admin'].includes(role); }
@@ -56,6 +58,7 @@ export default function StaffPortal() {
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [environmentAlerts, setEnvironmentAlerts] = useState<EnvironmentAlert[]>([]);
+  const [lineDeliveryConfigured, setLineDeliveryConfigured] = useState<boolean | null>(null);
   const [loadingData, setLoadingData] = useState(false);
 
   useEffect(() => {
@@ -121,6 +124,7 @@ export default function StaffPortal() {
       else if (activeTab === 'environment_alerts') {
         const payload = await apiFetch('/api/staff/environment-alerts');
         setEnvironmentAlerts(payload.candidates);
+        setLineDeliveryConfigured(Boolean(payload.deliveryConfiguration?.lineChannelAccessToken));
       }
       else if (activeTab === 'users') setStaffUsers((await apiFetch('/api/staff/users')).users);
       else setReports((await apiFetch(`/api/staff/reports?scope=${activeTab}`)).reports);
@@ -224,9 +228,28 @@ export default function StaffPortal() {
     } catch (error) { Swal.fire({ icon: 'error', title: 'บันทึกการพิจารณาไม่สำเร็จ', text: error instanceof Error ? error.message : 'กรุณาลองใหม่' }); }
   };
 
+  const retryEnvironmentAlert = async (event: EnvironmentAlert) => {
+    try {
+      const payload = await apiFetch('/api/staff/environment-alerts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'retry_delivery', candidateId: event.id }),
+      });
+      const failed = Number(payload.delivery?.failed || 0);
+      await Swal.fire({
+        icon: failed ? 'warning' : 'success',
+        title: failed ? 'ยังมีรายการส่งไม่สำเร็จ' : 'ส่ง LINE ซ้ำสำเร็จ',
+        text: failed ? 'โปรดตรวจสอบสถานะ token และกลุ่มปลายทาง' : `ส่งสำเร็จ ${payload.delivery?.sent || 0} คิว โดยไม่เปลี่ยนสถานะเหตุ`,
+      });
+      await loadData();
+    } catch (error) {
+      await Swal.fire({ icon: 'error', title: 'ส่ง LINE ซ้ำไม่สำเร็จ', text: error instanceof Error ? error.message : 'กรุณาลองใหม่' });
+      await loadData();
+    }
+  };
+
   const visibleTabs = useMemo(() => {
     const tabs: Array<{ id: PortalTab; label: string }> = [
-      { id: 'active', label: 'กำลังดำเนินการ' }, { id: 'pending_approval', label: 'รออนุมัติ' }, { id: 'closed', label: 'ปิดเหตุแล้ว' }, { id: 'environment_alerts', label: 'ข้อเสนอเตือนสิ่งแวดล้อม' },
+      { id: 'active', label: 'กำลังดำเนินการ' }, { id: 'pending_approval', label: 'รออนุมัติ' }, { id: 'closed', label: 'ปิดเหตุแล้ว' }, { id: 'environment_alerts', label: 'แจ้งเหตุและสิ่งแวดล้อม' },
     ];
     if (staff?.role === 'admin') tabs.push({ id: 'audit', label: 'Audit Log' }, { id: 'users', label: 'สิทธิ์เจ้าหน้าที่' });
     return tabs;
@@ -275,7 +298,7 @@ export default function StaffPortal() {
         {loadingData ? <p role="status" className="py-12 text-center text-slate-400">กำลังโหลดข้อมูล...</p> : null}
         {!loadingData && activeTab === 'audit' ? <AuditTable events={auditEvents} /> : null}
         {!loadingData && activeTab === 'users' ? <UsersTable users={staffUsers} currentUserId={staff.id} onChange={updateStaffRole} /> : null}
-        {!loadingData && activeTab === 'environment_alerts' ? <EnvironmentAlerts events={environmentAlerts} role={staff.role} onDecision={decideEnvironmentAlert} /> : null}
+        {!loadingData && activeTab === 'environment_alerts' ? <EnvironmentAlerts events={environmentAlerts} role={staff.role} lineDeliveryConfigured={lineDeliveryConfigured} onDecision={decideEnvironmentAlert} onRetry={retryEnvironmentAlert} /> : null}
         {!loadingData && !['environment_alerts', 'audit', 'users'].includes(activeTab) ? <section className="space-y-4" aria-label="รายการแจ้งเหตุ">{reports.length ? reports.map(report => <ReportCard key={report.id} report={report} role={staff.role} onAction={submitAction} onDecision={decideClosure} />) : <p className="rounded-2xl border border-slate-800 bg-slate-900 p-10 text-center text-slate-400">ไม่พบรายการในสถานะนี้</p>}</section> : null}
       </main>
     </div>
@@ -289,15 +312,25 @@ function ReportCard({ report, role, onAction, onDecision }: { report: StaffRepor
   return <article className="rounded-2xl border border-slate-700 bg-slate-900 p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-slate-500">{new Date(report.created_at).toLocaleString('th-TH')} · {report.village_name}</p><h2 className="mt-1 text-lg font-extrabold">{report.risk_type}</h2><p className="mt-1 text-sm text-slate-300">ระดับ {report.severity_level ?? '-'} · {report.status}</p></div><span className="rounded-full border border-sky-700 bg-sky-950 px-3 py-1 text-xs font-bold text-sky-200">{report.workflow_state}</span></div><p className="mt-4 rounded-xl bg-slate-950 p-4 text-sm leading-6 text-slate-200">{report.description || 'ไม่มีรายละเอียด'}</p><p className="mt-3 text-xs text-slate-400">ผู้แจ้ง: {report.reporter_name || 'ไม่ระบุ'} ({report.reporter_role || '-'}) · <a className="text-sky-300 underline" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${report.latitude},${report.longitude}`}>เปิดพิกัด</a></p>{images.length ? <div className="mt-4 flex flex-wrap gap-2">{images.map((src, index) => <a key={src} href={src} target="_blank" rel="noreferrer"><img src={src} alt={`ภาพประกอบ ${index + 1}`} className="h-24 w-24 rounded-lg border border-slate-600 object-cover" /></a>)}</div> : null}{report.actions?.length ? <div className="mt-4 border-t border-slate-700 pt-4"><h3 className="text-sm font-bold">ลำดับการดำเนินงาน</h3><ul className="mt-2 space-y-2">{report.actions.map(action => <li key={action.id} className="rounded-lg bg-slate-950 p-3 text-xs leading-5 text-slate-300"><strong>{ACTION_LABELS[action.action_kind] || action.action_kind}</strong> · {ROLE_LABELS[action.actor_role]} · {new Date(action.created_at).toLocaleString('th-TH')}<br />{action.details}</li>)}</ul></div> : null}<div className="mt-5 flex flex-wrap gap-2">{canOperate(role) && report.workflow_state !== 'closed' && report.workflow_state !== 'pending_approval' ? <button onClick={() => onAction(report)} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold">บันทึกผลและส่งอนุมัติ</button> : null}{canApprove(role) && report.workflow_state === 'pending_approval' ? <><button onClick={() => onDecision(report, 'approve')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold">อนุมัติปิดเหตุ</button><button onClick={() => onDecision(report, 'reject')} className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold">ส่งกลับ</button></> : null}{role === 'viewer' ? <span className="text-xs text-slate-500">สิทธิ์ดูข้อมูลเท่านั้น</span> : null}</div></article>;
 }
 
-function EnvironmentAlerts({ events, role, onDecision }: { events: EnvironmentAlert[]; role: StaffRole; onDecision: (event: EnvironmentAlert, decision: 'approve' | 'reject') => void }) {
+function EnvironmentAlerts({ events, role, lineDeliveryConfigured, onDecision, onRetry }: { events: EnvironmentAlert[]; role: StaffRole; lineDeliveryConfigured: boolean | null; onDecision: (event: EnvironmentAlert, decision: 'approve' | 'reject') => void; onRetry: (event: EnvironmentAlert) => void }) {
   return <section className="space-y-4" aria-labelledby="environment-alerts-title">
-    <div className="rounded-2xl border border-violet-700/50 bg-violet-950/20 p-5"><h2 id="environment-alerts-title" className="text-lg font-black">เหตุแจ้งเตือนสิ่งแวดล้อมและประวัติการตรวจสอบ</h2><p className="mt-2 text-sm leading-6 text-slate-300">รายงานประชาชนและ Hotspot ดาวเทียมที่ผ่าน quality guard ถูกแจ้งทั้งสองกลุ่มทันทีในฐานะข้อมูลเบื้องต้น ส่วนหน้านี้ใช้ยืนยันหรือยกเลิกผลตรวจสอบ คำสั่งทางราชการยังต้องผ่านผู้มีสิทธิ์อนุมัติ</p></div>
+    <div className="rounded-2xl border border-violet-700/50 bg-violet-950/20 p-5"><h2 id="environment-alerts-title" className="text-lg font-black">เหตุจากประชาชน ดาวเทียม และประวัติการตรวจสอบ</h2><p className="mt-2 text-sm leading-6 text-slate-300">คำร้องทุกประเภทจากประชาชนและ Hotspot ดาวเทียมที่ผ่าน quality guard ถูกแจ้งทั้งสองกลุ่มทันทีในฐานะข้อมูลเบื้องต้น ส่วนหน้านี้ใช้ยืนยันหรือยกเลิกผลตรวจสอบภายหลัง คำสั่งทางราชการยังต้องผ่านผู้มีสิทธิ์อนุมัติ</p></div>
+    {lineDeliveryConfigured === false ? <div role="alert" className="rounded-2xl border border-rose-700 bg-rose-950/50 p-4 text-sm leading-6 text-rose-100"><strong>การส่ง LINE ของ deployment นี้ยังไม่พร้อม:</strong> ไม่พบ LINE_CHANNEL_ACCESS_TOKEN รายงานยังถูกบันทึกและเข้าคิว แต่จะส่งไม่ได้จนกว่าจะตั้งค่า Environment Variable และ Redeploy</div> : null}
     {events.length ? events.map(event => {
+      const preliminary = (event.environment_notification_outbox ?? []).filter(item => item.notification_kind === 'preliminary');
       return <article key={event.id} className="rounded-2xl border border-slate-700 bg-slate-900 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-slate-500">{new Date(event.occurred_at).toLocaleString('th-TH')} · {event.village_name || 'ตำบลบ่อหลวง'} · {event.source_kind}</p><h3 className="mt-1 text-lg font-extrabold">{event.risk_type || 'สิ่งแวดล้อม'} · {event.level}</h3></div><span className={`rounded-full px-3 py-1 text-xs font-black ${event.status === 'proposed' ? 'bg-amber-500/15 text-amber-200' : event.status === 'approved' ? 'bg-emerald-500/15 text-emerald-200' : 'bg-slate-700 text-slate-200'}`}>{event.status}</span></div>
         <p className="mt-3 text-sm text-slate-300">{event.reason || 'ไม่มีเหตุผลประกอบ'}</p>
+        {preliminary.length ? <div className="mt-3 flex flex-wrap gap-2" aria-label="สถานะส่ง LINE เบื้องต้น">{(['staff', 'public'] as const).map(audience => {
+          const delivery = preliminary.find(item => item.audience === audience);
+          const label = audience === 'staff' ? 'กลุ่มเจ้าหน้าที่' : 'กลุ่มสาธารณะ';
+          const stateLabel = delivery?.status === 'sent' ? 'ส่งแล้ว' : delivery?.status === 'pending' ? 'รอส่ง' : delivery?.status === 'dead' ? 'หยุด retry' : 'ส่งไม่สำเร็จ';
+          const color = delivery?.status === 'sent' ? 'border-emerald-700 bg-emerald-950 text-emerald-200' : delivery?.status === 'pending' ? 'border-amber-700 bg-amber-950 text-amber-200' : 'border-rose-700 bg-rose-950 text-rose-200';
+          return <span key={audience} title={delivery?.last_error || undefined} className={`rounded-full border px-3 py-1 text-xs font-bold ${color}`}>{label}: {stateLabel}</span>;
+        })}</div> : null}
+        {lineDeliveryConfigured && preliminary.some(item => ['failed', 'dead'].includes(item.status)) && canApprove(role) ? <button onClick={() => onRetry(event)} className="mt-3 rounded-xl border border-sky-600 bg-sky-950 px-4 py-2.5 text-sm font-bold text-sky-100">ส่ง LINE ซ้ำ — ไม่เปลี่ยนสถานะเหตุ</button> : null}
         {event.review_note ? <p className="mt-3 text-xs text-slate-500">หมายเหตุผู้พิจารณา: {event.review_note}</p> : null}
-        {event.status === 'proposed' ? <div className="mt-4 flex flex-wrap gap-2">{canApprove(role) ? <><button onClick={() => onDecision(event, 'approve')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold">ยืนยันเหตุและส่งผลตรวจสอบ</button><button onClick={() => onDecision(event, 'reject')} className="rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-bold">ยกเลิกข้อมูลและแจ้งแก้ไข</button></> : <span className="text-xs text-slate-500">ต้องใช้สิทธิ์ approver หรือ admin</span>}</div> : null}
+        {event.status === 'proposed' ? <div className="mt-4 flex flex-wrap gap-2">{canApprove(role) ? <><button onClick={() => onDecision(event, 'approve')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold">บันทึกผลตรวจสอบ: ยืนยันเหตุ</button><button onClick={() => onDecision(event, 'reject')} className="rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-bold">บันทึกผลตรวจสอบ: ยกเลิกข้อมูล</button></> : <span className="text-xs text-slate-500">ต้องใช้สิทธิ์ approver หรือ admin</span>}</div> : null}
       </article>;
     }) : <p className="rounded-2xl border border-slate-800 bg-slate-900 p-10 text-center text-slate-400">ยังไม่มีข้อเสนอเตือนหรือประวัติการอนุมัติ</p>}
   </section>;

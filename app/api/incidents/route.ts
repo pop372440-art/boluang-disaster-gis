@@ -74,22 +74,20 @@ export async function POST(request: Request) {
     }).select('id,created_at').single();
     if (insertError) throw insertError;
 
-    if (riskType === 'ไฟป่า / หมอกควัน (PM 2.5)') {
-      try {
-        await createEnvironmentalCandidate({
-          sourceKind: 'citizen_report',
-          level: reportAlertLevel(severityLevel),
-          reason: `รับแจ้งเหตุ ${riskType} ระดับ ${severityLevel} จาก ${villageName} — รอเจ้าหน้าที่ตรวจสอบ`,
-          evidence: { reportId: report.id, severityLevel, latitude, longitude, imagePath: uploadedPath, imageAttached: true },
-          villageName,
-          riskType,
-          reportId: report.id,
-          occurredAt: report.created_at,
-        }, client);
-        await dispatchEnvironmentOutbox(client);
-      } catch {
-        console.error(JSON.stringify({ event: 'environment_candidate_from_report_failed', reportId: report.id, at: new Date().toISOString() }));
-      }
+    try {
+      await createEnvironmentalCandidate({
+        sourceKind: 'citizen_report',
+        level: reportAlertLevel(severityLevel),
+        reason: `รับแจ้งเหตุ ${riskType} ระดับ ${severityLevel} จาก ${villageName} — รอเจ้าหน้าที่ตรวจสอบ`,
+        evidence: { reportId: report.id, severityLevel, latitude, longitude, imagePath: uploadedPath, imageAttached: true },
+        villageName,
+        riskType,
+        reportId: report.id,
+        occurredAt: report.created_at,
+      }, client);
+      await dispatchEnvironmentOutbox(client);
+    } catch {
+      console.error(JSON.stringify({ event: 'alert_candidate_from_report_failed', reportId: report.id, at: new Date().toISOString() }));
     }
 
     return noStore({ ok: true, trackingToken }, 201);
