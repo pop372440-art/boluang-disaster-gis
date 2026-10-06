@@ -8,10 +8,14 @@ export async function GET(request: Request) {
   try {
     const staff = await authenticateStaff(request, { minimumRole: 'viewer' });
     const { data, error } = await staff.client.from('environment_alert_candidates')
-      .select('id,source_kind,level,status,reason,evidence,village_name,risk_type,report_id,observation_id,occurred_at,reviewed_at,reviewed_by,review_note,created_at')
+      .select('id,source_kind,level,status,reason,evidence,village_name,risk_type,report_id,observation_id,occurred_at,reviewed_at,reviewed_by,review_note,created_at,environment_notification_outbox(audience,notification_kind,status,attempt_count,last_error,sent_at)')
       .order('created_at', { ascending: false }).limit(100);
     if (error) throw error;
-    return Response.json({ ok: true, candidates: data ?? [] }, { headers: { 'Cache-Control': 'no-store' } });
+    return Response.json({
+      ok: true,
+      candidates: data ?? [],
+      deliveryConfiguration: { lineChannelAccessToken: Boolean(process.env.LINE_CHANNEL_ACCESS_TOKEN) },
+    }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     return staffErrorResponse(error);
   }
