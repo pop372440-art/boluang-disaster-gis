@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       throw error;
     }
 
-    const delivery = decision === 'approve' ? await dispatchEnvironmentOutbox(staff.client) : null;
+    const delivery = await dispatchEnvironmentOutbox(staff.client);
     return Response.json({ ok: true, review: data, delivery }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     return staffErrorResponse(error);

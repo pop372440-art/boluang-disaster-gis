@@ -7,10 +7,14 @@ type CandidateRow = {
   level: string;
   reason: string;
   evidence: Record<string, unknown> | null;
+  report_id: string | null;
   village_name: string | null;
   risk_type: string | null;
   occurred_at: string;
 };
+
+type NotificationKind = 'preliminary' | 'official_confirmed' | 'official_rejected';
+type FlexContext = { notificationKind: NotificationKind; imageUrl?: string | null; mapUrl?: string | null };
 
 export function verifyLineSignature(rawBody: string, signature: string | null, secret: string | undefined) {
   if (!signature || !secret) return false;
@@ -22,18 +26,34 @@ export function verifyLineSignature(rawBody: string, signature: string | null, s
 
 const levelLabel: Record<string, string> = { watch: 'เฝ้าระวัง', warning: 'ควรตรวจสอบเร่งด่วน', critical: 'วิกฤต—รอการยืนยัน' };
 
-export function buildEnvironmentFlex(candidate: CandidateRow, audience: 'staff' | 'public') {
+export function buildEnvironmentFlex(candidate: CandidateRow, audience: 'staff' | 'public', context: FlexContext = { notificationKind: 'preliminary' }) {
   const isPublic = audience === 'public';
-  const title = isPublic ? 'ประกาศสถานการณ์ที่เจ้าหน้าที่อนุมัติ' : 'หลักฐานใหม่—ยังไม่ใช่ประกาศเตือน';
-  const footer = isPublic
-    ? 'ติดตามประกาศและคำแนะนำจากเทศบาลตำบลบ่อหลวง'
-    : 'โปรดตรวจข้อมูลต้นทาง/ภาคสนามใน Staff Portal ก่อนอนุมัติ';
+  const title = context.notificationKind === 'official_confirmed'
+    ? 'ยืนยันเหตุโดยเจ้าหน้าที่แล้ว'
+    : context.notificationKind === 'official_rejected'
+      ? 'แจ้งแก้ไข—ไม่ยืนยันเหตุ'
+      : isPublic ? 'แจ้งเหตุเบื้องต้น—อยู่ระหว่างตรวจสอบ' : 'เหตุใหม่—ต้องตรวจสอบทันที';
+  const footer = context.notificationKind === 'preliminary'
+    ? isPublic
+      ? 'ข้อมูลอัตโนมัติเพื่อการเฝ้าระวัง ยังไม่ใช่ประกาศหรือคำสั่งจากเทศบาล'
+      : 'โปรดตรวจข้อมูลต้นทางและเข้าตรวจสอบภาคสนามโดยเร็ว'
+    : context.notificationKind === 'official_confirmed'
+      ? 'ผลตรวจสอบจากเจ้าหน้าที่เทศบาลตำบลบ่อหลวง'
+      : 'รายการเดิมถูกยกเลิกหรือยังไม่มีหลักฐานยืนยัน โปรดติดตามข้อมูลล่าสุด';
+  const headerColor = context.notificationKind === 'official_confirmed'
+    ? '#047857'
+    : context.notificationKind === 'official_rejected' ? '#475569' : isPublic ? '#B45309' : '#B91C1C';
+  const actions = context.mapUrl ? [{
+    type: 'button', style: 'primary', color: '#0369A1',
+    action: { type: 'uri', label: 'เปิดพิกัดนำทาง', uri: context.mapUrl },
+  }] : [];
   return {
     type: 'flex',
     altText: `${title}: ${candidate.reason}`.slice(0, 400),
     contents: {
       type: 'bubble',
-      header: { type: 'box', layout: 'vertical', backgroundColor: isPublic ? '#B91C1C' : '#92400E', contents: [
+      ...(context.imageUrl ? { hero: { type: 'image', url: context.imageUrl, size: 'full', aspectRatio: '20:13', aspectMode: 'cover' } } : {}),
+      header: { type: 'box', layout: 'vertical', backgroundColor: headerColor, contents: [
         { type: 'text', text: title, color: '#FFFFFF', weight: 'bold', wrap: true },
       ] },
       body: { type: 'box', layout: 'vertical', spacing: 'md', contents: [
@@ -42,7 +62,8 @@ export function buildEnvironmentFlex(candidate: CandidateRow, audience: 'staff' 
         { type: 'text', text: `พื้นที่: ${candidate.village_name || 'ตำบลบ่อหลวง'}`, size: 'sm', color: '#64748B', wrap: true },
         { type: 'text', text: `แหล่ง: ${candidate.source_kind} · เวลา ${new Date(candidate.occurred_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`, size: 'xs', color: '#64748B', wrap: true },
       ] },
-      footer: { type: 'box', layout: 'vertical', contents: [
+      footer: { type: 'box', layout: 'vertical', spacing: 'sm', contents: [
+        ...actions,
         { type: 'text', text: footer, size: 'xs', color: '#64748B', wrap: true },
       ] },
     },
@@ -66,7 +87,7 @@ async function pushLine(target: string, message: ReturnType<typeof buildEnvironm
 
 export async function dispatchEnvironmentOutbox(client: SupabaseClient, limit = 20) {
   const { data: rows, error } = await client.from('environment_notification_outbox')
-    .select('id,candidate_id,audience,retry_key,attempt_count,environment_alert_candidates(id,source_kind,level,reason,evidence,village_name,risk_type,occurred_at)')
+    .select('id,candidate_id,audience,notification_kind,retry_key,attempt_count,environment_alert_candidates(id,source_kind,level,reason,evidence,report_id,village_name,risk_type,occurred_at)')
     .in('status', ['pending', 'failed']).lte('next_attempt_at', new Date().toISOString())
     .order('created_at', { ascending: true }).limit(limit);
   if (error) throw error;
@@ -88,7 +109,24 @@ export async function dispatchEnvironmentOutbox(client: SupabaseClient, limit = 
       continue;
     }
 
-    const message = buildEnvironmentFlex(candidate, audience);
+    const evidence = candidate.evidence ?? {};
+    const firstHotspot = Array.isArray(evidence.hotspots) && evidence.hotspots[0] && typeof evidence.hotspots[0] === 'object'
+      ? evidence.hotspots[0] as Record<string, unknown> : null;
+    const latitude = Number(evidence.latitude ?? firstHotspot?.latitude);
+    const longitude = Number(evidence.longitude ?? firstHotspot?.longitude);
+    const mapUrl = Number.isFinite(latitude) && Number.isFinite(longitude)
+      ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : null;
+    const imagePath = typeof evidence.imagePath === 'string' ? evidence.imagePath : null;
+    const signedImage = imagePath
+      ? await client.storage.from('disaster_images').createSignedUrl(imagePath, 15 * 60)
+      : null;
+    const notificationKind = (['preliminary', 'official_confirmed', 'official_rejected'].includes(row.notification_kind)
+      ? row.notification_kind : 'preliminary') as NotificationKind;
+    const message = buildEnvironmentFlex(candidate, audience, {
+      notificationKind,
+      imageUrl: signedImage?.data?.signedUrl ?? null,
+      mapUrl,
+    });
     const results = await Promise.all(targets.map(async (target) => {
       const result = await pushLine(target, message, row.retry_key);
       await client.from('environment_notification_deliveries').insert({
