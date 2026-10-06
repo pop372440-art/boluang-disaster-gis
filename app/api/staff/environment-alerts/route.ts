@@ -24,11 +24,38 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const staff = await authenticateStaff(request, { minimumRole: 'approver' });
-    const payload = await request.json().catch(() => ({})) as { candidateId?: string; eventId?: string; decision?: string; note?: string };
+    const payload = await request.json().catch(() => ({})) as { action?: string; candidateId?: string; eventId?: string; decision?: string; note?: string };
     const candidateId = String(payload.candidateId || payload.eventId || '').trim();
+    const validCandidateId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidateId);
+
+    if (payload.action === 'retry_delivery') {
+      if (!validCandidateId) return Response.json({ ok: false, error: 'รหัสรายการแจ้งเตือนไม่ถูกต้อง' }, { status: 400 });
+      const { data: resetRows, error: resetError } = await staff.client.from('environment_notification_outbox')
+        .update({ status: 'pending', next_attempt_at: new Date().toISOString(), last_error: null })
+        .eq('candidate_id', candidateId)
+        .eq('notification_kind', 'preliminary')
+        .in('status', ['failed', 'dead'])
+        .select('id');
+      if (resetError) throw resetError;
+      if (!resetRows?.length) return Response.json({ ok: false, error: 'ไม่พบคิว LINE ที่ส่งไม่สำเร็จสำหรับรายการนี้' }, { status: 409 });
+
+      const delivery = await dispatchEnvironmentOutbox(staff.client);
+      await staff.client.from('staff_audit_log').insert({
+        alert_candidate_id: candidateId,
+        actor_id: staff.user.id,
+        actor_role: staff.role,
+        action: 'environment_alert_delivery_retry',
+        old_data: { failedRows: resetRows.length },
+        new_data: delivery,
+        ip_hash: staff.ipHash,
+        session_hash: staff.sessionHash,
+      });
+      return Response.json({ ok: true, delivery }, { headers: { 'Cache-Control': 'no-store' } });
+    }
+
     const decision = payload.decision;
     const note = String(payload.note || '').trim();
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(candidateId) || !['approve', 'reject'].includes(decision || '')) {
+    if (!validCandidateId || !['approve', 'reject'].includes(decision || '')) {
       return Response.json({ ok: false, error: 'คำสั่งอนุมัติไม่ถูกต้อง' }, { status: 400 });
     }
     if (note.length < 3) return Response.json({ ok: false, error: 'กรุณาระบุเหตุผลหรือหลักฐานอย่างน้อย 3 ตัวอักษร' }, { status: 400 });
