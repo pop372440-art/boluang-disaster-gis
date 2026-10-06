@@ -249,7 +249,7 @@ export default function StaffPortal() {
 
   const visibleTabs = useMemo(() => {
     const tabs: Array<{ id: PortalTab; label: string }> = [
-      { id: 'active', label: 'กำลังดำเนินการ' }, { id: 'pending_approval', label: 'รออนุมัติ' }, { id: 'closed', label: 'ปิดเหตุแล้ว' }, { id: 'environment_alerts', label: 'ข้อเสนอเตือนสิ่งแวดล้อม' },
+      { id: 'active', label: 'กำลังดำเนินการ' }, { id: 'pending_approval', label: 'รออนุมัติ' }, { id: 'closed', label: 'ปิดเหตุแล้ว' }, { id: 'environment_alerts', label: 'แจ้งเหตุและสิ่งแวดล้อม' },
     ];
     if (staff?.role === 'admin') tabs.push({ id: 'audit', label: 'Audit Log' }, { id: 'users', label: 'สิทธิ์เจ้าหน้าที่' });
     return tabs;
@@ -314,7 +314,7 @@ function ReportCard({ report, role, onAction, onDecision }: { report: StaffRepor
 
 function EnvironmentAlerts({ events, role, lineDeliveryConfigured, onDecision, onRetry }: { events: EnvironmentAlert[]; role: StaffRole; lineDeliveryConfigured: boolean | null; onDecision: (event: EnvironmentAlert, decision: 'approve' | 'reject') => void; onRetry: (event: EnvironmentAlert) => void }) {
   return <section className="space-y-4" aria-labelledby="environment-alerts-title">
-    <div className="rounded-2xl border border-violet-700/50 bg-violet-950/20 p-5"><h2 id="environment-alerts-title" className="text-lg font-black">เหตุแจ้งเตือนสิ่งแวดล้อมและประวัติการตรวจสอบ</h2><p className="mt-2 text-sm leading-6 text-slate-300">รายงานประชาชนและ Hotspot ดาวเทียมที่ผ่าน quality guard ถูกแจ้งทั้งสองกลุ่มทันทีในฐานะข้อมูลเบื้องต้น ส่วนหน้านี้ใช้ยืนยันหรือยกเลิกผลตรวจสอบ คำสั่งทางราชการยังต้องผ่านผู้มีสิทธิ์อนุมัติ</p></div>
+    <div className="rounded-2xl border border-violet-700/50 bg-violet-950/20 p-5"><h2 id="environment-alerts-title" className="text-lg font-black">เหตุจากประชาชน ดาวเทียม และประวัติการตรวจสอบ</h2><p className="mt-2 text-sm leading-6 text-slate-300">คำร้องทุกประเภทจากประชาชนและ Hotspot ดาวเทียมที่ผ่าน quality guard ถูกแจ้งทั้งสองกลุ่มทันทีในฐานะข้อมูลเบื้องต้น ส่วนหน้านี้ใช้ยืนยันหรือยกเลิกผลตรวจสอบภายหลัง คำสั่งทางราชการยังต้องผ่านผู้มีสิทธิ์อนุมัติ</p></div>
     {lineDeliveryConfigured === false ? <div role="alert" className="rounded-2xl border border-rose-700 bg-rose-950/50 p-4 text-sm leading-6 text-rose-100"><strong>การส่ง LINE ของ deployment นี้ยังไม่พร้อม:</strong> ไม่พบ LINE_CHANNEL_ACCESS_TOKEN รายงานยังถูกบันทึกและเข้าคิว แต่จะส่งไม่ได้จนกว่าจะตั้งค่า Environment Variable และ Redeploy</div> : null}
     {events.length ? events.map(event => {
       const preliminary = (event.environment_notification_outbox ?? []).filter(item => item.notification_kind === 'preliminary');
