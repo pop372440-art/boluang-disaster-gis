@@ -12,7 +12,7 @@ update public.environment_notification_outbox
 set payload = payload || jsonb_build_object('notificationKind', notification_kind)
 where not (payload ? 'notificationKind');
 
-create or replace function public.review_environment_alert_candidate(
+create or replace function public.review_environment_alert_candidate_v2(
   p_candidate_id uuid,
   p_decision text,
   p_note text,
@@ -74,7 +74,7 @@ begin
 end;
 $$;
 
-revoke all on function public.review_environment_alert_candidate(uuid, text, text, uuid, public.staff_role, text, text)
+revoke all on function public.review_environment_alert_candidate_v2(uuid, text, text, uuid, public.staff_role, text, text)
 from public, anon, authenticated;
-grant execute on function public.review_environment_alert_candidate(uuid, text, text, uuid, public.staff_role, text, text)
+grant execute on function public.review_environment_alert_candidate_v2(uuid, text, text, uuid, public.staff_role, text, text)
 to service_role;
