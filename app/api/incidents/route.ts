@@ -4,6 +4,7 @@ import { takeRateLimit } from '@/lib/report-status/rate-limit';
 import { safeImageExtension } from '@/lib/staff/report-data';
 import { staffServerClient } from '@/lib/staff/security';
 import { createEnvironmentalCandidate, reportAlertLevel } from '@/lib/environment/server/alert-store';
+import { dispatchEnvironmentOutbox } from '@/lib/environment/line-messaging';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -79,12 +80,13 @@ export async function POST(request: Request) {
           sourceKind: 'citizen_report',
           level: reportAlertLevel(severityLevel),
           reason: `รับแจ้งเหตุ ${riskType} ระดับ ${severityLevel} จาก ${villageName} — รอเจ้าหน้าที่ตรวจสอบ`,
-          evidence: { reportId: report.id, severityLevel, latitude, longitude, imageAttached: true },
+          evidence: { reportId: report.id, severityLevel, latitude, longitude, imagePath: uploadedPath, imageAttached: true },
           villageName,
           riskType,
           reportId: report.id,
           occurredAt: report.created_at,
         }, client);
+        await dispatchEnvironmentOutbox(client);
       } catch {
         console.error(JSON.stringify({ event: 'environment_candidate_from_report_failed', reportId: report.id, at: new Date().toISOString() }));
       }

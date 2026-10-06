@@ -56,7 +56,17 @@ export async function GET(request: Request) {
       sourceKind: hotspotQuality === 'fresh' && (hotspotCount ?? 0) > 0 ? 'satellite' : 'model',
       level: screening.level,
       reason: screening.reasons.join(' · '),
-      evidence: { pm25, pm25Quality, hotspotCount, hotspotQuality, satelliteTypes: summary.fire?.satelliteTypes ?? [] },
+      evidence: {
+        pm25, pm25Quality, hotspotCount, hotspotQuality,
+        satelliteTypes: summary.fire?.satelliteTypes ?? [],
+        hotspots: Array.isArray(summary.fire?.hotspots) ? summary.fire.hotspots.slice(0, 5).map((hotspot: Record<string, unknown>) => ({
+          latitude: hotspot.latitude,
+          longitude: hotspot.longitude,
+          distanceKm: hotspot.distanceKm,
+          satellite: hotspot.satellite,
+          acquiredAt: hotspot.acquiredAt,
+        })) : [],
+      },
       observationId: observation.id,
       occurredAt: summary.fire?.acquisitionTime ?? summary.sources.airQuality?.observedAt ?? fetchedAt,
     }, client);

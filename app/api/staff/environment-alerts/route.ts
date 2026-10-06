@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     if (note.length < 3) return Response.json({ ok: false, error: 'กรุณาระบุเหตุผลหรือหลักฐานอย่างน้อย 3 ตัวอักษร' }, { status: 400 });
     if (note.length > 2000) return Response.json({ ok: false, error: 'หมายเหตุยาวเกิน 2,000 ตัวอักษร' }, { status: 400 });
 
-    const { data, error } = await staff.client.rpc('review_environment_alert_candidate', {
+    const { data, error } = await staff.client.rpc('review_environment_alert_candidate_v2', {
       p_candidate_id: candidateId,
       p_decision: decision,
       p_note: note,
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       throw error;
     }
 
-    const delivery = decision === 'approve' ? await dispatchEnvironmentOutbox(staff.client) : null;
+    const delivery = await dispatchEnvironmentOutbox(staff.client);
     return Response.json({ ok: true, review: data, delivery }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     return staffErrorResponse(error);
