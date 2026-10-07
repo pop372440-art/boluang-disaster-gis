@@ -22,8 +22,9 @@ type StaffReport = {
 };
 type AuditEvent = { id: number; report_id: string | null; actor_role: StaffRole | null; action: string; ip_hash: string | null; session_hash: string | null; created_at: string };
 type StaffUser = { user_id: string; role: StaffRole; active: boolean; display_name: string | null; email: string | null };
-type EnvironmentDelivery = { audience: 'staff' | 'public'; notification_kind: 'preliminary' | 'official_confirmed' | 'official_rejected'; status: 'pending' | 'sent' | 'failed' | 'dead'; attempt_count: number; last_error: string | null; sent_at: string | null };
-type EnvironmentAlert = { id: string; source_kind: string; level: string; status: string; reason: string; village_name: string | null; risk_type: string | null; occurred_at: string; review_note: string | null; created_at: string; environment_notification_outbox?: EnvironmentDelivery[] };
+type DestinationDelivery = { routing_scope: 'all' | 'wildfire' | 'general' | null; status: 'sent' | 'failed'; provider_status: number | null; created_at: string };
+type EnvironmentDelivery = { audience: 'staff' | 'public'; notification_kind: 'preliminary' | 'official_confirmed' | 'official_rejected'; status: 'pending' | 'sent' | 'failed' | 'dead'; attempt_count: number; last_error: string | null; sent_at: string | null; destination_deliveries?: DestinationDelivery[] };
+type EnvironmentAlert = { id: string; source_kind: string; level: string; status: string; reason: string; village_name: string | null; risk_type: string | null; occurred_at: string; review_note: string | null; created_at: string; public_routing_scope: 'wildfire' | 'general'; environment_notification_outbox?: EnvironmentDelivery[] };
 type PortalTab = 'active' | 'pending_approval' | 'closed' | 'environment_alerts' | 'audit' | 'users';
 
 const ROLE_LABELS: Record<StaffRole, string> = { viewer: 'ผู้ดูข้อมูล', operator: 'เจ้าหน้าที่ปฏิบัติ', approver: 'ผู้อนุมัติ', admin: 'ผู้ดูแลระบบ' };
@@ -321,19 +322,35 @@ function EnvironmentAlerts({ events, role, lineDeliveryConfigured, onDecision, o
       return <article key={event.id} className="rounded-2xl border border-slate-700 bg-slate-900 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-slate-500">{new Date(event.occurred_at).toLocaleString('th-TH')} · {event.village_name || 'ตำบลบ่อหลวง'} · {event.source_kind}</p><h3 className="mt-1 text-lg font-extrabold">{event.risk_type || 'สิ่งแวดล้อม'} · {event.level}</h3></div><span className={`rounded-full px-3 py-1 text-xs font-black ${event.status === 'proposed' ? 'bg-amber-500/15 text-amber-200' : event.status === 'approved' ? 'bg-emerald-500/15 text-emerald-200' : 'bg-slate-700 text-slate-200'}`}>{event.status}</span></div>
         <p className="mt-3 text-sm text-slate-300">{event.reason || 'ไม่มีเหตุผลประกอบ'}</p>
-        {preliminary.length ? <div className="mt-3 flex flex-wrap gap-2" aria-label="สถานะส่ง LINE เบื้องต้น">{(['staff', 'public'] as const).map(audience => {
-          const delivery = preliminary.find(item => item.audience === audience);
-          const label = audience === 'staff' ? 'กลุ่มเจ้าหน้าที่' : 'กลุ่มสาธารณะ';
-          const stateLabel = delivery?.status === 'sent' ? 'ส่งแล้ว' : delivery?.status === 'pending' ? 'รอส่ง' : delivery?.status === 'dead' ? 'หยุด retry' : 'ส่งไม่สำเร็จ';
-          const color = delivery?.status === 'sent' ? 'border-emerald-700 bg-emerald-950 text-emerald-200' : delivery?.status === 'pending' ? 'border-amber-700 bg-amber-950 text-amber-200' : 'border-rose-700 bg-rose-950 text-rose-200';
-          return <span key={audience} title={delivery?.last_error || undefined} className={`rounded-full border px-3 py-1 text-xs font-bold ${color}`}>{label}: {stateLabel}</span>;
-        })}</div> : null}
+        {preliminary.length ? <LineDestinationStatuses event={event} deliveries={preliminary} /> : null}
         {lineDeliveryConfigured && preliminary.some(item => ['failed', 'dead'].includes(item.status)) && canApprove(role) ? <button onClick={() => onRetry(event)} className="mt-3 rounded-xl border border-sky-600 bg-sky-950 px-4 py-2.5 text-sm font-bold text-sky-100">ส่ง LINE ซ้ำ — ไม่เปลี่ยนสถานะเหตุ</button> : null}
         {event.review_note ? <p className="mt-3 text-xs text-slate-500">หมายเหตุผู้พิจารณา: {event.review_note}</p> : null}
         {event.status === 'proposed' ? <div className="mt-4 flex flex-wrap gap-2">{canApprove(role) ? <><button onClick={() => onDecision(event, 'approve')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold">บันทึกผลตรวจสอบ: ยืนยันเหตุ</button><button onClick={() => onDecision(event, 'reject')} className="rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-bold">บันทึกผลตรวจสอบ: ยกเลิกข้อมูล</button></> : <span className="text-xs text-slate-500">ต้องใช้สิทธิ์ approver หรือ admin</span>}</div> : null}
       </article>;
     }) : <p className="rounded-2xl border border-slate-800 bg-slate-900 p-10 text-center text-slate-400">ยังไม่มีข้อเสนอเตือนหรือประวัติการอนุมัติ</p>}
   </section>;
+}
+
+function LineDestinationStatuses({ event, deliveries }: { event: EnvironmentAlert; deliveries: EnvironmentDelivery[] }) {
+  const destinations = [
+    { key: 'all' as const, audience: 'staff' as const, label: 'กลุ่มเจ้าหน้าที่', expected: true },
+    { key: 'wildfire' as const, audience: 'public' as const, label: 'กลุ่มสิงห์ไฟ', expected: event.public_routing_scope === 'wildfire' },
+    { key: 'general' as const, audience: 'public' as const, label: 'เครือข่ายแจ้งเตือน', expected: event.public_routing_scope === 'general' },
+  ];
+  return <div className="mt-3 flex flex-wrap gap-2" aria-label="สถานะส่ง LINE แยกรายกลุ่ม">{destinations.map(destination => {
+    const outbox = deliveries.find(item => item.audience === destination.audience);
+    const attempts = (outbox?.destination_deliveries ?? [])
+      .filter(item => item.routing_scope === destination.key)
+      .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
+    const latest = attempts[0];
+    const status: 'pending' | 'sent' | 'failed' | 'dead' | undefined = latest
+      ? latest.status
+      : destination.expected ? outbox?.status : undefined;
+    const stateLabel = !destination.expected ? 'ไม่ส่งตามประเภทเหตุ' : status === 'sent' ? 'ส่งแล้ว' : status === 'pending' ? 'รอส่ง' : status === 'dead' ? 'หยุด retry' : 'ส่งไม่สำเร็จ';
+    const color = !destination.expected ? 'border-slate-700 bg-slate-950 text-slate-400' : status === 'sent' ? 'border-emerald-700 bg-emerald-950 text-emerald-200' : status === 'pending' ? 'border-amber-700 bg-amber-950 text-amber-200' : 'border-rose-700 bg-rose-950 text-rose-200';
+    const title = latest?.provider_status ? `LINE HTTP ${latest.provider_status}` : outbox?.last_error || undefined;
+    return <span key={destination.key} title={title} className={`rounded-full border px-3 py-1 text-xs font-bold ${color}`}>{destination.label}: {stateLabel}</span>;
+  })}</div>;
 }
 
 function AuditTable({ events }: { events: AuditEvent[] }) { return <div className="overflow-x-auto rounded-2xl border border-slate-700"><table className="min-w-full divide-y divide-slate-700 text-left text-sm"><thead className="bg-slate-900"><tr><th className="p-3">เวลา</th><th className="p-3">เหตุการณ์</th><th className="p-3">Role</th><th className="p-3">Report</th><th className="p-3">IP/Session fingerprint</th></tr></thead><tbody className="divide-y divide-slate-800 bg-slate-950">{events.map(event => <tr key={event.id}><td className="p-3">{new Date(event.created_at).toLocaleString('th-TH')}</td><td className="p-3">{ACTION_LABELS[event.action] || event.action}</td><td className="p-3">{event.actor_role ? ROLE_LABELS[event.actor_role] : '-'}</td><td className="p-3 font-mono text-xs">{event.report_id}</td><td className="p-3 font-mono text-xs">{event.ip_hash || '-'} / {event.session_hash || '-'}</td></tr>)}</tbody></table></div>; }
