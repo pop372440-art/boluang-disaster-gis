@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       audience: registration.audience,
       active: true,
       last_event_at: event.timestamp ? new Date(event.timestamp).toISOString() : new Date().toISOString(),
-    }, { onConflict: 'audience' });
+    }, { onConflict: 'line_target_id' });
     if (error) throw error;
     registered += 1;
     const replied = await replyRegistration(event.replyToken, registrationSuccessText(registration.audience));
