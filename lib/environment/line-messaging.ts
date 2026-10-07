@@ -16,6 +16,17 @@ type CandidateRow = {
 type NotificationKind = 'preliminary' | 'official_confirmed' | 'official_rejected';
 type FlexContext = { notificationKind: NotificationKind; imageUrl?: string | null; mapUrl?: string | null };
 
+export function publicIncidentDescription(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const cleaned = value
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[ปกปิดอีเมล]')
+    .replace(/(?:\+66|0)[\d\s-]{8,14}/g, '[ปกปิดเบอร์โทร]')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return null;
+  return cleaned.length > 300 ? `${cleaned.slice(0, 297)}...` : cleaned;
+}
+
 export function getLinePublicImageUrl(client: SupabaseClient, imagePath: string | null) {
   if (!imagePath || !/\.(?:jpe?g|png)$/i.test(imagePath)) return null;
   const publicUrl = client.storage.from('disaster_images').getPublicUrl(imagePath).data.publicUrl;
@@ -39,6 +50,7 @@ const levelLabel: Record<string, string> = { watch: 'เฝ้าระวัง
 
 export function buildEnvironmentFlex(candidate: CandidateRow, audience: 'staff' | 'public', context: FlexContext = { notificationKind: 'preliminary' }) {
   const isPublic = audience === 'public';
+  const incidentDescription = publicIncidentDescription(candidate.evidence?.incidentDescription);
   const title = context.notificationKind === 'official_confirmed'
     ? 'ยืนยันเหตุโดยเจ้าหน้าที่แล้ว'
     : context.notificationKind === 'official_rejected'
@@ -70,6 +82,10 @@ export function buildEnvironmentFlex(candidate: CandidateRow, audience: 'staff' 
       body: { type: 'box', layout: 'vertical', spacing: 'md', contents: [
         { type: 'text', text: levelLabel[candidate.level] ?? candidate.level, weight: 'bold', size: 'xl', wrap: true },
         { type: 'text', text: candidate.reason, wrap: true, color: '#334155' },
+        ...(incidentDescription ? [
+          { type: 'text', text: 'รายละเอียดเหตุการณ์', weight: 'bold', size: 'sm', color: '#0F172A', margin: 'md' },
+          { type: 'text', text: incidentDescription, wrap: true, size: 'sm', color: '#334155' },
+        ] : []),
         { type: 'text', text: `พื้นที่: ${candidate.village_name || 'ตำบลบ่อหลวง'}`, size: 'sm', color: '#64748B', wrap: true },
         { type: 'text', text: `แหล่ง: ${candidate.source_kind} · เวลา ${new Date(candidate.occurred_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`, size: 'xs', color: '#64748B', wrap: true },
       ] },

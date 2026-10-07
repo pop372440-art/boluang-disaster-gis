@@ -4,7 +4,7 @@ import { takeRateLimit } from '@/lib/report-status/rate-limit';
 import { safeImageExtension } from '@/lib/staff/report-data';
 import { staffServerClient } from '@/lib/staff/security';
 import { createEnvironmentalCandidate, reportAlertLevel } from '@/lib/environment/server/alert-store';
-import { dispatchEnvironmentOutbox } from '@/lib/environment/line-messaging';
+import { dispatchEnvironmentOutbox, publicIncidentDescription } from '@/lib/environment/line-messaging';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -83,7 +83,15 @@ export async function POST(request: Request) {
         sourceKind: 'citizen_report',
         level: reportAlertLevel(severityLevel),
         reason: `รับแจ้งเหตุ ${riskType} ระดับ ${severityLevel} จาก ${villageName} — รอเจ้าหน้าที่ตรวจสอบ`,
-        evidence: { reportId: report.id, severityLevel, latitude, longitude, imagePath: uploadedPath, imageAttached: true },
+        evidence: {
+          reportId: report.id,
+          severityLevel,
+          latitude,
+          longitude,
+          imagePath: uploadedPath,
+          imageAttached: true,
+          incidentDescription: publicIncidentDescription(description),
+        },
         villageName,
         riskType,
         reportId: report.id,

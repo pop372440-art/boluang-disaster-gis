@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHmac } from 'node:crypto';
-import { buildEnvironmentFlex, getLinePublicImageUrl, verifyLineSignature } from '../lib/environment/line-messaging.ts';
+import { buildEnvironmentFlex, getLinePublicImageUrl, publicIncidentDescription, verifyLineSignature } from '../lib/environment/line-messaging.ts';
 
 test('LINE webhook signature uses the unmodified raw body', () => {
   const body = '{"events":[]}';
@@ -44,4 +44,19 @@ test('LINE Flex uses a stable public JPEG URL instead of an expiring signed URL'
   const message = buildEnvironmentFlex(candidate, 'staff', { notificationKind: 'preliminary', imageUrl });
   assert.match(JSON.stringify(message), /incident-photo\.jpg/);
   assert.equal(getLinePublicImageUrl(client, 'reports/unsupported.webp'), null);
+});
+
+test('citizen incident details appear in Flex with contact data redacted', () => {
+  const incident = {
+    ...candidate,
+    evidence: { incidentDescription: 'ชาวบ้านถูกช้างชนบนถนน โทร 081-234-5678 test@example.com' },
+  };
+  const message = buildEnvironmentFlex(incident, 'public', { notificationKind: 'preliminary' });
+  const serialized = JSON.stringify(message);
+  assert.match(serialized, /รายละเอียดเหตุการณ์/);
+  assert.match(serialized, /ชาวบ้านถูกช้างชนบนถนน/);
+  assert.match(serialized, /ปกปิดเบอร์โทร/);
+  assert.match(serialized, /ปกปิดอีเมล/);
+  assert.doesNotMatch(serialized, /081-234-5678|test@example\.com/);
+  assert.equal(publicIncidentDescription('   '), null);
 });
