@@ -1,5 +1,6 @@
 import { authenticateStaff, staffErrorResponse } from '@/lib/staff/security';
 import { dispatchEnvironmentOutbox } from '@/lib/environment/line-messaging';
+import { publicRoutingScopeForCandidate } from '@/lib/environment/line-messaging';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -8,12 +9,34 @@ export async function GET(request: Request) {
   try {
     const staff = await authenticateStaff(request, { minimumRole: 'viewer' });
     const { data, error } = await staff.client.from('environment_alert_candidates')
-      .select('id,source_kind,level,status,reason,evidence,village_name,risk_type,report_id,observation_id,occurred_at,reviewed_at,reviewed_by,review_note,created_at,environment_notification_outbox(audience,notification_kind,status,attempt_count,last_error,sent_at)')
+      .select('id,source_kind,level,status,reason,evidence,village_name,risk_type,report_id,observation_id,occurred_at,reviewed_at,reviewed_by,review_note,created_at,environment_notification_outbox(audience,notification_kind,status,attempt_count,last_error,sent_at,environment_notification_deliveries(line_target_id,status,provider_status,created_at))')
       .order('created_at', { ascending: false }).limit(100);
     if (error) throw error;
+    const { data: destinations, error: destinationError } = await staff.client.from('line_group_destinations')
+      .select('line_target_id,routing_scope').eq('active', true);
+    if (destinationError) throw destinationError;
+    const scopeByTarget = new Map((destinations ?? []).map(destination => [destination.line_target_id, destination.routing_scope]));
+    const candidates = (data ?? []).map(candidate => ({
+      ...candidate,
+      public_routing_scope: publicRoutingScopeForCandidate(candidate),
+      environment_notification_outbox: (candidate.environment_notification_outbox ?? []).map(outbox => ({
+        audience: outbox.audience,
+        notification_kind: outbox.notification_kind,
+        status: outbox.status,
+        attempt_count: outbox.attempt_count,
+        last_error: outbox.last_error,
+        sent_at: outbox.sent_at,
+        destination_deliveries: (outbox.environment_notification_deliveries ?? []).map(delivery => ({
+          routing_scope: scopeByTarget.get(delivery.line_target_id) ?? null,
+          status: delivery.status,
+          provider_status: delivery.provider_status,
+          created_at: delivery.created_at,
+        })),
+      })),
+    }));
     return Response.json({
       ok: true,
-      candidates: data ?? [],
+      candidates,
       deliveryConfiguration: { lineChannelAccessToken: Boolean(process.env.LINE_CHANNEL_ACCESS_TOKEN) },
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
