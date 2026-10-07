@@ -43,12 +43,13 @@ export async function POST(request: Request) {
       line_target_id: targetId,
       target_type: event.source?.groupId ? 'group' : 'room',
       audience: registration.audience,
+      routing_scope: registration.routingScope,
       active: true,
       last_event_at: event.timestamp ? new Date(event.timestamp).toISOString() : new Date().toISOString(),
     }, { onConflict: 'line_target_id' });
     if (error) throw error;
     registered += 1;
-    const replied = await replyRegistration(event.replyToken, registrationSuccessText(registration.audience));
+    const replied = await replyRegistration(event.replyToken, registrationSuccessText(registration.audience, registration.routingScope));
     if (!replied) console.error(JSON.stringify({ event: 'line_group_registered_without_reply', audience: registration.audience, at: new Date().toISOString() }));
   }
   return Response.json({ ok: true, registered }, { headers: { 'Cache-Control': 'no-store' } });
