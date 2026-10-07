@@ -16,6 +16,17 @@ type CandidateRow = {
 type NotificationKind = 'preliminary' | 'official_confirmed' | 'official_rejected';
 type FlexContext = { notificationKind: NotificationKind; imageUrl?: string | null; mapUrl?: string | null };
 
+export function getLinePublicImageUrl(client: SupabaseClient, imagePath: string | null) {
+  if (!imagePath || !/\.(?:jpe?g|png)$/i.test(imagePath)) return null;
+  const publicUrl = client.storage.from('disaster_images').getPublicUrl(imagePath).data.publicUrl;
+  try {
+    const url = new URL(publicUrl);
+    return url.protocol === 'https:' && publicUrl.length <= 2_000 ? publicUrl : null;
+  } catch {
+    return null;
+  }
+}
+
 export function verifyLineSignature(rawBody: string, signature: string | null, secret: string | undefined) {
   if (!signature || !secret) return false;
   const expected = createHmac('sha256', secret).update(rawBody).digest('base64');
@@ -117,14 +128,16 @@ export async function dispatchEnvironmentOutbox(client: SupabaseClient, limit = 
     const mapUrl = Number.isFinite(latitude) && Number.isFinite(longitude)
       ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` : null;
     const imagePath = typeof evidence.imagePath === 'string' ? evidence.imagePath : null;
-    const signedImage = imagePath
-      ? await client.storage.from('disaster_images').createSignedUrl(imagePath, 15 * 60)
-      : null;
+    // LINE may fetch a Flex hero again when a user opens an older message. A
+    // short-lived signed URL therefore leaves a permanent blank hero after it
+    // expires. Report object names are unguessable UUIDs and this bucket is
+    // intentionally public for public-alert media, so use its stable URL.
+    const lineImageUrl = getLinePublicImageUrl(client, imagePath);
     const notificationKind = (['preliminary', 'official_confirmed', 'official_rejected'].includes(row.notification_kind)
       ? row.notification_kind : 'preliminary') as NotificationKind;
     const message = buildEnvironmentFlex(candidate, audience, {
       notificationKind,
-      imageUrl: signedImage?.data?.signedUrl ?? null,
+      imageUrl: lineImageUrl,
       mapUrl,
     });
     const results = await Promise.all(targets.map(async (target) => {
