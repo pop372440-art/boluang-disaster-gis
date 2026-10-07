@@ -1,20 +1,27 @@
 import { environmentAdminClient } from '@/lib/environment/server/alert-store';
 import { verifyLineSignature } from '@/lib/environment/line-messaging';
+import { parseLineGroupRegistration, registrationSuccessText } from '@/lib/environment/line-registration';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type LineEvent = {
   type?: string;
+  replyToken?: string;
   timestamp?: number;
   source?: { type?: 'user' | 'group' | 'room'; userId?: string; groupId?: string; roomId?: string };
   message?: { type?: string; text?: string };
 };
 
-function parseRegistration(text: string | undefined) {
-  const match = text?.trim().match(/^ลงทะเบียนกลุ่ม\s+(เจ้าหน้าที่|สาธารณะ)\s+(.+)$/);
-  if (!match) return null;
-  return { audience: match[1] === 'เจ้าหน้าที่' ? 'staff' as const : 'public' as const, token: match[2].trim() };
+async function replyRegistration(replyToken: string | undefined, text: string) {
+  const accessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  if (!replyToken || !accessToken) return false;
+  const response = await fetch('https://api.line.me/v2/bot/message/reply', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ replyToken, messages: [{ type: 'text', text }] }),
+  });
+  return response.ok;
 }
 
 export async function POST(request: Request) {
@@ -29,7 +36,7 @@ export async function POST(request: Request) {
   const client = environmentAdminClient();
   let registered = 0;
   for (const event of payload.events ?? []) {
-    const registration = parseRegistration(event.message?.type === 'text' ? event.message.text : undefined);
+    const registration = parseLineGroupRegistration(event.message?.type === 'text' ? event.message.text : undefined);
     const targetId = event.source?.groupId ?? event.source?.roomId;
     if (!registration || registration.token !== registrationSecret || !targetId) continue;
     const { error } = await client.from('line_group_destinations').upsert({
@@ -41,6 +48,8 @@ export async function POST(request: Request) {
     }, { onConflict: 'audience' });
     if (error) throw error;
     registered += 1;
+    const replied = await replyRegistration(event.replyToken, registrationSuccessText(registration.audience));
+    if (!replied) console.error(JSON.stringify({ event: 'line_group_registered_without_reply', audience: registration.audience, at: new Date().toISOString() }));
   }
   return Response.json({ ok: true, registered }, { headers: { 'Cache-Control': 'no-store' } });
 }
