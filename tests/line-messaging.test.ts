@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHmac } from 'node:crypto';
-import { buildEnvironmentFlex, getLinePublicImageUrl, publicIncidentDescription, verifyLineSignature } from '../lib/environment/line-messaging.ts';
+import { buildEnvironmentFlex, getLinePublicImageUrl, publicIncidentDescription, resolveLineTargets, verifyLineSignature } from '../lib/environment/line-messaging.ts';
 
 test('LINE webhook signature uses the unmodified raw body', () => {
   const body = '{"events":[]}';
@@ -59,4 +59,14 @@ test('citizen incident details appear in Flex with contact data redacted', () =>
   assert.match(serialized, /ปกปิดอีเมล/);
   assert.doesNotMatch(serialized, /081-234-5678|test@example\.com/);
   assert.equal(publicIncidentDescription('   '), null);
+});
+
+test('all active LINE destinations receive an alert without duplicates', () => {
+  assert.deepEqual(resolveLineTargets([
+    { line_target_id: 'public-sing-fire' },
+    { line_target_id: 'public-warning-network' },
+  ], undefined), ['public-sing-fire', 'public-warning-network']);
+  assert.deepEqual(resolveLineTargets([
+    { line_target_id: 'public-warning-network' },
+  ], 'public-warning-network'), ['public-warning-network']);
 });
