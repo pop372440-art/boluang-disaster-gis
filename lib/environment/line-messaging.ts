@@ -27,6 +27,17 @@ export function publicIncidentDescription(value: unknown) {
   return cleaned.length > 300 ? `${cleaned.slice(0, 297)}...` : cleaned;
 }
 
+export function resolveLineTargets(
+  configured: Array<{ line_target_id: string }> | null | undefined,
+  fallback: string | undefined,
+) {
+  const targets = (configured ?? [])
+    .map(destination => destination.line_target_id)
+    .filter((target): target is string => Boolean(target));
+  if (fallback) targets.push(fallback);
+  return [...new Set(targets)];
+}
+
 export function getLinePublicImageUrl(client: SupabaseClient, imagePath: string | null) {
   if (!imagePath || !/\.(?:jpe?g|png)$/i.test(imagePath)) return null;
   const publicUrl = client.storage.from('disaster_images').getPublicUrl(imagePath).data.publicUrl;
@@ -129,7 +140,7 @@ export async function dispatchEnvironmentOutbox(client: SupabaseClient, limit = 
     const { data: configured } = await client.from('line_group_destinations')
       .select('line_target_id').eq('audience', audience).eq('active', true);
     const fallback = audience === 'staff' ? process.env.LINE_ALERT_STAFF_GROUP_ID : process.env.LINE_ALERT_PUBLIC_GROUP_ID;
-    const targets = configured?.[0]?.line_target_id ? [configured[0].line_target_id] : fallback ? [fallback] : [];
+    const targets = resolveLineTargets(configured, fallback);
     if (!targets.length) {
       await client.from('environment_notification_outbox').update({ status: 'failed', last_error: `no ${audience} destination`, attempt_count: row.attempt_count + 1, next_attempt_at: new Date(Date.now() + 15 * 60_000).toISOString() }).eq('id', row.id);
       failed += 1;
