@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHmac } from 'node:crypto';
-import { buildEnvironmentFlex, getLinePublicImageUrl, publicIncidentDescription, resolveLineTargets, verifyLineSignature } from '../lib/environment/line-messaging.ts';
+import { buildEnvironmentFlex, getLinePublicImageUrl, publicIncidentDescription, publicRoutingScopeForCandidate, resolveLineTargets, verifyLineSignature } from '../lib/environment/line-messaging.ts';
 
 test('LINE webhook signature uses the unmodified raw body', () => {
   const body = '{"events":[]}';
@@ -63,10 +63,16 @@ test('citizen incident details appear in Flex with contact data redacted', () =>
 
 test('all active LINE destinations receive an alert without duplicates', () => {
   assert.deepEqual(resolveLineTargets([
-    { line_target_id: 'public-sing-fire' },
-    { line_target_id: 'public-warning-network' },
-  ], undefined), ['public-sing-fire', 'public-warning-network']);
+    { line_target_id: 'public-sing-fire', routing_scope: 'wildfire' },
+    { line_target_id: 'public-warning-network', routing_scope: 'general' },
+  ], undefined, 'wildfire'), ['public-sing-fire']);
   assert.deepEqual(resolveLineTargets([
-    { line_target_id: 'public-warning-network' },
-  ], 'public-warning-network'), ['public-warning-network']);
+    { line_target_id: 'public-warning-network', routing_scope: 'general' },
+  ], 'public-warning-network', 'general'), ['public-warning-network']);
+});
+
+test('public alerts route wildfire separately from other incidents', () => {
+  assert.equal(publicRoutingScopeForCandidate({ source_kind: 'citizen_report', risk_type: 'ไฟป่า / หมอกควัน (PM 2.5)', reason: 'รับแจ้งเหตุไฟป่า' }), 'wildfire');
+  assert.equal(publicRoutingScopeForCandidate({ source_kind: 'satellite', risk_type: null, reason: 'GISTDA พบ Hotspot 2 จุด' }), 'wildfire');
+  assert.equal(publicRoutingScopeForCandidate({ source_kind: 'citizen_report', risk_type: 'อุทกภัย', reason: 'น้ำท่วมถนน' }), 'general');
 });

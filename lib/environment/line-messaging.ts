@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { LineRoutingScope } from './line-registration';
 
 type CandidateRow = {
   id: string;
@@ -28,14 +29,24 @@ export function publicIncidentDescription(value: unknown) {
 }
 
 export function resolveLineTargets(
-  configured: Array<{ line_target_id: string }> | null | undefined,
+  configured: Array<{ line_target_id: string; routing_scope: LineRoutingScope }> | null | undefined,
   fallback: string | undefined,
+  routingScope: LineRoutingScope,
 ) {
   const targets = (configured ?? [])
+    .filter(destination => destination.routing_scope === 'all' || destination.routing_scope === routingScope)
     .map(destination => destination.line_target_id)
     .filter((target): target is string => Boolean(target));
   if (fallback) targets.push(fallback);
   return [...new Set(targets)];
+}
+
+export function publicRoutingScopeForCandidate(candidate: Pick<CandidateRow, 'source_kind' | 'risk_type' | 'reason'>): 'wildfire' | 'general' {
+  const text = `${candidate.risk_type ?? ''} ${candidate.reason}`.toLocaleLowerCase('th-TH');
+  const wildfireCitizenReport = candidate.source_kind === 'citizen_report'
+    && /ไฟป่า|ไฟไหม้ป่า|จุดความร้อน|hotspot/.test(text);
+  const satelliteHotspot = candidate.source_kind === 'satellite';
+  return wildfireCitizenReport || satelliteHotspot ? 'wildfire' : 'general';
 }
 
 export function getLinePublicImageUrl(client: SupabaseClient, imagePath: string | null) {
@@ -138,9 +149,15 @@ export async function dispatchEnvironmentOutbox(client: SupabaseClient, limit = 
     if (!candidate) continue;
     const audience = row.audience as 'staff' | 'public';
     const { data: configured } = await client.from('line_group_destinations')
-      .select('line_target_id').eq('audience', audience).eq('active', true);
-    const fallback = audience === 'staff' ? process.env.LINE_ALERT_STAFF_GROUP_ID : process.env.LINE_ALERT_PUBLIC_GROUP_ID;
-    const targets = resolveLineTargets(configured, fallback);
+      .select('line_target_id,routing_scope').eq('audience', audience).eq('active', true);
+    const routingScope = audience === 'staff' ? 'all' : publicRoutingScopeForCandidate(candidate);
+    // The legacy public fallback is treated as the wildfire group. General
+    // public alerts require an explicitly registered warning-network group so
+    // they can never leak into the operational wildfire chat.
+    const fallback = audience === 'staff'
+      ? process.env.LINE_ALERT_STAFF_GROUP_ID
+      : routingScope === 'wildfire' ? process.env.LINE_ALERT_PUBLIC_GROUP_ID : undefined;
+    const targets = resolveLineTargets(configured, fallback, routingScope);
     if (!targets.length) {
       await client.from('environment_notification_outbox').update({ status: 'failed', last_error: `no ${audience} destination`, attempt_count: row.attempt_count + 1, next_attempt_at: new Date(Date.now() + 15 * 60_000).toISOString() }).eq('id', row.id);
       failed += 1;
