@@ -438,7 +438,7 @@ export default function ReportPage() {
   const invalidItems = validationItems.filter(item => !item.valid);
   const canSubmit = invalidItems.length === 0 && !isSubmitting && cooldownTime === 0;
 
-  const compressImage = (file: File, maxWidth = 1024, quality = 0.8): Promise<File> => {
+  const compressImage = (file: File, maxDimension = 1024, quality = 0.8): Promise<File> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -449,10 +449,9 @@ export default function ReportPage() {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          }
+          const scale = Math.min(1, maxDimension / width, maxDimension / height);
+          width = Math.max(1, Math.round(width * scale));
+          height = Math.max(1, Math.round(height * scale));
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d');

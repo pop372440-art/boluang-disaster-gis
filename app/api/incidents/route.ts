@@ -54,7 +54,11 @@ export async function POST(request: Request) {
 
     const client = staffServerClient();
     uploadedPath = `reports/${randomUUID()}.${extension}`;
-    const { error: uploadError } = await client.storage.from('disaster_images').upload(uploadedPath, image, { contentType: image.type, upsert: false });
+    const { error: uploadError } = await client.storage.from('disaster_images').upload(uploadedPath, image, {
+      contentType: image.type,
+      cacheControl: '31536000',
+      upsert: false,
+    });
     if (uploadError) throw uploadError;
 
     const trackingToken = `BL_${randomBytes(24).toString('base64url')}`;
