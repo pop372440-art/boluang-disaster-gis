@@ -1,12 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { notificationAudiencesForSource } from '../lib/environment/notification-policy.ts';
+import { notificationAudiencesForCandidate } from '../lib/environment/notification-policy.ts';
 
-test('citizen and satellite evidence alert both groups immediately', () => {
-  assert.deepEqual(notificationAudiencesForSource('citizen_report'), ['staff', 'public']);
-  assert.deepEqual(notificationAudiencesForSource('satellite'), ['staff', 'public']);
+test('routine citizen and satellite evidence routes only to its public destination', () => {
+  assert.deepEqual(notificationAudiencesForCandidate('citizen_report', 'watch'), ['public']);
+  assert.deepEqual(notificationAudiencesForCandidate('citizen_report', 'warning'), ['public']);
+  assert.deepEqual(notificationAudiencesForCandidate('satellite', 'warning'), ['public']);
 });
 
-test('model-only evidence remains staff-only until verified', () => {
-  assert.deepEqual(notificationAudiencesForSource('model'), ['staff']);
+test('staff LINE is reserved for critical escalation', () => {
+  assert.deepEqual(notificationAudiencesForCandidate('citizen_report', 'critical'), ['public', 'staff']);
+  assert.deepEqual(notificationAudiencesForCandidate('satellite', 'critical'), ['public', 'staff']);
+  assert.deepEqual(notificationAudiencesForCandidate('model', 'critical'), ['staff']);
+  assert.deepEqual(notificationAudiencesForCandidate('model', 'watch'), []);
+  assert.deepEqual(notificationAudiencesForCandidate('model', 'warning'), []);
 });

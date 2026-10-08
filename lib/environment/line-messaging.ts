@@ -159,7 +159,7 @@ export async function dispatchEnvironmentOutbox(client: SupabaseClient, limit = 
       : routingScope === 'wildfire' ? process.env.LINE_ALERT_PUBLIC_GROUP_ID : undefined;
     const targets = resolveLineTargets(configured, fallback, routingScope);
     if (!targets.length) {
-      await client.from('environment_notification_outbox').update({ status: 'failed', last_error: `no ${audience} destination`, attempt_count: row.attempt_count + 1, next_attempt_at: new Date(Date.now() + 15 * 60_000).toISOString() }).eq('id', row.id);
+      await client.from('environment_notification_outbox').update({ status: 'dead', last_error: `no ${audience} destination`, attempt_count: row.attempt_count + 1 }).eq('id', row.id);
       failed += 1;
       continue;
     }
@@ -193,10 +193,11 @@ export async function dispatchEnvironmentOutbox(client: SupabaseClient, limit = 
       return result;
     }));
     const allSent = results.every(result => result.ok);
+    const quotaExceeded = results.some(result => result.status === 429);
     await client.from('environment_notification_outbox').update(allSent ? {
       status: 'sent', sent_at: new Date().toISOString(), last_error: null, attempt_count: row.attempt_count + 1,
     } : {
-      status: row.attempt_count >= 4 ? 'dead' : 'failed',
+      status: quotaExceeded || row.attempt_count >= 4 ? 'dead' : 'failed',
       last_error: results.filter(result => !result.ok).map(result => `${result.status}:${result.body}`).join(' | ').slice(0, 2_000),
       attempt_count: row.attempt_count + 1,
       next_attempt_at: new Date(Date.now() + Math.min(60, 2 ** (row.attempt_count + 1)) * 60_000).toISOString(),
