@@ -315,7 +315,7 @@ function ReportCard({ report, role, onAction, onDecision }: { report: StaffRepor
 
 function EnvironmentAlerts({ events, role, lineDeliveryConfigured, onDecision, onRetry }: { events: EnvironmentAlert[]; role: StaffRole; lineDeliveryConfigured: boolean | null; onDecision: (event: EnvironmentAlert, decision: 'approve' | 'reject') => void; onRetry: (event: EnvironmentAlert) => void }) {
   return <section className="space-y-4" aria-labelledby="environment-alerts-title">
-    <div className="rounded-2xl border border-violet-700/50 bg-violet-950/20 p-5"><h2 id="environment-alerts-title" className="text-lg font-black">เหตุจากประชาชน ดาวเทียม และประวัติการตรวจสอบ</h2><p className="mt-2 text-sm leading-6 text-slate-300">คำร้องทุกประเภทจากประชาชนและ Hotspot ดาวเทียมที่ผ่าน quality guard ถูกแจ้งทั้งสองกลุ่มทันทีในฐานะข้อมูลเบื้องต้น ส่วนหน้านี้ใช้ยืนยันหรือยกเลิกผลตรวจสอบภายหลัง คำสั่งทางราชการยังต้องผ่านผู้มีสิทธิ์อนุมัติ</p></div>
+    <div className="rounded-2xl border border-violet-700/50 bg-violet-950/20 p-5"><h2 id="environment-alerts-title" className="text-lg font-black">เหตุจากประชาชน ดาวเทียม และประวัติการตรวจสอบ</h2><p className="mt-2 text-sm leading-6 text-slate-300">เหตุไฟป่าและ Hotspot ส่งไปกลุ่มสิงห์ไฟ ส่วนเหตุประเภทอื่นส่งไปเครือข่ายแจ้งเตือนเพียงกลุ่มเดียว กลุ่มเจ้าหน้าที่ใช้เฉพาะการยกระดับวิกฤต โดยทุกเหตุยังติดตามและตรวจสอบย้อนหลังได้ใน Staff Portal</p></div>
     {lineDeliveryConfigured === false ? <div role="alert" className="rounded-2xl border border-rose-700 bg-rose-950/50 p-4 text-sm leading-6 text-rose-100"><strong>การส่ง LINE ของ deployment นี้ยังไม่พร้อม:</strong> ไม่พบ LINE_CHANNEL_ACCESS_TOKEN รายงานยังถูกบันทึกและเข้าคิว แต่จะส่งไม่ได้จนกว่าจะตั้งค่า Environment Variable และ Redeploy</div> : null}
     {events.length ? events.map(event => {
       const preliminary = (event.environment_notification_outbox ?? []).filter(item => item.notification_kind === 'preliminary');
@@ -323,7 +323,7 @@ function EnvironmentAlerts({ events, role, lineDeliveryConfigured, onDecision, o
         <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-slate-500">{new Date(event.occurred_at).toLocaleString('th-TH')} · {event.village_name || 'ตำบลบ่อหลวง'} · {event.source_kind}</p><h3 className="mt-1 text-lg font-extrabold">{event.risk_type || 'สิ่งแวดล้อม'} · {event.level}</h3></div><span className={`rounded-full px-3 py-1 text-xs font-black ${event.status === 'proposed' ? 'bg-amber-500/15 text-amber-200' : event.status === 'approved' ? 'bg-emerald-500/15 text-emerald-200' : 'bg-slate-700 text-slate-200'}`}>{event.status}</span></div>
         <p className="mt-3 text-sm text-slate-300">{event.reason || 'ไม่มีเหตุผลประกอบ'}</p>
         {preliminary.length ? <LineDestinationStatuses event={event} deliveries={preliminary} /> : null}
-        {lineDeliveryConfigured && preliminary.some(item => ['failed', 'dead'].includes(item.status)) && canApprove(role) ? <button onClick={() => onRetry(event)} className="mt-3 rounded-xl border border-sky-600 bg-sky-950 px-4 py-2.5 text-sm font-bold text-sky-100">ส่ง LINE ซ้ำ — ไม่เปลี่ยนสถานะเหตุ</button> : null}
+        {lineDeliveryConfigured && preliminary.some(item => ['failed', 'dead'].includes(item.status) && !/429|monthly limit/i.test(item.last_error || '')) && canApprove(role) ? <button onClick={() => onRetry(event)} className="mt-3 rounded-xl border border-sky-600 bg-sky-950 px-4 py-2.5 text-sm font-bold text-sky-100">ส่ง LINE ซ้ำ — ไม่เปลี่ยนสถานะเหตุ</button> : null}
         {event.review_note ? <p className="mt-3 text-xs text-slate-500">หมายเหตุผู้พิจารณา: {event.review_note}</p> : null}
         {event.status === 'proposed' ? <div className="mt-4 flex flex-wrap gap-2">{canApprove(role) ? <><button onClick={() => onDecision(event, 'approve')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold">บันทึกผลตรวจสอบ: ยืนยันเหตุ</button><button onClick={() => onDecision(event, 'reject')} className="rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-bold">บันทึกผลตรวจสอบ: ยกเลิกข้อมูล</button></> : <span className="text-xs text-slate-500">ต้องใช้สิทธิ์ approver หรือ admin</span>}</div> : null}
       </article>;
@@ -332,8 +332,9 @@ function EnvironmentAlerts({ events, role, lineDeliveryConfigured, onDecision, o
 }
 
 function LineDestinationStatuses({ event, deliveries }: { event: EnvironmentAlert; deliveries: EnvironmentDelivery[] }) {
+  const hasStaffDelivery = deliveries.some(item => item.audience === 'staff');
   const destinations = [
-    { key: 'all' as const, audience: 'staff' as const, label: 'กลุ่มเจ้าหน้าที่', expected: true },
+    { key: 'all' as const, audience: 'staff' as const, label: 'กลุ่มเจ้าหน้าที่ (Escalation)', expected: hasStaffDelivery },
     { key: 'wildfire' as const, audience: 'public' as const, label: 'กลุ่มสิงห์ไฟ', expected: event.public_routing_scope === 'wildfire' },
     { key: 'general' as const, audience: 'public' as const, label: 'เครือข่ายแจ้งเตือน', expected: event.public_routing_scope === 'general' },
   ];
@@ -346,7 +347,10 @@ function LineDestinationStatuses({ event, deliveries }: { event: EnvironmentAler
     const status: 'pending' | 'sent' | 'failed' | 'dead' | undefined = latest
       ? latest.status
       : destination.expected ? outbox?.status : undefined;
-    const stateLabel = !destination.expected ? 'ไม่ส่งตามประเภทเหตุ' : status === 'sent' ? 'ส่งแล้ว' : status === 'pending' ? 'รอส่ง' : status === 'dead' ? 'หยุด retry' : 'ส่งไม่สำเร็จ';
+    const quotaExceeded = /429|monthly limit/i.test(outbox?.last_error || '') || latest?.provider_status === 429;
+    const stateLabel = !destination.expected
+      ? destination.audience === 'staff' ? 'ติดตามใน Portal' : 'ไม่ส่งตามประเภทเหตุ'
+      : quotaExceeded ? 'โควตา LINE เต็ม—หยุด retry' : status === 'sent' ? 'ส่งแล้ว' : status === 'pending' ? 'รอส่ง' : status === 'dead' ? 'หยุด retry' : 'ส่งไม่สำเร็จ';
     const color = !destination.expected ? 'border-slate-700 bg-slate-950 text-slate-400' : status === 'sent' ? 'border-emerald-700 bg-emerald-950 text-emerald-200' : status === 'pending' ? 'border-amber-700 bg-amber-950 text-amber-200' : 'border-rose-700 bg-rose-950 text-rose-200';
     const title = latest?.provider_status ? `LINE HTTP ${latest.provider_status}` : outbox?.last_error || undefined;
     return <span key={destination.key} title={title} className={`rounded-full border px-3 py-1 text-xs font-bold ${color}`}>{destination.label}: {stateLabel}</span>;

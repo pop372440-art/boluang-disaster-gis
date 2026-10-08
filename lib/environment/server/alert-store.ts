@@ -2,7 +2,7 @@ import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { staffServerClient } from '@/lib/staff/security';
-import { notificationAudiencesForSource } from '@/lib/environment/notification-policy';
+import { notificationAudiencesForCandidate } from '@/lib/environment/notification-policy';
 
 export type EnvironmentalAlertLevel = 'watch' | 'warning' | 'critical';
 export type EnvironmentalCandidateInput = {
@@ -55,16 +55,18 @@ export async function createEnvironmentalCandidate(
   }).select('id,status,source_kind,level,reason,evidence,village_name,risk_type,occurred_at,created_at').single();
   if (error) throw error;
 
-  const audiences = notificationAudiencesForSource(input.sourceKind);
-  const { error: outboxError } = await client.from('environment_notification_outbox').insert(audiences.map(audience => ({
-    candidate_id: candidate.id,
-    audience,
-    notification_kind: 'preliminary',
-    status: 'pending',
-    retry_key: randomUUID(),
-    payload: { candidateId: candidate.id, notificationKind: 'preliminary' },
-  })));
-  if (outboxError) throw outboxError;
+  const audiences = notificationAudiencesForCandidate(input.sourceKind, input.level);
+  if (audiences.length) {
+    const { error: outboxError } = await client.from('environment_notification_outbox').insert(audiences.map(audience => ({
+      candidate_id: candidate.id,
+      audience,
+      notification_kind: 'preliminary',
+      status: 'pending',
+      retry_key: randomUUID(),
+      payload: { candidateId: candidate.id, notificationKind: 'preliminary' },
+    })));
+    if (outboxError) throw outboxError;
+  }
   return { candidate, created: true };
 }
 
