@@ -96,6 +96,8 @@ export default function SmartHelper() {
     }
   };
 
+  if (pathname === '/fire-smoke') return null;
+
   return (
     <div className={`fixed z-[9999] ${isRadarPage ? 'bottom-4 right-[72px]' : isGisPage ? 'bottom-4 left-4 md:left-auto md:right-[390px]' : 'bottom-6 right-6'}`}>
       
