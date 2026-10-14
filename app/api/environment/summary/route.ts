@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { fetchWithRetry } from '@/lib/radar/fetch-with-retry';
 import { parseGistdaHotspots } from '@/lib/environment/gistda-hotspot';
+import { parseNasaFirmsCsv } from '@/lib/environment/nasa-firms';
 import { assessSourceQuality } from '@/lib/environment/source-quality';
 
 export const runtime = 'nodejs';
@@ -44,16 +45,21 @@ export async function GET(request: NextRequest) {
     hourly: 'pm10,pm2_5,dust,european_aqi,us_aqi',
   }).toString();
   const gistdaKey = process.env.GISTDA_API_KEY;
+  const nasaFirmsKey = process.env.NASA_FIRMS_MAP_KEY;
   const fireUrl = gistdaKey ? new URL('https://api.sphere.gistda.or.th/services/info/disaster-hotspot') : null;
   if (fireUrl) fireUrl.search = new URLSearchParams({
     lon: String(longitude), lat: String(latitude),
     disaster_type: 'hotspot', key: gistdaKey ?? '',
   }).toString();
 
-  const [weatherResult, airResult, fireResult] = await Promise.allSettled([
+  const firmsSources = ['VIIRS_SNPP_NRT', 'VIIRS_NOAA20_NRT', 'VIIRS_NOAA21_NRT'];
+  const firmsBounds = `${longitude - 0.55},${latitude - 0.46},${longitude + 0.55},${latitude + 0.46}`;
+  const firmsUrls = nasaFirmsKey ? firmsSources.map((source) => new URL(`https://firms.modaps.eosdis.nasa.gov/api/area/csv/${encodeURIComponent(nasaFirmsKey)}/${source}/${firmsBounds}/1`)) : [];
+  const [weatherResult, airResult, fireResult, firmsResult] = await Promise.allSettled([
     fetchSource(weatherUrl, 600, 8_000),
     fetchSource(airUrl, 900, 8_000),
     fireUrl ? fetchSource(fireUrl, 600, 5_000) : Promise.resolve(null),
+    Promise.all(firmsUrls.map((url) => fetchSource(url, 600, 8_000))),
   ]);
     const weatherResponse = weatherResult.status === 'fulfilled' ? weatherResult.value : null;
     const airResponse = airResult.status === 'fulfilled' ? airResult.value : null;
@@ -62,10 +68,25 @@ export async function GET(request: NextRequest) {
     const airQuality = airResponse?.ok ? await airResponse.json() : null;
     const firePayload = fireResponse?.ok ? await fireResponse.json() : null;
     const parsedFire = fireResponse?.ok ? parseGistdaHotspots(firePayload, { latitude, longitude }) : null;
-    const nearbyHotspots = parsedFire?.ok ? parsedFire.hotspots : [];
     const fetchedAt = new Date().toISOString();
-    const fireState = !gistdaKey ? 'unconfigured' : fireResponse?.ok && parsedFire?.ok ? 'ready' : 'degraded';
-    const fireQuality = assessSourceQuality(parsedFire?.ok ? parsedFire.observedAt : null, {
+    const firmsResponses = firmsResult.status === 'fulfilled' ? firmsResult.value : [];
+    const firmsParsed = nasaFirmsKey && firmsResponses.length === firmsSources.length && firmsResponses.every((response) => response.ok)
+      ? await Promise.all(firmsResponses.map(async (response) => parseNasaFirmsCsv(await response.text(), { latitude, longitude })))
+      : [];
+    const firmsReady = firmsParsed.length === firmsSources.length && firmsParsed.every((result) => result.ok);
+    const firmsHotspots = firmsReady ? firmsParsed.flatMap((result) => result.ok ? result.hotspots : []) : [];
+    const dedupedFirms = [...new Map(firmsHotspots.map((point) => [point.dedupeKey, point])).values()].slice(0, 200);
+    const useFirms = firmsReady;
+    const nearbyHotspots = useFirms ? dedupedFirms : parsedFire?.ok ? parsedFire.hotspots : [];
+    const observedAt = useFirms
+      ? firmsParsed.flatMap((result) => result.ok && result.observedAt ? [result.observedAt] : []).sort().at(-1) ?? null
+      : parsedFire?.ok ? parsedFire.observedAt : null;
+    const satelliteTypes = useFirms
+      ? [...new Set(firmsParsed.flatMap((result) => result.ok ? result.satelliteTypes : []))]
+      : parsedFire?.ok ? parsedFire.satelliteTypes : [];
+    const fireState = useFirms || (fireResponse?.ok && parsedFire?.ok) ? 'ready' : !gistdaKey && !nasaFirmsKey ? 'unconfigured' : 'degraded';
+    const coverageCheckedAt = useFirms ? fetchedAt : observedAt;
+    const fireQuality = assessSourceQuality(coverageCheckedAt, {
       staleAfterMinutes: 360,
       expireAfterMinutes: 1_440,
       invalidSchema: Boolean(fireResponse?.ok && parsedFire && !parsedFire.ok),
@@ -78,12 +99,13 @@ export async function GET(request: NextRequest) {
       airQuality,
       fire: {
         state: fireState,
-        source: 'GISTDA Sphere',
+        source: useFirms ? 'NASA FIRMS VIIRS' : 'GISTDA Sphere',
         radiusKm: 50,
         count: nearbyHotspots.length,
         hotspots: nearbyHotspots,
-        acquisitionTime: parsedFire?.ok ? parsedFire.observedAt : null,
-        satelliteTypes: parsedFire?.ok ? parsedFire.satelliteTypes : [],
+        acquisitionTime: observedAt,
+        coverageCheckedAt,
+        satelliteTypes,
         quality: fireQuality,
         diagnostic: fireState === 'degraded' && firePayload && typeof firePayload === 'object'
           ? { collections: Object.entries(firePayload).slice(0, 10).map(([key, value]) => ({
@@ -108,9 +130,9 @@ export async function GET(request: NextRequest) {
           fetchedAt, observedAt: airQualityState.observedAt, quality: airQualityState,
         },
         fire: {
-          state: fireState, source: 'GISTDA Hotspot (ดาวเทียม) · รัศมี 50 กม.',
+          state: fireState, source: `${useFirms ? 'NASA FIRMS VIIRS NRT' : 'GISTDA Hotspot'} (ดาวเทียม) · รัศมี 50 กม.`,
           fetchedAt: fireState === 'ready' ? fetchedAt : null, observedAt: fireQuality.observedAt,
-          quality: fireQuality, satelliteTypes: parsedFire?.ok ? parsedFire.satelliteTypes : [], count: nearbyHotspots.length,
+          quality: fireQuality, satelliteTypes, count: nearbyHotspots.length,
         },
       },
   }, { status: weather ? 200 : 207, headers: CACHE_HEADERS });
