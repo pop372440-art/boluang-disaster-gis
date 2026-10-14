@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { hotspotAge, validPm, windFrom, type FireSmokeSummary } from '@/lib/environment/fire-smoke';
+import { hotspotAge, validPm, windFrom, observationUsable, type FireSmokeSummary } from '@/lib/environment/fire-smoke';
 import { parseSourceTimestamp } from '@/lib/environment/source-quality';
 const Map = dynamic(()=>import('@/components/intelligence/FireSmokeMap'),{ssr:false,loading:()=> <p className="p-6">กำลังเปิดแผนที่…</p>});
 const stamp=(value?: string | null)=> { const ms=parseSourceTimestamp(value); return ms==null?'ไม่ทราบเวลา':new Date(ms).toLocaleString('th-TH',{timeZone:'Asia/Bangkok',dateStyle:'short',timeStyle:'short'}); };
@@ -22,6 +22,7 @@ export default function FireSmokePage() {
   const [showPoints,setShowPoints]=useState(true);
   const [showOld,setShowOld]=useState(false);
   useEffect(()=>{const tick=()=>setNow(Date.now());tick();const timer=setInterval(tick,60_000);return ()=>clearInterval(timer);},[]);
+  useEffect(()=>{const timer=setInterval(()=>{if(document.visibilityState==='visible')setRefresh(n=>n+1);},10*60_000);return ()=>clearInterval(timer);},[]);
   useEffect(()=>{let active=true;const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),20_000);setLoading(true);
     fetch('/api/environment/summary',{signal:controller.signal,cache:'no-store'}).then(async r=>{if(!r.ok)throw new Error();return r.json() as Promise<FireSmokeSummary>;}).then(d=>{if(active){setData(d);setError('');}}).catch(()=>{if(active)setError(controller.signal.aborted?'การอ่านข้อมูลใช้เวลานาน กรุณาลองใหม่':'อ่านข้อมูลล่าสุดไม่สำเร็จ');}).finally(()=>{clearTimeout(timeout);if(active)setLoading(false);});
     return ()=>{active=false;clearTimeout(timeout);controller.abort();};},[refresh]);
@@ -30,15 +31,14 @@ export default function FireSmokePage() {
     Promise.allSettled([read('/geojson/boluang.json'),read('/geojson/block.json')]).then(([a,b])=>{if(controller.signal.aborted)return;if(a.status==='fulfilled')setBoundary(a.value);if(b.status==='fulfilled')setVillages(b.value);});return ()=>controller.abort();},[]);
   const checked=parseSourceTimestamp(data?.fetchedAt);
   const old=now>0&&(checked==null||now-checked>20*60_000);
-  const airTime=parseSourceTimestamp(data?.airQuality?.current?.time);
-  const airUsable=!error&&!old&&data?.sources?.airQuality?.state==='ready'&&airTime!=null&&now-airTime<=180*60_000;
+  const airUsable=!error&&!old&&data?.sources?.airQuality?.state==='ready'&&observationUsable(data?.airQuality?.current?.time,now,180);
   const pm=airUsable?validPm(data?.airQuality?.current?.pm2_5):null;
-  const fireReady=!error&&!old&&data?.fire?.state==='ready';
+  const fireReady=!error&&!old&&data?.fire?.state==='ready'&&observationUsable(data?.fire?.acquisitionTime,now,360);
   const points=data?.fire?.hotspots ?? [];
   const recent=points.filter(p=>hotspotAge(p,now)==='recent');
   const visible=showPoints&&fireReady?points.filter(p=>hotspotAge(p,now)==='recent'||showOld):[];
   const current=data?.weather?.current;
-  const weatherReady=!error&&!old&&data?.sources?.weather?.state==='ready';
+  const weatherReady=!error&&!old&&data?.sources?.weather?.state==='ready'&&observationUsable(current?.time,now,180);
   const selected=villages?.features.find(f=>f.properties?.own_villag===village)??null;
   const forecast=(data?.weather?.hourly?.time??[]).map((time,i)=>({time,rain:data?.weather?.hourly?.precipitation?.[i],probability:data?.weather?.hourly?.precipitation_probability?.[i],wind:data?.weather?.hourly?.wind_speed_10m?.[i]})).filter(h=>(parseSourceTimestamp(h.time)??0)>=now).slice(0,8);
   function locate(){if(!navigator.geolocation){setMessage('อุปกรณ์นี้ไม่รองรับตำแหน่ง');return;}setMessage('กำลังหาตำแหน่ง…');navigator.geolocation.getCurrentPosition(p=>{setLocation([p.coords.latitude,p.coords.longitude]);setVillage('');setMessage('แผนที่เลื่อนไปยังตำแหน่งของคุณแล้ว ข้อมูลสรุปยังเป็นศูนย์กลางบ่อหลวง');},()=>setMessage('อ่านตำแหน่งไม่ได้ คุณยังเลือกหมู่บ้านได้'),{timeout:10_000,maximumAge:60_000});}
@@ -46,6 +46,7 @@ export default function FireSmokePage() {
     <header className="border-b border-emerald-900/10 bg-white"><div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-5"><div><p className="text-xs font-bold text-emerald-700">เทศบาลตำบลบ่อหลวง • อำเภอฮอด</p><h1 className="text-2xl font-bold">ไฟป่าและฝุ่นควัน</h1><p className="mt-1 text-sm text-slate-600">เฝ้าระวังในบ่อหลวงและพื้นที่รอบข้าง</p></div><button onClick={()=>{setLoading(true);setRefresh(n=>n+1);}} disabled={loading} className="min-h-12 rounded-2xl bg-emerald-800 px-5 font-bold text-white disabled:opacity-50">{loading?'กำลังอ่านข้อมูล…':'↻ อัปเดต'}</button></div></header>
     <div className="mx-auto max-w-6xl space-y-5 p-4">
       <p role="status" className="text-sm text-slate-600">อ่านข้อมูล {stamp(data?.fetchedAt)} • เวลาไทย {error&&<strong className="text-red-700"> • {error} กรุณาอัปเดตอีกครั้ง</strong>}{old&&data&&<strong className="text-amber-800"> • ข้อมูลเก่า ห้ามใช้ยืนยันสถานการณ์ปัจจุบัน</strong>}</p>
+      {data && !fireReady && <p role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">ข้อมูลจุดความร้อนยังไม่พร้อมใช้: รอบดาวเทียม {stamp(data.fire?.acquisitionTime)} เก่าหรือไม่ทราบเวลา จึงไม่แสดงเป็นศูนย์จุด และไม่ยืนยันว่าไม่มีไฟป่า</p>}
       <section className="grid gap-3 sm:grid-cols-3" aria-label="สรุปสถานการณ์">
         <article className={panel}><p className="font-bold">☁ ฝุ่น PM2.5 ประเมิน</p><p className="my-3 text-4xl font-bold text-emerald-800">{pm==null?'—':pm.toFixed(1)} <span className="text-sm text-slate-600">µg/m³</span></p><p className="text-sm">{pm==null?'ไม่มีข้อมูลล่าสุดที่ใช้ได้': 'ค่ารายชั่วโมงจากแบบจำลอง ไม่ใช่สถานีตรวจวัด'}</p><p className="mt-2 text-xs text-slate-500">CAMS ผ่าน Open-Meteo • เวลา {stamp(data?.airQuality?.current?.time)}</p></article>
         <article className={panel}><p className="font-bold">🔥 จุดความร้อนภายใน 12 ชั่วโมง</p><p className="my-3 text-4xl font-bold text-orange-700">{fireReady?recent.length:'—'} <span className="text-sm text-slate-600">จุด</span></p><p className="text-sm">{fireReady?'ในรัศมี 50 กม. ไม่ใช่จำนวนไฟป่าที่ยืนยัน':'ข้อมูลดาวเทียมยังไม่พร้อม ไม่ใช่การยืนยันว่าไม่มีไฟ'}</p><p className="mt-2 text-xs text-slate-500">GISTDA • รอบข้อมูล {stamp(data?.fire?.acquisitionTime)}</p></article>

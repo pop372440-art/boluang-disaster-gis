@@ -10,6 +10,10 @@ export function hotspotAge(point: Pick<NormalizedHotspot, 'acquiredAt'>, now: nu
 export function validPm(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 }
+export function observationUsable(value: string | null | undefined, now: number, maxAgeMinutes: number) {
+  const time = parseSourceTimestamp(value);
+  return now > 0 && time != null && time <= now + 5 * 60_000 && now - time <= maxAgeMinutes * 60_000;
+}
 export function windFrom(degrees: unknown) {
   if (typeof degrees !== 'number' || !Number.isFinite(degrees)) return 'ไม่ทราบทิศ';
   return ['เหนือ','ตะวันออกเฉียงเหนือ','ตะวันออก','ตะวันออกเฉียงใต้','ใต้','ตะวันตกเฉียงใต้','ตะวันตก','ตะวันตกเฉียงเหนือ'][Math.round(((degrees % 360 + 360) % 360) / 45) % 8];

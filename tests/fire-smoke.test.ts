@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hotspotAge, validPm, windFrom } from '../lib/environment/fire-smoke.ts';
+import { hotspotAge, validPm, windFrom, observationUsable } from '../lib/environment/fire-smoke.ts';
 const now=Date.parse('2026-10-14T03:00:00Z');
+test('successful fetch never makes historical or future observations current',()=>{
+ assert.equal(observationUsable('2022-03-28T00:00:00+07:00',now,360),false);
+ assert.equal(observationUsable(null,now,360),false);
+ assert.equal(observationUsable('2026-10-15T03:00:00Z',now,360),false);
+ assert.equal(observationUsable('2026-10-14T02:00:00Z',now,360),true);
+});
 test('hotspot age does not treat missing or future observations as recent',()=>{
  assert.equal(hotspotAge({acquiredAt:null},now),'unknown');
  assert.equal(hotspotAge({acquiredAt:'2026-10-15T03:00:00Z'},now),'unknown');
