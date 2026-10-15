@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PNG } from 'pngjs';
+import { bangkokLocalToIso, buildHourlyForecast, finiteNonnegative, settleWeatherSources, requireMeteoPayload, requireRadarPayload, type MeteoPayload, type RadarPayload } from '@/lib/weather/upstream';
+import { sampleCoveredArea, type RadarGrid } from '@/lib/weather/radar-sampling';
 import {
   compareRainModels,
   degreesToThaiWindDirection,
@@ -17,13 +19,6 @@ const RADAR_SCHEME = 0;
 const PX_TO_DBZ = (value: number) => (value <= 4 ? -Infinity : (value / 255) * 87 - 20);
 const DBZ_TO_MMH = (dbz: number) => !Number.isFinite(dbz) || dbz < 5 ? 0 : Math.pow(Math.pow(10, dbz / 10) / 200, 1 / 1.6);
 const toRad = (degrees: number) => (degrees * Math.PI) / 180;
-
-function bangkokLocalToIso(value: unknown): string | null {
-  if (typeof value !== 'string' || !value) return null;
-  const withZone = /(?:Z|[+-]\d\d:\d\d)$/.test(value) ? value : `${value}+07:00`;
-  const timestamp = Date.parse(withZone);
-  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
-}
 
 function lonLatToPx(lat: number, lng: number, zoom: number) {
   const size = 256 * Math.pow(2, zoom);
@@ -44,7 +39,7 @@ async function fetchTile(url: string) {
     const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(8_000) });
     if (!response.ok) return null;
     const buffer = Buffer.from(await response.arrayBuffer());
-    return await new Promise<any>((resolve) => new PNG().parse(buffer, (error, png) => resolve(error ? null : png)));
+    return await new Promise<PNG | null>((resolve) => new PNG().parse(buffer, (error, png) => resolve(error ? null : png)));
   } catch {
     return null;
   }
@@ -55,7 +50,7 @@ async function buildGrid(host: string, path: string, lat: number, lng: number) {
   const tileX = Math.floor(center.x / 256) - Math.floor(RADAR_BLOCK / 2);
   const tileY = Math.floor(center.y / 256) - Math.floor(RADAR_BLOCK / 2);
   const width = RADAR_BLOCK * 256;
-  const grid = { d: new Uint8Array(width * width), w: width, h: width, ox: tileX * 256, oy: tileY * 256 };
+  const grid: RadarGrid = { d: new Uint8Array(width * width), coverage: new Uint8Array(width * width), w: width, h: width, ox: tileX * 256, oy: tileY * 256 };
   let loadedTiles = 0;
 
   await Promise.all(Array.from({ length: RADAR_BLOCK * RADAR_BLOCK }).map(async (_, index) => {
@@ -68,6 +63,7 @@ async function buildGrid(host: string, path: string, lat: number, lng: number) {
       for (let pixelX = 0; pixelX < 256; pixelX++) {
         const sourceIndex = (pixelY * 256 + pixelX) << 2;
         grid.d[(yIndex * 256 + pixelY) * width + (xIndex * 256 + pixelX)] = png.data[sourceIndex + 3] < 20 ? 0 : png.data[sourceIndex];
+        grid.coverage[(yIndex * 256 + pixelY) * width + (xIndex * 256 + pixelX)] = 1;
       }
     }
   }));
@@ -75,70 +71,50 @@ async function buildGrid(host: string, path: string, lat: number, lng: number) {
   return loadedTiles > 0 ? grid : null;
 }
 
-const sample = (grid: any, px: number, py: number) => {
-  const x = Math.round(px - grid.ox);
-  const y = Math.round(py - grid.oy);
-  return x < 0 || y < 0 || x >= grid.w || y >= grid.h ? 0 : grid.d[y * grid.w + x];
-};
-
-function sampleArea(grid: any, px: number, py: number, radius = 2) {
-  let sum = 0;
-  let count = 0;
-  for (let dy = -radius; dy <= radius; dy++) {
-    for (let dx = -radius; dx <= radius; dx++) {
-      sum += sample(grid, px + dx, py + dy);
-      count += 1;
-    }
-  }
-  return sum / count;
-}
-
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
-  const requestedLat = Number(searchParams.get('lat'));
-  const requestedLng = Number(searchParams.get('lng'));
+  const requestedLat = searchParams.has('lat') && searchParams.get('lat')?.trim() ? Number(searchParams.get('lat')) : BO_LUANG.lat;
+  const requestedLng = searchParams.has('lng') && searchParams.get('lng')?.trim() ? Number(searchParams.get('lng')) : BO_LUANG.lng;
   const lat = Number.isFinite(requestedLat) && requestedLat >= -90 && requestedLat <= 90 ? requestedLat : BO_LUANG.lat;
   const lng = Number.isFinite(requestedLng) && requestedLng >= -180 && requestedLng <= 180 ? requestedLng : BO_LUANG.lng;
 
   try {
-    const [main, multi, airQuality, rainViewer] = await Promise.all([
-      fetchJson(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,surface_pressure&hourly=precipitation_probability,temperature_2m,weather_code,cape&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max&timezone=Asia%2FBangkok&forecast_days=7`),
-      fetchJson(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=precipitation&models=ecmwf_ifs025,gfs_seamless,icon_seamless,jma_seamless&timezone=Asia%2FBangkok&forecast_days=3`),
-      fetchJson(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm2_5&timezone=Asia%2FBangkok`),
-      fetchJson('https://api.rainviewer.com/public/weather-maps.json')
-    ]);
+    const sourceResults = await settleWeatherSources({
+      weather:
+      fetchJson(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,surface_pressure&hourly=precipitation_probability,temperature_2m,weather_code,cape&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max&timezone=Asia%2FBangkok&forecast_days=7`).then(value => requireMeteoPayload(value, 'weather')),
+      forecast: fetchJson(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=precipitation&models=ecmwf_ifs025,gfs_seamless,icon_seamless,jma_seamless&timezone=Asia%2FBangkok&forecast_days=3`).then(value => requireMeteoPayload(value, 'forecast')),
+      air: fetchJson(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm2_5&timezone=Asia%2FBangkok`).then(value => requireMeteoPayload(value, 'air')),
+      radar: fetchJson('https://api.rainviewer.com/public/weather-maps.json').then(requireRadarPayload)
+    });
+    if (Object.values(sourceResults).every(source => source.state === 'unavailable')) {
+      return NextResponse.json({ ok: false, error: 'แหล่งข้อมูลอากาศทั้งหมดไม่พร้อม' }, { status: 502 });
+    }
+    const main = (sourceResults.weather.value ?? {}) as MeteoPayload;
+    const multi = (sourceResults.forecast.value ?? {}) as MeteoPayload;
+    const airQuality = (sourceResults.air.value ?? {}) as MeteoPayload;
+    const rainViewer = (sourceResults.radar.value ?? {}) as RadarPayload;
+    const fetchedAt = new Date().toISOString();
 
     const current = main?.current ?? {};
-    const times: string[] = main?.hourly?.time ?? [];
-    const currentTime = typeof current.time === 'string' ? current.time : '';
-    const startIndex = Math.max(0, times.findIndex(time => time >= currentTime));
-    const multiTimes: string[] = multi?.hourly?.time ?? [];
-    const multiStartIndex = Math.max(0, multiTimes.findIndex(time => time >= currentTime));
-    const modelKeys = Object.keys(multi?.hourly ?? {}).filter(key => key.startsWith('precipitation_'));
-    const modelSeries = modelKeys.map(key => Array.from({ length: 24 }, (_, index) => {
-      const value = Number(multi.hourly[key]?.[multiStartIndex + index]);
-      return Number.isFinite(value) && value >= 0 ? value : 0;
-    }));
-    const next24 = Array.from({ length: 24 }, (_, index) => Math.max(0, ...modelSeries.map(series => series[index] ?? 0)));
-    const getSum = (hours: number) => next24.slice(0, hours).reduce((sum, value) => sum + value, 0);
-    const sums = { s3: getSum(3), s6: getSum(6), s12: getSum(12), s24: getSum(24) };
-    const modelComparison = compareRainModels(modelSeries);
+    const { hourly, modelSeries, sums } = buildHourlyForecast(main, multi, Date.now());
+    const modelComparison = compareRainModels(modelSeries.map(series => series.slice(0, 3)).filter((series): series is number[] => series.every(value => value !== null)));
 
     const host = rainViewer?.host ?? 'https://tilecache.rainviewer.com';
     const observedFrames = Array.isArray(rainViewer?.radar?.past) ? rainViewer.radar.past : [];
     const forecastFrames = Array.isArray(rainViewer?.radar?.nowcast) ? rainViewer.radar.nowcast : [];
     const latestObservedFrame = observedFrames.at(-1);
-    const radarObservedAt = Number.isFinite(latestObservedFrame?.time)
+    const radarObservedAt = latestObservedFrame && Number.isFinite(latestObservedFrame.time)
       ? new Date(latestObservedFrame.time * 1000).toISOString()
       : null;
     const radarFreshness = evaluateWeatherFreshness(radarObservedAt, 20, 40);
 
     let observedRainRate: number | null = null;
-    if (latestObservedFrame?.path && radarFreshness.status !== 'expired') {
+    if (latestObservedFrame?.path && radarFreshness.status === 'fresh') {
       const grid = await buildGrid(host, latestObservedFrame.path, lat, lng);
       if (grid) {
         const center = lonLatToPx(lat, lng, RADAR_Z);
-        observedRainRate = DBZ_TO_MMH(PX_TO_DBZ(sampleArea(grid, center.x, center.y, 2)));
+        const sampled = sampleCoveredArea(grid, center.x, center.y, 2);
+        if (sampled !== null) observedRainRate = DBZ_TO_MMH(PX_TO_DBZ(sampled));
       }
     }
 
@@ -157,8 +133,8 @@ export async function GET(req: NextRequest) {
     const latestSourceTime = sourceTimes.length ? new Date(Math.max(...sourceTimes)).toISOString() : null;
     const screeningAlert = radarFreshness.status === 'fresh' && observedRainRate !== null && alertLevel ? {
       level: alertLevel,
-      title: 'สถานะคัดกรองล่าสุดจากเรดาร์',
-      message: `ตรวจพบฝน ${observedRainRate.toFixed(1)} มม./ชม.`,
+      title: 'ค่าสัญญาณฝนประมาณจากภาพเรดาร์',
+      message: `ประมาณ ${observedRainRate.toFixed(1)} มม./ชม. — ยังไม่สอบเทียบกับสถานีในพื้นที่ ไม่ใช่ระดับเตือนภัยทางการ`,
       color: levelColors[alertLevel],
       sums
     } : null;
@@ -174,7 +150,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      fetchedAt: new Date().toISOString(),
+      fetchedAt,
+      partial: Object.values(sourceResults).some(source => source.state === 'unavailable'),
+      location: { lat, lng },
       updatedAt: latestSourceTime,
       current: {
         ...current,
@@ -188,35 +166,33 @@ export async function GET(req: NextRequest) {
       corridor: [],
       radarOk: observedRainRate !== null,
       aqi: {
-        us_aqi: Number.isFinite(Number(airQuality?.current?.us_aqi)) ? Math.round(Number(airQuality.current.us_aqi)) : null,
-        pm2_5: Number.isFinite(Number(airQuality?.current?.pm2_5)) ? +Number(airQuality.current.pm2_5).toFixed(1) : null
+        us_aqi: finiteNonnegative(airQuality?.current?.us_aqi),
+        pm2_5: finiteNonnegative(airQuality?.current?.pm2_5)
       },
-      hourly: times.slice(startIndex, startIndex + 24).map((time, index) => ({
-        hour: time.slice(11, 16),
-        rain: next24[index] ?? null,
-        prob: main?.hourly?.precipitation_probability?.[startIndex + index] ?? null
-      })),
+      hourly,
       forecast: main?.daily?.time?.map((day: string, index: number) => ({
         day: index === 0 ? 'วันนี้' : new Date(`${day}T00:00:00+07:00`).toLocaleDateString('th-TH', { weekday: 'short', timeZone: 'Asia/Bangkok' }),
-        rain: main.daily.precipitation_sum[index],
-        maxTemp: main.daily.temperature_2m_max[index],
-        minTemp: main.daily.temperature_2m_min[index]
+        rain: main.daily?.precipitation_sum?.[index] ?? null,
+        maxTemp: main.daily?.temperature_2m_max?.[index] ?? null,
+        minTemp: main.daily?.temperature_2m_min?.[index] ?? null
       })) ?? [],
       modelComparison,
       sources: {
-        weather: { provider: 'Open-Meteo', dataType: 'แบบจำลองพยากรณ์', freshness: weatherFreshness },
-        air: { provider: 'CAMS ผ่าน Open-Meteo', dataType: 'แบบจำลองคุณภาพอากาศ', freshness: airFreshness },
-        radar: { provider: 'RainViewer', dataType: 'ภาพเรดาร์ตรวจอากาศ', freshness: radarFreshness },
+        weather: { provider: 'Open-Meteo', state: sourceResults.weather.state, dataType: 'แบบจำลองพยากรณ์', freshness: weatherFreshness },
+        forecast: { provider: 'Open-Meteo หลายแบบจำลอง', state: hourly.some(row => row.rain !== null) ? 'ready' : 'unavailable', fetchedAt, runAt: null, runAgeStatus: 'unknown', timeBasis: 'forecast_valid_time', models: Object.keys(multi.hourly ?? {}).filter(key => key.startsWith('precipitation_')) },
+        air: { provider: 'CAMS ผ่าน Open-Meteo', state: sourceResults.air.state, dataType: 'แบบจำลองคุณภาพอากาศ', freshness: airFreshness },
+        radar: { provider: 'RainViewer', state: sourceResults.radar.state, dataType: 'ภาพเรดาร์ตรวจอากาศ', freshness: radarFreshness },
         station: { provider: null, dataType: 'สถานีตรวจวัดจริง', status: 'ไม่มีสถานีในพื้นที่ที่เชื่อมต่อและยืนยันแล้ว' }
       },
       radar: {
         host,
         freshness: radarFreshness,
         observedAt: radarObservedAt,
+        sampling: { covered: observedRainRate !== null, calibratedLocally: false, method: 'pixel-ZR-estimate' },
         frames: [
-          ...observedFrames.map((frame: any) => ({ ...frame, kind: 'observed', isForecast: false })),
-          ...forecastFrames.map((frame: any) => ({ ...frame, kind: 'nowcast', isForecast: true }))
-        ].map((frame: any) => ({
+          ...observedFrames.map(frame => ({ ...frame, kind: 'observed', isForecast: false })),
+          ...forecastFrames.map(frame => ({ ...frame, kind: 'nowcast', isForecast: true }))
+        ].map(frame => ({
           time: frame.time,
           path: frame.path,
           kind: frame.kind,

@@ -45,6 +45,7 @@ export function normalizeThaiWaterTimestamp(value: unknown): string | null {
 export function evaluateStationFreshness(value: unknown, now = Date.now()): StationFreshness {
   const observedAt = normalizeThaiWaterTimestamp(value);
   if (!observedAt) return { status: 'unknown', ageMinutes: null, observedAt: null, label: 'ไม่ทราบเวลาวัด' };
+  if (Date.parse(observedAt) > now + 5 * 60_000) return { status: 'unknown', ageMinutes: null, observedAt, label: 'เวลาวัดอยู่ในอนาคต' };
 
   const ageMinutes = Math.max(0, Math.floor((now - Date.parse(observedAt)) / 60_000));
   if (ageMinutes > STATION_EXPIRE_AFTER_MINUTES) {

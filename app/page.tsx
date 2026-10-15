@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import AreaContextPanel from '@/components/gis/AreaContextPanel';
+import AreaEvidencePanel from '@/components/gis/AreaEvidencePanel';
+import { areaHref, BO_LUANG_CONTEXT, containsPoint, parseAreaSearch, villageContexts, type AreaContext, type VillageContext } from '@/lib/gis/area-context';
 import 'leaflet/dist/leaflet.css';
 import Swal from 'sweetalert2';
 import { getBrowserSupabaseClient } from '@/lib/supabase/browser';
@@ -232,8 +235,10 @@ export default function BoLuangDashboard() {
   const [showLandslide, setShowLandslide] = useState(false);
   const [showSafeZone, setShowSafeZone] = useState(false); 
   
-  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(false);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+  const [selectedArea, setSelectedArea] = useState<AreaContext>(BO_LUANG_CONTEXT);
+  const pendingAreaRef = useRef<string | null>(null);
   const [showScanModal, setShowScanModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
 
@@ -250,6 +255,11 @@ export default function BoLuangDashboard() {
   
   const [geoBoluang, setGeoBoluang] = useState<any>(null);
   const [geoBlock, setGeoBlock] = useState<any>(null);
+  const [villageError, setVillageError] = useState<string | null>(null);
+  const villages = useMemo<VillageContext[]>(() => {
+    if (!geoBlock) return [];
+    try { return villageContexts(geoBlock); } catch { return []; }
+  }, [geoBlock]);
   const [geoParcel, setGeoParcel] = useState<any>(null);
   const [geoLandslide, setGeoLandslide] = useState<any>(null); 
   const [hotspotData, setHotspotData] = useState<any>(null);
@@ -257,7 +267,6 @@ export default function BoLuangDashboard() {
   const [mapRef, setMapRef] = useState<any>(null);
   const [FaultLineData, setFaultLineData] = useState<any>(null);
 
-  const [currentZoom, setCurrentZoom] = useState(9);
   const syncData = useRef({ lat: 18.1633, lng: 98.3744, zoom: 9 });
   
   const [activeVillageIndex, setActiveVillageIndex] = useState<number | null>(null);
@@ -362,14 +371,15 @@ export default function BoLuangDashboard() {
   };
 
   useEffect(() => {
+    pendingAreaRef.current = parseAreaSearch(window.location.search)?.id ?? null;
     const handleResize = () => {
       const mobile = window.innerWidth < 1024; 
       setIsMobile(mobile);
       if (mobile) { 
         setIsLeftPanelOpen(false); 
         setIsRightPanelOpen(false); 
-      } else { 
-        setIsLeftPanelOpen(true); 
+      } else {
+        setIsLeftPanelOpen(false);
         setIsRightPanelOpen(true); 
       }
     };
@@ -390,8 +400,11 @@ export default function BoLuangDashboard() {
           let data = await res.json();
           if (Array.isArray(data)) setter({ type: "FeatureCollection", features: data });
           else setter(data);
+          if (url.includes('/block.json')) {
+            try { villageContexts(data); setVillageError(null); } catch { setVillageError('ขอบเขตหมู่บ้านไม่ผ่านการตรวจสอบ จึงไม่สรุปแทนพื้นที่'); }
+          }
         }
-      } catch (e) { console.error('Failed to load layer:', url, e); }
+      } catch (e) { if (url.includes('/block.json')) setVillageError('โหลดขอบเขตหมู่บ้านไม่สำเร็จ'); console.error('Failed to load layer:', url, e); }
     };
 
     const timer = setTimeout(() => {
@@ -656,15 +669,42 @@ export default function BoLuangDashboard() {
     fetchReports();
   }, [citizenReport]);
 
-  useEffect(() => {
-    if (mapRef && (showBoluang || showBlock)) { 
-      mapRef.flyTo([18.1633, 98.3744], 12, { duration: 2.5, easeLinearity: 0.25 }); 
-    }
-  }, [showBoluang, showBlock, mapRef]);
-
   // ฟังก์ชันล้างไฮไลท์แผนที่
   const clearSelection = () => {
     setActiveVillageIndex(null);
+    setSelectedArea(BO_LUANG_CONTEXT);
+  };
+
+  const selectVillage = (id: string) => {
+    const village = villages.find(item => item.id === id);
+    const area = village ?? BO_LUANG_CONTEXT;
+    setSelectedArea(area);
+    if (village) {
+      const index = geoBlock.features.findIndex((feature: { properties?: { own_villag?: string } }) => feature.properties?.own_villag === village.name);
+      setActiveVillageIndex(index >= 0 ? index : null);
+    } else setActiveVillageIndex(null);
+    mapRef?.flyTo([area.lat, area.lng], village ? 13 : 11);
+    if (isMobile) setIsLeftPanelOpen(false);
+  };
+
+  useEffect(() => {
+    const village = villages.find(item => item.id === pendingAreaRef.current);
+    if (!village || !mapRef) return;
+    pendingAreaRef.current = null;
+    setSelectedArea(village);
+    mapRef.flyTo([village.lat, village.lng], 13);
+  }, [villages, mapRef]);
+
+  const applyLayerPreset = (preset: 'water' | 'fire' | 'report') => {
+    setShowBoluang(true); setShowBlock(true);
+    setOnwrRain(preset === 'water'); setOnwrWaterLevel(preset === 'water'); setShowLandslide(preset === 'water');
+    setHotspot(preset === 'fire'); setPm25(preset === 'fire');
+    setCitizenReport(preset === 'report'); setShowSafeZone(preset === 'report');
+    if (isMobile) { setIsLeftPanelOpen(false); setIsRightPanelOpen(true); }
+  };
+  const togglePanel = (side: 'left' | 'right') => {
+    if (side === 'left') { setIsLeftPanelOpen(open => !open); if (isMobile) setIsRightPanelOpen(false); }
+    else { setIsRightPanelOpen(open => !open); if (isMobile) setIsLeftPanelOpen(false); }
   };
 
   // ==========================================
@@ -709,6 +749,7 @@ export default function BoLuangDashboard() {
 
   // 🌟 เพิ่มการรองรับ Touch Events สำหรับมือถือโดยตรง
   const onEachBlockFeature = (feature: any, layer: any) => {
+    layer.options.bubblingMouseEvents = false;
     const props = feature?.properties || {};
     const rawName = props.own_villag || props.name_th || props.name || props.zone_name || `หมู่ที่ ${props.zone_id || props.id || ''}`;
     const villageName = formatVillageName(rawName);
@@ -722,12 +763,11 @@ export default function BoLuangDashboard() {
           if (e.target.bringToFront) e.target.bringToFront();
         }
       },
-      mousedown: (e: any) => {
-        setActiveVillageIndex((prev) => prev === props.indexId ? null : props.indexId);
-        if (e.target.bringToFront) e.target.bringToFront();
-      },
-      touchstart: (e: any) => {
-        setActiveVillageIndex((prev) => prev === props.indexId ? null : props.indexId);
+      click: (e: any) => {
+        const village = villages.find(item => containsPoint([e.latlng.lng, e.latlng.lat], item.feature.geometry));
+        if (village) setSelectedArea(village);
+        setActiveVillageIndex(props.indexId);
+        setIsLeftPanelOpen(false); setIsRightPanelOpen(true);
         if (e.target.bringToFront) e.target.bringToFront();
       }
     });
@@ -776,7 +816,6 @@ export default function BoLuangDashboard() {
       const center = mapRef.getCenter(); 
       const zoom = mapRef.getZoom();
       syncData.current = { lat: center.lat, lng: center.lng, zoom: zoom };
-      setCurrentZoom(zoom); 
     };
 
     const onMouseMove = (e: any) => { 
@@ -874,7 +913,7 @@ export default function BoLuangDashboard() {
   }, [L]);
 
   const geoBlockWithIndex = useMemo(() => {
-    if (!geoBlock || !geoBlock.features) return null;
+    if (!geoBlock || !geoBlock.features || !villages.length) return null;
     return {
       ...geoBlock,
       features: geoBlock.features.map((feature: any, index: number) => ({
@@ -885,7 +924,7 @@ export default function BoLuangDashboard() {
         }
       }))
     };
-  }, [geoBlock]);
+  }, [geoBlock, villages]);
 
   return (
     <main className="relative w-screen h-screen bg-[#0b132b] font-sans text-white overflow-hidden">
@@ -1510,7 +1549,7 @@ export default function BoLuangDashboard() {
 
       <header className="absolute top-0 left-0 right-0 h-[72px] bg-[#0b132b]/95 border-b border-[#1e293b] backdrop-blur-xl z-[80] flex items-center justify-between px-4 md:px-6 pointer-events-auto shadow-md">
         <div className="flex items-center space-x-4 md:space-x-6">
-          <button onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)} className="md:hidden p-2 bg-[#1e293b] rounded-lg text-gray-300 hover:text-white">
+          <button onClick={() => togglePanel('left')} aria-label="ข้อมูลอากาศและน้ำ" aria-expanded={isLeftPanelOpen} className="md:hidden min-h-11 min-w-11 p-2 bg-[#1e293b] rounded-lg text-gray-300 hover:text-white">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
 
@@ -1625,7 +1664,7 @@ export default function BoLuangDashboard() {
             <span className="text-[12px] font-bold text-white tracking-wide">ติดตั้งแอป (PWA)</span>
           </button>
 
-          <button type="button" onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} aria-expanded={isRightPanelOpen} aria-controls="gis-layer-panel" className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
+          <button type="button" onClick={() => togglePanel('right')} aria-expanded={isRightPanelOpen} aria-controls="gis-layer-panel" className="flex items-center bg-[#0f172a]/80 border border-[#1e293b] rounded-full px-3 py-1.5 md:px-4 md:py-1.5 shadow-sm transition-all hover:bg-[#1e293b] cursor-pointer flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
             <svg className="w-4 h-4 text-[#2dd4bf] mr-1.5 md:mr-2 transform rotate-45" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
             </svg>
@@ -1664,7 +1703,7 @@ export default function BoLuangDashboard() {
         style={{ transform: isLeftPanelOpen ? 'translate(0)' : (isMobile ? 'translateY(100%)' : 'translateX(-390px)') }}
       >
         <div className="relative flex h-full w-full items-start">
-          <div className="w-full lg:w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-t-3xl lg:rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.5)] p-4 md:p-5 pb-20 lg:pb-5 backdrop-blur-xl max-h-[72vh] lg:max-h-[calc(100vh-148px)] overflow-y-auto custom-scrollbar">
+          <div inert={!isLeftPanelOpen} className="w-full lg:w-[350px] bg-[#0b132b]/95 border border-[#1e293b] rounded-t-3xl lg:rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.5)] p-4 md:p-5 pb-20 lg:pb-5 backdrop-blur-xl max-h-[72vh] lg:max-h-[calc(100vh-148px)] overflow-y-auto custom-scrollbar">
             <div className="mb-3 flex items-center justify-between lg:hidden">
               <span className="text-sm font-bold text-sky-200">ข้อมูลสภาพแวดล้อม</span>
               <button type="button" onClick={() => setIsLeftPanelOpen(false)} aria-label="ปิดแผงข้อมูล" className="rounded-lg border border-slate-700 p-2 text-slate-300 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
@@ -1691,7 +1730,7 @@ export default function BoLuangDashboard() {
 
             <div className="relative mb-4">
               <Link
-                href="/center/weather"
+                href={areaHref('/center/weather', selectedArea)}
                 className="block bg-[#0f172a] border border-[#1e293b] hover:border-[#0ea5e9]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
                 <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#0ea5e9] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
@@ -1713,7 +1752,7 @@ export default function BoLuangDashboard() {
 
             <div className="relative mb-4">
               <Link
-                href="/center/flood"
+                href={areaHref('/center/flood', selectedArea)}
                 className="block bg-[#0f172a] border border-[#1e293b] hover:border-[#3b82f6]/50 rounded-2xl p-4 md:p-5 cursor-pointer transition-all shadow-lg group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
               >
                 <div className="absolute -right-8 -top-8 w-32 h-32 bg-[#3b82f6] rounded-full blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity duration-500"></div>
@@ -1789,7 +1828,7 @@ export default function BoLuangDashboard() {
           </div>
 
           <button 
-            onClick={() => setIsLeftPanelOpen(!isLeftPanelOpen)} 
+            onClick={() => togglePanel('left')} 
             className="hidden md:flex absolute -right-[32px] top-6 w-[32px] h-16 bg-[#0b132b]/95 border-y border-r border-[#1e293b] rounded-r-xl items-center justify-center text-gray-400 hover:text-[#38bdf8] hover:bg-[#1e293b] transition-colors shadow-[5px_0_15px_rgba(0,0,0,0.5)] backdrop-blur-md z-[80] cursor-pointer"
             title={isLeftPanelOpen ? "ซ่อนแผงข้อมูล" : "แสดงแผงข้อมูล"}
           >
@@ -1820,12 +1859,14 @@ export default function BoLuangDashboard() {
       {/* Sidebar ขวา (แจ้งเหตุ/ภัยธรรมชาติ/แผนที่) */}
       <aside id="gis-layer-panel" aria-label="จัดการชั้นข้อมูลแผนที่" className="absolute inset-x-0 bottom-0 lg:inset-x-auto lg:bottom-auto lg:top-[132px] lg:right-0 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto" style={{ transform: isRightPanelOpen ? 'translate(0)' : (isMobile ? 'translateY(100%)' : 'translateX(390px)') }}>
         <div className="relative lg:mr-5 flex w-full lg:w-auto">
-          <button onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="hidden lg:flex absolute -left-[32px] top-4 w-[32px] h-14 bg-[#0b132b]/95 border-y border-l border-[#1e293b] rounded-l-lg items-center justify-center text-gray-400 hover:text-white hover:bg-[#1e293b] transition-colors shadow-[-4px_0_10px_rgba(0,0,0,0.3)] backdrop-blur-md z-50 cursor-pointer">
+          <button onClick={() => togglePanel('right')} className="hidden lg:flex absolute -left-[32px] top-4 w-[32px] h-14 bg-[#0b132b]/95 border-y border-l border-[#1e293b] rounded-l-lg items-center justify-center text-gray-400 hover:text-white hover:bg-[#1e293b] transition-colors shadow-[-4px_0_10px_rgba(0,0,0,0.3)] backdrop-blur-md z-50 cursor-pointer">
             <svg className={`w-5 h-5 transform transition-transform duration-300 ${isRightPanelOpen ? 'rotate-0' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
           </button>
           
-          <div className="w-full lg:w-[360px] ml-auto bg-[#0b132b]/95 border border-[#1e293b] rounded-t-3xl lg:rounded-xl shadow-2xl p-4 md:p-5 pb-20 lg:pb-5 backdrop-blur-xl max-h-[72vh] lg:max-h-[calc(100vh-148px)] overflow-y-auto custom-scrollbar">
+          <div inert={!isRightPanelOpen} className="w-full lg:w-[360px] ml-auto bg-[#0b132b]/95 border border-[#1e293b] rounded-t-3xl lg:rounded-xl shadow-2xl p-4 md:p-5 pb-20 lg:pb-5 backdrop-blur-xl max-h-[72vh] lg:max-h-[calc(100vh-148px)] overflow-y-auto custom-scrollbar">
             
+            <AreaContextPanel area={selectedArea} villages={villages} loading={!geoBlock && !villageError} error={villageError} onSelect={selectVillage} onPreset={applyLayerPreset} onClose={() => setIsRightPanelOpen(false)} />
+            <div className="mb-4 text-slate-200"><AreaEvidencePanel area={selectedArea} /></div>
             <div className="mb-4 bg-[#0f172a] p-1.5 rounded-xl border border-[#1e293b] flex shadow-inner">
               <form onSubmit={handleSearchSubmit} className="flex w-full">
                 <input 
@@ -1862,7 +1903,7 @@ export default function BoLuangDashboard() {
                     <span className="text-[10px] md:text-[11px] font-bold text-gray-300 tracking-wide">เปิด: <span className="text-white ml-0.5">{activeLayersCount}</span></span>
                   </div>
                   <div className="flex items-center px-2 py-1 rounded-full border border-[#1e293b] bg-[#0f172a]/50 shadow-inner">
-                    <span className="text-[10px] md:text-[11px] font-bold text-gray-300 tracking-wide">Zoom: <span className="text-white ml-0.5">{currentZoom}</span></span>
+                    <span className="text-[10px] md:text-[11px] font-bold text-gray-300 tracking-wide">{selectedArea.name}</span>
                   </div>
                 </div>
               </div>
@@ -1959,7 +2000,7 @@ export default function BoLuangDashboard() {
               
               <div className="mt-6 p-3 bg-[#0f172a]/80 border border-[#1e293b] rounded-xl text-center shadow-inner">
                   <p className="text-[10px] text-gray-500 font-mono leading-relaxed">
-                      <b>ความโปร่งใสของข้อมูล (Data Honesty):</b><br/>ข้อมูลภัยพิบัติถูกดึงจาก API ของหน่วยงานรัฐแบบ Real-time ข้อมูลพื้นที่เสี่ยงเป็นเพียงการอ้างอิงภูมิศาสตร์ ไม่ใช่การทำนายล่วงหน้า
+                      <b>ความโปร่งใสของข้อมูล (Data Honesty):</b><br/>ข้อมูลภายนอกอาจล่าช้าหรือขาดหาย โปรดตรวจเวลารายชุด พื้นที่เสี่ยงเป็นข้อมูลอ้างอิง ไม่ใช่คำเตือนปัจจุบัน
                   </p>
               </div>
 

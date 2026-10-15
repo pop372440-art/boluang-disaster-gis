@@ -54,7 +54,7 @@ const TileLayer = dynamic(() => import('react-leaflet').then((m) => m.TileLayer)
 const GeoJSON = dynamic(() => import('react-leaflet').then((m) => m.GeoJSON), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then((m) => m.Marker), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then((m) => m.Popup), { ssr: false });
-const SmoothRadar = dynamic(() => import('@/components/radar/SmoothRadar'), { ssr: false });
+const SmoothRadar = dynamic(() => import('@/components/radar/RadarOverlay'), { ssr: false });
 
 /* ═══════════════════════════ CONFIG ═══════════════════════════ */
 const TZ = 'Asia/Bangkok';

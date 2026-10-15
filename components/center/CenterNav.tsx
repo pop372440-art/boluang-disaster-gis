@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { areaHref, type AreaContext } from '@/lib/gis/area-context';
 
 const CENTER_ROUTES = [
   { href: '/center', aliases: ['/center'], icon: '⌂', label: 'ภาพรวม' },
@@ -11,7 +12,7 @@ const CENTER_ROUTES = [
   { href: '/center/executive', aliases: ['/center/executive', '/executive'], icon: '▦', label: 'ภาพรวมผู้บริหาร' },
 ] as const;
 
-export default function CenterNav() {
+export default function CenterNav({ area }: { area?: AreaContext }) {
   const pathname = usePathname();
 
   return (
@@ -28,7 +29,7 @@ export default function CenterNav() {
               return (
                 <Link
                   key={item.href}
-                  href={item.href}
+                  href={area && ['/center/weather', '/center/flood'].includes(item.href) ? areaHref(item.href, area) : item.href}
                   aria-current={active ? 'page' : undefined}
                   className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${active ? 'border-cyan-400/50 bg-cyan-400/15 text-cyan-100' : 'border-transparent text-slate-300 hover:bg-white/10 hover:text-white'}`}
                 >
@@ -39,7 +40,7 @@ export default function CenterNav() {
             })}
           </div>
         </div>
-        <Link href="/" className="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+        <Link href={area ? areaHref('/', area) : '/'} className="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
           แผนที่ GIS
         </Link>
       </div>

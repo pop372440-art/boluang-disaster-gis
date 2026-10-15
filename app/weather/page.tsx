@@ -6,6 +6,10 @@ import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import Swal from 'sweetalert2';
 import CenterNav from '@/components/center/CenterNav';
+import AreaEvidencePanel from '@/components/gis/AreaEvidencePanel';
+import { areaHref, parseAreaSearch } from '@/lib/gis/area-context';
+import { evaluateWeatherFreshness } from '@/lib/weather/data-quality';
+import { formatRainTime, summarizeRain } from '@/lib/weather/rain-summary';
 import {
   CURRENT_LOCATION_ZOOM,
   geolocationFailureCopy,
@@ -45,16 +49,18 @@ const WINDY_LAYERS = [
 ];
 
 const getWmoWeatherDesc = (code: number) => {
+  if (typeof code !== 'number' || !Number.isFinite(code)) return 'ไม่มีข้อมูลสภาพอากาศ';
   const codes: Record<number, string> = {
     0: 'แจ่มใส', 1: 'มีเมฆบางส่วน', 2: 'มีเมฆครึ้ม', 3: 'เมฆเป็นส่วนมาก', 45: 'มีหมอก', 48: 'หมอกหนา',
     51: 'ฝนปรอยๆ', 53: 'ฝนปรอยปานกลาง', 55: 'ฝนปรอยหนัก', 61: 'ฝนเล็กน้อย', 63: 'ฝนปานกลาง',
     65: 'ฝนตกหนัก', 66: 'ฝนเยือกแข็ง', 80: 'ฝนเป็นหย่อมๆ', 81: 'ฝนซู่ปานกลาง', 82: 'ฝนซู่รุนแรง',
     95: 'พายุฝนฟ้าคะนอง', 96: 'ฟ้าคะนองมีลูกเห็บ', 99: 'ฟ้าคะนองรุนแรง',
   };
-  return codes[code] ?? 'ปกติ';
+  return codes[code] ?? 'ไม่ทราบสภาพอากาศ';
 };
 
 const getWeatherEmoji = (code: number) => {
+  if (typeof code !== 'number' || !Number.isFinite(code)) return '❔';
   if (code === 0) return '☀️';
   if (code === 1 || code === 2) return '🌤️';
   if (code === 3) return '☁️';
@@ -89,7 +95,7 @@ function DataAge({ iso }: { iso?: string }) {
   if (!Number.isFinite(timestamp)) return <span className="text-gray-400">ไม่มีข้อมูล</span>;
   const mins = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
   const label = mins === 0 ? 'เมื่อสักครู่' : `${mins} นาทีที่แล้ว`;
-  const time = new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  const time = new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
   return <span className={mins > 15 ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold'}>{time} น. ({label})</span>;
 }
 
@@ -111,6 +117,7 @@ function freshnessLabel(status?: string) {
 }
 
 const nwpFreshnessLabel = (status?: string) => status === 'fresh' ? 'สดตามเกณฑ์' : status === 'stale' ? 'เริ่มเก่า' : status === 'expired' ? 'หมดอายุ' : 'ไม่ทราบอายุ';
+const formatRainAmount = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value.toFixed(1) : 'ไม่มีข้อมูล';
 
 /* ================= 3. MAIN ================= */
 export default function WeatherDashboard() {
@@ -118,8 +125,11 @@ export default function WeatherDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [position, setPosition] = useState({ lat: INITIAL_LAT, lng: INITIAL_LNG });
   const [locationName, setLocationName] = useState('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
+  const [areaId, setAreaId] = useState('bo-luang');
+  const [clock, setClock] = useState(Date.now);
 
-  const [data, setData] = useState<any>(null);
+  const [weatherResponse, setData] = useState<any>(null);
+  const data = weatherResponse?.location?.lat === position.lat && weatherResponse?.location?.lng === position.lng ? weatherResponse : null;
   const [nwp, setNwp] = useState<any>(null);
   const [nwpView, setNwpView] = useState<'overview' | 'ecmwf' | 'gfs'>('overview');
   const [loading, setLoading] = useState(true);
@@ -135,6 +145,20 @@ export default function WeatherDashboard() {
 
   const markerRef = useRef<any>(null);
   const radarLayersRef = useRef<any[]>([]);
+  const weatherRequestRef = useRef(0);
+  const locationRequestRef = useRef(0);
+  const invalidateWeatherRequests = useCallback(() => { ++weatherRequestRef.current; }, []);
+  const invalidateLocationRequests = useCallback(() => { ++locationRequestRef.current; }, []);
+  const positionRef = useRef(position);
+  positionRef.current = position;
+
+  useEffect(() => {
+    const area = parseAreaSearch(window.location.search);
+    if (area) { setPosition({ lat: area.lat, lng: area.lng }); setLocationName(area.name); setAreaId(area.id); }
+    const timer = setInterval(() => setClock(Date.now()), 30_000);
+    return () => { clearInterval(timer); invalidateLocationRequests(); };
+  }, [invalidateLocationRequests]);
+  useEffect(() => { if (map) map.setView([positionRef.current.lat, positionRef.current.lng], DEFAULT_MAP_ZOOM); }, [map]);
 
   useEffect(() => { import('leaflet').then(mod => setL(mod.default ?? mod)); }, []);
 
@@ -154,15 +178,18 @@ export default function WeatherDashboard() {
 
   /* ---------- Geocoding ผ่าน API ภายใน (ปิดช่องโหว่ Nominatim) ---------- */
   const fetchLocationName = useCallback(async (lat: number, lng: number) => {
+    const requestId = ++locationRequestRef.current;
+    setAreaId('point'); setLocationName('พิกัดที่เลือก');
     try {
       const res = await fetch(`/api/geocode?mode=reverse&lat=${lat}&lng=${lng}`);
       const d = await res.json();
-      if (d?.name) setLocationName(d.name);
+      if (requestId === locationRequestRef.current && positionRef.current.lat === lat && positionRef.current.lng === lng && d?.name) setLocationName(d.name);
     } catch { /* เงียบไว้ ไม่ให้ล้มทั้งหน้า */ }
   }, []);
 
   /* ---------- ดึงข้อมูลจริง ---------- */
   const loadWeather = useCallback(async (lat: number, lng: number) => {
+    const requestId = ++weatherRequestRef.current;
     setLoading(true); setErr(null);
     try {
       const [weatherResult, nwpResult] = await Promise.allSettled([
@@ -177,20 +204,24 @@ export default function WeatherDashboard() {
           return json;
         }),
       ]);
+      if (requestId !== weatherRequestRef.current) return;
       if (weatherResult.status === 'rejected') throw weatherResult.reason;
       setData(weatherResult.value);
       setNwp(nwpResult.status === 'fulfilled' ? nwpResult.value : null);
     } catch (e: any) {
+      if (requestId !== weatherRequestRef.current) return;
       setErr(e.message ?? 'เกิดข้อผิดพลาด');
     } finally {
-      setLoading(false);
+      if (requestId === weatherRequestRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    ++weatherRequestRef.current;
+    setData(null); setNwp(null); setLoading(true); setErr(null);
     const t = setTimeout(() => loadWeather(position.lat, position.lng), 350);
-    return () => clearTimeout(t);
-  }, [position.lat, position.lng, loadWeather]);
+    return () => { clearTimeout(t); invalidateWeatherRequests(); };
+  }, [position.lat, position.lng, loadWeather, invalidateWeatherRequests]);
 
   useEffect(() => {
     const i = setInterval(() => loadWeather(position.lat, position.lng), 5 * 60 * 1000);
@@ -213,11 +244,11 @@ export default function WeatherDashboard() {
 
   /* ---------- เฟรมเรดาร์ที่จะแสดงจริง ---------- */
   const shownFrames = useMemo(() => {
-    const status = data?.radar?.freshness?.status;
+    const status = evaluateWeatherFreshness(data?.radar?.observedAt, 20, 40, clock).status;
     if (status === 'expired' || status === 'unknown') return [];
     const all = data?.radar?.frames ?? [];
     return all.slice(-RADAR_KEEP_FRAMES);
-  }, [data]);
+  }, [data, clock]);
 
   /* ⭐ สร้างเลเยอร์เรดาร์ทุกเฟรมล่วงหน้า ตั้ง opacity 0 แล้วสลับแสดง */
   useEffect(() => {
@@ -286,7 +317,7 @@ const beep = useCallback((times = 2) => {
 }, [muted]);
 
 useEffect(() => {
-  if (!data?.alert || !data?.nowcast) return;
+  if (!data?.alert || !data?.nowcast || !data?.radar?.sampling?.calibratedLocally) return;
 
   const a = data.alert;
   const nc = data.nowcast;
@@ -347,9 +378,9 @@ useEffect(() => {
       </table>` : ''}
 
       <div style="margin-top:14px;font-size:12px;color:#94a3b8">
-        📊 ฝนสะสมคาดการณ์ &nbsp;3 ชม. <b>${a.sums.s3.toFixed(1)}</b> •
-        6 ชม. <b>${a.sums.s6.toFixed(1)}</b> •
-        12 ชม. <b>${a.sums.s12.toFixed(1)}</b> มม.
+        📊 ฝนสะสมคาดการณ์ &nbsp;3 ชม. <b>${formatRainAmount(a.sums.s3)}</b> •
+        6 ชม. <b>${formatRainAmount(a.sums.s6)}</b> •
+        12 ชม. <b>${formatRainAmount(a.sums.s12)}</b> มม.
       </div>
       <div style="margin-top:6px;font-size:11px;color:#64748b">
         📍 ${locationName}<br/>
@@ -442,6 +473,7 @@ useEffect(() => {
         target = d.results[Number(value)];
       }
       setPosition({ lat: target.lat, lng: target.lng });
+      ++locationRequestRef.current; setAreaId('point');
       setLocationName(target.name || target.displayName);
       map?.flyTo([target.lat, target.lng], DEFAULT_MAP_ZOOM, { duration: 1.5 });
       Swal.close();
@@ -501,6 +533,7 @@ useEffect(() => {
   };
 
   const handleResetToCenter = () => {
+    ++locationRequestRef.current; setAreaId('bo-luang');
     setPosition({ lat: INITIAL_LAT, lng: INITIAL_LNG });
     setLocationName('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
     map?.flyTo([INITIAL_LAT, INITIAL_LNG], DEFAULT_MAP_ZOOM, { duration: 1.5 });
@@ -512,10 +545,14 @@ useEffect(() => {
   const alert = data?.alert;
   const nowcast = data?.nowcast;
   const st = ALERT_STYLE[alert?.level ?? 'GREEN'];
-  const radarFreshness = data?.radar?.freshness;
-  const radarFreshnessBadge = freshnessLabel(radarFreshness?.status);
-  const weatherFreshnessBadge = freshnessLabel(data?.sources?.weather?.freshness?.status);
-  const airFreshnessBadge = freshnessLabel(data?.sources?.air?.freshness?.status);
+  const radarFreshness = evaluateWeatherFreshness(data?.radar?.observedAt, 20, 40, clock);
+  const unavailableBadge = { text: 'แหล่งข้อมูลไม่พร้อม', tone: 'amber' as const };
+  const radarFreshnessBadge = data?.sources?.radar?.state === 'unavailable' ? unavailableBadge : freshnessLabel(radarFreshness?.status);
+  const weatherFreshnessBadge = data?.sources?.weather?.state === 'unavailable' ? unavailableBadge : freshnessLabel(evaluateWeatherFreshness(data?.sources?.weather?.freshness?.observedAt, 90, 180, clock).status);
+  const airFreshnessBadge = data?.sources?.air?.state === 'unavailable' ? unavailableBadge : freshnessLabel(evaluateWeatherFreshness(data?.sources?.air?.freshness?.observedAt, 90, 180, clock).status);
+  const area = { id: areaId, name: locationName, lat: position.lat, lng: position.lng };
+  const rainSummary = !loading && !err && data?.sources?.forecast?.state === 'ready' && evaluateWeatherFreshness(data?.fetchedAt, 15, 30, clock).status === 'fresh'
+    ? summarizeRain(data?.hourly ?? []) : null;
   const modelConfidence = data?.modelComparison?.confidence === 'high'
     ? 'สูง'
     : data?.modelComparison?.confidence === 'medium'
@@ -523,7 +560,7 @@ useEffect(() => {
       : 'ต่ำ';
   const activeFrame = shownFrames[Math.min(frameIdx, Math.max(0, shownFrames.length - 1))];
   const frameTime = activeFrame?.time
-    ? new Date(activeFrame.time * 1000).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+    ? new Date(activeFrame.time * 1000).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })
     : '--:--';
   const radarDegraded = radarOn && mapZoom > RADAR_MAX_NATIVE_ZOOM;
   const nwpModels = Object.fromEntries((nwp?.models ?? []).map((model: any) => [model.id, model]));
@@ -538,7 +575,7 @@ useEffect(() => {
   return (
     <div className="min-h-screen bg-[#f1f5f9] text-gray-800 font-sans selection:bg-[#0ea5e9] selection:text-white pb-10 flex flex-col">
 
-      <CenterNav />
+      <CenterNav area={area} />
 
       {/* Header */}
       <header className="bg-[#0b132b] px-6 py-4 flex flex-col md:flex-row justify-between md:items-center border-b border-[#1e293b] space-y-4 md:space-y-0">
@@ -566,6 +603,7 @@ useEffect(() => {
             ⚠️ {err} — ระบบจะพยายามดึงข้อมูลใหม่อัตโนมัติใน 5 นาที
           </div>
         )}
+        {data?.partial && <p role="status" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">บางแหล่งข้อมูลไม่พร้อม ระบบยังแสดงข้อมูลจากแหล่งอื่นได้ โปรดดูสถานะแต่ละชุด</p>}
 
         {data?.sources && (
           <section className="grid grid-cols-1 gap-3 md:grid-cols-3" aria-label="สถานะแหล่งข้อมูล">
@@ -596,8 +634,34 @@ useEffect(() => {
           </section>
         )}
 
+        <section className="rounded-2xl border border-sky-200 bg-white p-5 shadow-sm" aria-labelledby="rain-summary-title" aria-busy={loading}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 id="rain-summary-title" className="text-lg font-extrabold text-slate-800">สรุปฝนสำหรับพื้นที่ที่เลือก</h3>
+            <SourceBadge label="แบบจำลอง • กรณีฝนสูงสุดจากหลายแหล่ง" tone="sky" />
+          </div>
+          <p className="mt-2 text-sm text-slate-600">{locationName} • พิกัด {position.lat.toFixed(4)}, {position.lng.toFixed(4)} • ช่วง 24 ชั่วโมงข้างหน้า</p>
+          <p className="mt-1 text-xs text-slate-500">จุดตัวแทน ไม่ใช่ค่าฝนทั้งหมู่บ้าน • ไม่ทราบรอบรันของชุดรายชั่วโมง • ดึงข้อมูล <DataAge iso={data?.fetchedAt} /></p>
+          {rainSummary ? (
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <div><p className="text-xs text-slate-500">ฝนสะสมตามกรณีสูงสุด</p><p className="mt-1 text-2xl font-extrabold text-sky-700">{rainSummary.totalMm.toFixed(1)} มม.</p></div>
+              <div className="md:col-span-2">
+                <p className="font-bold text-slate-800">{rainSummary.peakMm > 0 ? 'ช่วงฝนสะสม 3 ชั่วโมงสูงสุด' : 'แบบจำลองไม่แสดงฝนในช่วงนี้'}</p>
+                {rainSummary.peakMm > 0 && <p className="mt-1 text-sm text-slate-600">{formatRainTime(rainSummary.start)} – {formatRainTime(rainSummary.end)} น. • {rainSummary.peakMm.toFixed(1)} มม.</p>}
+                {rainSummary.peakMm > 0 && rainSummary.maxProbability !== null && <p className="mt-1 text-xs text-slate-500">โอกาสฝนสูงสุดในช่วงนี้ {rainSummary.maxProbability}% • จาก Open-Meteo แยกจากกรณีปริมาณฝนสูงสุด</p>}
+              </div>
+            </div>
+          ) : <p className="mt-4 text-sm text-slate-600">{loading ? 'กำลังอัปเดตข้อมูลของพิกัดที่เลือก…' : 'ยังสรุปช่วงฝนไม่ได้: ข้อมูลไม่ครบ ไม่พร้อม หรือเก่าเกินเกณฑ์'}</p>}
+          <p className="mt-4 text-xs leading-relaxed text-slate-500">ใช้วางแผนเฝ้าระวังร่วมกับเรดาร์และสถานีจริง ไม่ใช่เวลาฝนเริ่มตก ค่าตรวจวัดรายหมู่บ้าน หรือประกาศเตือนน้ำป่า ปริมาณรวมนี้รวมค่าสูงสุดแต่ละชั่วโมงจากหลายแบบจำลอง</p>
+          <div className="mt-4 flex flex-wrap gap-3 text-sm font-bold">
+            <a href="#hourly-rain" className="rounded-xl bg-sky-50 px-4 py-3 text-sky-800 hover:bg-sky-100">ดูฝนรายชั่วโมง</a>
+            <Link href={areaHref('/center/flood', area)} className="rounded-xl bg-slate-100 px-4 py-3 text-slate-700 hover:bg-slate-200">ตรวจสถานีน้ำและฝนรอบจุดนี้ →</Link>
+            <Link href={areaHref('/', area)} className="rounded-xl bg-slate-100 px-4 py-3 text-slate-700 hover:bg-slate-200">กลับ GIS พื้นที่นี้</Link>
+          </div>
+        </section>
+        <AreaEvidencePanel area={area} />
+
         {/* 🚨 แถบเตือนภัย */}
-        {loading && !data ? <Skeleton h="h-28" /> : alert && (
+        {loading && !data ? <Skeleton h="h-28" /> : radarFreshness.status === 'fresh' && alert && (
           <div className={`${st.bg} border ${st.ring} rounded-2xl p-5 md:p-6 shadow-md flex items-start space-x-4`}>
             <div className={`mt-1 text-2xl flex-shrink-0 ${alert.level === 'RED' ? 'animate-pulse' : ''}`}>{st.icon}</div>
             <div className="flex-1">
@@ -607,17 +671,17 @@ useEffect(() => {
               </div>
               <p className="text-gray-700 text-sm md:text-base font-medium mt-1.5 leading-relaxed">{alert.message}</p>
               <div className="flex flex-wrap gap-x-5 gap-y-1 mt-3 text-[11px] md:text-xs font-mono font-bold text-gray-600">
-                <span>สะสม 3 ชม.: {alert.sums.s3.toFixed(1)} มม.</span>
-                <span>6 ชม.: {alert.sums.s6.toFixed(1)} มม.</span>
-                <span>12 ชม.: {alert.sums.s12.toFixed(1)} มม.</span>
-                <span>24 ชม.: {alert.sums.s24.toFixed(1)} มม.</span>
+                <span>คาดการณ์สะสม 3 ชม.: {formatRainAmount(alert.sums.s3)} มม.</span>
+                <span>6 ชม.: {formatRainAmount(alert.sums.s6)} มม.</span>
+                <span>12 ชม.: {formatRainAmount(alert.sums.s12)} มม.</span>
+                <span>24 ชม.: {formatRainAmount(alert.sums.s24)} มม.</span>
               </div>
             </div>
           </div>
         )}
 
         {/* ⏱️ Nowcast */}
-        {nowcast && (
+        {nowcast && radarFreshness.status === 'fresh' && (
           <div className="bg-gradient-to-r from-[#0f172a] to-[#1e293b] rounded-2xl p-5 md:p-6 border border-[#334155] shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center space-x-4">
               <span className="text-4xl">{nowcast.status === 'RAINING_NOW' ? '🌧️' : nowcast.status === 'INCOMING' ? '⏱️' : nowcast.status === 'UNAVAILABLE' ? '⚠️' : '🌤️'}</span>
@@ -701,7 +765,8 @@ useEffect(() => {
               <button onClick={() => setPlaying(p => !p)} disabled={!radarOn} className="px-3 py-2 rounded-lg font-bold bg-gray-800 text-white disabled:opacity-40">
                 {playing ? '⏸ หยุด' : '▶ เล่น'}
               </button>
-              <span className="px-3 py-2 rounded-lg bg-white border border-gray-300 font-bold text-gray-700">🕒 {frameTime}</span>
+              <span className="px-3 py-2 rounded-lg bg-white border border-gray-300 font-bold text-gray-700">ภาพที่กำลังดู: {frameTime} น.</span>
+              <span className="text-slate-600">เรดาร์ล่าสุด: <DataAge iso={data?.radar?.observedAt} /></span>
               {radarDegraded && (
                 <span className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-300 text-amber-700 font-bold">
                   ⚠️ ภาพเรดาร์ขยายจาก z{RADAR_MAX_NATIVE_ZOOM}
@@ -732,6 +797,7 @@ useEffect(() => {
           {radarOn && shownFrames.length > 1 && (
             <div className="px-5 py-3 bg-gray-50 border-t border-gray-200 flex items-center gap-3">
               <input type="range" min={0} max={shownFrames.length - 1} value={Math.min(frameIdx, shownFrames.length - 1)}
+                aria-label="เลือกเวลาภาพเรดาร์ย้อนหลังและคาดการณ์"
                 onChange={(e) => { setPlaying(false); setFrameIdx(Number(e.target.value)); }}
                 className="w-full accent-[#0ea5e9]" />
               <span className={`text-[11px] font-bold whitespace-nowrap px-2 py-1 rounded ${activeFrame?.isForecast ? 'bg-purple-100 text-purple-700' : 'bg-sky-100 text-sky-700'}`}>
@@ -768,12 +834,12 @@ useEffect(() => {
             {cur ? (
               <>
                 <span className="text-7xl drop-shadow-lg mb-3 group-hover:scale-110 transition-transform">{getWeatherEmoji(cur.weather_code)}</span>
-                <div className="text-6xl font-extrabold text-white mb-2">{cur.temperature_2m?.toFixed(1)}°<span className="text-3xl text-gray-400">C</span></div>
+                <div className="text-6xl font-extrabold text-white mb-2">{Number.isFinite(cur.temperature_2m) ? cur.temperature_2m.toFixed(1) : '--'}°<span className="text-3xl text-gray-400">C</span></div>
                 <p className="text-[#38bdf8] font-bold text-xl">{getWmoWeatherDesc(cur.weather_code)}</p>
-                <p className="text-gray-400 text-xs mt-2 font-mono">รู้สึกเหมือน {cur.apparent_temperature?.toFixed(1)}°C</p>
+                <p className="text-gray-400 text-xs mt-2 font-mono">รู้สึกเหมือน {Number.isFinite(cur.apparent_temperature) ? cur.apparent_temperature.toFixed(1) : '--'}°C</p>
                 <div className="mt-3"><SourceBadge label="แบบจำลอง • Open-Meteo" tone="sky" /></div>
               </>
-            ) : <div className="text-gray-500 animate-pulse">กำลังโหลด…</div>}
+            ) : <div className="text-gray-400">{loading ? 'กำลังโหลด…' : 'ไม่มีข้อมูลสภาพอากาศ'}</div>}
           </div>
 
           <div className="col-span-1 bg-white p-6 md:p-7 rounded-3xl border border-gray-200 shadow-sm flex flex-col justify-between min-h-[160px]">
@@ -831,7 +897,7 @@ useEffect(() => {
           </div>
 
           {/* ฝนรายชั่วโมง */}
-          <div className="col-span-1 md:col-span-4 bg-white p-5 md:p-7 rounded-3xl border border-gray-200 shadow-sm h-[320px] md:h-[360px] flex flex-col">
+          <div id="hourly-rain" className="scroll-mt-4 col-span-1 md:col-span-4 bg-white p-5 md:p-7 rounded-3xl border border-gray-200 shadow-sm h-[320px] md:h-[360px] flex flex-col">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center"><span className="text-xl mr-2">⏳</span><h3 className="text-gray-800 text-base md:text-lg font-extrabold">ฝนรายชั่วโมง 24 ชั่วโมงข้างหน้า (มม. / โอกาสเกิดฝน %)</h3></div>
               <SourceBadge label="แบบจำลองหลายแหล่ง • กรณีฝนสูงสุด" tone="sky" />
@@ -860,6 +926,7 @@ useEffect(() => {
 
           <section id="nwp" className="col-span-1 md:col-span-4 overflow-hidden rounded-3xl border border-sky-200 bg-white shadow-sm" aria-labelledby="nwp-heading">
             <div className="border-b border-sky-100 bg-gradient-to-r from-[#071f3a] to-[#0f4a8a] p-5 text-white md:p-7">
+              <p className="mb-2 text-xs text-sky-100">บริบทแบบจำลองส่วนนี้: จุดอ้างอิงตำบลบ่อหลวง 18.1633, 98.3744 • ไม่เปลี่ยนตามหมุดที่เลือก</p>
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
                   <p className="text-xs font-black tracking-[.16em] text-sky-200">NUMERICAL WEATHER PREDICTION</p>

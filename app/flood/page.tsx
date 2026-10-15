@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import 'leaflet/dist/leaflet.css';
 import Swal from 'sweetalert2';
 import CenterNav from '@/components/center/CenterNav';
+import { parseAreaSearch } from '@/lib/gis/area-context';
 import {
   assessStationRisk,
   evaluateStationFreshness,
@@ -97,7 +98,7 @@ export default function FloodWatchDashboard() {
   const [filterRisk, setFilterRisk] = useState('ทุกระดับความเสี่ยง');
   const [useRadius, setUseRadius] = useState(true);
   const [radiusKm, setRadiusKm] = useState(MAX_DISTANCE_KM);
-  const [positionSource, setPositionSource] = useState<'bo_luang' | 'device'>('bo_luang');
+  const [positionSource, setPositionSource] = useState<'bo_luang' | 'device' | 'gis'>('bo_luang');
   const [isLocating, setIsLocating] = useState(false);
   
   const [windyLayer, setWindyLayer] = useState('radar');
@@ -107,6 +108,16 @@ export default function FloodWatchDashboard() {
 
   // ตัวแปรเก็บชื่อสถานที่ที่ถูกต้อง
   const [locationName, setLocationName] = useState('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่');
+  const [areaId, setAreaId] = useState('bo-luang');
+  const locationRequestRef = useRef(0);
+  const positionRef = useRef(position);
+  positionRef.current = position;
+  useEffect(() => {
+    const area = parseAreaSearch(window.location.search);
+    if (!area) return;
+    setPosition({ lat: area.lat, lng: area.lng }); setLocationName(area.name); setPositionSource('gis'); setAreaId(area.id);
+    setFilterProv('ทุกจังหวัด'); setFilterAmp('ทุกอำเภอ'); setUseRadius(true);
+  }, []);
 
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
@@ -265,10 +276,12 @@ export default function FloodWatchDashboard() {
   }, [L]);
 
   const fetchLocationName = async (lat: number, lng: number) => {
+    const requestId = ++locationRequestRef.current;
+    setAreaId('point'); setLocationName('พิกัดที่เลือก');
     try {
       const res = await fetch(`/api/geocode?mode=reverse&lat=${lat}&lng=${lng}`);
       const data = await res.json();
-      if (data?.name) setLocationName(data.name);
+      if (requestId === locationRequestRef.current && positionRef.current.lat === lat && positionRef.current.lng === lng && data?.name) setLocationName(data.name);
     } catch { /* ใช้ชื่อจุดอ้างอิงเดิมต่อเมื่อ geocoder ไม่พร้อม */ }
   };
 
@@ -277,7 +290,7 @@ export default function FloodWatchDashboard() {
     if (marker != null) {
       const latlng = marker.getLatLng();
       setPosition({ lat: latlng.lat, lng: latlng.lng });
-      setPositionSource('bo_luang');
+      setPositionSource('gis'); setAreaId('point');
       fetchLocationName(latlng.lat, latlng.lng);
     }
   };
@@ -286,8 +299,9 @@ export default function FloodWatchDashboard() {
   const handleSetHod = () => { setFilterProv('เชียงใหม่'); setFilterAmp('ฮอด'); setUseRadius(false); };
   const handleSetRadius = () => { setFilterProv('ทุกจังหวัด'); setFilterAmp('ทุกอำเภอ'); setUseRadius(true); setRadiusKm(50); };
   const handleReset = () => { 
+    ++locationRequestRef.current;
     setSearchQuery(''); setFilterProv('ทุกจังหวัด'); setFilterAmp('ทุกอำเภอ'); setFilterRisk('ทุกระดับความเสี่ยง'); setUseRadius(false); setPosition({lat: INITIAL_LAT, lng: INITIAL_LNG});
-    setLocationName('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่'); setPositionSource('bo_luang');
+    setLocationName('ตำบลบ่อหลวง • อำเภอฮอด • จังหวัดเชียงใหม่'); setPositionSource('bo_luang'); setAreaId('bo-luang'); setAreaId('bo-luang');
     if(mapRef.current) mapRef.current.flyTo([INITIAL_LAT, INITIAL_LNG], 10);
   };
 
@@ -321,7 +335,7 @@ export default function FloodWatchDashboard() {
 
       const { latitude, longitude } = result.coords;
       setPosition({ lat: latitude, lng: longitude });
-      setPositionSource('device');
+      setPositionSource('device'); setAreaId('point'); setAreaId('point');
       fetchLocationName(latitude, longitude);
       mapRef.current?.flyTo([latitude, longitude], CURRENT_LOCATION_ZOOM, { duration: 1.5 });
       Swal.close();
@@ -477,7 +491,7 @@ export default function FloodWatchDashboard() {
 
   return (
     <div className="min-h-screen bg-[#f1f5f9] font-sans text-gray-800 pb-10 flex flex-col">
-      <CenterNav />
+      <CenterNav area={{ id: areaId, name: locationName, ...position }} />
       
       {/* 🚀 Header */}
       <header className="bg-[#0b132b] px-6 py-4 flex flex-col items-start border-b border-[#1e293b]">
@@ -536,7 +550,7 @@ export default function FloodWatchDashboard() {
             <div className="flex items-center space-x-3 mb-5">
               <input type="checkbox" id="radius1" checked={useRadius} onChange={(e) => setUseRadius(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-[#0f4a8a] cursor-pointer" /> 
               <label htmlFor="radius1" className="text-gray-700 text-[14px] md:text-[15px] font-medium cursor-pointer select-none">
-                ค้นหาในรัศมีจาก{positionSource === 'device' ? 'ตำแหน่งอุปกรณ์' : 'จุดอ้างอิงตำบลบ่อหลวง'}
+                ค้นหาในรัศมีจาก{positionSource === 'device' ? 'ตำแหน่งอุปกรณ์' : positionSource === 'gis' ? locationName : 'จุดอ้างอิงตำบลบ่อหลวง'}
               </label>
             </div>
 
@@ -548,7 +562,7 @@ export default function FloodWatchDashboard() {
                   <span className="text-red-500 mr-2 text-base">{isLocating ? '⏳' : '📍'}</span> {isLocating ? 'กำลังระบุ...' : 'ใช้ตำแหน่งอุปกรณ์'}
                 </button>
                 <span className="ml-5 text-gray-400 text-[12px] md:text-[13px] hidden lg:inline">
-                  จุดอ้างอิง: {positionSource === 'device' ? 'ตำแหน่งอุปกรณ์' : 'ศูนย์กลางตำบลบ่อหลวง'} • {position.lat.toFixed(6)}, {position.lng.toFixed(6)}
+                  จุดอ้างอิง: {positionSource === 'device' ? 'ตำแหน่งอุปกรณ์' : positionSource === 'gis' ? locationName : 'ศูนย์กลางตำบลบ่อหลวง'} • {position.lat.toFixed(6)}, {position.lng.toFixed(6)}
                 </span>
               </div>
               <div className="flex flex-wrap gap-2 md:gap-3">
@@ -621,7 +635,7 @@ export default function FloodWatchDashboard() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-6">
           <div className="px-5 md:px-6 py-4 border-b border-gray-100 bg-white">
             <h3 className="text-[#0f4a8a] text-[18px] md:text-[20px] font-extrabold flex items-center"><span className="mr-2 text-xl md:text-2xl">🌊</span> สถานีอ้างอิงรอบตำบล</h3>
-            <p className="text-[12px] md:text-[14px] text-gray-500 mt-1">สถานีเหล่านี้อาจอยู่นอกตำบลบ่อหลวง เรียงตามระยะจาก{positionSource === 'device' ? 'ตำแหน่งอุปกรณ์' : 'จุดอ้างอิงบ่อหลวง'} และต้องพิจารณาอายุข้อมูลก่อนใช้งาน</p>
+            <p className="text-[12px] md:text-[14px] text-gray-500 mt-1">สถานีเหล่านี้อาจอยู่นอกตำบลบ่อหลวง เรียงตามระยะจาก{positionSource === 'device' ? 'ตำแหน่งอุปกรณ์' : positionSource === 'gis' ? locationName : 'จุดอ้างอิงบ่อหลวง'} และต้องพิจารณาอายุข้อมูลก่อนใช้งาน</p>
           </div>
           <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
             <table className="w-full text-[13px] md:text-[15px] text-left font-sans">
@@ -738,7 +752,7 @@ export default function FloodWatchDashboard() {
             <span className="text-gray-300 hidden md:inline">|</span>
             <span className="flex items-center"><span className="w-4 h-4 rounded-full bg-gray-500 mr-2"></span> วงกลมทึบ = สถานีวัดระดับน้ำ</span>
             <span className="flex items-center"><span className="w-4 h-4 rounded-full border-[2px] border-gray-500 mr-2 bg-transparent"></span> วงกลมขอบสี = สถานีวัดปริมาณฝน</span>
-            <span className="flex items-center ml-auto md:ml-0"><span className="text-red-600 mr-1.5 text-base">📍</span> {positionSource === 'device' ? 'ตำแหน่งอุปกรณ์' : 'จุดอ้างอิงบ่อหลวง'}</span>
+            <span className="flex items-center ml-auto md:ml-0"><span className="text-red-600 mr-1.5 text-base">📍</span> {positionSource === 'device' ? 'ตำแหน่งอุปกรณ์' : positionSource === 'gis' ? locationName : 'จุดอ้างอิงบ่อหลวง'}</span>
           </div>
         </div>
 
