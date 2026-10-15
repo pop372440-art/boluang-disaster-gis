@@ -34,10 +34,10 @@ export default function DataDictionaryPage() {
         {datasets.map(([datasetId, dataset]) => (
           <article key={datasetId} className="rounded-xl border border-slate-200 bg-white p-5 md:p-6">
             <h3 className="text-lg font-semibold">{datasetTitles[datasetId] ?? datasetId}</h3>
-            <p className="mt-1 font-mono text-xs text-slate-500">{datasetId}</p>
+            <p className="mt-1 font-mono text-sm text-slate-500">{datasetId}</p>
             {dataset.fields ? (
               <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
-                <table className="min-w-full divide-y divide-slate-700 text-left text-sm">
+                <table className="min-w-full divide-y divide-slate-700 text-left text-base">
                   <thead className="bg-white"><tr><th className="px-4 py-3 font-bold text-slate-700">ชื่อฟิลด์</th><th className="px-4 py-3 font-bold text-slate-700">ความหมาย</th></tr></thead>
                   <tbody className="divide-y divide-slate-700">{Object.entries(dataset.fields).map(([field, meaning]) => <tr key={field}><th scope="row" className="whitespace-nowrap px-4 py-3 font-mono text-sky-700">{field}</th><td className="px-4 py-3 leading-6 text-slate-800">{meaning}</td></tr>)}</tbody>
                 </table>

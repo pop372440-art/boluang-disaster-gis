@@ -165,10 +165,10 @@ export default function PublicDashboard() {
             <div className="flex h-11 w-11 items-center justify-center rounded-xl text-xl" aria-hidden="true">▥</div>
             <div>
               <h1 className="text-xl font-bold tracking-wide md:text-2xl">Public Dashboard</h1>
-              <p className="text-xs text-sky-700 md:text-sm">สรุปข้อมูลการรับแจ้งเหตุสาธารณะ ตำบลบ่อหลวง</p>
+              <p className="text-sm text-sky-700 md:text-base">สรุปข้อมูลการรับแจ้งเหตุสาธารณะ ตำบลบ่อหลวง</p>
             </div>
           </div>
-          <Link href="/" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400">
+          <Link href="/" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-base font-bold transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400">
             ← กลับหน้าแผนที่หลัก
           </Link>
         </div>
@@ -179,16 +179,16 @@ export default function PublicDashboard() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 id="data-context-title" className="font-bold text-sky-700">สถานะและที่มาของข้อมูล</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-700">
+              <p className="mt-1 text-base leading-6 text-slate-700">
                 อัปเดตจากฐานข้อมูลทุกประมาณ 60 วินาที ไม่ใช่ระบบสั่งการหรือ dispatch สด
                 ข้อมูลมาจากแบบฟอร์มประชาชนและสถานะที่เจ้าหน้าที่บันทึก
               </p>
-              <p className="mt-2 text-xs leading-5 text-slate-600">
+              <p className="mt-2 text-sm leading-5 text-slate-600">
                 AI อาจช่วยเสนอประเภทภัยหรือข้อความในขั้นตอนแจ้งเหตุ แต่ระบบยังไม่ได้เก็บแหล่งที่มาระดับรายการ
                 รายการในหน้านี้จึงไม่ถูกระบุว่าเป็นผลวิเคราะห์โดย AI
               </p>
             </div>
-            <div className="text-left text-xs text-slate-700 md:text-right" aria-live="polite">
+            <div className="text-left text-sm text-slate-700 md:text-right" aria-live="polite">
               <p>ดึงข้อมูลล่าสุด: <strong className="text-slate-900">{formatDateTime(metadata?.generatedAt ?? null)}</strong></p>
               <p className="mt-1">เหตุล่าสุดในชุดข้อมูล: {formatDateTime(metadata?.newestIncidentAt ?? null)}</p>
               <button
@@ -202,12 +202,12 @@ export default function PublicDashboard() {
             </div>
           </div>
           {metadata?.truncated ? (
-            <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700" role="note">
+            <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700" role="note">
               ชุดข้อมูลถึงขีดจำกัด {metadata.rowLimit.toLocaleString('th-TH')} รายการ สถิติในหน้านี้ครอบคลุมรายการล่าสุดเท่านั้น
             </p>
           ) : null}
           {error ? (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-base text-red-700" role="alert">
               <span>{error} ข้อมูลเดิมที่โหลดสำเร็จจะยังคงแสดงอยู่</span>
               <button type="button" onClick={() => void loadDashboard(true)} className="rounded-md bg-red-50 px-3 py-1.5 font-bold hover:bg-red-700">ลองใหม่</button>
             </div>
@@ -218,28 +218,28 @@ export default function PublicDashboard() {
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 id="filters-title" className="text-lg font-bold">ตัวกรองข้อมูล</h2>
-              <p className="text-sm text-slate-600">สถิติ กราฟ และตารางด้านล่างจะเปลี่ยนตามตัวกรองเดียวกัน</p>
+              <p className="text-base text-slate-600">สถิติ กราฟ และตารางด้านล่างจะเปลี่ยนตามตัวกรองเดียวกัน</p>
             </div>
-            <button type="button" onClick={() => setFilters(EMPTY_FILTERS)} disabled={!hasFilters} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-800 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400">ล้างตัวกรอง</button>
+            <button type="button" onClick={() => setFilters(EMPTY_FILTERS)} disabled={!hasFilters} className="rounded-lg border border-slate-200 px-3 py-2 text-base font-bold text-slate-800 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400">ล้างตัวกรอง</button>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <label className="text-sm font-semibold text-slate-700">ตั้งแต่วันที่
+            <label className="text-base font-semibold text-slate-700">ตั้งแต่วันที่
               <input type="date" value={filters.dateFrom} max={filters.dateTo || undefined} onChange={event => updateFilter('dateFrom', event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-900 focus:border-sky-200 focus:outline-none" />
             </label>
-            <label className="text-sm font-semibold text-slate-700">ถึงวันที่
+            <label className="text-base font-semibold text-slate-700">ถึงวันที่
               <input type="date" value={filters.dateTo} min={filters.dateFrom || undefined} onChange={event => updateFilter('dateTo', event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-900 focus:border-sky-200 focus:outline-none" />
             </label>
-            <label className="text-sm font-semibold text-slate-700">หมู่บ้าน
+            <label className="text-base font-semibold text-slate-700">หมู่บ้าน
               <select value={filters.village} onChange={event => updateFilter('village', event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-900 focus:border-sky-200 focus:outline-none">
                 <option value="">ทุกหมู่บ้าน</option>{villages.map(value => <option key={value} value={value}>{value}</option>)}
               </select>
             </label>
-            <label className="text-sm font-semibold text-slate-700">ประเภทเหตุ
+            <label className="text-base font-semibold text-slate-700">ประเภทเหตุ
               <select value={filters.riskType} onChange={event => updateFilter('riskType', event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-900 focus:border-sky-200 focus:outline-none">
                 <option value="">ทุกประเภท</option>{riskTypes.map(value => <option key={value} value={value}>{value}</option>)}
               </select>
             </label>
-            <label className="text-sm font-semibold text-slate-700">สถานะ
+            <label className="text-base font-semibold text-slate-700">สถานะ
               <select value={filters.status} onChange={event => updateFilter('status', event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-900 focus:border-sky-200 focus:outline-none">
                 <option value="">ทุกสถานะ</option>{statuses.map(value => <option key={value} value={value}>{value}</option>)}
               </select>
@@ -249,12 +249,12 @@ export default function PublicDashboard() {
 
         <section className="grid gap-5 md:grid-cols-4" aria-label="สถิติสรุปตามตัวกรอง">
           <article className="rounded-xl border border-slate-200 bg-white p-6 md:col-span-2">
-            <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-600">เหตุในช่วงที่เลือก</h2>
+            <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-slate-600">เหตุในช่วงที่เลือก</h2>
             <p className="mt-3 text-6xl font-semibold">{filtered.length.toLocaleString('th-TH')} <span className="text-xl font-normal text-slate-600">รายการ</span></p>
-            <p className="mt-3 text-sm text-slate-600">จากข้อมูลทั้งหมด {incidents.length.toLocaleString('th-TH')} รายการที่ API คืนให้หน้า Dashboard</p>
+            <p className="mt-3 text-base text-slate-600">จากข้อมูลทั้งหมด {incidents.length.toLocaleString('th-TH')} รายการที่ API คืนให้หน้า Dashboard</p>
           </article>
-          <article className="rounded-xl border border-orange-200 bg-white p-6"><h2 className="text-sm font-bold text-orange-700">กำลังดำเนินการ</h2><p className="mt-3 text-5xl font-semibold text-orange-700">{(filtered.length - resolved).toLocaleString('th-TH')}</p></article>
-          <article className="rounded-xl border border-emerald-200 bg-white p-6"><h2 className="text-sm font-bold text-emerald-700">เสร็จสิ้น</h2><p className="mt-3 text-5xl font-semibold text-emerald-700">{resolved.toLocaleString('th-TH')}</p></article>
+          <article className="rounded-xl border border-orange-200 bg-white p-6"><h2 className="text-base font-bold text-orange-700">กำลังดำเนินการ</h2><p className="mt-3 text-5xl font-semibold text-orange-700">{(filtered.length - resolved).toLocaleString('th-TH')}</p></article>
+          <article className="rounded-xl border border-emerald-200 bg-white p-6"><h2 className="text-base font-bold text-emerald-700">เสร็จสิ้น</h2><p className="mt-3 text-5xl font-semibold text-emerald-700">{resolved.toLocaleString('th-TH')}</p></article>
         </section>
 
         <section className="grid gap-5 lg:grid-cols-2" aria-label="กราฟสรุปสถานการณ์">
@@ -263,30 +263,30 @@ export default function PublicDashboard() {
             <div className="h-[330px]" role="img" aria-label={riskData.length ? `กราฟประเภทเหตุ ${riskData.map(item => `${item.name} ${item.value} รายการ`).join(', ')}` : 'ไม่พบข้อมูลประเภทเหตุ'}>
               {riskData.length ? <ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={riskData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={68} outerRadius={108} paddingAngle={3} stroke="none">{riskData.map((item, index) => <Cell key={item.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}</Pie><Tooltip cursor={false} contentStyle={TOOLTIP_CONTENT_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={{ display: 'none' }} wrapperStyle={TOOLTIP_WRAPPER_STYLE} formatter={(value, name) => [`${Number(value).toLocaleString('th-TH')} รายการ`, name]} /></PieChart></ResponsiveContainer> : <p className="flex h-full items-center justify-center text-slate-600">ไม่พบข้อมูลตามตัวกรอง</p>}
             </div>
-            <ul className="grid gap-2 text-sm sm:grid-cols-2" aria-label="ข้อมูลประเภทเหตุแบบข้อความ">
+            <ul className="grid gap-2 text-base sm:grid-cols-2" aria-label="ข้อมูลประเภทเหตุแบบข้อความ">
               {riskData.map((item, index) => <li key={item.name} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2"><span><span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} aria-hidden="true" />{item.name}</span><strong>{item.value.toLocaleString('th-TH')}</strong></li>)}
             </ul>
           </article>
           <article className="rounded-xl border border-slate-200 bg-white p-5">
             <h2 className="text-lg font-bold">5 พื้นที่ที่มีการแจ้งเหตุสูงสุด</h2>
-            <p className="mt-1 text-xs text-slate-600">เป็นจำนวนรายงาน ไม่ใช่ค่าความเสี่ยงเชิงพยากรณ์</p>
+            <p className="mt-1 text-sm text-slate-600">เป็นจำนวนรายงาน ไม่ใช่ค่าความเสี่ยงเชิงพยากรณ์</p>
             <div className="h-[330px]" role="img" aria-label={villageData.length ? `กราฟพื้นที่ ${villageData.map(item => `${item.name} ${item.value} รายการ`).join(', ')}` : 'ไม่พบข้อมูลพื้นที่'}>
               {villageData.length ? <ResponsiveContainer width="100%" height="100%"><BarChart data={villageData} margin={{ top: 24, right: 8, left: -12, bottom: 10 }}><CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} /><XAxis dataKey="name" stroke="#cbd5e1" fontSize={11} tickLine={false} axisLine={false} /><YAxis allowDecimals={false} stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} /><Tooltip cursor={{ fill: '#334155', opacity: 0.35 }} contentStyle={TOOLTIP_CONTENT_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={{ color: '#bae6fd', fontWeight: 700 }} wrapperStyle={TOOLTIP_WRAPPER_STYLE} formatter={value => `${Number(value).toLocaleString('th-TH')} รายการ`} /><Bar dataKey="value" name="จำนวนแจ้งเหตุ" fill="#38bdf8" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer> : <p className="flex h-full items-center justify-center text-slate-600">ไม่พบข้อมูลตามตัวกรอง</p>}
             </div>
-            <ol className="space-y-2 text-sm" aria-label="อันดับพื้นที่แบบข้อความ">{villageData.map((item, index) => <li key={item.name} className="flex justify-between rounded-lg bg-white px-3 py-2"><span>{index + 1}. {item.name}</span><strong>{item.value.toLocaleString('th-TH')} รายการ</strong></li>)}</ol>
+            <ol className="space-y-2 text-base" aria-label="อันดับพื้นที่แบบข้อความ">{villageData.map((item, index) => <li key={item.name} className="flex justify-between rounded-lg bg-white px-3 py-2"><span>{index + 1}. {item.name}</span><strong>{item.value.toLocaleString('th-TH')} รายการ</strong></li>)}</ol>
           </article>
         </section>
 
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white" aria-labelledby="incident-table-title">
-          <div className="border-b border-slate-200 bg-white px-5 py-5"><h2 id="incident-table-title" className="text-lg font-bold">รายการรับแจ้งเหตุล่าสุด</h2><p className="mt-1 text-sm text-slate-600">แสดงสูงสุด 50 รายการตามตัวกรอง เรียงจากใหม่ไปเก่า</p></div>
+          <div className="border-b border-slate-200 bg-white px-5 py-5"><h2 id="incident-table-title" className="text-lg font-bold">รายการรับแจ้งเหตุล่าสุด</h2><p className="mt-1 text-base text-slate-600">แสดงสูงสุด 50 รายการตามตัวกรอง เรียงจากใหม่ไปเก่า</p></div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[760px] border-collapse text-left text-base">
               <caption className="sr-only">รายการรับแจ้งเหตุสาธารณะ ประเภทเหตุ หมู่บ้าน ระดับความรุนแรง และสถานะ</caption>
-              <thead className="bg-white text-xs uppercase tracking-wider text-slate-700"><tr><th scope="col" className="px-5 py-4">วันเวลา</th><th scope="col" className="px-5 py-4">ประเภทเหตุ</th><th scope="col" className="px-5 py-4">หมู่บ้าน</th><th scope="col" className="px-5 py-4">ระดับ</th><th scope="col" className="px-5 py-4">สถานะ</th><th scope="col" className="px-5 py-4">ที่มา</th></tr></thead>
+              <thead className="bg-white text-sm uppercase tracking-wider text-slate-700"><tr><th scope="col" className="px-5 py-4">วันเวลา</th><th scope="col" className="px-5 py-4">ประเภทเหตุ</th><th scope="col" className="px-5 py-4">หมู่บ้าน</th><th scope="col" className="px-5 py-4">ระดับ</th><th scope="col" className="px-5 py-4">สถานะ</th><th scope="col" className="px-5 py-4">ที่มา</th></tr></thead>
               <tbody>
                 {filtered.slice(0, 50).map((incident, index) => {
                   const presentation = statusPresentation(incident.status);
-                  return <tr key={`${incident.createdAt}-${incident.villageName}-${index}`} className="border-t border-slate-200 hover:bg-white"><td className="whitespace-nowrap px-5 py-4 text-slate-700">{formatDateTime(incident.createdAt)}</td><th scope="row" className="px-5 py-4 font-semibold text-slate-900">{incident.riskType}</th><td className="px-5 py-4 text-slate-700">{incident.villageName}</td><td className="px-5 py-4 text-slate-700">{incident.severityLevel ?? 'ไม่ระบุ'}</td><td className="px-5 py-4"><span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${presentation.className}`}>{presentation.label}</span></td><td className="px-5 py-4 text-xs text-slate-600">แบบฟอร์มประชาชน</td></tr>;
+                  return <tr key={`${incident.createdAt}-${incident.villageName}-${index}`} className="border-t border-slate-200 hover:bg-white"><td className="whitespace-nowrap px-5 py-4 text-slate-700">{formatDateTime(incident.createdAt)}</td><th scope="row" className="px-5 py-4 font-semibold text-slate-900">{incident.riskType}</th><td className="px-5 py-4 text-slate-700">{incident.villageName}</td><td className="px-5 py-4 text-slate-700">{incident.severityLevel ?? 'ไม่ระบุ'}</td><td className="px-5 py-4"><span className={`inline-flex rounded-full border px-3 py-1 text-sm font-bold ${presentation.className}`}>{presentation.label}</span></td><td className="px-5 py-4 text-sm text-slate-600">แบบฟอร์มประชาชน</td></tr>;
                 })}
                 {!filtered.length ? <tr><td colSpan={6} className="px-5 py-14 text-center text-slate-600">ไม่พบรายการที่ตรงกับตัวกรอง</td></tr> : null}
               </tbody>

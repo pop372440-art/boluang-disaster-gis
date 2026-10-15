@@ -96,7 +96,7 @@ function SourceBadge({ label, tone = 'slate' }: { label: string; tone?: 'slate' 
     amber: 'border-amber-200 bg-amber-50 text-amber-700',
     emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700'
   };
-  return <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-bold ${tones[tone]}`}>{label}</span>;
+  return <span className={`inline-flex rounded-full border px-2 py-1 text-sm font-bold ${tones[tone]}`}>{label}</span>;
 }
 
 function freshnessLabel(status?: string) {
@@ -577,8 +577,8 @@ useEffect(() => {
           </div>
           <div>
             <h1 className="text-[18px] md:text-[22px] font-semibold text-[#1d4ed8] leading-tight">ระบบตรวจสอบสภาพอากาศ</h1>
-            <h2 className="text-[14px] md:text-[16px] font-bold text-slate-900 mt-1">Bo Luang Weather Center</h2>
-            <p className="text-[12px] md:text-[13px] text-gray-600 mt-1">ตรวจสอบอุณหภูมิ ปริมาณฝน และการพยากรณ์อากาศในพื้นที่</p>
+            <h2 className="text-base md:text-[16px] font-bold text-slate-900 mt-1">Bo Luang Weather Center</h2>
+            <p className="text-sm md:text-base text-gray-600 mt-1">ตรวจสอบอุณหภูมิ ปริมาณฝน และการพยากรณ์อากาศในพื้นที่</p>
           </div>
         </div>
 
@@ -587,37 +587,37 @@ useEffect(() => {
       <main className="bl-content p-4 md:p-6 w-full space-y-6 flex-1">
 
         {err && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 font-bold text-sm">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 font-bold text-base">
              {err} — ระบบจะพยายามดึงข้อมูลใหม่อัตโนมัติใน 5 นาที
           </div>
         )}
-        {data?.partial && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">บางแหล่งข้อมูลไม่พร้อม ระบบยังแสดงข้อมูลจากแหล่งอื่นได้ โปรดดูสถานะแต่ละชุด</p>}
+        {data?.partial && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-base text-amber-900">บางแหล่งข้อมูลไม่พร้อม ระบบยังแสดงข้อมูลจากแหล่งอื่นได้ โปรดดูสถานะแต่ละชุด</p>}
 
         {data?.sources && (
           <section className="grid grid-cols-1 gap-3 md:grid-cols-3" aria-label="สถานะแหล่งข้อมูล">
             <div className="rounded-xl border border-sky-200 bg-white p-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-slate-800">สภาพอากาศและพยากรณ์</p>
+                <p className="text-base font-semibold text-slate-800">สภาพอากาศและพยากรณ์</p>
                 <SourceBadge label={weatherFreshnessBadge.text} tone={weatherFreshnessBadge.tone} />
               </div>
-              <p className="mt-2 text-xs text-slate-600">แบบจำลอง • {data.sources.weather.provider}</p>
-              <p className="mt-1 text-[10px] text-slate-500">เวลาแหล่งข้อมูล: <DataAge iso={data.sources.weather.freshness?.observedAt} /></p>
+              <p className="mt-2 text-sm text-slate-600">แบบจำลอง • {data.sources.weather.provider}</p>
+              <p className="mt-1 text-sm text-slate-500">เวลาแหล่งข้อมูล: <DataAge iso={data.sources.weather.freshness?.observedAt} /></p>
             </div>
             <div className="rounded-xl border border-violet-200 bg-white p-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-slate-800">PM2.5 และ AQI</p>
+                <p className="text-base font-semibold text-slate-800">PM2.5 และ AQI</p>
                 <SourceBadge label={airFreshnessBadge.text} tone={airFreshnessBadge.tone} />
               </div>
-              <p className="mt-2 text-xs text-slate-600">แบบจำลองคุณภาพอากาศ • {data.sources.air.provider}</p>
-              <p className="mt-1 text-[10px] text-slate-500">เวลาแหล่งข้อมูล: <DataAge iso={data.sources.air.freshness?.observedAt} /></p>
+              <p className="mt-2 text-sm text-slate-600">แบบจำลองคุณภาพอากาศ • {data.sources.air.provider}</p>
+              <p className="mt-1 text-sm text-slate-500">เวลาแหล่งข้อมูล: <DataAge iso={data.sources.air.freshness?.observedAt} /></p>
             </div>
             <div className="rounded-xl border border-emerald-200 bg-white p-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-slate-800">เรดาร์ตรวจกลุ่มฝน</p>
+                <p className="text-base font-semibold text-slate-800">เรดาร์ตรวจกลุ่มฝน</p>
                 <SourceBadge label={radarFreshnessBadge.text} tone={radarFreshnessBadge.tone} />
               </div>
-              <p className="mt-2 text-xs text-slate-600">ภาพเรดาร์ • {data.sources.radar.provider}</p>
-              <p className="mt-1 text-[10px] text-slate-500">ไม่มีสถานีวัดฝนของเทศบาลที่เชื่อมต่อและยืนยันแล้ว</p>
+              <p className="mt-2 text-sm text-slate-600">ภาพเรดาร์ • {data.sources.radar.provider}</p>
+              <p className="mt-1 text-sm text-slate-500">ไม่มีสถานีวัดฝนของเทศบาลที่เชื่อมต่อและยืนยันแล้ว</p>
             </div>
           </section>
         )}
@@ -627,20 +627,20 @@ useEffect(() => {
             <h3 id="rain-summary-title" className="text-lg font-semibold text-slate-800">สรุปฝนสำหรับพื้นที่ที่เลือก</h3>
             <SourceBadge label="แบบจำลอง • กรณีฝนสูงสุดจากหลายแหล่ง" tone="sky" />
           </div>
-          <p className="mt-2 text-sm text-slate-600">{locationName} • พิกัด {position.lat.toFixed(4)}, {position.lng.toFixed(4)} • ช่วง 24 ชั่วโมงข้างหน้า</p>
-          <p className="mt-1 text-xs text-slate-500">จุดตัวแทน ไม่ใช่ค่าฝนทั้งหมู่บ้าน • ไม่ทราบรอบรันของชุดรายชั่วโมง • ดึงข้อมูล <DataAge iso={data?.fetchedAt} /></p>
+          <p className="mt-2 text-base text-slate-600">{locationName} • พิกัด {position.lat.toFixed(4)}, {position.lng.toFixed(4)} • ช่วง 24 ชั่วโมงข้างหน้า</p>
+          <p className="mt-1 text-sm text-slate-500">จุดตัวแทน ไม่ใช่ค่าฝนทั้งหมู่บ้าน • ไม่ทราบรอบรันของชุดรายชั่วโมง • ดึงข้อมูล <DataAge iso={data?.fetchedAt} /></p>
           {rainSummary ? (
             <div className="mt-4 grid gap-4 md:grid-cols-3">
-              <div><p className="text-xs text-slate-500">ฝนสะสมตามกรณีสูงสุด</p><p className="mt-1 text-2xl font-semibold text-sky-700">{rainSummary.totalMm.toFixed(1)} มม.</p></div>
+              <div><p className="text-sm text-slate-500">ฝนสะสมตามกรณีสูงสุด</p><p className="mt-1 text-2xl font-semibold text-sky-700">{rainSummary.totalMm.toFixed(1)} มม.</p></div>
               <div className="md:col-span-2">
                 <p className="font-bold text-slate-800">{rainSummary.peakMm > 0 ? 'ช่วงฝนสะสม 3 ชั่วโมงสูงสุด' : 'แบบจำลองไม่แสดงฝนในช่วงนี้'}</p>
-                {rainSummary.peakMm > 0 && <p className="mt-1 text-sm text-slate-600">{formatRainTime(rainSummary.start)} – {formatRainTime(rainSummary.end)} น. • {rainSummary.peakMm.toFixed(1)} มม.</p>}
-                {rainSummary.peakMm > 0 && rainSummary.maxProbability !== null && <p className="mt-1 text-xs text-slate-500">โอกาสฝนสูงสุดในช่วงนี้ {rainSummary.maxProbability}% • จาก Open-Meteo แยกจากกรณีปริมาณฝนสูงสุด</p>}
+                {rainSummary.peakMm > 0 && <p className="mt-1 text-base text-slate-600">{formatRainTime(rainSummary.start)} – {formatRainTime(rainSummary.end)} น. • {rainSummary.peakMm.toFixed(1)} มม.</p>}
+                {rainSummary.peakMm > 0 && rainSummary.maxProbability !== null && <p className="mt-1 text-sm text-slate-500">โอกาสฝนสูงสุดในช่วงนี้ {rainSummary.maxProbability}% • จาก Open-Meteo แยกจากกรณีปริมาณฝนสูงสุด</p>}
               </div>
             </div>
-          ) : <p className="mt-4 text-sm text-slate-600">{loading ? 'กำลังอัปเดตข้อมูลของพิกัดที่เลือก…' : 'ยังสรุปช่วงฝนไม่ได้: ข้อมูลไม่ครบ ไม่พร้อม หรือเก่าเกินเกณฑ์'}</p>}
-          <p className="mt-4 text-xs leading-relaxed text-slate-500">ใช้วางแผนเฝ้าระวังร่วมกับเรดาร์และสถานีจริง ไม่ใช่เวลาฝนเริ่มตก ค่าตรวจวัดรายหมู่บ้าน หรือประกาศเตือนน้ำป่า ปริมาณรวมนี้รวมค่าสูงสุดแต่ละชั่วโมงจากหลายแบบจำลอง</p>
-          <div className="mt-4 flex flex-wrap gap-3 text-sm font-bold">
+          ) : <p className="mt-4 text-base text-slate-600">{loading ? 'กำลังอัปเดตข้อมูลของพิกัดที่เลือก…' : 'ยังสรุปช่วงฝนไม่ได้: ข้อมูลไม่ครบ ไม่พร้อม หรือเก่าเกินเกณฑ์'}</p>}
+          <p className="mt-4 text-sm leading-relaxed text-slate-500">ใช้วางแผนเฝ้าระวังร่วมกับเรดาร์และสถานีจริง ไม่ใช่เวลาฝนเริ่มตก ค่าตรวจวัดรายหมู่บ้าน หรือประกาศเตือนน้ำป่า ปริมาณรวมนี้รวมค่าสูงสุดแต่ละชั่วโมงจากหลายแบบจำลอง</p>
+          <div className="mt-4 flex flex-wrap gap-3 text-base font-bold">
             <a href="#hourly-rain" className="rounded-xl bg-sky-50 px-4 py-3 text-sky-800 hover:bg-sky-100">ดูฝนรายชั่วโมง</a>
             <Link href={areaHref('/center/flood', area)} className="rounded-xl bg-slate-100 px-4 py-3 text-slate-700 hover:bg-slate-200">ตรวจสถานีน้ำและฝนรอบจุดนี้ →</Link>
             <Link href={areaHref('/', area)} className="rounded-xl bg-slate-100 px-4 py-3 text-slate-700 hover:bg-slate-200">กลับ GIS พื้นที่นี้</Link>
@@ -655,10 +655,10 @@ useEffect(() => {
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className={`${st.text} font-semibold text-lg md:text-xl tracking-wide`}>{alert.title}</h3>
-                <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md text-slate-900" style={{ backgroundColor: alert.color }}>ระดับ {alert.level}</span>
+                <span className="text-sm font-mono font-bold px-2 py-0.5 rounded-md text-slate-900" style={{ backgroundColor: alert.color }}>ระดับ {alert.level}</span>
               </div>
-              <p className="text-gray-700 text-sm md:text-base font-medium mt-1.5 leading-relaxed">{alert.message}</p>
-              <div className="flex flex-wrap gap-x-5 gap-y-1 mt-3 text-[11px] md:text-xs font-mono font-bold text-gray-600">
+              <p className="text-gray-700 text-base md:text-base font-medium mt-1.5 leading-relaxed">{alert.message}</p>
+              <div className="flex flex-wrap gap-x-5 gap-y-1 mt-3 text-sm md:text-sm font-mono font-bold text-gray-600">
                 <span>คาดการณ์สะสม 3 ชม.: {formatRainAmount(alert.sums.s3)} มม.</span>
                 <span>6 ชม.: {formatRainAmount(alert.sums.s6)} มม.</span>
                 <span>12 ชม.: {formatRainAmount(alert.sums.s12)} มม.</span>
@@ -674,7 +674,7 @@ useEffect(() => {
             <div className="flex items-center space-x-4">
               <span className="text-4xl">{nowcast.status === 'RAINING_NOW' ? '' : nowcast.status === 'INCOMING' ? '' : nowcast.status === 'UNAVAILABLE' ? '' : ''}</span>
               <div>
-                <div className="text-[#0369a1] font-semibold text-sm tracking-widest">NOWCAST • ภาพเรดาร์ล่าสุด</div>
+                <div className="text-[#0369a1] font-semibold text-base tracking-widest">NOWCAST • ภาพเรดาร์ล่าสุด</div>
                 <p className="text-slate-900 font-bold text-base md:text-lg mt-1 leading-snug">{nowcast.headline}</p>
               </div>
             </div>
@@ -682,11 +682,11 @@ useEffect(() => {
               {nowcast.etaMinutes !== null && nowcast.etaMinutes > 0 && (
                 <div className="text-center bg-slate-50 rounded-xl px-5 py-3 border border-slate-200">
                   <div className="text-4xl font-semibold text-yellow-700 leading-none">{nowcast.etaMinutes}</div>
-                  <div className="text-[10px] text-gray-700 font-bold mt-1 tracking-widest">นาที</div>
+                  <div className="text-sm text-gray-700 font-bold mt-1 tracking-widest">นาที</div>
                 </div>
               )}
               {data?.steering && (
-                <div className="text-gray-700 text-[11px] md:text-xs font-mono leading-relaxed">
+                <div className="text-gray-700 text-sm md:text-sm font-mono leading-relaxed">
                   <div>ลมนำพา {data.steering.level}</div>
                   <div className="text-[#0369a1] font-bold">จากทิศ{data.steering.directionText}</div>
                   <div>{data.steering.speedKmh} กม./ชม.</div>
@@ -699,7 +699,7 @@ useEffect(() => {
         {/*  ทางเดินพายุ */}
         {data?.corridor?.length > 0 && (
           <div className="bg-white rounded-xl p-4 md:p-5 border border-gray-200">
-            <div className="flex items-center gap-2 font-semibold text-gray-800 text-sm md:text-base mb-3">
+            <div className="flex items-center gap-2 font-semibold text-gray-800 text-base md:text-base mb-3">
               <span></span><span>จุดตรวจกลุ่มฝนต้นทาง (ทวนทิศลมนำพาออกไปจากพิกัด)</span>
             </div>
             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
@@ -707,10 +707,10 @@ useEffect(() => {
                 const wet = c.precipitation >= 0.3;
                 return (
                   <div key={i} className={`flex-1 min-w-[110px] rounded-xl p-3 border text-center ${wet ? 'bg-sky-50 border-sky-200' : 'bg-gray-50 border-gray-200'}`}>
-                    <div className="text-[11px] font-bold text-gray-500">ระยะ {c.distanceKm} กม.</div>
+                    <div className="text-sm font-bold text-gray-500">ระยะ {c.distanceKm} กม.</div>
                     <div className={`text-2xl font-semibold mt-1 ${wet ? 'text-sky-600' : 'text-gray-600'}`}>{c.precipitation.toFixed(1)}</div>
-                    <div className="text-[10px] text-gray-600 font-mono">มม./ชม.</div>
-                    <div className={`text-[11px] font-bold mt-1 ${wet ? 'text-sky-700' : 'text-gray-600'}`}>{wet ? ' มีฝน' : 'แห้ง'}</div>
+                    <div className="text-sm text-gray-600 font-mono">มม./ชม.</div>
+                    <div className={`text-sm font-bold mt-1 ${wet ? 'text-sky-700' : 'text-gray-600'}`}>{wet ? ' มีฝน' : 'แห้ง'}</div>
                   </div>
                 );
               })}
@@ -721,19 +721,19 @@ useEffect(() => {
         {/*  ค้นหา */}
         <div className="bg-white rounded-xl p-4 md:p-5 border border-gray-200 flex flex-col md:flex-row md:items-end space-y-3 md:space-y-0 md:space-x-4">
           <div className="flex-1">
-            <label className="block text-xs md:text-sm font-bold text-gray-600 mb-1.5 ml-1">ค้นหาพื้นที่ (ชื่อจังหวัด / อำเภอ / ตำบล / หมู่บ้าน)</label>
+            <label className="block text-sm md:text-base font-bold text-gray-600 mb-1.5 ml-1">ค้นหาพื้นที่ (ชื่อจังหวัด / อำเภอ / ตำบล / หมู่บ้าน)</label>
             <form onSubmit={handleSearchSubmit}>
               <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="เช่น แม่แจ่ม, ฮอด, เชียงใหม่"
-                className="w-full bg-gray-50 border border-gray-300 text-gray-800 text-sm md:text-base rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:border-transparent" />
+                className="w-full bg-gray-50 border border-gray-300 text-gray-800 text-base md:text-base rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#0284c7] focus:border-transparent" />
             </form>
           </div>
           <div className="flex space-x-2 md:space-x-3 w-full md:w-auto">
-            <button onClick={handleResetToCenter} className="flex-1 md:flex-none bg-gray-100 hover:bg-gray-200 text-gray-800 px-5 py-3 rounded-xl font-bold text-sm md:text-base flex items-center justify-center space-x-2">
+            <button onClick={handleResetToCenter} className="flex-1 md:flex-none bg-gray-100 hover:bg-gray-200 text-gray-800 px-5 py-3 rounded-xl font-bold text-base md:text-base flex items-center justify-center space-x-2">
               <span></span><span className="whitespace-nowrap">กลับบ่อหลวง</span>
             </button>
             <button type="button" onClick={handleCurrentLocation} disabled={isLocating} aria-busy={isLocating}
-              className="flex-1 md:flex-none bg-sky-100 hover:bg-sky-200 text-sky-800 px-5 py-3 rounded-xl font-bold text-sm md:text-base flex items-center justify-center space-x-2 disabled:cursor-wait disabled:opacity-60">
+              className="flex-1 md:flex-none bg-sky-100 hover:bg-sky-200 text-sky-800 px-5 py-3 rounded-xl font-bold text-base md:text-base flex items-center justify-center space-x-2 disabled:cursor-wait disabled:opacity-60">
               <span>{isLocating ? '' : ''}</span><span className="whitespace-nowrap">{isLocating ? 'กำลังระบุ...' : 'พิกัดปัจจุบัน'}</span>
             </button>
           </div>
@@ -742,10 +742,10 @@ useEffect(() => {
         {/*  แผนที่ + เรดาร์ */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col">
           <div className="bg-gray-50 px-5 py-4 flex flex-col md:flex-row md:items-center justify-between border-b border-gray-200 gap-3">
-            <div className="flex items-center space-x-2 text-gray-800 font-semibold text-sm md:text-base">
+            <div className="flex items-center space-x-2 text-gray-800 font-semibold text-base md:text-base">
               <span></span><span>แผนที่ดาวเทียม + เรดาร์ฝน (คลิก / ลากหมุด เพื่อเลือกพิกัด)</span>
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+            <div className="flex flex-wrap items-center gap-2 text-sm font-mono">
               <SourceBadge label={radarFreshnessBadge.text} tone={radarFreshnessBadge.tone} />
               <button onClick={() => setRadarOn(v => !v)} className={`px-3 py-2 rounded-lg font-bold ${radarOn ? 'bg-emerald-500 text-slate-900' : 'bg-gray-200 text-gray-600'}`}>
                  เรดาร์ {radarOn ? 'เปิด' : 'ปิด'}
@@ -777,7 +777,7 @@ useEffect(() => {
           </div>
 
           {(radarFreshness?.status === 'expired' || radarFreshness?.status === 'unknown') && (
-            <div className="border-t border-amber-200 bg-amber-50 px-5 py-3 text-xs font-bold text-amber-800" role="status">
+            <div className="border-t border-amber-200 bg-amber-50 px-5 py-3 text-sm font-bold text-amber-800" role="status">
                ระงับชั้นเรดาร์ เนื่องจากข้อมูลหมดอายุหรือไม่สามารถยืนยันเวลาอัปเดตได้ โดยระบบจะไม่ตีความเป็น “ไม่มีฝน”
             </div>
           )}
@@ -788,26 +788,26 @@ useEffect(() => {
                 aria-label="เลือกเวลาภาพเรดาร์ย้อนหลังและคาดการณ์"
                 onChange={(e) => { setPlaying(false); setFrameIdx(Number(e.target.value)); }}
                 className="w-full accent-[#0ea5e9]" />
-              <span className={`text-[11px] font-bold whitespace-nowrap px-2 py-1 rounded ${activeFrame?.isForecast ? 'bg-purple-100 text-purple-700' : 'bg-sky-100 text-sky-700'}`}>
+              <span className={`text-sm font-bold whitespace-nowrap px-2 py-1 rounded ${activeFrame?.isForecast ? 'bg-purple-100 text-purple-700' : 'bg-sky-100 text-sky-700'}`}>
                 {activeFrame?.isForecast ? 'พยากรณ์' : 'ย้อนหลัง'}
               </span>
             </div>
           )}
 
-          <div className="bg-gray-50 px-5 py-3 text-[12px] md:text-[13px] text-gray-600 font-bold border-t border-gray-200">
+          <div className="bg-gray-50 px-5 py-3 text-sm md:text-base text-gray-600 font-bold border-t border-gray-200">
              คลิกที่แผนที่หรือลากหมุด  เพื่อปักตำแหน่งใหม่ ระบบจะดึงข้อมูลสภาพอากาศของจุดนั้นให้อัตโนมัติ
             {radarDegraded && <span className="text-amber-700"> • ภาพเรดาร์มีความละเอียดสูงสุดที่ระดับซูม {RADAR_MAX_NATIVE_ZOOM} การซูมลึกกว่านี้เป็นการขยายภาพเดิม</span>}
           </div>
         </div>
 
         {/*  แถบสถานะ */}
-        <div className="bg-white rounded-xl p-4 md:p-5 border border-slate-200 flex flex-col lg:flex-row items-center justify-between text-sm md:text-base">
+        <div className="bg-white rounded-xl p-4 md:p-5 border border-slate-200 flex flex-col lg:flex-row items-center justify-between text-base md:text-base">
           <div className="flex items-center space-x-3 text-gray-800 w-full lg:w-auto justify-center lg:justify-start">
             
             <span className="font-bold whitespace-nowrap hidden sm:inline">พื้นที่ตรวจสอบสภาพอากาศ:</span>
-            <span className="text-slate-900 font-medium break-words leading-tight text-[13px] md:text-base">{locationName}</span>
+            <span className="text-slate-900 font-medium break-words leading-tight text-base md:text-base">{locationName}</span>
           </div>
-          <div className="flex items-center space-x-3 mt-3 lg:mt-0 text-gray-700 font-mono text-[11px] md:text-sm whitespace-nowrap">
+          <div className="flex items-center space-x-3 mt-3 lg:mt-0 text-gray-700 font-mono text-sm md:text-base whitespace-nowrap">
             <span>พิกัด: <span className="text-[#0369a1]">{position.lat.toFixed(4)}, {position.lng.toFixed(4)}</span></span>
             <span className="hidden md:inline">|</span>
             <span>{loading ? <span className="text-yellow-700 font-bold">กำลังอัปเดต…</span> : <>ข้อมูล ณ <DataAge iso={data?.updatedAt} /></>}</span>
@@ -824,7 +824,7 @@ useEffect(() => {
                 <span className="text-7xl mb-3 transition-transform"><LineIcon name="weather" className="h-16 w-16 text-sky-700" /></span>
                 <div className="text-6xl font-semibold text-slate-900 mb-2">{Number.isFinite(cur.temperature_2m) ? cur.temperature_2m.toFixed(1) : '--'}°<span className="text-3xl text-gray-600">C</span></div>
                 <p className="text-[#0369a1] font-bold text-xl">{getWmoWeatherDesc(cur.weather_code)}</p>
-                <p className="text-gray-600 text-xs mt-2 font-mono">รู้สึกเหมือน {Number.isFinite(cur.apparent_temperature) ? cur.apparent_temperature.toFixed(1) : '--'}°C</p>
+                <p className="text-gray-600 text-sm mt-2 font-mono">รู้สึกเหมือน {Number.isFinite(cur.apparent_temperature) ? cur.apparent_temperature.toFixed(1) : '--'}°C</p>
                 <div className="mt-3"><SourceBadge label="แบบจำลอง • Open-Meteo" tone="sky" /></div>
               </>
             ) : <div className="text-gray-600">{loading ? 'กำลังโหลด…' : 'ไม่มีข้อมูลสภาพอากาศ'}</div>}
@@ -832,17 +832,17 @@ useEffect(() => {
 
           <div className="col-span-1 bg-white p-6 md:p-7 rounded-xl border border-gray-200 flex flex-col justify-between min-h-[160px]">
             <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center space-x-2 text-gray-500 font-semibold text-sm tracking-widest"><span></span><span>AIR QUALITY</span></div>
-              <div className={`px-2.5 py-1 rounded-md text-xs font-bold ${aqiStatus.bg}`} style={{ color: aqiStatus.color }}>{aqiStatus.text}</div>
+              <div className="flex items-center space-x-2 text-gray-500 font-semibold text-base tracking-widest"><span></span><span>AIR QUALITY</span></div>
+              <div className={`px-2.5 py-1 rounded-md text-sm font-bold ${aqiStatus.bg}`} style={{ color: aqiStatus.color }}>{aqiStatus.text}</div>
             </div>
             <div className="flex items-end justify-between mt-auto">
               <div>
                 <div className="text-5xl font-semibold" style={{ color: aqiStatus.color }}>{data?.aqi?.us_aqi ?? '--'}</div>
-                <div className="text-xs text-gray-600 mt-1 font-mono">US AQI Standard</div>
+                <div className="text-sm text-gray-600 mt-1 font-mono">US AQI Standard</div>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold text-gray-800">{data?.aqi?.pm2_5 ?? '--'} <span className="text-sm text-gray-500">µg/m³</span></div>
-                <div className="text-xs text-gray-600 mt-1">PM 2.5</div>
+                <div className="text-2xl font-bold text-gray-800">{data?.aqi?.pm2_5 ?? '--'} <span className="text-base text-gray-500">µg/m³</span></div>
+                <div className="text-sm text-gray-600 mt-1">PM 2.5</div>
               </div>
             </div>
             <div className="mt-4"><SourceBadge label="แบบจำลอง CAMS • ไม่ใช่สถานีตรวจวัด" tone="slate" /></div>
@@ -852,15 +852,15 @@ useEffect(() => {
             <div className="flex items-center space-x-3.5">
               <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center"></div>
               <div>
-                <div className="text-xs md:text-sm text-gray-500 font-bold">ความเร็วลม (จากทิศ{cur?.wind_direction_text ?? 'ไม่มีข้อมูล'})</div>
-                <div className="text-2xl font-semibold text-gray-800">{Number.isFinite(cur?.wind_speed_10m) ? (cur.wind_speed_10m / 3.6).toFixed(1) : '--'} <span className="text-xs font-normal text-gray-500">ม./วินาที</span></div>
+                <div className="text-sm md:text-base text-gray-500 font-bold">ความเร็วลม (จากทิศ{cur?.wind_direction_text ?? 'ไม่มีข้อมูล'})</div>
+                <div className="text-2xl font-semibold text-gray-800">{Number.isFinite(cur?.wind_speed_10m) ? (cur.wind_speed_10m / 3.6).toFixed(1) : '--'} <span className="text-sm font-normal text-gray-500">ม./วินาที</span></div>
               </div>
             </div>
             <div className="flex items-center space-x-3.5">
               <div className="w-12 h-12 bg-cyan-50 rounded-xl flex items-center justify-center"></div>
               <div>
-                <div className="text-xs md:text-sm text-gray-500 font-bold">ความชื้นสัมพัทธ์</div>
-                <div className="text-2xl font-semibold text-gray-800">{cur?.relative_humidity_2m ?? '--'}<span className="text-xs font-normal text-gray-500">%</span></div>
+                <div className="text-sm md:text-base text-gray-500 font-bold">ความชื้นสัมพัทธ์</div>
+                <div className="text-2xl font-semibold text-gray-800">{cur?.relative_humidity_2m ?? '--'}<span className="text-sm font-normal text-gray-500">%</span></div>
               </div>
             </div>
             <SourceBadge label="แบบจำลอง • Open-Meteo" tone="sky" />
@@ -870,15 +870,15 @@ useEffect(() => {
             <div className="flex items-center space-x-3.5">
               <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center"></div>
               <div>
-                <div className="text-xs md:text-sm text-gray-500 font-bold">ปริมาณฝน (วันนี้)</div>
-                <div className="text-2xl font-semibold text-gray-800">{cur?.rain_today ?? '--'} <span className="text-xs font-normal text-gray-500">มม.</span></div>
+                <div className="text-sm md:text-base text-gray-500 font-bold">ปริมาณฝน (วันนี้)</div>
+                <div className="text-2xl font-semibold text-gray-800">{cur?.rain_today ?? '--'} <span className="text-sm font-normal text-gray-500">มม.</span></div>
               </div>
             </div>
             <div className="flex items-center space-x-3.5">
               <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center"></div>
               <div>
-                <div className="text-xs md:text-sm text-gray-500 font-bold">UV Index (สูงสุด)</div>
-                <div className="text-2xl font-semibold text-gray-800">{cur?.uv_max ?? '--'} <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded ml-1">Index</span></div>
+                <div className="text-sm md:text-base text-gray-500 font-bold">UV Index (สูงสุด)</div>
+                <div className="text-2xl font-semibold text-gray-800">{cur?.uv_max ?? '--'} <span className="text-sm bg-purple-100 text-purple-700 px-2 py-0.5 rounded ml-1">Index</span></div>
               </div>
             </div>
             <SourceBadge label="แบบจำลอง • Open-Meteo" tone="sky" />
@@ -914,20 +914,20 @@ useEffect(() => {
 
           <section id="nwp" className="col-span-1 md:col-span-4 overflow-hidden rounded-xl border border-sky-200 bg-white" aria-labelledby="nwp-heading">
             <div className="border-b border-sky-100 p-5 text-slate-900 md:p-7">
-              <p className="mb-2 text-xs text-sky-700">บริบทแบบจำลองส่วนนี้: จุดอ้างอิงตำบลบ่อหลวง 18.1633, 98.3744 • ไม่เปลี่ยนตามหมุดที่เลือก</p>
+              <p className="mb-2 text-sm text-sky-700">บริบทแบบจำลองส่วนนี้: จุดอ้างอิงตำบลบ่อหลวง 18.1633, 98.3744 • ไม่เปลี่ยนตามหมุดที่เลือก</p>
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
-                  <p className="text-xs font-semibold tracking-[.16em] text-sky-700">NUMERICAL WEATHER PREDICTION</p>
+                  <p className="text-sm font-semibold tracking-[.16em] text-sky-700">NUMERICAL WEATHER PREDICTION</p>
                   <h3 id="nwp-heading" className="mt-1 text-xl font-semibold md:text-2xl">เปรียบเทียบแบบจำลองฝน 24–72 ชั่วโมง</h3>
-                  <p className="mt-2 max-w-3xl text-xs leading-relaxed text-sky-700 md:text-sm">ECMWF และ GFS จากรอบรันเดียวกัน ใช้ดูแนวโน้มพื้นที่ ไม่ใช่เรดาร์ สถานีตรวจวัด หรือค่าฝนรายหมู่บ้าน</p>
+                  <p className="mt-2 max-w-3xl text-sm leading-relaxed text-sky-700 md:text-base">ECMWF และ GFS จากรอบรันเดียวกัน ใช้ดูแนวโน้มพื้นที่ ไม่ใช่เรดาร์ สถานีตรวจวัด หรือค่าฝนรายหมู่บ้าน</p>
                 </div>
                 <div className="flex flex-wrap gap-2" role="group" aria-label="เลือกแบบจำลองที่แสดง">
                   {([['overview', 'ภาพรวม'], ['ecmwf', 'ECMWF'], ['gfs', 'GFS']] as const).map(([value, label]) => (
-                    <button key={value} type="button" aria-pressed={nwpView === value} onClick={() => setNwpView(value)} className={`min-h-11 rounded-xl border px-4 py-2 text-sm font-bold ${nwpView === value ? 'border-white bg-white text-[#0f4a8a]' : 'border-slate-200 bg-slate-50 text-slate-900 hover:bg-slate-50'}`}>{label}</button>
+                    <button key={value} type="button" aria-pressed={nwpView === value} onClick={() => setNwpView(value)} className={`min-h-11 rounded-xl border px-4 py-2 text-base font-bold ${nwpView === value ? 'border-white bg-white text-[#0f4a8a]' : 'border-slate-200 bg-slate-50 text-slate-900 hover:bg-slate-50'}`}>{label}</button>
                   ))}
                 </div>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2 text-xs">
+              <div className="mt-4 flex flex-wrap gap-2 text-sm">
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">รอบรัน: {nwp?.runAt ? new Date(nwp.runAt).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'short', timeStyle: 'short' }) : 'ไม่พร้อม'}</span>
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">{nwp?.consensus?.label ?? 'เปรียบเทียบไม่ได้'}</span>
                 <span className="rounded-full border border-amber-200 bg-amber-300/10 px-3 py-1.5 text-amber-700">ไม่สร้างคำเตือนอัตโนมัติ</span>
@@ -935,7 +935,7 @@ useEffect(() => {
             </div>
 
             {!nwp ? (
-              <div className="m-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800" role="status">ผล ECMWF/GFS ยังไม่ครบ ระบบระงับการเปรียบเทียบและไม่ตีความว่าไม่มีฝน</div>
+              <div className="m-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-base font-bold text-amber-800" role="status">ผล ECMWF/GFS ยังไม่ครบ ระบบระงับการเปรียบเทียบและไม่ตีความว่าไม่มีฝน</div>
             ) : (
               <div className="space-y-5 p-5 md:p-7">
                 <div className="grid gap-3 md:grid-cols-3">
@@ -943,10 +943,10 @@ useEffect(() => {
                     const left = nwpModels.ecmwf?.windows?.[index];
                     const right = nwpModels.gfs?.windows?.[index];
                     return <article key={left?.key ?? index} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-xs font-semibold text-slate-500">ช่วง {left?.label ?? '—'}</p>
+                      <p className="text-sm font-semibold text-slate-500">ช่วง {left?.label ?? '—'}</p>
                       <div className="mt-3 grid grid-cols-2 gap-3">
-                        <div><p className="text-[10px] font-bold text-sky-700">ECMWF</p><p className="text-2xl font-semibold text-[#0f4a8a]">{left?.totalMm?.toFixed(1) ?? '—'} <span className="text-xs">มม.</span></p></div>
-                        <div><p className="text-[10px] font-bold text-emerald-700">GFS</p><p className="text-2xl font-semibold text-emerald-700">{right?.totalMm?.toFixed(1) ?? '—'} <span className="text-xs">มม.</span></p></div>
+                        <div><p className="text-sm font-bold text-sky-700">ECMWF</p><p className="text-2xl font-semibold text-[#0f4a8a]">{left?.totalMm?.toFixed(1) ?? '—'} <span className="text-sm">มม.</span></p></div>
+                        <div><p className="text-sm font-bold text-emerald-700">GFS</p><p className="text-2xl font-semibold text-emerald-700">{right?.totalMm?.toFixed(1) ?? '—'} <span className="text-sm">มม.</span></p></div>
                       </div>
                     </article>;
                   })}
@@ -968,14 +968,14 @@ useEffect(() => {
 
                 <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex flex-wrap items-center gap-2"><SourceBadge label={nwp.consensus.label} tone={nwpAgreementTone} /><span className="text-xs text-slate-500">ความสอดคล้องไม่ใช่การรับรองความแม่นยำ</span></div>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-700">{nwp.consensus.summary}</p>
-                    <p className="mt-2 text-[10px] text-slate-500">ECMWF: {nwpFreshnessLabel(nwpModels.ecmwf?.freshness)} ({nwpModels.ecmwf?.ageHours ?? '—'} ชม.) · GFS: {nwpFreshnessLabel(nwpModels.gfs?.freshness)} ({nwpModels.gfs?.ageHours ?? '—'} ชม.)</p>
-                    <p className="mt-1 text-[10px] text-slate-500">กริด ECMWF {nwpModels.ecmwf?.gridLatitude?.toFixed(3)}, {nwpModels.ecmwf?.gridLongitude?.toFixed(3)} · GFS {nwpModels.gfs?.gridLatitude?.toFixed(3)}, {nwpModels.gfs?.gridLongitude?.toFixed(3)} · ดึงข้อมูล {new Date(nwp.generatedAt).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}</p>
+                    <div className="flex flex-wrap items-center gap-2"><SourceBadge label={nwp.consensus.label} tone={nwpAgreementTone} /><span className="text-sm text-slate-500">ความสอดคล้องไม่ใช่การรับรองความแม่นยำ</span></div>
+                    <p className="mt-2 text-base leading-relaxed text-slate-700">{nwp.consensus.summary}</p>
+                    <p className="mt-2 text-sm text-slate-500">ECMWF: {nwpFreshnessLabel(nwpModels.ecmwf?.freshness)} ({nwpModels.ecmwf?.ageHours ?? '—'} ชม.) · GFS: {nwpFreshnessLabel(nwpModels.gfs?.freshness)} ({nwpModels.gfs?.ageHours ?? '—'} ชม.)</p>
+                    <p className="mt-1 text-sm text-slate-500">กริด ECMWF {nwpModels.ecmwf?.gridLatitude?.toFixed(3)}, {nwpModels.ecmwf?.gridLongitude?.toFixed(3)} · GFS {nwpModels.gfs?.gridLatitude?.toFixed(3)}, {nwpModels.gfs?.gridLongitude?.toFixed(3)} · ดึงข้อมูล {new Date(nwp.generatedAt).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <a href="https://www.windy.com/?rain,18.163,98.374,9" target="_blank" rel="noopener noreferrer" className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs font-semibold text-sky-800">ตรวจแผนที่ Windy ↗</a>
-                    <a href="https://www.tropicaltidbits.com/analysis/models/" target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold text-slate-700">ตรวจ Tropical Tidbits ↗</a>
+                    <a href="https://www.windy.com/?rain,18.163,98.374,9" target="_blank" rel="noopener noreferrer" className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800">ตรวจแผนที่ Windy ↗</a>
+                    <a href="https://www.tropicaltidbits.com/analysis/models/" target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">ตรวจ Tropical Tidbits ↗</a>
                   </div>
                 </div>
               </div>
@@ -985,14 +985,14 @@ useEffect(() => {
           <div className="col-span-1 md:col-span-4 rounded-xl border border-slate-200 bg-slate-50 p-4 md:p-5">
             <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
               <div>
-                <h3 className="text-sm font-semibold text-slate-800">ความสอดคล้องของแบบจำลองฝน 3 ชั่วโมง</h3>
-                <p className="mt-1 text-xs text-slate-600">
+                <h3 className="text-base font-semibold text-slate-800">ความสอดคล้องของแบบจำลองฝน 3 ชั่วโมง</h3>
+                <p className="mt-1 text-sm text-slate-600">
                   เปรียบเทียบ {data?.modelComparison?.modelCount ?? 0} แบบจำลอง • ช่วงคาดการณ์ {data?.modelComparison?.minMm ?? '--'}–{data?.modelComparison?.maxMm ?? '--'} มม. • ค่ากระจาย {data?.modelComparison?.spreadMm ?? '--'} มม.
                 </p>
               </div>
               <SourceBadge label={`ความเชื่อมั่น ${modelConfidence}`} tone={data?.modelComparison?.confidence === 'high' ? 'emerald' : data?.modelComparison?.confidence === 'medium' ? 'sky' : 'amber'} />
             </div>
-            <p className="mt-2 text-[10px] leading-relaxed text-slate-500">ความเชื่อมั่นนี้สะท้อนความสอดคล้องระหว่างแบบจำลอง ไม่ใช่การรับรองความแม่นยำระดับจุดหรือหมู่บ้าน</p>
+            <p className="mt-2 text-sm leading-relaxed text-slate-500">ความเชื่อมั่นนี้สะท้อนความสอดคล้องระหว่างแบบจำลอง ไม่ใช่การรับรองความแม่นยำระดับจุดหรือหมู่บ้าน</p>
           </div>
 
           {/* อุณหภูมิ 7 วัน */}
@@ -1042,7 +1042,7 @@ useEffect(() => {
                   
                   <h3 className="text-lg font-semibold text-[#0f4a8a]">Windy — แผนที่สำรองภายนอก</h3>
                 </div>
-                <p className="mt-2 max-w-3xl text-xs leading-relaxed text-slate-600 md:text-sm">
+                <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600 md:text-base">
                   หน้านี้ใช้แผนที่และเรดาร์ภายในเป็นแหล่งหลัก จึงไม่โหลด Windy iframe อัตโนมัติ ลดการใช้ข้อมูลและป้องกันปัญหา WebGL บนอุปกรณ์รุ่นเก่า หากต้องการตรวจสอบชั้นข้อมูลเพิ่มเติมให้เปิด Windy ในแท็บใหม่
                 </p>
               </div>
@@ -1050,7 +1050,7 @@ useEffect(() => {
                 href={`https://www.windy.com/?${windyLayer},${position.lat.toFixed(3)},${position.lng.toFixed(3)},9`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#0f4a8a] px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-[#0b3768] focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#0f4a8a] px-5 py-3 text-base font-semibold text-slate-900 transition hover:bg-[#0b3768] focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
               >
                 เปิด Windy ชั้น {WINDY_LAYERS.find(layer => layer.id === windyLayer)?.label} ↗
               </a>
@@ -1062,7 +1062,7 @@ useEffect(() => {
                   type="button"
                   onClick={() => setWindyLayer(layer.id)}
                   aria-pressed={windyLayer === layer.id}
-                  className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-bold transition ${windyLayer === layer.id ? 'border-[#0f4a8a] bg-[#0f4a8a] text-slate-900' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                  className={`shrink-0 rounded-xl border px-3 py-2 text-sm font-bold transition ${windyLayer === layer.id ? 'border-[#0f4a8a] bg-[#0f4a8a] text-slate-900' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                 >
                   {layer.icon} {layer.label}
                 </button>
@@ -1072,7 +1072,7 @@ useEffect(() => {
         </div>
 
         {/*  ข้อความสงวนสิทธิ์ */}
-        <div className="bg-gray-100 border border-gray-300 rounded-xl p-4 md:p-5 text-[11px] md:text-xs text-gray-600 leading-relaxed">
+        <div className="bg-gray-100 border border-gray-300 rounded-xl p-4 md:p-5 text-sm md:text-sm text-gray-600 leading-relaxed">
           <span className="font-semibold text-gray-700"> ข้อจำกัดความรับผิดชอบ: </span>
           ข้อมูลในหน้านี้เป็นการประมวลผลอัตโนมัติจากแบบจำลองพยากรณ์อากาศ (ECMWF และ NOAA GFS ผ่าน Open-Meteo) และภาพเรดาร์ตรวจอากาศ (RainViewer) โดย Windy และ Tropical Tidbits เป็นลิงก์ตรวจสอบภายนอกเท่านั้น
           เพื่อใช้ประกอบการตัดสินใจเบื้องต้นเท่านั้น <span className="font-bold">มิใช่ประกาศเตือนภัยอย่างเป็นทางการ</span>

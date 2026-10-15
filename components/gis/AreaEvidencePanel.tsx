@@ -35,7 +35,7 @@ function EvidenceContent({ area }: { area: AreaContext }) {
     });
     return () => { controller.abort(); clearInterval(timer); };
   }, [area.id, area.lat, area.lng]);
-  if (!data) return <p role="status" className="py-3 text-sm">กำลังตรวจหลักฐานรอบ {area.name}…</p>;
+  if (!data) return <p role="status" className="py-3 text-base">กำลังตรวจหลักฐานรอบ {area.name}…</p>;
   const env = record(data.environment), fire = record(env.fire);
   const geometryMissing = area.id.startsWith('moo-') && !data.geometry;
   const hotspots = Array.isArray(fire.hotspots) ? fire.hotspots.map(record).filter(point => !data.geometry || containsPoint([Number(point.longitude), Number(point.latitude)], data.geometry)) : [];
@@ -55,38 +55,38 @@ function EvidenceContent({ area }: { area: AreaContext }) {
     if (candidate.type !== 'Polygon' && candidate.type !== 'MultiPolygon') return false;
     try { return containsPoint([area.lng, area.lat], candidate as PolygonGeometry); } catch { return false; }
   });
-  return <div className="space-y-4 py-3 text-sm">
+  return <div className="space-y-4 py-3 text-base">
     <p>{area.name} • จุดอ้างอิง {area.lat.toFixed(4)}, {area.lng.toFixed(4)}</p>
     {data.failures > 0 && <p role="status">บางแหล่งไม่พร้อม แสดงเฉพาะหลักฐานที่ตรวจสอบได้</p>}
     <div><h4 className="font-bold">ดาวเทียม · จุดความร้อน</h4>
       <p>{fireReady ? `${recent.length} จุดอายุไม่เกิน 6 ชม. ${data.geometry ? 'ภายในขอบเขตหมู่บ้าน' : 'ในรัศมีข้อมูล 50 กม. รอบจุดอ้างอิง'}` : 'ประเมินจำนวนปัจจุบันไม่ได้: ข้อมูลหรือขอบเขตไม่พร้อม/เก่า'}</p>
-      <p className="text-xs opacity-75">{String(fire.source ?? 'GISTDA / NASA FIRMS')} • ล่าสุดในชุดจุด {timeLabel(latest)} • ตรวจชุดข้อมูล {timeLabel(coverageTime)} • จุดความร้อนไม่ใช่การยืนยันไฟป่า</p>
+      <p className="text-sm opacity-75">{String(fire.source ?? 'GISTDA / NASA FIRMS')} • ล่าสุดในชุดจุด {timeLabel(latest)} • ตรวจชุดข้อมูล {timeLabel(coverageTime)} • จุดความร้อนไม่ใช่การยืนยันไฟป่า</p>
     </div>
     <div><h4 className="font-bold">แบบจำลอง · PM2.5 ณ จุดอ้างอิง</h4>
       <p>{typeof air.pm2_5 === 'number' && airFreshness.status === 'fresh' ? `${air.pm2_5.toFixed(1)} µg/m³` : 'ไม่มีค่าปัจจุบันที่ใช้สรุปได้'}</p>
-      <p className="text-xs opacity-75">CAMS ผ่าน Open-Meteo • {timeLabel(airTime)} • ไม่ใช่สถานีตรวจวัดหรือค่าเฉลี่ยทั้งหมู่บ้าน</p>
+      <p className="text-sm opacity-75">CAMS ผ่าน Open-Meteo • {timeLabel(airTime)} • ไม่ใช่สถานีตรวจวัดหรือค่าเฉลี่ยทั้งหมู่บ้าน</p>
     </div>
     <div><h4 className="font-bold">สถานีตรวจวัด · รอบจุดอ้างอิงไม่เกิน 50 กม.</h4>
       <p>{data.rain === null || data.water === null ? 'ข้อมูลสถานีบางประเภทไม่พร้อม' : `${stations.filter(s => s.value !== null && s.freshness.status === 'fresh').length} รายการข้อมูลสดที่มีค่า จาก ${stations.length} รายการในรัศมี`}</p>
       <ul className="mt-2 space-y-2">{stations.slice(0, 5).map((station, index) => <li key={`${station.type}-${station.name}-${index}`} className="rounded-lg border border-current/20 p-2">
         {station.name} · {station.distanceKm.toFixed(1)} กม. · {station.type === 'rain' ? 'ฝน 24 ชม.' : 'ระดับน้ำ'}
         <p>{station.value !== null && station.freshness.status === 'fresh' ? `${station.value.toFixed(1)} ${station.type === 'rain' ? 'มม.' : 'ม.'}` : 'ประเมินไม่ได้ / ข้อมูลเก่าหรือไม่มีค่า'} {station.withinVillage === true ? '· ในขอบเขตหมู่บ้าน' : station.withinVillage === false ? '· นอกหมู่บ้าน' : ''}</p>
-        <p className="text-xs opacity-75">ThaiWater / สทนช. • {timeLabel(station.freshness.observedAt)}</p>
+        <p className="text-sm opacity-75">ThaiWater / สทนช. • {timeLabel(station.freshness.observedAt)}</p>
       </li>)}</ul>
-      <p className="mt-2 text-xs opacity-75">ระยะใกล้ไม่ยืนยันว่าอยู่ต้นน้ำ ต้องตรวจลุ่มน้ำและภาคสนามก่อนสรุปน้ำป่า</p>
+      <p className="mt-2 text-sm opacity-75">ระยะใกล้ไม่ยืนยันว่าอยู่ต้นน้ำ ต้องตรวจลุ่มน้ำและภาคสนามก่อนสรุปน้ำป่า</p>
       <Link className="mt-2 inline-block min-h-11 underline" href={areaHref('/center/flood', area)}>ดูสถานีทั้งหมดรอบจุดนี้ →</Link>
     </div>
     <div><h4 className="font-bold">พื้นที่อ้างอิง · ดินถล่ม</h4>
       <p>{data.land === null || !landFeatures.length ? 'ข้อมูลพื้นที่อ้างอิงไม่พร้อม' : intersects ? 'จุดอ้างอิงอยู่ในขอบเขตพื้นที่เสี่ยง' : 'จุดอ้างอิงไม่อยู่ในขอบเขตที่โหลดได้ ไม่ได้แปลว่าทั้งหมู่บ้านปลอดภัย'}</p>
-      <p className="text-xs opacity-75">ชุด boluang_landslide_risk • ไม่ทราบวันสำรวจในชุดข้อมูล • ไม่ใช่สถานการณ์ปัจจุบัน</p>
+      <p className="text-sm opacity-75">ชุด boluang_landslide_risk • ไม่ทราบวันสำรวจในชุดข้อมูล • ไม่ใช่สถานการณ์ปัจจุบัน</p>
     </div>
-    <p className="text-xs opacity-75">รายงานประชาชน: ยังไม่มีชุดพิกัดที่ยืนยันและเปิดเผยได้สำหรับรวมในแผงนี้ โปรดตรวจผ่านระบบรับแจ้งเหตุ • หลักฐานนี้ไม่ออกประกาศหรือส่งแจ้งเตือนอัตโนมัติ</p>
+    <p className="text-sm opacity-75">รายงานประชาชน: ยังไม่มีชุดพิกัดที่ยืนยันและเปิดเผยได้สำหรับรวมในแผงนี้ โปรดตรวจผ่านระบบรับแจ้งเหตุ • หลักฐานนี้ไม่ออกประกาศหรือส่งแจ้งเตือนอัตโนมัติ</p>
   </div>;
 }
 export default function AreaEvidencePanel({ area }: { area: AreaContext }) {
   const [open, setOpen] = useState(false);
   return <details className="rounded-xl border border-slate-400/40 p-4" onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary className="min-h-11 cursor-pointer text-sm font-bold">หลักฐานภัยรอบพื้นที่ที่เลือก</summary>
+    <summary className="min-h-11 cursor-pointer text-base font-bold">หลักฐานภัยรอบพื้นที่ที่เลือก</summary>
     {open && <EvidenceContent key={`${area.id}:${area.lat}:${area.lng}`} area={area} />}
   </details>;
 }

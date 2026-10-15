@@ -185,13 +185,13 @@ export default function IntelligencePage() {
       <header className="sticky top-0 z-[1200] border-b border-slate-200 bg-[#071522]/95">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-3 lg:px-6">
           <div className="min-w-0">
-            <p className="text-xs font-bold tracking-[.18em] text-cyan-700">BO LUANG ENVIRONMENTAL INTELLIGENCE</p>
+            <p className="text-sm font-bold tracking-[.18em] text-cyan-700">BO LUANG ENVIRONMENTAL INTELLIGENCE</p>
             <h1 className="truncate text-base font-semibold text-slate-900 md:text-xl">ศูนย์เฝ้าระวังอากาศ สิ่งแวดล้อม และภัยพิบัติ</h1>
           </div>
           <div className="flex items-center gap-2">
-            <span className="hidden rounded-lg border border-cyan-200 bg-cyan-300/10 px-3 py-2 text-xs font-bold text-cyan-700 sm:inline">มุมมองประชาชน</span>
-            <Link href="/admin" className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-900 hover:bg-slate-50 sm:text-sm">เข้าสู่ระบบเจ้าหน้าที่</Link>
-            <Link href="/radar" className="rounded-xl bg-[#1769aa] px-4 py-2.5 text-sm font-semibold text-slate-900 hover:bg-[#2180c8]">เปิด Radar</Link>
+            <span className="hidden rounded-lg border border-cyan-200 bg-cyan-300/10 px-3 py-2 text-sm font-bold text-cyan-700 sm:inline">มุมมองประชาชน</span>
+            <Link href="/admin" className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-900 hover:bg-slate-50 sm:text-base">เข้าสู่ระบบเจ้าหน้าที่</Link>
+            <Link href="/radar" className="rounded-xl bg-[#1769aa] px-4 py-2.5 text-base font-semibold text-slate-900 hover:bg-[#2180c8]">เปิด Radar</Link>
           </div>
         </div>
       </header>
@@ -199,10 +199,10 @@ export default function IntelligencePage() {
       <section className="mx-auto grid max-w-[1600px] gap-4 p-4 lg:grid-cols-[280px_minmax(0,1fr)_340px] lg:p-6">
         <aside className="order-2 space-y-4 lg:order-1">
           <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="mb-3 text-sm font-semibold text-slate-900">โหมดตามฤดูกาล</p>
+            <p className="mb-3 text-base font-semibold text-slate-900">โหมดตามฤดูกาล</p>
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
               {MODES.map((key) => (
-                <button key={key} aria-pressed={mode === key} onClick={() => setMode(key)} className={`flex min-h-12 items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${mode === key ? 'border-cyan-200 bg-cyan-300/10 text-slate-900' : 'border-slate-200 bg-white/[.03] text-slate-700 hover:bg-white/[.07]'}`}>
+                <button key={key} aria-pressed={mode === key} onClick={() => setMode(key)} className={`flex min-h-12 items-center gap-3 rounded-xl border px-3 py-2 text-left text-base font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${mode === key ? 'border-cyan-200 bg-cyan-300/10 text-slate-900' : 'border-slate-200 bg-white/[.03] text-slate-700 hover:bg-white/[.07]'}`}>
                   <span className="h-3 w-3 rounded-full" style={{ backgroundColor: SEASONAL_MODES[key].accent }} />
                   {SEASONAL_MODES[key].label}
                 </button>
@@ -211,7 +211,7 @@ export default function IntelligencePage() {
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-center justify-between"><p className="text-sm font-semibold">ชั้นข้อมูลแนะนำ</p><span className="text-xs text-slate-600">{config.layers.length} ชั้น</span></div>
+            <div className="flex items-center justify-between"><p className="text-base font-semibold">ชั้นข้อมูลแนะนำ</p><span className="text-sm text-slate-600">{config.layers.length} ชั้น</span></div>
             <div className="mt-3 space-y-2">
               {config.layers.map((layer, index) => {
                 const available = layerAvailable(layer.id);
@@ -222,15 +222,15 @@ export default function IntelligencePage() {
                   aria-pressed={available ? active : undefined}
                   disabled={!available}
                   onClick={() => toggleLayer(layer.id)}
-                  className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${active ? 'border-cyan-200 bg-cyan-300/10 text-slate-900' : available ? 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-50' : 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-500'}`}
+                  className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-base transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${active ? 'border-cyan-200 bg-cyan-300/10 text-slate-900' : available ? 'border-slate-200 bg-slate-50 text-slate-800 hover:bg-slate-50' : 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-500'}`}
                 >
                   <span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${active ? 'bg-emerald-400' : available ? 'bg-slate-400' : 'bg-white'}`} />
                   <span className="flex-1">{layer.label}</span>
-                  <span className="text-[11px] font-semibold">{available ? active ? 'เปิด' : 'ปิด' : 'ไม่มีข้อมูล'}</span>
+                  <span className="text-sm font-semibold">{available ? active ? 'เปิด' : 'ปิด' : 'ไม่มีข้อมูล'}</span>
                 </button>;
               })}
             </div>
-            <p className="mt-3 text-[10px] leading-4 text-slate-500">ปุ่มที่กดได้คือชั้นข้อมูลที่แสดงบนแผนที่จริง ส่วนรายการสีเทาจะไม่ถูกจำลองขึ้นมา</p>
+            <p className="mt-3 text-sm leading-4 text-slate-500">ปุ่มที่กดได้คือชั้นข้อมูลที่แสดงบนแผนที่จริง ส่วนรายการสีเทาจะไม่ถูกจำลองขึ้นมา</p>
           </div>
         </aside>
 
@@ -238,32 +238,32 @@ export default function IntelligencePage() {
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             {weatherCards.map((card) => (
               <article key={card.label} className="rounded-xl border border-slate-200 p-4">
-                <p className="text-sm font-semibold text-slate-600">{card.label}</p>
-                <p className={`mt-2 text-3xl font-semibold ${card.tone}`}>{loading ? '…' : card.value} <span className="text-sm font-semibold text-slate-600">{card.unit}</span></p>
-                <p className="mt-1 text-sm text-slate-700">{card.meta}</p>
-                <p className="mt-2 text-[10px] text-slate-500">{card.source}</p>
+                <p className="text-base font-semibold text-slate-600">{card.label}</p>
+                <p className={`mt-2 text-3xl font-semibold ${card.tone}`}>{loading ? '…' : card.value} <span className="text-base font-semibold text-slate-600">{card.unit}</span></p>
+                <p className="mt-1 text-base text-slate-700">{card.meta}</p>
+                <p className="mt-2 text-sm text-slate-500">{card.source}</p>
               </article>
             ))}
           </div>
 
           <section className="rounded-xl border border-slate-200 bg-white p-4" aria-labelledby="forecast-heading">
             <div className="flex flex-wrap items-end justify-between gap-2">
-              <div><h2 id="forecast-heading" className="text-sm font-semibold">พยากรณ์เพื่อวางแผน 24–72 ชั่วโมง</h2><p className="mt-1 text-xs text-slate-600">เปรียบเทียบ ECMWF/GFS รอบเดียวกัน · ไม่ใช่ Radar หรือสถานีตรวจวัด</p></div>
-              <Link href="/center/weather#nwp" className="rounded-lg border border-cyan-200 bg-cyan-300/10 px-3 py-2 text-xs font-bold text-cyan-700">เปิดรายละเอียด NWP →</Link>
+              <div><h2 id="forecast-heading" className="text-base font-semibold">พยากรณ์เพื่อวางแผน 24–72 ชั่วโมง</h2><p className="mt-1 text-sm text-slate-600">เปรียบเทียบ ECMWF/GFS รอบเดียวกัน · ไม่ใช่ Radar หรือสถานีตรวจวัด</p></div>
+              <Link href="/center/weather#nwp" className="rounded-lg border border-cyan-200 bg-cyan-300/10 px-3 py-2 text-sm font-bold text-cyan-700">เปิดรายละเอียด NWP →</Link>
             </div>
             {nwp?.consensus?.usable ? (
               <div className="mt-4 grid gap-2 sm:grid-cols-3">
                 {[0, 1, 2].map((index) => {
                   const ecmwf = nwp.models?.find((model: any) => model.id === 'ecmwf')?.windows?.[index];
                   const gfs = nwp.models?.find((model: any) => model.id === 'gfs')?.windows?.[index];
-                  return <div key={ecmwf?.key ?? index} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs"><strong className="text-slate-900">{ecmwf?.label}</strong><p className="mt-1 text-sky-700">ECMWF {fmt(ecmwf?.totalMm, 1)} · GFS {fmt(gfs?.totalMm, 1)} มม.</p></div>;
+                  return <div key={ecmwf?.key ?? index} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm"><strong className="text-slate-900">{ecmwf?.label}</strong><p className="mt-1 text-sky-700">ECMWF {fmt(ecmwf?.totalMm, 1)} · GFS {fmt(gfs?.totalMm, 1)} มม.</p></div>;
                 })}
-                <p className="sm:col-span-3 text-[11px] text-slate-600">{nwp.consensus.label} · รอบรัน {timeLabel(nwp.runAt)} · ความสอดคล้องไม่ใช่การรับรองความแม่นยำ</p>
+                <p className="sm:col-span-3 text-sm text-slate-600">{nwp.consensus.label} · รอบรัน {timeLabel(nwp.runAt)} · ความสอดคล้องไม่ใช่การรับรองความแม่นยำ</p>
               </div>
-            ) : <p className="mt-4 rounded-xl border border-amber-200 bg-amber-300/10 p-3 text-xs font-bold text-amber-700">ข้อมูล ECMWF/GFS ไม่ครบหรือหมดอายุ จึงระงับการสรุปความสอดคล้อง</p>}
-            <div className="mt-4 flex flex-wrap gap-2">{threeDayForecast.map((day: any) => <div key={day.time} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"><strong className="text-slate-900">{dayLabel(day.time)}</strong><span className="ml-2 text-sky-700">ฝน {fmt(day.rain, 1)} มม. ({fmt(day.rainProbability)}%)</span><span className="ml-2 text-slate-700">{fmt(day.min)}–{fmt(day.max)}°C</span></div>)}</div>
+            ) : <p className="mt-4 rounded-xl border border-amber-200 bg-amber-300/10 p-3 text-sm font-bold text-amber-700">ข้อมูล ECMWF/GFS ไม่ครบหรือหมดอายุ จึงระงับการสรุปความสอดคล้อง</p>}
+            <div className="mt-4 flex flex-wrap gap-2">{threeDayForecast.map((day: any) => <div key={day.time} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"><strong className="text-slate-900">{dayLabel(day.time)}</strong><span className="ml-2 text-sky-700">ฝน {fmt(day.rain, 1)} มม. ({fmt(day.rainProbability)}%)</span><span className="ml-2 text-slate-700">{fmt(day.min)}–{fmt(day.max)}°C</span></div>)}</div>
             <div className="mt-4 overflow-x-auto">
-              <table className="min-w-[900px] w-full text-left text-xs">
+              <table className="min-w-[900px] w-full text-left text-sm">
                 <caption className="sr-only">พยากรณ์อากาศรายชั่วโมง 24 ชั่วโมงสำหรับตำบลบ่อหลวง</caption>
                 <thead className="text-slate-600"><tr><th className="sticky left-0 bg-white py-2 pr-4">ตัวแปร</th>{hourlyForecast.map((hour: any) => <th key={hour.time} className="min-w-24 px-2 py-2 text-center">{hourLabel(hour.time)}</th>)}</tr></thead>
                 <tbody className="divide-y divide-white/5">
@@ -276,7 +276,7 @@ export default function IntelligencePage() {
             </div>
           </section>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
             <span>อัปเดตล่าสุด: <strong className={isStale ? 'text-rose-700' : 'text-slate-900'}>{timeLabel(payload?.fetchedAt)}{isStale ? ' · ข้อมูลเก่า' : ''}</strong></span>
             <div className="flex flex-wrap gap-2" role="group" aria-label="เปิดปิดชั้นข้อมูลแผนที่">
               <button aria-pressed={visibleLayers.villages} onClick={() => setVisibleLayers((value) => ({ ...value, villages: !value.villages }))} className={`rounded-lg border px-3 py-1.5 font-bold ${visibleLayers.villages ? 'border-cyan-200 bg-cyan-300/10 text-cyan-700' : 'border-slate-200 text-slate-600'}`}>13 หมู่บ้าน</button>
@@ -323,46 +323,46 @@ export default function IntelligencePage() {
                 center={[hotspot.latitude, hotspot.longitude]}
                 radius={8}
                 pathOptions={{ color: '#fff7ed', weight: 2, fillColor: '#f97316', fillOpacity: 0.9 }}
-              ><Popup><div className="text-sm text-slate-900"><strong>จุดความร้อนจากดาวเทียม</strong><br />ห่างจากจุดกลางบ่อหลวง {fmt(hotspot.distanceKm, 1)} กม.<br />ดาวเทียม: {hotspot.satellite ?? 'ไม่ระบุ'}<br />วันที่ตรวจพบ: {hotspot.acquiredDate ?? 'ไม่ระบุ'}<br />แหล่งข้อมูล: GISTDA</div></Popup></CircleMarker>)}
-              {visibleLayers.wind && typeof current?.wind_speed_10m === 'number' && <CircleMarker center={[18.166, 98.377]} radius={10} pathOptions={{ color: '#cffafe', weight: 2, fillColor: '#06b6d4', fillOpacity: 0.85 }}><Popup><div className="text-sm text-slate-900"><strong>ลม ณ จุดอ้างอิงตำบล</strong><br />{fmt(current.wind_speed_10m)} กม./ชม. จากทิศ {windCompass(current.wind_direction_10m)}<br />กระโชก {fmt(current.wind_gusts_10m)} กม./ชม.<br />แบบจำลอง Open-Meteo ไม่ใช่ค่ารายหมู่บ้าน</div></Popup></CircleMarker>}
-              {visibleLayers.air && typeof air?.pm2_5 === 'number' && <CircleMarker center={[18.1605, 98.3715]} radius={10} pathOptions={{ color: '#fef3c7', weight: 2, fillColor: '#f59e0b', fillOpacity: 0.85 }}><Popup><div className="text-sm text-slate-900"><strong>คุณภาพอากาศ ณ จุดอ้างอิงตำบล</strong><br />PM2.5 {fmt(air.pm2_5, 1)} µg/m³ · PM10 {fmt(air.pm10, 1)} µg/m³<br />ค่าประเมิน CAMS ไม่ใช่สถานีตรวจวัด</div></Popup></CircleMarker>}
-              {(visibleLayers.temperature || visibleLayers.humidity || visibleLayers.uv || visibleLayers.visibility) && typeof current?.temperature_2m === 'number' && <CircleMarker center={[18.1633, 98.3744]} radius={10} pathOptions={{ color: '#ffedd5', weight: 2, fillColor: '#f97316', fillOpacity: 0.85 }}><Popup><div className="text-sm text-slate-900"><strong>แบบจำลอง ณ จุดอ้างอิงตำบล</strong><br />อุณหภูมิ {fmt(current.temperature_2m, 1)}°C · รู้สึก {fmt(current.apparent_temperature, 1)}°C<br />ความชื้น {fmt(current.relative_humidity_2m)}% · UV สูงสุด {fmt(daily?.uv_index_max?.[0], 1)}<br />ไม่ใช่ค่ารายหมู่บ้าน</div></Popup></CircleMarker>}
+              ><Popup><div className="text-base text-slate-900"><strong>จุดความร้อนจากดาวเทียม</strong><br />ห่างจากจุดกลางบ่อหลวง {fmt(hotspot.distanceKm, 1)} กม.<br />ดาวเทียม: {hotspot.satellite ?? 'ไม่ระบุ'}<br />วันที่ตรวจพบ: {hotspot.acquiredDate ?? 'ไม่ระบุ'}<br />แหล่งข้อมูล: GISTDA</div></Popup></CircleMarker>)}
+              {visibleLayers.wind && typeof current?.wind_speed_10m === 'number' && <CircleMarker center={[18.166, 98.377]} radius={10} pathOptions={{ color: '#cffafe', weight: 2, fillColor: '#06b6d4', fillOpacity: 0.85 }}><Popup><div className="text-base text-slate-900"><strong>ลม ณ จุดอ้างอิงตำบล</strong><br />{fmt(current.wind_speed_10m)} กม./ชม. จากทิศ {windCompass(current.wind_direction_10m)}<br />กระโชก {fmt(current.wind_gusts_10m)} กม./ชม.<br />แบบจำลอง Open-Meteo ไม่ใช่ค่ารายหมู่บ้าน</div></Popup></CircleMarker>}
+              {visibleLayers.air && typeof air?.pm2_5 === 'number' && <CircleMarker center={[18.1605, 98.3715]} radius={10} pathOptions={{ color: '#fef3c7', weight: 2, fillColor: '#f59e0b', fillOpacity: 0.85 }}><Popup><div className="text-base text-slate-900"><strong>คุณภาพอากาศ ณ จุดอ้างอิงตำบล</strong><br />PM2.5 {fmt(air.pm2_5, 1)} µg/m³ · PM10 {fmt(air.pm10, 1)} µg/m³<br />ค่าประเมิน CAMS ไม่ใช่สถานีตรวจวัด</div></Popup></CircleMarker>}
+              {(visibleLayers.temperature || visibleLayers.humidity || visibleLayers.uv || visibleLayers.visibility) && typeof current?.temperature_2m === 'number' && <CircleMarker center={[18.1633, 98.3744]} radius={10} pathOptions={{ color: '#ffedd5', weight: 2, fillColor: '#f97316', fillOpacity: 0.85 }}><Popup><div className="text-base text-slate-900"><strong>แบบจำลอง ณ จุดอ้างอิงตำบล</strong><br />อุณหภูมิ {fmt(current.temperature_2m, 1)}°C · รู้สึก {fmt(current.apparent_temperature, 1)}°C<br />ความชื้น {fmt(current.relative_humidity_2m)}% · UV สูงสุด {fmt(daily?.uv_index_max?.[0], 1)}<br />ไม่ใช่ค่ารายหมู่บ้าน</div></Popup></CircleMarker>}
             </MapContainer>
             <div className="absolute left-4 top-4 z-[800] max-w-[280px] rounded-xl border border-slate-200 bg-[#071522]/90 p-3">
-              <p className="text-xs font-bold text-cyan-700">สถานการณ์ที่กำลังติดตาม</p>
+              <p className="text-sm font-bold text-cyan-700">สถานการณ์ที่กำลังติดตาม</p>
               <p className="mt-1 text-base font-semibold text-slate-900">{config.label}</p>
-              <p className="mt-1 text-sm leading-relaxed text-slate-700">ข้อมูลบนแผนที่เป็นระดับตำบลและหมู่บ้าน ไม่ใช่ระดับแปลงหรืออาคาร</p>
-              <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold text-slate-800">
+              <p className="mt-1 text-base leading-relaxed text-slate-700">ข้อมูลบนแผนที่เป็นระดับตำบลและหมู่บ้าน ไม่ใช่ระดับแปลงหรืออาคาร</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-sm font-bold text-slate-800">
                 <span className="rounded-md border-2 px-2 py-1" style={{ borderColor: config.accent }}>ขอบเขตตำบล</span>
                 <span className="rounded-md border border-cyan-200/50 px-2 py-1">เส้นสี = ขอบเขตแต่ละหมู่บ้าน</span>
                 {visibleLayers.villageRain && villageSnapshots.length ? <span className="rounded-md border border-violet-200 px-2 py-1">สี polygon = ระดับคัดกรอง snapshot</span> : null}
                 {visibleLayers.radar && radarFrame ? <span className="rounded-md border border-sky-200 px-2 py-1">Radar {timeLabel(new Date(radarFrame.time * 1000).toISOString())}</span> : null}
               </div>
             </div>
-            <Link href="/radar" className="absolute bottom-4 right-4 z-[800] rounded-xl bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-200">เปิดแผนที่ปฏิบัติการเต็มจอ</Link>
+            <Link href="/radar" className="absolute bottom-4 right-4 z-[800] rounded-xl bg-cyan-300 px-4 py-3 text-base font-semibold text-slate-950 hover:bg-cyan-200">เปิดแผนที่ปฏิบัติการเต็มจอ</Link>
           </div>
         </div>
 
         <aside className="order-3 space-y-4">
           <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">สรุปเพื่อการตัดสินใจ</p><p className="mt-1 text-xs text-slate-600">คำแนะนำสำหรับประชาชน</p></div><span className={`rounded-lg px-2 py-1 text-xs font-bold ${screening.level === 'warning' ? 'bg-rose-400/10 text-rose-700' : screening.level === 'watch' ? 'bg-amber-400/10 text-amber-700' : 'bg-emerald-400/10 text-emerald-700'}`}>{screening.label}</span></div>
+            <div className="flex items-start justify-between gap-3"><div><p className="text-base font-semibold">สรุปเพื่อการตัดสินใจ</p><p className="mt-1 text-sm text-slate-600">คำแนะนำสำหรับประชาชน</p></div><span className={`rounded-lg px-2 py-1 text-sm font-bold ${screening.level === 'warning' ? 'bg-rose-400/10 text-rose-700' : screening.level === 'watch' ? 'bg-amber-400/10 text-amber-700' : 'bg-emerald-400/10 text-emerald-700'}`}>{screening.label}</span></div>
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3" aria-label={`ความพร้อมข้อมูล ${quality.score} จาก 100`}>
-              <div className="flex items-center justify-between gap-3"><span className="text-xs font-semibold text-slate-900">ความพร้อมของข้อมูล</span><span className={`text-sm font-semibold ${quality.level === 'high' ? 'text-emerald-700' : quality.level === 'medium' ? 'text-amber-700' : 'text-rose-700'}`}>{quality.score}/100</span></div>
+              <div className="flex items-center justify-between gap-3"><span className="text-sm font-semibold text-slate-900">ความพร้อมของข้อมูล</span><span className={`text-base font-semibold ${quality.level === 'high' ? 'text-emerald-700' : quality.level === 'medium' ? 'text-amber-700' : 'text-rose-700'}`}>{quality.score}/100</span></div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-white"><div className={`h-full ${quality.level === 'high' ? 'bg-emerald-400' : quality.level === 'medium' ? 'bg-amber-400' : 'bg-rose-400'}`} style={{ width: `${quality.score}%` }} /></div>
-              <p className="mt-2 text-[11px] font-bold text-slate-700">{quality.label}</p>
-              <p className="mt-1 text-[10px] leading-4 text-slate-500">คะแนนนี้วัดความครบถ้วนและความสดของข้อมูล ไม่ใช่คะแนนความแม่นยำของพยากรณ์</p>
-              {quality.limitations.length ? <ul className="mt-2 list-disc space-y-1 pl-4 text-[10px] text-amber-700">{quality.limitations.map((item) => <li key={item}>{item}</li>)}</ul> : null}
+              <p className="mt-2 text-sm font-bold text-slate-700">{quality.label}</p>
+              <p className="mt-1 text-sm leading-4 text-slate-500">คะแนนนี้วัดความครบถ้วนและความสดของข้อมูล ไม่ใช่คะแนนความแม่นยำของพยากรณ์</p>
+              {quality.limitations.length ? <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-amber-700">{quality.limitations.map((item) => <li key={item}>{item}</li>)}</ul> : null}
             </div>
             <ol className="mt-4 space-y-3">
-              {config.priorities.map((item, index) => <li key={item} className="flex gap-3 text-sm leading-relaxed text-slate-800"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-50 text-xs font-semibold">{index + 1}</span>{item}</li>)}
+              {config.priorities.map((item, index) => <li key={item} className="flex gap-3 text-base leading-relaxed text-slate-800"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-50 text-sm font-semibold">{index + 1}</span>{item}</li>)}
             </ol>
-            {screening.reasons.length > 0 && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-300/8 p-3"><p className="text-xs font-semibold text-amber-700">เหตุผลที่ระบบคัดกรอง</p><ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-amber-700">{screening.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div>}
-            <p className="mt-4 rounded-xl border border-amber-200 bg-amber-300/8 p-3 text-xs leading-relaxed text-amber-700">ข้อมูลพยากรณ์และดาวเทียมใช้สนับสนุนการตัดสินใจ ไม่ใช่ค่าตรวจวัดภาคพื้นดิน ณ ทุกหมู่บ้าน</p>
-            <p className="mt-2 text-[11px] leading-relaxed text-slate-500">สถานะนี้เป็นการคัดกรองอัตโนมัติเบื้องต้น ไม่ใช่ประกาศเตือนภัยอย่างเป็นทางการ เจ้าหน้าที่ต้องตรวจสอบก่อนเผยแพร่</p>
+            {screening.reasons.length > 0 && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-300/8 p-3"><p className="text-sm font-semibold text-amber-700">เหตุผลที่ระบบคัดกรอง</p><ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-amber-700">{screening.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></div>}
+            <p className="mt-4 rounded-xl border border-amber-200 bg-amber-300/8 p-3 text-sm leading-relaxed text-amber-700">ข้อมูลพยากรณ์และดาวเทียมใช้สนับสนุนการตัดสินใจ ไม่ใช่ค่าตรวจวัดภาคพื้นดิน ณ ทุกหมู่บ้าน</p>
+            <p className="mt-2 text-sm leading-relaxed text-slate-500">สถานะนี้เป็นการคัดกรองอัตโนมัติเบื้องต้น ไม่ใช่ประกาศเตือนภัยอย่างเป็นทางการ เจ้าหน้าที่ต้องตรวจสอบก่อนเผยแพร่</p>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-center justify-between"><div><p className="text-sm font-semibold">13 หมู่บ้าน</p><p className="mt-1 text-[10px] text-slate-500">สีหน้าชื่อใช้ตรงกับเส้นขอบบนแผนที่</p></div><Link href="/radar" className="text-xs font-bold text-cyan-700">ดูค่าฝน →</Link></div>
+            <div className="flex items-center justify-between"><div><p className="text-base font-semibold">13 หมู่บ้าน</p><p className="mt-1 text-sm text-slate-500">สีหน้าชื่อใช้ตรงกับเส้นขอบบนแผนที่</p></div><Link href="/radar" className="text-sm font-bold text-cyan-700">ดูค่าฝน →</Link></div>
             <div className="mt-3 grid max-h-64 grid-cols-2 gap-2 overflow-y-auto pr-1">
               {VILLAGES.map((village, index) => {
                 const villageColor = villageColors.get(village) ?? FALLBACK_VILLAGE_COLOR;
@@ -370,38 +370,38 @@ export default function IntelligencePage() {
                   key={village}
                   aria-pressed={selectedVillage === village}
                   onClick={() => setSelectedVillage((value) => value === village ? null : village)}
-                  className={`flex items-center rounded-lg border px-2.5 py-2 text-left text-xs transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${selectedVillage === village ? 'bg-slate-50 text-slate-900' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-50'}`}
+                  className={`flex items-center rounded-lg border px-2.5 py-2 text-left text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${selectedVillage === village ? 'bg-slate-50 text-slate-900' : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-50'}`}
                   style={selectedVillage === village ? { borderColor: villageColor, boxShadow: `inset 0 0 0 1px ${villageColor}55` } : undefined}
                 ><span aria-hidden="true" className="mr-2 h-3 w-3 shrink-0 rounded-sm border border-slate-200" style={{ backgroundColor: villageColor }} /><span><span className="mr-1 text-slate-500">{index + 1}</span>{village}</span></button>;
               })}
             </div>
             {selectedVillage ? <div className="mt-4 rounded-xl border border-cyan-200 bg-cyan-300/5 p-3">
-              <div className="flex items-center justify-between gap-2"><p className="text-xs font-semibold text-cyan-700">{selectedVillage}</p><span className="text-[11px] font-bold text-slate-600">{selectedVillageSnapshot ? 'SNAPSHOT รายหมู่บ้าน' : 'ยังไม่มี SNAPSHOT'}</span></div>
-              {selectedVillageSnapshot ? <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-800">
+              <div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold text-cyan-700">{selectedVillage}</p><span className="text-sm font-bold text-slate-600">{selectedVillageSnapshot ? 'SNAPSHOT รายหมู่บ้าน' : 'ยังไม่มี SNAPSHOT'}</span></div>
+              {selectedVillageSnapshot ? <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-slate-800">
                 <span>ฝน 1 ชม.<strong className="block text-base text-slate-900">{fmt(selectedVillageSnapshot.rain_1h_mm, 1)} มม.</strong></span>
                 <span>ฝน 3 ชม.<strong className="block text-base text-slate-900">{fmt(selectedVillageSnapshot.rain_3h_mm, 1)} มม.</strong></span>
                 <span>ฝน 24 ชม.<strong className="block text-base text-slate-900">{fmt(selectedVillageSnapshot.rain_24h_mm, 1)} มม.</strong></span>
                 <span>ดัชนีคัดกรอง<strong className="block text-base text-slate-900">{fmt(selectedVillageSnapshot.risk_index, 0)}</strong></span>
-                <p className="col-span-2 text-[10px] leading-4 text-slate-600">แบบจำลองจาก {selectedVillageSnapshot.sample_count} จุด · coverage {fmt(selectedVillageSnapshot.sample_coverage * 100, 0)}% · confidence {selectedVillageSnapshot.confidence} · {timeLabel(selectedVillageSnapshot.observed_at)}</p>
-              </div> : <p className="mt-2 text-[11px] leading-5 text-amber-700">ระบบไม่คัดลอกค่ากลางตำบลมาเป็นค่าหมู่บ้าน เมื่อไม่มี snapshot จะแสดงว่าไม่มีข้อมูลแทน</p>}
+                <p className="col-span-2 text-sm leading-4 text-slate-600">แบบจำลองจาก {selectedVillageSnapshot.sample_count} จุด · coverage {fmt(selectedVillageSnapshot.sample_coverage * 100, 0)}% · confidence {selectedVillageSnapshot.confidence} · {timeLabel(selectedVillageSnapshot.observed_at)}</p>
+              </div> : <p className="mt-2 text-sm leading-5 text-amber-700">ระบบไม่คัดลอกค่ากลางตำบลมาเป็นค่าหมู่บ้าน เมื่อไม่มี snapshot จะแสดงว่าไม่มีข้อมูลแทน</p>}
             </div> : null}
           </div>
 
           <div className="rounded-xl border border-violet-200 bg-violet-300/5 p-4">
-            <p className="text-sm font-semibold text-slate-900">งานปฏิบัติการและประวัติอนุมัติ</p>
-            <p className="mt-2 text-xs leading-5 text-slate-700">รายการเสนอเตือน การอนุมัติ และการปฏิเสธเปิดดูได้หลังเข้าสู่ระบบ Staff Portal พร้อม MFA และตรวจ Role ฝั่ง server</p>
-            <Link href="/admin" className="mt-3 inline-flex rounded-lg border border-violet-200 bg-violet-300/10 px-3 py-2 text-xs font-semibold text-violet-700">เปิด Staff Portal →</Link>
+            <p className="text-base font-semibold text-slate-900">งานปฏิบัติการและประวัติอนุมัติ</p>
+            <p className="mt-2 text-sm leading-5 text-slate-700">รายการเสนอเตือน การอนุมัติ และการปฏิเสธเปิดดูได้หลังเข้าสู่ระบบ Staff Portal พร้อม MFA และตรวจ Role ฝั่ง server</p>
+            <Link href="/admin" className="mt-3 inline-flex rounded-lg border border-violet-200 bg-violet-300/10 px-3 py-2 text-sm font-semibold text-violet-700">เปิด Staff Portal →</Link>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-sm font-semibold">สถานะแหล่งข้อมูล</p>
+            <p className="text-base font-semibold">สถานะแหล่งข้อมูล</p>
             <div className="mt-3 space-y-2">
-              {sourceRows.length ? sourceRows.map((source, index) => <div key={`${source.source}-${index}`} className="rounded-lg bg-slate-50 px-3 py-2 text-xs"><div className="flex items-center justify-between gap-3"><span className="truncate text-slate-700">{source.source}{typeof source.count === 'number' ? ` · ${source.count} จุด` : ''}</span><span className={`font-bold ${source.state === 'ready' ? 'text-emerald-700' : source.state === 'unconfigured' ? 'text-amber-700' : 'text-rose-700'}`}>{source.state === 'ready' ? 'พร้อมใช้' : source.state === 'unconfigured' ? 'ยังไม่ตั้งค่า' : 'ขัดข้อง'}</span></div><p className="mt-1 text-[10px] text-slate-500">{timeLabel(source.fetchedAt)}</p></div>) : <p className="text-sm text-slate-600">กำลังตรวจสอบ…</p>}
+              {sourceRows.length ? sourceRows.map((source, index) => <div key={`${source.source}-${index}`} className="rounded-lg bg-slate-50 px-3 py-2 text-sm"><div className="flex items-center justify-between gap-3"><span className="truncate text-slate-700">{source.source}{typeof source.count === 'number' ? ` · ${source.count} จุด` : ''}</span><span className={`font-bold ${source.state === 'ready' ? 'text-emerald-700' : source.state === 'unconfigured' ? 'text-amber-700' : 'text-rose-700'}`}>{source.state === 'ready' ? 'พร้อมใช้' : source.state === 'unconfigured' ? 'ยังไม่ตั้งค่า' : 'ขัดข้อง'}</span></div><p className="mt-1 text-sm text-slate-500">{timeLabel(source.fetchedAt)}</p></div>) : <p className="text-base text-slate-600">กำลังตรวจสอบ…</p>}
             </div>
           </div>
         </aside>
       </section>
-      {error && <div className="fixed bottom-4 left-1/2 z-[1500] -translate-x-1/2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
+      {error && <div className="fixed bottom-4 left-1/2 z-[1500] -translate-x-1/2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-base text-rose-700">{error}</div>}
     </main>
   );
 }
