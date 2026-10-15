@@ -5,10 +5,10 @@ import { DetailRow, DocumentPage, SummaryGrid } from '../_components/document-pa
 export const metadata: Metadata = { title: 'บัญชีชุดข้อมูล | Open Data บ่อหลวง' };
 
 const statusLabels: Record<string, { label: string; className: string }> = {
-  published_public_safe: { label: 'เผยแพร่แบบลดข้อมูลส่วนบุคคล', className: 'border-emerald-700 bg-emerald-950/60 text-emerald-200' },
-  withheld_pending_official_verification: { label: 'ระงับเผยแพร่เพื่อรอตรวจรับรอง', className: 'border-rose-700 bg-rose-950/60 text-rose-200' },
-  published_with_provenance_warning: { label: 'เผยแพร่พร้อมคำเตือนแหล่งที่มา', className: 'border-amber-700 bg-amber-950/60 text-amber-200' },
-  published_context_only: { label: 'เผยแพร่เพื่อใช้เป็นข้อมูลบริบท', className: 'border-sky-700 bg-sky-950/60 text-sky-200' },
+  published_public_safe: { label: 'เผยแพร่แบบลดข้อมูลส่วนบุคคล', className: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+  withheld_pending_official_verification: { label: 'ระงับเผยแพร่เพื่อรอตรวจรับรอง', className: 'border-rose-200 bg-rose-50 text-rose-700' },
+  published_with_provenance_warning: { label: 'เผยแพร่พร้อมคำเตือนแหล่งที่มา', className: 'border-amber-200 bg-amber-50 text-amber-700' },
+  published_context_only: { label: 'เผยแพร่เพื่อใช้เป็นข้อมูลบริบท', className: 'border-sky-200 bg-sky-50 text-sky-700' },
 };
 
 export default function CatalogPage() {
@@ -21,13 +21,13 @@ export default function CatalogPage() {
         { label: 'สัญญาอนุญาต', value: catalog.license_status },
       ]} />
       <section className="space-y-4" aria-labelledby="datasets-title">
-        <h2 id="datasets-title" className="text-xl font-extrabold">ชุดข้อมูลทั้งหมด {catalog.datasets.length} รายการ</h2>
+        <h2 id="datasets-title" className="text-xl font-semibold">ชุดข้อมูลทั้งหมด {catalog.datasets.length} รายการ</h2>
         {catalog.datasets.map(dataset => {
-          const status = statusLabels[dataset.publication_status] ?? { label: dataset.publication_status, className: 'border-slate-600 bg-slate-800 text-slate-200' };
+          const status = statusLabels[dataset.publication_status] ?? { label: dataset.publication_status, className: 'border-slate-200 bg-white text-slate-800' };
           return (
-            <article key={dataset.dataset_id} className="rounded-2xl border border-slate-700 bg-slate-800/80 p-5 md:p-6">
+            <article key={dataset.dataset_id} className="rounded-xl border border-slate-200 bg-white p-5 md:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><h3 className="text-lg font-extrabold">{dataset.title}</h3><p className="mt-1 font-mono text-xs text-slate-500">{dataset.dataset_id}</p></div>
+                <div><h3 className="text-lg font-semibold">{dataset.title}</h3><p className="mt-1 font-mono text-xs text-slate-500">{dataset.dataset_id}</p></div>
                 <span className={`rounded-full border px-3 py-1 text-xs font-bold ${status.className}`}>{status.label}</span>
               </div>
               <dl className="mt-4">

@@ -32,12 +32,12 @@ export default function GisMetadataPage() {
         { label: 'สัญญาอนุญาต', value: gisMetadata.license_status },
       ]} />
       <section className="space-y-4" aria-labelledby="gis-datasets-title">
-        <h2 id="gis-datasets-title" className="text-xl font-extrabold">ไฟล์ GIS {datasets.length} รายการ</h2>
+        <h2 id="gis-datasets-title" className="text-xl font-semibold">ไฟล์ GIS {datasets.length} รายการ</h2>
         {datasets.map(([filename, dataset]) => (
-          <article key={filename} className="rounded-2xl border border-slate-700 bg-slate-800/80 p-5 md:p-6">
+          <article key={filename} className="rounded-xl border border-slate-200 bg-white p-5 md:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div><h3 className="text-lg font-extrabold">{dataset.title}</h3><p className="mt-1 font-mono text-xs text-slate-500">{filename} · {dataset.dataset_id}</p></div>
-              <span className="rounded-full border border-sky-700 bg-sky-950/60 px-3 py-1 text-xs font-bold text-sky-200">{dataset.status}</span>
+              <div><h3 className="text-lg font-semibold">{dataset.title}</h3><p className="mt-1 font-mono text-xs text-slate-500">{filename} · {dataset.dataset_id}</p></div>
+              <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-bold text-sky-700">{dataset.status}</span>
             </div>
             <dl className="mt-4">
               <DetailRow label="รุ่น / วันออกรุ่น">{dataset.version} · {dataset.release_date}</DetailRow>
@@ -48,8 +48,8 @@ export default function GisMetadataPage() {
               {dataset.classification ? <DetailRow label="การจำแนกชั้น">{Object.entries(dataset.classification).map(([code, label]) => `${code} = ${label}`).join(', ')}</DetailRow> : null}
               <DetailRow label="หน่วยงานต้นทาง">{dataset.source_agency ?? 'รอยืนยัน'}</DetailRow>
               <DetailRow label="หมายเหตุแหล่งที่มา">{dataset.source_note}</DetailRow>
-              <DetailRow label="SHA-256"><code className="break-all text-xs text-emerald-300">{dataset.sha256}</code></DetailRow>
-              <DetailRow label="ข้อจำกัดสำคัญ"><strong className="text-amber-200">{dataset.limitations}</strong></DetailRow>
+              <DetailRow label="SHA-256"><code className="break-all text-xs text-emerald-700">{dataset.sha256}</code></DetailRow>
+              <DetailRow label="ข้อจำกัดสำคัญ"><strong className="text-amber-700">{dataset.limitations}</strong></DetailRow>
             </dl>
           </article>
         ))}
