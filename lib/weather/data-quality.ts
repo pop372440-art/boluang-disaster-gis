@@ -7,6 +7,7 @@ export type WeatherFreshness = {
 };
 
 export function degreesToThaiWindDirection(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
   const degrees = Number(value);
   if (!Number.isFinite(degrees) || degrees < 0 || degrees > 360) return null;
 
@@ -28,7 +29,7 @@ export function evaluateWeatherFreshness(
         ? Date.parse(observedAt)
         : NaN;
 
-  if (!Number.isFinite(timestamp) || staleAfterMinutes < 0 || expireAfterMinutes <= staleAfterMinutes) {
+  if (!Number.isFinite(timestamp) || timestamp > now + 5 * 60_000 || staleAfterMinutes < 0 || expireAfterMinutes <= staleAfterMinutes) {
     return { status: 'unknown', ageMinutes: null, observedAt: null };
   }
 

@@ -27,7 +27,7 @@ type Props = {
   enabled?: boolean;
 };
 
-export default function SmoothRadar({
+export default function RadarOverlay({
   frame, frames = [], frameIndex = 0, opacity = 0.75, quality = 'bilinear',
   colorScheme = DEFAULT_COLOR_SCHEME, gain = 1, cutoff = 6, zIndex = 300, enabled = true,
 }: Props) {
