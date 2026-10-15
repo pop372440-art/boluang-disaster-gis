@@ -41,7 +41,7 @@ Renamed the React component `SmoothRadar.tsx` to `RadarOverlay.tsx` while keepin
 
 ## Validation
 
-- `npm test`: 139 passed, 0 failed.
+- `npm test`: 140 passed, 0 failed, including returning a custom point from weather to GIS.
 - `npm run typecheck`: passed.
 - `npm run build`: passed, including type validation and static generation.
 - Explicit ESLint checks passed for the new GIS components/helpers/tests, the weather API, new station API and updated shared quality utilities.

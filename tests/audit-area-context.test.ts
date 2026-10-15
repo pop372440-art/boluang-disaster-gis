@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
-import { areaHref, parseAreaSearch, villageContexts, containsPoint } from '../lib/gis/area-context.ts';
+import { areaHref, parseAreaSearch, resolveAreaContext, BO_LUANG_CONTEXT, villageContexts, containsPoint } from '../lib/gis/area-context.ts';
 import { localStationEvidence } from '../lib/gis/evidence.ts';
 
 test('all actual village contexts have stable ids and representative points inside their polygon', () => {
@@ -25,6 +25,12 @@ test('holes and disjoint multipolygons are respected', () => {
 });
 test('invalid shared coordinates are rejected rather than treated as zero', () => {
   for (const query of ['', '?lat=&lng=', '?lat=100&lng=98', '?lat=abc&lng=98']) assert.equal(parseAreaSearch(query), null);
+});
+test('returning a custom point from weather to GIS preserves its location', () => {
+  const point = { id: 'point', name: 'พิกัดที่เลือก', lat: 18.2, lng: 98.4 };
+  const requested = parseAreaSearch(areaHref('/', point).split('?')[1])!;
+  assert.deepEqual(resolveAreaContext(requested, []), point);
+  assert.deepEqual(resolveAreaContext({ ...point, id: 'moo-99' }, []), BO_LUANG_CONTEXT);
 });
 test('nearby gauges preserve missing measurements and separate village membership', () => {
   const village = villageContexts(JSON.parse(fs.readFileSync(new URL('../public/geojson/block.json', import.meta.url), 'utf8')))[0];

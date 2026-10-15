@@ -21,6 +21,7 @@ export default function AreaContextPanel({ area, villages, loading, error, onSel
     <label htmlFor="village-context" className="block text-xs">เลือกหมู่บ้านจากขอบเขตจริง</label>
     <select id="village-context" className="min-h-11 w-full rounded-lg border border-slate-600 bg-slate-800 p-2 text-sm" value={area.id} onChange={e => onSelect(e.target.value)}>
       <option value="bo-luang">ภาพรวมตำบลบ่อหลวง</option>
+      {area.id === 'point' && <option value="point">พิกัดที่เลือก · {area.name}</option>}
       {villages.map(village => <option key={village.id} value={village.id}>หมู่ {village.id.slice(4)} · {village.name}</option>)}
     </select>
     {loading && <p role="status" className="text-xs text-slate-300">กำลังโหลดขอบเขตหมู่บ้าน…</p>}

@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import AreaContextPanel from '@/components/gis/AreaContextPanel';
 import AreaEvidencePanel from '@/components/gis/AreaEvidencePanel';
-import { areaHref, BO_LUANG_CONTEXT, containsPoint, parseAreaSearch, villageContexts, type AreaContext, type VillageContext } from '@/lib/gis/area-context';
+import { areaHref, BO_LUANG_CONTEXT, containsPoint, parseAreaSearch, resolveAreaContext, villageContexts, type AreaContext, type VillageContext } from '@/lib/gis/area-context';
 import 'leaflet/dist/leaflet.css';
 import Swal from 'sweetalert2';
 import { getBrowserSupabaseClient } from '@/lib/supabase/browser';
@@ -238,7 +238,7 @@ export default function BoLuangDashboard() {
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(false);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
   const [selectedArea, setSelectedArea] = useState<AreaContext>(BO_LUANG_CONTEXT);
-  const pendingAreaRef = useRef<string | null>(null);
+  const pendingAreaRef = useRef<AreaContext | null>(null);
   const [showScanModal, setShowScanModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
 
@@ -371,7 +371,7 @@ export default function BoLuangDashboard() {
   };
 
   useEffect(() => {
-    pendingAreaRef.current = parseAreaSearch(window.location.search)?.id ?? null;
+    pendingAreaRef.current = parseAreaSearch(window.location.search);
     const handleResize = () => {
       const mobile = window.innerWidth < 1024; 
       setIsMobile(mobile);
@@ -677,7 +677,7 @@ export default function BoLuangDashboard() {
 
   const selectVillage = (id: string) => {
     const village = villages.find(item => item.id === id);
-    const area = village ?? BO_LUANG_CONTEXT;
+    const area = village ?? (id === 'point' && selectedArea.id === 'point' ? selectedArea : BO_LUANG_CONTEXT);
     setSelectedArea(area);
     if (village) {
       const index = geoBlock.features.findIndex((feature: { properties?: { own_villag?: string } }) => feature.properties?.own_villag === village.name);
@@ -688,11 +688,14 @@ export default function BoLuangDashboard() {
   };
 
   useEffect(() => {
-    const village = villages.find(item => item.id === pendingAreaRef.current);
-    if (!village || !mapRef) return;
+    const requested = pendingAreaRef.current;
+    if (!requested || !mapRef || (requested.id.startsWith('moo-') && !villages.length)) return;
+    const area = resolveAreaContext(requested, villages);
     pendingAreaRef.current = null;
-    setSelectedArea(village);
-    mapRef.flyTo([village.lat, village.lng], 13);
+    setSelectedArea(area);
+    const village = villages.find(item => item.id === area.id);
+    setActiveVillageIndex(village ? Number(village.feature.properties.__idx) : null);
+    mapRef.flyTo([area.lat, area.lng], area.id === 'bo-luang' ? 11 : 13);
   }, [villages, mapRef]);
 
   const applyLayerPreset = (preset: 'water' | 'fire' | 'report') => {

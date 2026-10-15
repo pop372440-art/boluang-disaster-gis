@@ -5,6 +5,10 @@ export interface AreaContext { id: string; name: string; lat: number; lng: numbe
 export interface VillageContext extends AreaContext { feature: GeoJsonFeature }
 export const BO_LUANG_CONTEXT: AreaContext = { id: 'bo-luang', name: 'ตำบลบ่อหลวง', lat: 18.1633, lng: 98.3744 };
 
+export function resolveAreaContext(requested: AreaContext, villages: VillageContext[]): AreaContext {
+  return villages.find(village => village.id === requested.id) ?? (requested.id === 'point' ? requested : BO_LUANG_CONTEXT);
+}
+
 function inRing([x, y]: Position, ring: Position[]) {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
