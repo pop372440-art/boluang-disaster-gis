@@ -85,7 +85,7 @@ function EvidenceContent({ area }: { area: AreaContext }) {
 }
 export default function AreaEvidencePanel({ area }: { area: AreaContext }) {
   const [open, setOpen] = useState(false);
-  return <details className="rounded-2xl border border-slate-400/40 p-4" onToggle={event => setOpen(event.currentTarget.open)}>
+  return <details className="rounded-xl border border-slate-400/40 p-4" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary className="min-h-11 cursor-pointer text-sm font-bold">หลักฐานภัยรอบพื้นที่ที่เลือก</summary>
     {open && <EvidenceContent key={`${area.id}:${area.lat}:${area.lng}`} area={area} />}
   </details>;

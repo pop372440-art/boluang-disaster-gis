@@ -30,16 +30,16 @@ export default function DataDictionaryPage() {
         { label: 'หลักการเผยแพร่', value: 'เปิดเผยเท่าที่จำเป็นและลดความละเอียดข้อมูล' },
       ]} />
       <section className="space-y-4" aria-labelledby="dictionary-title">
-        <h2 id="dictionary-title" className="text-xl font-extrabold">รายละเอียดฟิลด์</h2>
+        <h2 id="dictionary-title" className="text-xl font-semibold">รายละเอียดฟิลด์</h2>
         {datasets.map(([datasetId, dataset]) => (
-          <article key={datasetId} className="rounded-2xl border border-slate-700 bg-slate-800/80 p-5 md:p-6">
-            <h3 className="text-lg font-extrabold">{datasetTitles[datasetId] ?? datasetId}</h3>
+          <article key={datasetId} className="rounded-xl border border-slate-200 bg-white p-5 md:p-6">
+            <h3 className="text-lg font-semibold">{datasetTitles[datasetId] ?? datasetId}</h3>
             <p className="mt-1 font-mono text-xs text-slate-500">{datasetId}</p>
             {dataset.fields ? (
-              <div className="mt-5 overflow-x-auto rounded-xl border border-slate-700">
+              <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
                 <table className="min-w-full divide-y divide-slate-700 text-left text-sm">
-                  <thead className="bg-slate-900"><tr><th className="px-4 py-3 font-bold text-slate-300">ชื่อฟิลด์</th><th className="px-4 py-3 font-bold text-slate-300">ความหมาย</th></tr></thead>
-                  <tbody className="divide-y divide-slate-700">{Object.entries(dataset.fields).map(([field, meaning]) => <tr key={field}><th scope="row" className="whitespace-nowrap px-4 py-3 font-mono text-sky-300">{field}</th><td className="px-4 py-3 leading-6 text-slate-200">{meaning}</td></tr>)}</tbody>
+                  <thead className="bg-white"><tr><th className="px-4 py-3 font-bold text-slate-700">ชื่อฟิลด์</th><th className="px-4 py-3 font-bold text-slate-700">ความหมาย</th></tr></thead>
+                  <tbody className="divide-y divide-slate-700">{Object.entries(dataset.fields).map(([field, meaning]) => <tr key={field}><th scope="row" className="whitespace-nowrap px-4 py-3 font-mono text-sky-700">{field}</th><td className="px-4 py-3 leading-6 text-slate-800">{meaning}</td></tr>)}</tbody>
                 </table>
               </div>
             ) : null}
