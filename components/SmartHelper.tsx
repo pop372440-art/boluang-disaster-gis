@@ -99,7 +99,7 @@ export default function SmartHelper() {
   if (pathname === '/fire-smoke') return null;
 
   return (
-    <div className={`bl-ui fixed z-[9999] ${isRadarPage ? 'bottom-4 right-[72px]' : isGisPage ? 'bottom-16 left-4 lg:left-auto lg:right-[390px]' : 'bottom-6 right-6'}`}>
+    <div className={`bl-ui fixed z-[9999] ${isRadarPage ? 'bottom-4 right-[72px]' : isGisPage ? 'bottom-16 left-4 lg:left-auto lg:right-[430px]' : 'bottom-6 right-6'}`}>
       
       {/* ========================================== */}
       {/* 1. หน้าต่างแชท (Chat Window) */}
@@ -112,8 +112,8 @@ export default function SmartHelper() {
                 <LineIcon name="help" className="h-6 w-6 text-sky-700" />
               </div>
               <div className="flex flex-col">
-                <span className="leading-tight text-[15px]">ผู้ช่วยบ่อหลวง (AI)</span>
-                <span className="text-[11px] text-blue-700 font-normal mt-0.5 flex items-center">
+                <span className="leading-tight text-base">ผู้ช่วยบ่อหลวง (AI)</span>
+                <span className="text-sm text-blue-700 font-normal mt-0.5 flex items-center">
                   
                   ข้อมูลจาก AI ควรตรวจสอบกับแหล่งอ้างอิง
                 </span>
@@ -130,7 +130,7 @@ export default function SmartHelper() {
                     <LineIcon name="help" className="h-6 w-6 text-sky-700" />
                   </div>
                 )}
-                <div className={`max-w-[75%] p-3 rounded-xl text-[14px] leading-relaxed  ${msg.sender === 'user' ? 'bg-blue-50 text-slate-900 rounded-br-sm' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-sm'}`}>
+                <div className={`max-w-[75%] p-3 rounded-xl text-base leading-relaxed  ${msg.sender === 'user' ? 'bg-blue-50 text-slate-900 rounded-br-sm' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-sm'}`}>
                   {msg.text}
                 </div>
               </div>
@@ -150,7 +150,7 @@ export default function SmartHelper() {
           </div>
 
           <form onSubmit={sendMessage} className="p-3 bg-white border-t border-gray-100 flex space-x-2">
-            <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={isLoading ? "น้องต้นสนกำลังคิด..." : "พิมพ์สอบถามที่นี่..."} className="flex-1 px-4 py-2.5 bg-gray-100 border-transparent rounded-full text-sm outline-none focus:bg-white focus:border-blue-200 focus:ring-2 focus:ring-blue-200 transition-all text-gray-800 disabled:opacity-50" disabled={isLoading} />
+            <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={isLoading ? "น้องต้นสนกำลังคิด..." : "พิมพ์สอบถามที่นี่..."} className="flex-1 px-4 py-2.5 bg-gray-100 border-transparent rounded-full text-base outline-none focus:bg-white focus:border-blue-200 focus:ring-2 focus:ring-blue-200 transition-all text-gray-800 disabled:opacity-50" disabled={isLoading} />
             <button type="submit" disabled={isLoading || !input.trim()} className="bg-blue-50 text-slate-900 px-5 py-2.5 rounded-full font-bold hover:bg-blue-50 transition-all disabled:bg-gray-300 disabled:hover:translate-y-0 disabled:shadow-none">ส่ง</button>
           </form>
         </div>
@@ -163,12 +163,12 @@ export default function SmartHelper() {
         {!isOpen && !isMinimized && (
           <>
             {/*  บอลลูนทักทาย (ปรับขนาด w-[150px] ให้เล็กลงและกระชับพอดีคำ) */}
-            <div className="hidden absolute bottom-[65px] right-2 bg-white text-blue-700 text-[11px] font-bold px-2 rounded-xl border border-blue-100 w-[150px] h-[40px] flex items-center justify-center text-center transition-all">
+            <div className="hidden absolute bottom-[65px] right-2 bg-white text-blue-700 text-sm font-bold px-2 rounded-xl border border-blue-100 w-[150px] h-[40px] flex items-center justify-center text-center transition-all">
               
               {/*  ปุ่มปิด (ซ่อน AI ให้กลายเป็นปุ่มเล็ก) */}
               <button 
                 onClick={(e) => { e.stopPropagation(); setIsMinimized(true); }}
-                className="absolute -top-2 -right-2 bg-white hover:bg-red-500 text-gray-600 hover:text-slate-900 rounded-full w-5 h-5 flex items-center justify-center text-[10px] border border-gray-200 transition-colors z-50"
+                className="absolute -top-2 -right-2 bg-white hover:bg-red-500 text-gray-600 hover:text-slate-900 rounded-full w-5 h-5 flex items-center justify-center text-sm border border-gray-200 transition-colors z-50"
                 title="ซ่อนผู้ช่วย"
               >
                 

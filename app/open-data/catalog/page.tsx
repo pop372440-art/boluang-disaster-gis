@@ -27,8 +27,8 @@ export default function CatalogPage() {
           return (
             <article key={dataset.dataset_id} className="rounded-xl border border-slate-200 bg-white p-5 md:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><h3 className="text-lg font-semibold">{dataset.title}</h3><p className="mt-1 font-mono text-xs text-slate-500">{dataset.dataset_id}</p></div>
-                <span className={`rounded-full border px-3 py-1 text-xs font-bold ${status.className}`}>{status.label}</span>
+                <div><h3 className="text-lg font-semibold">{dataset.title}</h3><p className="mt-1 font-mono text-sm text-slate-500">{dataset.dataset_id}</p></div>
+                <span className={`rounded-full border px-3 py-1 text-sm font-bold ${status.className}`}>{status.label}</span>
               </div>
               <dl className="mt-4">
                 <DetailRow label="รุ่นข้อมูล">{dataset.version ?? 'ยังไม่มีรุ่นที่รับรอง'}</DetailRow>

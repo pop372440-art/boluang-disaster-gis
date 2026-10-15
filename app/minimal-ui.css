@@ -8,6 +8,7 @@
   color-scheme: light;
   color: var(--bl-ink);
   font-family: inherit;
+  font-size: 1rem;
   line-height: 1.65;
 }
 .bl-ui button, .bl-ui a, .bl-ui summary, .bl-ui select { -webkit-tap-highlight-color: transparent; }
@@ -42,7 +43,7 @@
   border: 1px solid #cfdfe6;
   border-radius: 8px;
   color: #305666;
-  font-size: 12px;
+  font-size: .875rem;
   font-weight: 600;
   cursor: pointer;
 }
@@ -57,7 +58,7 @@
   padding: 8px 12px;
   border-left: 1px solid var(--bl-line);
   color: #526575;
-  font-size: 12px;
+  font-size: .875rem;
   cursor: pointer;
 }
 .bl-external-link {
@@ -100,4 +101,38 @@
     transition-duration: .01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Reading scale: 16px primary text, 14px supporting text. Use rem so browser
+   text preferences remain effective. Data colors and map imagery are unchanged. */
+.bl-ui :is(p, label, summary, select, input) { line-height: 1.7; }
+.bl-ui :is(button, a) { line-height: 1.6; }
+.bl-ui :is(input, select, textarea) { font-size: 1rem; }
+.bl-ui .bl-layer-toggle { align-items: flex-start; gap: 8px; padding-block: 12px; }
+.bl-layer-toggle > div:first-child { margin-top: 5px; }
+.bl-layer-toggle > div:last-child { min-width: 0; gap: 6px; flex-wrap: wrap; }
+.bl-layer-toggle > div:last-child > div { min-width: 0; flex: 1 1 180px; }
+.bl-ui .bl-layer-toggle span { line-height: 1.7; }
+.bl-map .bl-area-context h2 { line-height: 1.5; }
+.bl-map nav[aria-label="เมนูหลัก"] { height: 56px; }
+.bl-map nav[aria-label="เมนูหลัก"] a { white-space: nowrap; }
+.bl-map .bl-nav-qr { white-space: nowrap; }
+.bl-map #gis-layer-panel, .bl-map #gis-environment-panel { max-width: 100%; }
+@media (min-width: 1024px) {
+  .bl-map #gis-layer-panel, .bl-map #gis-environment-panel { top: 144px; }
+  .bl-map aside > div > div { max-height: calc(100dvh - 160px); }
+}
+@media (max-width: 767px) {
+  .bl-map-header > div:first-child { gap: 8px; }
+  .bl-map-header h1 { font-size: 1rem; }
+  .bl-map-header p { max-width: 140px; font-size: .875rem; }
+  .bl-map-header .bl-toolbar-button { flex-shrink: 0; }
+}
+@media (max-width: 419px) {
+  .bl-area-presets > button:last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 359px) {
+  .bl-area-context > .grid.grid-cols-2:not(.bl-area-presets) { grid-template-columns: 1fr; }
+  .bl-map-header > div:first-child > img { width: 32px; height: 32px; }
+  .bl-map-header p { display: none; }
 }

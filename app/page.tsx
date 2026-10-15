@@ -117,11 +117,11 @@ const CustomToggleBox = ({ label, source, active, onClick, dotColor = '#38bdf8',
 
   const renderStatusBadge = () => {
     if (!apiStatus) return null;
-    if (apiStatus === 'FRESH' || apiStatus === 'LIVE') return <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="ข้อมูลอยู่ในเกณฑ์อายุที่กำหนด">FRESH</span>;
-    if (apiStatus === 'STALE' || apiStatus === 'CACHED') return <span className="ml-auto text-[10px] bg-yellow-500/20 text-yellow-700 border border-yellow-200 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="ข้อมูลเก่ากว่าเกณฑ์ กรุณาใช้ด้วยความระมัดระวัง">STALE</span>;
-    if (apiStatus === 'EXPIRED') return <span className="ml-auto text-[10px] bg-orange-500/20 text-orange-700 border border-orange-500/50 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="ข้อมูลหมดอายุและไม่ใช้สร้างคำเตือน">EXPIRED</span>;
-    if (apiStatus === 'INVALID_SCHEMA' || apiStatus === 'UNKNOWN') return <span className="ml-auto text-[10px] bg-violet-500/20 text-violet-700 border border-violet-200 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="รูปแบบข้อมูลหรือเวลาอ้างอิงไม่สมบูรณ์">INVALID</span>;
-    return <span className="ml-auto text-[10px] bg-red-500/20 text-red-700 border border-red-200 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="ระบบต้นทางขัดข้อง">OFFLINE</span>;
+    if (apiStatus === 'FRESH' || apiStatus === 'LIVE') return <span className="ml-auto text-sm bg-emerald-500/20 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="ข้อมูลอยู่ในเกณฑ์อายุที่กำหนด">FRESH</span>;
+    if (apiStatus === 'STALE' || apiStatus === 'CACHED') return <span className="ml-auto text-sm bg-yellow-500/20 text-yellow-700 border border-yellow-200 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="ข้อมูลเก่ากว่าเกณฑ์ กรุณาใช้ด้วยความระมัดระวัง">STALE</span>;
+    if (apiStatus === 'EXPIRED') return <span className="ml-auto text-sm bg-orange-500/20 text-orange-700 border border-orange-500/50 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="ข้อมูลหมดอายุและไม่ใช้สร้างคำเตือน">EXPIRED</span>;
+    if (apiStatus === 'INVALID_SCHEMA' || apiStatus === 'UNKNOWN') return <span className="ml-auto text-sm bg-violet-500/20 text-violet-700 border border-violet-200 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="รูปแบบข้อมูลหรือเวลาอ้างอิงไม่สมบูรณ์">INVALID</span>;
+    return <span className="ml-auto text-sm bg-red-500/20 text-red-700 border border-red-200 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider" title="ระบบต้นทางขัดข้อง">OFFLINE</span>;
   };
 
   return (
@@ -139,9 +139,9 @@ const CustomToggleBox = ({ label, source, active, onClick, dotColor = '#38bdf8',
         <div className="flex flex-col">
             <div className="flex items-center space-x-2">
                {!isRadio && <div className="w-2.5 h-2.5 rounded-[3px] flex-shrink-0" style={{ backgroundColor: dotColor }}></div>}
-               <span className={`text-[13px] font-medium transition-colors whitespace-normal ${localActive ? 'text-slate-900' : 'text-gray-600 group-hover:text-gray-800'}`}>{label}</span>
+               <span className={`text-base font-medium transition-colors whitespace-normal ${localActive ? 'text-slate-900' : 'text-gray-600 group-hover:text-gray-800'}`}>{label}</span>
             </div>
-            {source && <span className="text-[11px] text-gray-500 leading-5 mt-0.5 ml-4">{source}</span>}
+            {source && <span className="text-sm text-gray-500 leading-5 mt-0.5 ml-4">{source}</span>}
         </div>
         {renderStatusBadge()}
       </div>
@@ -1020,19 +1020,19 @@ export default function BoLuangDashboard() {
           <div className="bg-white border border-slate-200 w-[90%] max-w-[400px] rounded-xl p-8 relative flex flex-col items-center justify-center mx-auto text-center animate-fade-in-api">
             <button onClick={() => setShowScanModal(false)} className="absolute top-4 right-4 text-gray-600 hover:text-slate-900 text-2xl font-bold leading-none">&times;</button>
             <h2 className="text-[20px] font-bold text-slate-900 mb-2 w-full">สแกนเพื่อแจ้งจุดเสี่ยงภัย</h2>
-            <p className="text-[14px] text-gray-600 mb-6 leading-relaxed w-full">พบเห็นจุดเสี่ยงภัย สามารถสแกนคิวอาร์โค้ดด้านล่างนี้เพื่อแจ้งเหตุได้ทันที</p>
+            <p className="text-base text-gray-600 mb-6 leading-relaxed w-full">พบเห็นจุดเสี่ยงภัย สามารถสแกนคิวอาร์โค้ดด้านล่างนี้เพื่อแจ้งเหตุได้ทันที</p>
             <div className="bg-white p-4 rounded-xl mb-6 flex items-center justify-center">
               {qrUrl ? (
                 <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`} alt="QR Code" className="w-48 h-48 object-contain rounded-lg"/>
               ) : (
-                <div className="w-48 h-48 bg-gray-100 flex items-center justify-center text-gray-600 text-sm rounded-lg animate-pulse border-2 border-dashed border-gray-300">กำลังสร้าง QR Code...</div>
+                <div className="w-48 h-48 bg-gray-100 flex items-center justify-center text-gray-600 text-base rounded-lg animate-pulse border-2 border-dashed border-gray-300">กำลังสร้าง QR Code...</div>
               )}
             </div>
             <div className="flex flex-col space-y-3 w-full mt-2">
-              <Link href="/report" className="py-3 w-full text-slate-900 font-bold text-[15px] rounded-xl hover:brightness-110 transition-all flex items-center justify-center space-x-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
+              <Link href="/report" className="py-3 w-full text-slate-900 font-bold text-base rounded-xl hover:brightness-110 transition-all flex items-center justify-center space-x-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
                 <span>เปิดหน้าฟอร์มแจ้งจุดเสี่ยงภัย</span>
               </Link>
-              <button onClick={() => setShowScanModal(false)} className="py-3 w-full bg-white text-gray-700 font-semibold text-[15px] rounded-xl hover:bg-white transition-colors">ปิดหน้าต่าง</button>
+              <button onClick={() => setShowScanModal(false)} className="py-3 w-full bg-white text-gray-700 font-semibold text-base rounded-xl hover:bg-white transition-colors">ปิดหน้าต่าง</button>
             </div>
           </div>
         </div>
@@ -1043,7 +1043,7 @@ export default function BoLuangDashboard() {
         <div className="absolute inset-0 pointer-events-auto" style={{ zIndex: 10 }}>         
           <div 
             className={`absolute top-[150px] z-[1000] flex flex-col space-y-2 transition-all duration-500 ease-in-out pointer-events-auto ${
-              isLeftPanelOpen && !isMobile ? 'left-[390px]' : 'left-[15px] md:left-[50px]'
+              isLeftPanelOpen && !isMobile ? 'left-[420px]' : 'left-[15px] md:left-[50px]'
             }`}
           >
             <button 
@@ -1093,11 +1093,11 @@ export default function BoLuangDashboard() {
               <Marker position={[userLocation.lat, userLocation.lng]} icon={createUserLocationIcon()}>
                 <Popup className="popup-location">
                   <div className="p-3 bg-white text-center min-w-[180px]">
-                    <div className="text-[#0369a1] font-bold text-[15px] mb-2 border-b border-slate-200 pb-2 flex items-center justify-center space-x-1.5">
+                    <div className="text-[#0369a1] font-bold text-base mb-2 border-b border-slate-200 pb-2 flex items-center justify-center space-x-1.5">
                       <span></span> <span>ตำแหน่งของคุณ</span>
                     </div>
-                    <div className="text-gray-700 text-[13px] font-mono mb-1">Lat: <span className="text-slate-900">{userLocation.lat.toFixed(6)}</span></div>
-                    <div className="text-gray-700 text-[13px] font-mono">Lng: <span className="text-slate-900">{userLocation.lng.toFixed(6)}</span></div>
+                    <div className="text-gray-700 text-base font-mono mb-1">Lat: <span className="text-slate-900">{userLocation.lat.toFixed(6)}</span></div>
+                    <div className="text-gray-700 text-base font-mono">Lng: <span className="text-slate-900">{userLocation.lng.toFixed(6)}</span></div>
                   </div>
                 </Popup>
               </Marker>
@@ -1107,11 +1107,11 @@ export default function BoLuangDashboard() {
               <Marker key={`safezone-${i}`} position={[sz.lat, sz.lng]} icon={createSafeZoneIcon()}>
                 <Popup className="popup-safezone">
                   <div className="p-3 bg-white min-w-[150px]">
-                    <div className="text-[#047857] font-bold text-[14px] mb-1 flex items-center space-x-1.5">
+                    <div className="text-[#047857] font-bold text-base mb-1 flex items-center space-x-1.5">
                       <span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m4 10 8-7 8 7v11H4V10Zm5 11v-7h6v7" /></svg></span> <span>จุดปลอดภัย/ศูนย์พักพิง</span>
                     </div>
-                    <div className="text-slate-900 text-[13px] font-semibold">{sz.name}</div>
-                    <div className="text-gray-600 text-[10px] mt-2 border-t border-slate-200 pt-2">เทศบาลตำบลบ่อหลวง</div>
+                    <div className="text-slate-900 text-base font-semibold">{sz.name}</div>
+                    <div className="text-gray-600 text-sm mt-2 border-t border-slate-200 pt-2">เทศบาลตำบลบ่อหลวง</div>
                   </div>
                 </Popup>
               </Marker>
@@ -1138,23 +1138,23 @@ export default function BoLuangDashboard() {
                 <Marker key={`prov-wx-${i}`} position={[prov.lat, prov.lng]} icon={createTmdIcon(prov.wCode)}>
                   <Popup className="popup-tmd-weather">
                     <div>
-                      <div className="bg-[#38bdf8] px-4 py-3 font-bold text-[#0f172a] text-[15px] flex items-center">
+                      <div className="bg-[#38bdf8] px-4 py-3 font-bold text-[#0f172a] text-base flex items-center">
                         <span className="mr-2 text-[18px]">≋</span> พยากรณ์อากาศ
                       </div>
                       <div className="p-4 bg-white">
                         <div className="font-bold text-slate-900 mb-3 pb-2 border-b border-slate-200 flex items-center">
                           จุดตรวจวัด: {prov.name}
-                          {prov.type === 'local' && <span className="bg-[#10b981] text-slate-900 px-1.5 py-0.5 rounded text-[10px] ml-2 font-mono">Micro-climate</span>}
-                          {prov.type === 'district' && <span className="bg-[#f59e0b] text-slate-900 px-1.5 py-0.5 rounded text-[10px] ml-2">ระดับอำเภอ</span>}
+                          {prov.type === 'local' && <span className="bg-[#10b981] text-slate-900 px-1.5 py-0.5 rounded text-sm ml-2 font-mono">Micro-climate</span>}
+                          {prov.type === 'district' && <span className="bg-[#f59e0b] text-slate-900 px-1.5 py-0.5 rounded text-sm ml-2">ระดับอำเภอ</span>}
                         </div>
-                        <div className="text-[13px] text-gray-700 space-y-2 font-medium mb-4">
+                        <div className="text-base text-gray-700 space-y-2 font-medium mb-4">
                           <div>สภาพอากาศ: <span className="text-slate-900">{getWmoWeatherDesc(prov.wCode)}</span></div>
-                          <div>อุณหภูมิ: <span className="text-[#0369a1] font-bold text-[15px]">{prov.tempMin.toFixed(1)}° – {prov.tempMax.toFixed(2)}°C</span></div>
+                          <div>อุณหภูมิ: <span className="text-[#0369a1] font-bold text-base">{prov.tempMin.toFixed(1)}° – {prov.tempMax.toFixed(2)}°C</span></div>
                           <div>ฝน: <span className="text-slate-900">{prov.rain} มม.</span></div>
                           <div>ความชื้น: <span className="text-slate-900">{prov.humidity}%</span></div>
                           <div>ลม: <span className="text-slate-900">{prov.wind.toFixed(2)} ม./วินาที</span></div>
                         </div>
-                        <div className="text-[10px] text-gray-500 font-mono text-left pt-3 border-t border-slate-200">
+                        <div className="text-sm text-gray-500 font-mono text-left pt-3 border-t border-slate-200">
                           ข้อมูลจาก TMD API · {new Date().toISOString().split('T')[0]}
                         </div>
                       </div>
@@ -1170,22 +1170,22 @@ export default function BoLuangDashboard() {
                 <CircleMarker key={`rain-prov-${i}`} center={[prov.lat, prov.lng]} radius={style.radius} pathOptions={{ color: style.color, fillColor: style.fillColor, fillOpacity: style.fillOpacity, weight: style.weight }}>
                   <Popup className="popup-tmd-rain">
                     <div>
-                      <div className="bg-[#fcd34d] px-4 py-3 font-bold text-[#0f172a] text-[15px] flex items-center">
+                      <div className="bg-[#fcd34d] px-4 py-3 font-bold text-[#0f172a] text-base flex items-center">
                         <span className="mr-2 text-[18px]">∴</span> ปริมาณน้ำฝนสะสม
                       </div>
                       <div className="p-4 bg-white">
                         <div className="font-bold text-slate-900 mb-3 pb-2 border-b border-slate-200 flex items-center">
                           พื้นที่: {prov.name}
-                          {prov.type === 'local' && <span className="bg-[#10b981] text-slate-900 px-1.5 py-0.5 rounded text-[10px] ml-2 font-mono">Micro-climate</span>}
-                          {prov.type === 'district' && <span className="bg-[#f59e0b] text-slate-900 px-1.5 py-0.5 rounded text-[10px] ml-2">ระดับอำเภอ</span>}
+                          {prov.type === 'local' && <span className="bg-[#10b981] text-slate-900 px-1.5 py-0.5 rounded text-sm ml-2 font-mono">Micro-climate</span>}
+                          {prov.type === 'district' && <span className="bg-[#f59e0b] text-slate-900 px-1.5 py-0.5 rounded text-sm ml-2">ระดับอำเภอ</span>}
                         </div>
-                        <div className="text-[13px] text-gray-700 space-y-2 font-medium mb-4">
-                          <div>ฝนสะสม: <span className="text-[#92400e] font-bold text-[15px]">{prov.rainSum.toFixed(1)} มม.</span></div>
+                        <div className="text-base text-gray-700 space-y-2 font-medium mb-4">
+                          <div>ฝนสะสม: <span className="text-[#92400e] font-bold text-base">{prov.rainSum.toFixed(1)} มม.</span></div>
                           <div>ขนาดจุด: <span className="text-slate-900">{style.radius.toFixed(1)} px</span></div>
                           <div>สภาพอากาศ: <span className="text-slate-900">{getWmoWeatherDesc(prov.wCode)}</span></div>
                           <div>อุณหภูมิ: <span className="text-slate-900">{prov.tempMin.toFixed(2)}° – {prov.tempMax.toFixed(2)}°C</span></div>
                         </div>
-                        <div className="text-[10px] text-gray-500 font-mono text-left pt-3 border-t border-slate-200 leading-relaxed">
+                        <div className="text-sm text-gray-500 font-mono text-left pt-3 border-t border-slate-200 leading-relaxed">
                           ข้อมูลจาก TMD API · {new Date().toISOString().split('T')[0]}<br/>
                           <span className="text-gray-600">- ปรับขนาดจุดตามฝนสะสม</span>
                         </div>
@@ -1214,18 +1214,18 @@ export default function BoLuangDashboard() {
                 <CircleMarker key={`onwr-rain-${i}`} center={[lat, lng]} radius={style.radius} pathOptions={{ color: '#2563eb', fillColor: style.fillColor, fillOpacity: style.fillOpacity, weight: style.weight }}>
                   <Popup className="popup-tmd-rain">
                     <div>
-                      <div className="bg-[#3b82f6] px-4 py-3 font-bold text-slate-900 text-[15px] flex items-center">
+                      <div className="bg-[#3b82f6] px-4 py-3 font-bold text-slate-900 text-base flex items-center">
                         <span className="mr-2 text-[18px]">∴</span> ปริมาณฝน 24 ชม. (สทนช.)
                       </div>
                       <div className="p-4 bg-white">
-                        <div className="text-[14px] font-bold text-slate-900 mb-3 pb-2 border-b border-slate-200">
+                        <div className="text-base font-bold text-slate-900 mb-3 pb-2 border-b border-slate-200">
                           สถานี: {stationName}
                         </div>
-                        <div className="text-[13px] text-gray-700 space-y-2 font-medium mb-4">
+                        <div className="text-base text-gray-700 space-y-2 font-medium mb-4">
                           <div>จังหวัด: <span className="text-slate-900">{provName}</span></div>
                           <div>ปริมาณฝน: <span className="text-[#3b82f6] font-bold text-[16px]">{rainVal.toFixed(1)} มม.</span></div>
                         </div>
-                        <div className="text-[10px] text-gray-500 font-mono text-left pt-3 border-t border-slate-200 leading-relaxed">
+                        <div className="text-sm text-gray-500 font-mono text-left pt-3 border-t border-slate-200 leading-relaxed">
                           แหล่งที่มา: สถานีตรวจวัดจริง สทนช. (ThaiWater)<br/>
                           Station ID: {station?.station?.tele_station_id || station?.tele_station_id || '-'}
                         </div>
@@ -1260,19 +1260,19 @@ export default function BoLuangDashboard() {
                 <Marker key={`onwr-water-${i}`} position={[lat, lng]} icon={createWaterLevelIcon()}>
                   <Popup className="popup-water">
                     <div>
-                      <div className="bg-[#2563eb] px-4 py-3 font-bold text-slate-900 text-[15px] flex items-center">
+                      <div className="bg-[#2563eb] px-4 py-3 font-bold text-slate-900 text-base flex items-center">
                         <span className="mr-2 text-[18px]"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 8c3-4 6 4 9 0s6 4 9 0M3 15c3-4 6 4 9 0s6 4 9 0" /></svg></span> ระดับน้ำ (สทนช.)
                       </div>
                       <div className="p-4 bg-white">
-                        <div className="text-[14px] font-bold text-slate-900 mb-3 pb-2 border-b border-slate-200">
+                        <div className="text-base font-bold text-slate-900 mb-3 pb-2 border-b border-slate-200">
                           สถานี: {stationName}
                         </div>
-                        <div className="text-[13px] text-gray-700 space-y-2 font-medium mb-4">
+                        <div className="text-base text-gray-700 space-y-2 font-medium mb-4">
                           <div>ลุ่มน้ำ: <span className="text-slate-900">{basin}</span></div>
                           <div>ระดับน้ำ: <span className="text-[#1d4ed8] font-bold text-[16px]">{waterLevel.toFixed(2)} ม.รทก.</span></div>
                           <div>อัตราการไหล: <span className="text-slate-900">{discharge}</span></div>
                         </div>
-                        <div className="text-[10px] text-gray-500 font-mono text-left pt-3 border-t border-slate-200 leading-relaxed">
+                        <div className="text-sm text-gray-500 font-mono text-left pt-3 border-t border-slate-200 leading-relaxed">
                           แหล่งที่มา: เซนเซอร์วัดจริง สทนช. (ThaiWater)<br/>
                           เวลา: {time}
                         </div>
@@ -1291,19 +1291,19 @@ export default function BoLuangDashboard() {
                 <Marker key={`cams-pm25-${station.name}`} position={[station.lat, station.lng]} icon={createPm25Icon(station.pm25Val)}>
                   <Popup className="popup-pm25-custom">
                     <div className="flex flex-col">
-                      <div style={{ backgroundColor: color }} className="px-4 py-3 font-bold text-[#0f172a] text-[15px] flex items-center rounded-t-lg relative">
+                      <div style={{ backgroundColor: color }} className="px-4 py-3 font-bold text-[#0f172a] text-base flex items-center rounded-t-lg relative">
                         <span className="mr-2 text-[18px]">≋</span> ค่าฝุ่น PM2.5 / AQI
                       </div>
                       
-                      <div className="p-4 bg-white text-[14px] text-gray-800 font-medium rounded-b-lg">
+                      <div className="p-4 bg-white text-base text-gray-800 font-medium rounded-b-lg">
                         <div className="font-bold text-slate-900 mb-3 pb-2 border-b border-slate-200 flex items-center">
                           จุดประเมินแบบจำลอง: {station.name}
                         </div>
 
-                        <div className="space-y-1.5 font-bold text-[15px]">
+                        <div className="space-y-1.5 font-bold text-base">
                           <div className="flex items-center">
                             <span className="w-16 text-slate-900">PM2.5:</span>
-                            <span style={{ color: color }} className="text-[17px]">{station.pm25Val.toFixed(1)} <span className="text-[14px]">µg/m³</span></span>
+                            <span style={{ color: color }} className="text-[17px]">{station.pm25Val.toFixed(1)} <span className="text-base">µg/m³</span></span>
                           </div>
                           <div className="flex items-center">
                             <span className="w-16 text-slate-900">AQI:</span>
@@ -1326,7 +1326,7 @@ export default function BoLuangDashboard() {
                         </div>
 
                         <div className="border-t border-slate-200 my-3"></div>
-                        <div className="text-[11px] text-gray-600 font-mono tracking-wide leading-relaxed">
+                        <div className="text-sm text-gray-600 font-mono tracking-wide leading-relaxed">
                           แหล่งที่มา: แบบจำลอง CAMS ผ่าน Open-Meteo — ไม่ใช่สถานีตรวจวัด<br/>
                           เวลาอ้างอิง: {formattedTime} · สถานะ {station.quality}
                         </div>
@@ -1363,7 +1363,7 @@ export default function BoLuangDashboard() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                             </svg>
                           </div>
-                          <h3 className="text-[14px] font-bold text-slate-900 truncate">
+                          <h3 className="text-base font-bold text-slate-900 truncate">
                             {incident.risk_type}
                           </h3>
                         </div>
@@ -1372,21 +1372,21 @@ export default function BoLuangDashboard() {
                       <div className="p-4 flex-1 space-y-3.5">
                         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                           <div className="flex items-center space-x-2">
-                            <span className="text-[11px] font-bold text-slate-600 uppercase">ความรุนแรง:</span>
-                            <span className={`px-2 py-0.5 rounded text-[11px] font-bold text-slate-900  ${severityColor}`}>
+                            <span className="text-sm font-bold text-slate-600 uppercase">ความรุนแรง:</span>
+                            <span className={`px-2 py-0.5 rounded text-sm font-bold text-slate-900  ${severityColor}`}>
                               ระดับ {incident.severity_level}
                             </span>
                           </div>
-                          <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold border  ${statusColor}`}>
+                          <span className={`px-2.5 py-0.5 rounded text-sm font-bold border  ${statusColor}`}>
                             {statusText}
                           </span>
                         </div>
 
-                        <div className="space-y-3 text-[13px]">
+                        <div className="space-y-3 text-base">
                           <div className="flex items-start">
                             <svg className="w-4 h-4 text-rose-500 mt-0.5 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                             <div>
-                              <span className="text-slate-500 font-bold text-[11px] block leading-none mb-1">พื้นที่เกิดเหตุ</span>
+                              <span className="text-slate-500 font-bold text-sm block leading-none mb-1">พื้นที่เกิดเหตุ</span>
                               <span className="text-slate-800 font-bold">{incident.village_name}</span>
                             </div>
                           </div>
@@ -1394,7 +1394,7 @@ export default function BoLuangDashboard() {
                           <div className="flex items-start">
                             <svg className="w-4 h-4 text-emerald-500 mt-0.5 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
                             <div>
-                              <span className="text-slate-500 font-bold text-[11px] block leading-none mb-1">พิกัด (GPS)</span>
+                              <span className="text-slate-500 font-bold text-sm block leading-none mb-1">พิกัด (GPS)</span>
                               <span className="text-emerald-600 font-mono font-bold select-all cursor-text bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
                                 {incident.latitude.toFixed(6)}, {incident.longitude.toFixed(6)}
                               </span>
@@ -1404,7 +1404,7 @@ export default function BoLuangDashboard() {
                           <div className="flex items-start bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                             <svg className="w-4 h-4 text-slate-500 mt-0.5 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                             <div className="flex-1">
-                              <span className="text-slate-500 font-bold text-[11px] block leading-none mb-1">รายละเอียด</span>
+                              <span className="text-slate-500 font-bold text-sm block leading-none mb-1">รายละเอียด</span>
                               <p className="text-slate-800 leading-snug line-clamp-3">{incident.description}</p>
                             </div>
                           </div>
@@ -1412,7 +1412,7 @@ export default function BoLuangDashboard() {
                           <div className="flex items-start">
                             <svg className="w-4 h-4 text-blue-500 mt-0.5 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                             <div>
-                              <span className="text-slate-500 font-bold text-[11px] block leading-none mb-1">ผู้แจ้ง ({incident.reporter_role})</span>
+                              <span className="text-slate-500 font-bold text-sm block leading-none mb-1">ผู้แจ้ง ({incident.reporter_role})</span>
                               <span className="text-blue-700 font-bold">{incident.reporter_name || 'ไม่ระบุชื่อ'}</span>
                             </div>
                           </div>
@@ -1440,7 +1440,7 @@ export default function BoLuangDashboard() {
                             href={`https://maps.google.com/?q=${incident.latitude},${incident.longitude}`} 
                             target="_blank" 
                             rel="noreferrer"
-                            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 py-2.5 rounded-lg font-bold text-[13px] flex justify-center items-center space-x-1.5 transition-colors"
+                            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 py-2.5 rounded-lg font-bold text-base flex justify-center items-center space-x-1.5 transition-colors"
                           >
                             <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
                             <span>เปิดใน Maps</span>
@@ -1449,7 +1449,7 @@ export default function BoLuangDashboard() {
                             href={`https://www.google.com/maps/dir/?api=1&destination=${incident.latitude},${incident.longitude}`} 
                             target="_blank" 
                             rel="noreferrer"
-                            className="bg-blue-50 hover:bg-blue-50 text-slate-900 py-2.5 rounded-lg font-bold text-[13px] flex justify-center items-center space-x-1.5 transition-colors"
+                            className="bg-blue-50 hover:bg-blue-50 text-slate-900 py-2.5 rounded-lg font-bold text-base flex justify-center items-center space-x-1.5 transition-colors"
                           >
                             <svg className="w-4 h-4 text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
                             <span className="text-slate-900">เริ่มนำทาง</span>
@@ -1458,7 +1458,7 @@ export default function BoLuangDashboard() {
                       </div>
 
                       <div className="bg-slate-50 py-2.5 px-4 text-center border-t border-slate-200 shrink-0">
-                        <p className="text-[10px] text-slate-500 font-medium">
+                        <p className="text-sm text-slate-500 font-medium">
                           แหล่งที่มา: ประชาชนในพื้นที่<br/>
                           แจ้งเหตุเมื่อ: {new Date(incident.created_at).toLocaleString('th-TH')}
                         </p>
@@ -1483,18 +1483,18 @@ export default function BoLuangDashboard() {
                 <Marker key={`hotspot-real-${i}`} position={[lat, lng]} icon={createHotspotIcon()}>
                   <Popup className="popup-hotspot">
                     <div className="w-[280px]">
-                      <div className="bg-[#f97316] px-5 py-3 font-bold text-[#0f172a] text-[15px] flex items-center">
+                      <div className="bg-[#f97316] px-5 py-3 font-bold text-[#0f172a] text-base flex items-center">
                         <span className="mr-2 text-[18px]"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3c2 5 6 6 6 11a6 6 0 0 1-12 0c0-3 2-5 3-6 0 3 2 3 2 3s2-3 1-8Z" /></svg></span> จุดความร้อน Hotspot
                       </div>
                       <div className="p-5 bg-white">
-                        <div className="text-[14px] text-gray-700 font-medium mb-4">
-                          ประเภทของพื้นที่: <span className="bg-[#3b82f6] text-slate-900 px-2 py-1 rounded text-[13px] font-bold ml-1">{areaType}</span>
+                        <div className="text-base text-gray-700 font-medium mb-4">
+                          ประเภทของพื้นที่: <span className="bg-[#3b82f6] text-slate-900 px-2 py-1 rounded text-base font-bold ml-1">{areaType}</span>
                         </div>
-                        <div className="border-t border-slate-200 py-3 text-[13px] text-gray-700 leading-relaxed font-semibold">
+                        <div className="border-t border-slate-200 py-3 text-base text-gray-700 leading-relaxed font-semibold">
                           จังหวัด: <span className="text-slate-900">{provName}</span><br/>
                           ตำบล: <span className="text-slate-900">{tamName}</span>
                         </div>
-                        <div className="border-t border-slate-200 pt-3 text-[11px] text-gray-500 font-mono">
+                        <div className="border-t border-slate-200 pt-3 text-sm text-gray-500 font-mono">
                           แหล่งที่มา: ดาวเทียม GISTDA Sphere API<br/>
                           ดาวเทียม: {props.satellite || hotspotMeta.satelliteTypes.join(', ') || 'ไม่ระบุ'}<br/>
                           เวลาตรวจพบ: {props.acquiredAt ? new Date(props.acquiredAt).toLocaleString('th-TH') : hotspotMeta.acquisitionTime ? new Date(hotspotMeta.acquisitionTime).toLocaleString('th-TH') : 'ไม่ทราบเวลา'}
@@ -1521,20 +1521,20 @@ export default function BoLuangDashboard() {
                 <Marker key={`quake-real-${i}`} position={[lat, lng]} icon={createQuakeIcon()}>
                   <Popup className="popup-quake">
                     <div className="w-[280px]">
-                      <div className="bg-[#a855f7] px-5 py-3 font-bold text-slate-900 text-[15px] flex items-center">
+                      <div className="bg-[#a855f7] px-5 py-3 font-bold text-slate-900 text-base flex items-center">
                         <span className="mr-2 text-[18px]">〰</span> จุดเสี่ยงแผ่นดินไหว
                       </div>
                       <div className="p-5 bg-white">
-                        <div className="text-[14px] text-gray-700 font-medium mb-4">
-                          พื้นที่: <span className="text-[#c084fc] font-bold text-[15px] ml-1">{areaName}</span>
+                        <div className="text-base text-gray-700 font-medium mb-4">
+                          พื้นที่: <span className="text-[#c084fc] font-bold text-base ml-1">{areaName}</span>
                         </div>
-                        <div className="border-t border-slate-200 py-3 text-[13px] text-gray-700 leading-relaxed font-semibold">
+                        <div className="border-t border-slate-200 py-3 text-base text-gray-700 leading-relaxed font-semibold">
                           จังหวัด: {provName}<br/>
                           อำเภอ/แนวพื้นที่: {distName}<br/>
                           ระดับความเสี่ยง: <span className="text-[#854d0e]">{riskLevel}</span><br/>
                           สถานการณ์จำลอง: <span className="text-slate-900">{mag}</span>
                         </div>
-                        <div className="border-t border-slate-200 pt-3 text-[11px] text-gray-500 font-mono">
+                        <div className="border-t border-slate-200 pt-3 text-sm text-gray-500 font-mono">
                           แหล่งที่มา: กรมทรัพยากรธรณี
                         </div>
                       </div>
@@ -1556,11 +1556,11 @@ export default function BoLuangDashboard() {
         <div className="flex min-w-0 items-center gap-3">
           <img src="/Logogis3.png" alt="เทศบาลตำบลบ่อหลวง" className="h-10 w-10 shrink-0 rounded-full border border-slate-200 object-contain" />
           <div className="min-w-0">
-            <h1 className="text-sm font-semibold text-slate-900 sm:text-base">บ่อหลวง GIS</h1>
-            <p className="truncate text-xs text-slate-500">แผนที่และข้อมูลสาธารณภัย</p>
+            <h1 className="text-base font-semibold text-slate-900 sm:text-base">บ่อหลวง GIS</h1>
+            <p className="truncate text-sm text-slate-500">แผนที่และข้อมูลสาธารณภัย</p>
           </div>
         </div>
-        <div className="hidden items-center gap-4 text-xs text-slate-600 xl:flex">
+        <div className="hidden items-center gap-4 text-sm text-slate-600 xl:flex">
           <span>{headerWeather ? `${Math.round(headerWeather.temp)}°C · ${getWmoWeatherDesc(headerWeather.wCode)}` : 'กำลังตรวจสอบข้อมูลอากาศ'}</span>
           <span className="border-l border-slate-200 pl-4 tabular-nums">{mounted ? currentTime.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) : 'กำลังซิงค์เวลา'}</span>
         </div>
@@ -1585,7 +1585,7 @@ export default function BoLuangDashboard() {
                 key={item.href}
                 href={item.href}
                 aria-current={item.href === '/' ? 'page' : undefined}
-                className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-[12px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 ${item.href === '/' ? 'border border-sky-200 bg-sky-400/15 text-sky-700' : item.href === '/report' ? 'text-rose-700 hover:bg-rose-400/10' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'}`}
+                className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 ${item.href === '/' ? 'border border-sky-200 bg-sky-400/15 text-sky-700' : item.href === '/report' ? 'text-rose-700 hover:bg-rose-400/10' : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'}`}
               >
                 <LineIcon name={item.icon} />
                 <span>{item.label}</span>
@@ -1593,7 +1593,7 @@ export default function BoLuangDashboard() {
             ))}
             <button type="button" className="bl-nav-qr" onClick={() => setShowScanModal(true)} aria-haspopup="dialog">QR แบบฟอร์มแจ้งเหตุ</button>
             <span className="mx-1 h-5 w-px bg-white" aria-hidden="true" />
-            <Link href="/admin" className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-[12px] font-semibold text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
+            <Link href="/admin" className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
               <span>เจ้าหน้าที่</span>
             </Link>
           </div>
@@ -1603,23 +1603,23 @@ export default function BoLuangDashboard() {
       <aside 
         id="gis-environment-panel" aria-label="ชั้นอากาศและน้ำ"
         className="absolute inset-x-0 bottom-0 lg:inset-x-auto lg:bottom-auto lg:top-[132px] lg:left-4 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto"
-        style={{ transform: isLeftPanelOpen ? 'translate(0)' : (isMobile ? 'translateY(100%)' : 'translateX(-390px)') }}
+        style={{ transform: isLeftPanelOpen ? 'translate(0)' : (isMobile ? 'translateY(100%)' : 'translateX(-430px)') }}
       >
         <div className="relative flex h-full w-full items-start">
-          <div inert={!isLeftPanelOpen} className="w-full lg:w-[350px] bg-white border border-slate-200 rounded-t-3xl lg:rounded-xl p-4 md:p-5 pb-20 lg:pb-5 max-h-[72vh] lg:max-h-[calc(100vh-148px)] overflow-y-auto custom-scrollbar">
+          <div inert={!isLeftPanelOpen} className="w-full lg:w-[380px] bg-white border border-slate-200 rounded-t-3xl lg:rounded-xl p-4 md:p-5 pb-20 lg:pb-5 max-h-[72vh] lg:max-h-[calc(100vh-148px)] overflow-y-auto custom-scrollbar">
             <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-900">ชั้นอากาศและน้ำ</span>
+              <span className="text-xl font-semibold text-slate-900">ชั้นอากาศและน้ำ</span>
               <button type="button" onClick={() => setIsLeftPanelOpen(false)} aria-label="ปิดแผงข้อมูล" className="min-h-11 min-w-11 flex items-center justify-center rounded-lg border border-slate-200 p-2 text-slate-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             
-            <p className="mb-4 text-xs leading-6 text-slate-600">เปิดหรือปิดข้อมูลบนแผนที่ รายละเอียดอากาศและสถานีของพื้นที่อยู่ในแผง “ชั้นข้อมูล”</p>
+            <p className="mb-4 text-sm leading-6 text-slate-600">เปิดหรือปิดข้อมูลบนแผนที่ รายละเอียดอากาศและสถานีของพื้นที่อยู่ในแผง “ชั้นข้อมูล”</p>
             <div className="space-y-4">
               <div>
                 <div className="flex items-center mb-2">
                   <LineIcon name="weather" className="mr-2 h-4 w-4" />
-                  <span className="text-[10px] md:text-[11px] text-[#0369a1] tracking-widest font-bold">พยากรณ์และปริมาณฝน</span>
+                  <span className="text-sm md:text-sm text-[#0369a1] tracking-widest font-bold">พยากรณ์และปริมาณฝน</span>
                   <div className="flex-1 border-t border-slate-200 ml-4"></div>
                 </div>
                 <div className="space-y-1">
@@ -1631,7 +1631,7 @@ export default function BoLuangDashboard() {
               <div>
                 <div className="flex items-center mb-2">
                   <LineIcon name="weather" className="mr-2 h-4 w-4" />
-                  <span className="text-[10px] md:text-[11px] text-gray-600 tracking-widest font-bold">คุณภาพอากาศ (AIR QUALITY)</span>
+                  <span className="text-sm md:text-sm text-gray-600 tracking-widest font-bold">คุณภาพอากาศ (AIR QUALITY)</span>
                   <div className="flex-1 border-t border-slate-200 ml-4"></div>
                 </div>
                 <div className="space-y-1">
@@ -1649,7 +1649,7 @@ export default function BoLuangDashboard() {
 
                 <div className="flex items-center mb-2">
                   
-                  <span className="text-[10px] md:text-[11px] text-blue-700 tracking-widest font-bold">ข้อมูลแหล่งน้ำ (สทนช.)</span>
+                  <span className="text-sm md:text-sm text-blue-700 tracking-widest font-bold">ข้อมูลแหล่งน้ำ (สทนช.)</span>
                   <div className="flex-1 border-t border-slate-200 ml-4"></div>
                 </div>
                 <div className="space-y-1 bg-white p-3 rounded-xl border border-slate-200">
@@ -1661,7 +1661,7 @@ export default function BoLuangDashboard() {
               </div>       
             </div>
 
-            <details className="mt-5 border-t border-slate-200 pt-4 text-xs text-slate-600">
+            <details className="mt-5 border-t border-slate-200 pt-4 text-sm text-slate-600">
               <summary className="min-h-11 cursor-pointer font-semibold">แหล่งข้อมูลและข้อมูลเว็บไซต์</summary>
               <p className="mb-3 leading-6">อากาศเป็นแบบจำลอง สถานีน้ำและฝนเป็นค่าตรวจวัด ตรวจเวลาอ้างอิงก่อนใช้</p>
               <ExternalFloodLink />
@@ -1676,27 +1676,27 @@ export default function BoLuangDashboard() {
       </aside>
 
       <div className="hidden md:flex absolute bottom-4 left-4 z-[60] flex-wrap gap-2 pointer-events-auto max-w-[60%]">
-        <div className="bg-white border border-slate-200 rounded-full px-3 py-1.5 text-[11px] font-mono text-gray-600">
+        <div className="bg-white border border-slate-200 rounded-full px-3 py-1.5 text-sm font-mono text-gray-600">
           {satelliteLayer ? 'Esri World Imagery' : 'OpenStreetMap'}
         </div>
-        <div className="bg-white border border-slate-200 rounded-full px-3 py-1.5 text-[11px] font-mono text-[#0369a1]">
+        <div className="bg-white border border-slate-200 rounded-full px-3 py-1.5 text-sm font-mono text-[#0369a1]">
           <span ref={coordsRef}>18.1633°N 98.3744°E</span>
         </div>
       </div>
 
       <div className="hidden md:flex absolute bottom-4 right-1/2 translate-x-1/2 z-[60] pointer-events-auto">
-        <div className="bg-white border border-slate-200 rounded-full px-3 py-1.5 text-[11px] font-mono text-gray-600 flex items-center space-x-1.5">
+        <div className="bg-white border border-slate-200 rounded-full px-3 py-1.5 text-sm font-mono text-gray-600 flex items-center space-x-1.5">
           
           <span>แผนที่: OSM / Esri · ข้อมูล: Open-Meteo / สทนช. / GISTDA</span>
         </div>
       </div>
 
       {/* Sidebar ขวา (แจ้งเหตุ/ภัยธรรมชาติ/แผนที่) */}
-      <aside id="gis-layer-panel" aria-label="จัดการชั้นข้อมูลแผนที่" className="absolute inset-x-0 bottom-0 lg:inset-x-auto lg:bottom-auto lg:top-[132px] lg:right-0 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto" style={{ transform: isRightPanelOpen ? 'translate(0)' : (isMobile ? 'translateY(100%)' : 'translateX(390px)') }}>
+      <aside id="gis-layer-panel" aria-label="จัดการชั้นข้อมูลแผนที่" className="absolute inset-x-0 bottom-0 lg:inset-x-auto lg:bottom-auto lg:top-[132px] lg:right-0 z-[70] transition-transform duration-500 ease-in-out flex pointer-events-auto" style={{ transform: isRightPanelOpen ? 'translate(0)' : (isMobile ? 'translateY(100%)' : 'translateX(440px)') }}>
         <div className="relative lg:mr-5 flex w-full lg:w-auto">
 
           
-          <div inert={!isRightPanelOpen} className="w-full lg:w-[360px] ml-auto bg-white border border-slate-200 rounded-t-3xl lg:rounded-xl p-4 md:p-5 pb-20 lg:pb-5 max-h-[72vh] lg:max-h-[calc(100vh-148px)] overflow-y-auto custom-scrollbar">
+          <div inert={!isRightPanelOpen} className="w-full lg:w-[400px] ml-auto bg-white border border-slate-200 rounded-t-3xl lg:rounded-xl p-4 md:p-5 pb-20 lg:pb-5 max-h-[72vh] lg:max-h-[calc(100vh-148px)] overflow-y-auto custom-scrollbar">
             
             <AreaContextPanel area={selectedArea} villages={villages} loading={!geoBlock && !villageError} error={villageError} onSelect={selectVillage} onPreset={applyLayerPreset} onClose={() => setIsRightPanelOpen(false)} />
             <div className="mb-4 bg-white p-1.5 rounded-xl border border-slate-200 flex">
@@ -1704,7 +1704,7 @@ export default function BoLuangDashboard() {
                 <input 
                   type="text" 
                   aria-label="ค้นหาสถานที่บนแผนที่" placeholder="ค้นหาหมู่บ้าน ถนน หรือสถานที่" 
-                  className="w-full bg-transparent text-sm text-slate-900 px-3 py-1.5 outline-none placeholder-gray-500"
+                  className="w-full bg-transparent text-base text-slate-900 px-3 py-1.5 outline-none placeholder-gray-500"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -1716,17 +1716,17 @@ export default function BoLuangDashboard() {
 
             <div className="mb-4 border-b border-slate-200 pb-3">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">แสดงบนแผนที่</h2>
-                <span className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600">เปิด {activeLayersCount} ชั้น</span>
+                <h2 className="text-xl font-semibold text-slate-900">แสดงบนแผนที่</h2>
+                <span className="rounded-md border border-slate-200 px-2 py-1 text-sm text-slate-600">เปิด {activeLayersCount} ชั้น</span>
               </div>
-              <p className="mt-2 text-xs leading-5 text-slate-600">ชั้นอากาศและสถานีน้ำอยู่ในแผง “อากาศและน้ำ”</p>
+              <p className="mt-2 text-sm leading-5 text-slate-600">ชั้นอากาศและสถานีน้ำอยู่ในแผง “อากาศและน้ำ”</p>
             </div>
 
             <div className="space-y-4">
               
               <div>
                 <div className="flex items-center mb-2">
-                  <span className="text-[10px] md:text-[11px] text-gray-600 tracking-widest font-bold">รายงานบนแผนที่</span>
+                  <span className="text-sm md:text-sm text-gray-600 tracking-widest font-bold">รายงานบนแผนที่</span>
                   <div className="flex-1 border-t border-slate-200 ml-3"></div>
                 </div>
                 <div className="space-y-2">
@@ -1736,7 +1736,7 @@ export default function BoLuangDashboard() {
 
               <div className="bg-[#ef4444]/10 border border-[#ef4444]/30 p-3 rounded-xl mb-4">
                 <div className="flex items-center mb-2">
-                  <span className="text-[11px] text-[#b91c1c] font-bold tracking-widest">ภัยและพื้นที่อ้างอิง</span>
+                  <span className="text-sm text-[#b91c1c] font-bold tracking-widest">ภัยและพื้นที่อ้างอิง</span>
                   <div className="flex-1 border-t border-[#ef4444]/30 ml-3"></div>
                 </div>
                 <div className="space-y-1">
@@ -1748,7 +1748,7 @@ export default function BoLuangDashboard() {
 
               <div className="mt-4 pt-4 border-t border-slate-200">
                 <div className="flex items-center mb-2">
-                  <span className="text-[10px] md:text-[11px] text-[#047857] tracking-widest font-bold">แผนที่ฐานและขอบเขต</span>
+                  <span className="text-sm md:text-sm text-[#047857] tracking-widest font-bold">แผนที่ฐานและขอบเขต</span>
                   <div className="flex-1 border-t border-slate-200 ml-3"></div>
                 </div>
                 <div className="space-y-1">
@@ -1759,7 +1759,7 @@ export default function BoLuangDashboard() {
                   
                   <div className="relative mt-2 pt-2 border-t border-slate-200">
                     <CustomToggleBox label="แปลงที่ดินรายบุคคล" active={showParcel} onClick={() => setShowParcel(!showParcel)} dotColor="#4ade80" />
-                    <span className="absolute right-3 top-4 text-[10px] md:text-[11px] bg-red-500/10 text-red-700 px-1.5 py-0.5 rounded border border-red-200 pointer-events-none flex items-center">
+                    <span className="absolute right-3 top-4 text-sm md:text-sm bg-red-500/10 text-red-700 px-1.5 py-0.5 rounded border border-red-200 pointer-events-none flex items-center">
                        เจ้าหน้าที่
                     </span>
                   </div>
@@ -1768,7 +1768,7 @@ export default function BoLuangDashboard() {
               
             <div className="mb-4 text-slate-800"><AreaEvidencePanel area={selectedArea} /></div>
               <div className="mt-6 p-3 bg-white border border-slate-200 rounded-xl text-center">
-                  <p className="text-[10px] text-gray-500 font-mono leading-relaxed">
+                  <p className="text-sm text-gray-500 font-mono leading-relaxed">
                       <b>ความโปร่งใสของข้อมูล (Data Honesty):</b><br/>ข้อมูลภายนอกอาจล่าช้าหรือขาดหาย โปรดตรวจเวลารายชุด พื้นที่เสี่ยงเป็นข้อมูลอ้างอิง ไม่ใช่คำเตือนปัจจุบัน
                   </p>
               </div>
@@ -1801,7 +1801,7 @@ export default function BoLuangDashboard() {
               <svg className="w-7 h-7 text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
             </div>
             <h3 className="text-xl font-bold text-slate-900 mb-2">ติดตั้งแอปลงมือถือ</h3>
-            <p className="text-[13px] text-gray-600 mb-5 leading-relaxed">
+            <p className="text-base text-gray-600 mb-5 leading-relaxed">
               สแกนคิวอาร์โค้ดด้านล่าง เพื่อเปิดระบบในสมาร์ทโฟน
             </p>
 
@@ -1819,23 +1819,23 @@ export default function BoLuangDashboard() {
             {/* คำแนะนำเพิ่มเติมสำหรับคนที่เปิดลิงก์ผ่านแอป LINE */}
             {isMobile && !isInstallable && (
               <div className="bg-blue-500/10 border border-blue-200 p-3 rounded-xl mb-4 text-left w-full">
-                <p className="text-[12px] text-blue-700 leading-relaxed">
+                <p className="text-sm text-blue-700 leading-relaxed">
                    <b>คำแนะนำ:</b> หากคุณเปิดเว็บนี้ผ่านแอป <b>LINE</b> หรือ <b>Facebook</b> แนะนำให้กดเมนู <span className="font-bold text-slate-900">⋮ มุมขวาบน</span> แล้วเลือก <span className="font-bold text-slate-900">เปิดด้วยเบราว์เซอร์ (Open in Browser)</span> ก่อน เพื่อให้ระบบรองรับการติดตั้งแอปครับ
                 </p>
               </div>
             )}
 
             <div className="w-full bg-white border border-slate-200 rounded-xl p-4 mb-6 text-left">
-              <h4 className="text-slate-900 font-bold text-[14px] mb-3 flex items-center">
+              <h4 className="text-slate-900 font-bold text-base mb-3 flex items-center">
                 <svg className="w-4 h-4 mr-1.5 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 ติดตั้งลงเครื่องแบบ Manual
               </h4>
               <div className="space-y-3 mb-4">
-                <div className="flex flex-col sm:flex-row sm:items-start text-[13px]">
+                <div className="flex flex-col sm:flex-row sm:items-start text-base">
                   <span className="text-gray-800 font-bold w-[120px] flex-shrink-0">IOS • Safari</span>
                   <span className="text-gray-600">กดปุ่มแชร์ แล้วเลือก <span className="text-slate-900">เพิ่มไปยังหน้าจอโฮม</span></span>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:items-start text-[13px]">
+                <div className="flex flex-col sm:flex-row sm:items-start text-base">
                   <span className="text-gray-800 font-bold w-[120px] flex-shrink-0">Android • Chrome</span>
                   <span className="text-gray-600">กดเมนู ⋮ แล้วเลือก <span className="text-slate-900">ติดตั้งแอป</span></span>
                 </div>

@@ -36,8 +36,8 @@ export default function GisMetadataPage() {
         {datasets.map(([filename, dataset]) => (
           <article key={filename} className="rounded-xl border border-slate-200 bg-white p-5 md:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div><h3 className="text-lg font-semibold">{dataset.title}</h3><p className="mt-1 font-mono text-xs text-slate-500">{filename} · {dataset.dataset_id}</p></div>
-              <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-bold text-sky-700">{dataset.status}</span>
+              <div><h3 className="text-lg font-semibold">{dataset.title}</h3><p className="mt-1 font-mono text-sm text-slate-500">{filename} · {dataset.dataset_id}</p></div>
+              <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm font-bold text-sky-700">{dataset.status}</span>
             </div>
             <dl className="mt-4">
               <DetailRow label="รุ่น / วันออกรุ่น">{dataset.version} · {dataset.release_date}</DetailRow>
@@ -48,7 +48,7 @@ export default function GisMetadataPage() {
               {dataset.classification ? <DetailRow label="การจำแนกชั้น">{Object.entries(dataset.classification).map(([code, label]) => `${code} = ${label}`).join(', ')}</DetailRow> : null}
               <DetailRow label="หน่วยงานต้นทาง">{dataset.source_agency ?? 'รอยืนยัน'}</DetailRow>
               <DetailRow label="หมายเหตุแหล่งที่มา">{dataset.source_note}</DetailRow>
-              <DetailRow label="SHA-256"><code className="break-all text-xs text-emerald-700">{dataset.sha256}</code></DetailRow>
+              <DetailRow label="SHA-256"><code className="break-all text-sm text-emerald-700">{dataset.sha256}</code></DetailRow>
               <DetailRow label="ข้อจำกัดสำคัญ"><strong className="text-amber-700">{dataset.limitations}</strong></DetailRow>
             </dl>
           </article>
