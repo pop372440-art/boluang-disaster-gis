@@ -1,5 +1,5 @@
 'use client';
-import LineIcon from '@/components/ui/LineIcon';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import React, { useState, useEffect, useRef } from 'react';
 
@@ -109,7 +109,7 @@ export default function SmartHelper() {
           <div className="p-4 text-slate-900 font-bold flex justify-between items-center">
             <div className="flex items-center space-x-3">
               <div className="relative flex-shrink-0 bg-white rounded-full p-0.5">
-                <LineIcon name="help" className="h-6 w-6 text-sky-700" />
+                <Image src="/mascot.png" width={24} height={24} alt="น้องต้นสน" className="h-6 w-6 object-contain rounded-full" />
               </div>
               <div className="flex flex-col">
                 <span className="leading-tight text-base">ผู้ช่วยบ่อหลวง (AI)</span>
@@ -127,7 +127,7 @@ export default function SmartHelper() {
               <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.sender === 'ai' && (
                   <div className="w-6 h-6 rounded-full mr-2 self-end mb-1 opacity-80 bg-blue-100 flex items-center justify-center flex-shrink-0">
-                    <LineIcon name="help" className="h-6 w-6 text-sky-700" />
+                    <Image src="/mascot.png" width={20} height={20} alt="" className="h-5 w-5 object-contain" />
                   </div>
                 )}
                 <div className={`max-w-[75%] p-3 rounded-xl text-base leading-relaxed  ${msg.sender === 'user' ? 'bg-blue-50 text-slate-900 rounded-br-sm' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-sm'}`}>
@@ -138,7 +138,7 @@ export default function SmartHelper() {
             {isLoading && (
               <div className="flex justify-start items-end">
                  <div className="w-6 h-6 rounded-full mr-2 opacity-80 bg-blue-100 flex items-center justify-center animate-bounce">
-                    <LineIcon name="help" className="h-6 w-6 text-sky-700" />
+                    <Image src="/mascot.png" width={20} height={20} alt="" className="h-5 w-5 object-contain" />
                  </div>
                  <div className="bg-white border border-gray-100 p-3 rounded-xl rounded-bl-sm flex space-x-1.5 items-center h-[38px]">
                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
@@ -189,7 +189,7 @@ export default function SmartHelper() {
               aria-label="เปิดผู้ช่วย AI น้องต้นสน"
               className="relative w-12 h-12 flex items-center justify-center z-50 bg-white border border-slate-200 rounded-full"
             >
-              <LineIcon name="help" className="h-6 w-6 text-sky-700" />
+              <Image src="/mascot.png" width={40} height={40} alt="" className="h-10 w-10 object-contain rounded-full" />
             </button>
           </>
         )}
@@ -203,7 +203,7 @@ export default function SmartHelper() {
             className="relative w-12 h-12 bg-white rounded-full flex items-center justify-center transition-all duration-300 z-50 border border-blue-100 group"
             title="เรียกใช้งานน้องต้นสน"
           >
-            <LineIcon name="help" className="h-6 w-6 text-sky-700" />
+            <Image src="/mascot.png" width={40} height={40} alt="" className="h-10 w-10 object-contain rounded-full" />
             
           </button>
         )}
