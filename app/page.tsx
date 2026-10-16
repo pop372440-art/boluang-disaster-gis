@@ -1,6 +1,6 @@
 'use client'; 
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import LineIcon from '@/components/ui/LineIcon';
@@ -90,7 +90,11 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 //  3. โหลด Leaflet และ Component
 // ==========================================
 const MapContainer = dynamic(
-  () => import('react-leaflet').then(mod => mod.MapContainer), 
+  async () => {
+    await import('leaflet');
+    await import('@tomickigrzegorz/leaflet-rotate');
+    return (await import('react-leaflet')).MapContainer;
+  },
   { 
     ssr: false,
     loading: () => (
@@ -105,6 +109,7 @@ const GeoJSON = dynamic(() => import('react-leaflet').then(mod => mod.GeoJSON), 
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
 const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.CircleMarker), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
+const MapRotationControl = dynamic(() => import('@/components/gis/MapRotationControl'), { ssr: false });
 
 const CustomToggleBox = ({ label, source, active, onClick, dotColor = '#38bdf8', isRadio = false, apiStatus = '' }: any) => {
   const [localActive, setLocalActive] = useState(active);
@@ -677,6 +682,62 @@ export default function BoLuangDashboard() {
     setSelectedArea(BO_LUANG_CONTEXT);
   };
 
+  const focusVillageOnMap = useCallback((village: VillageContext, rightPanelWillOpen = isRightPanelOpen) => {
+    if (!mapRef) return;
+    const leaflet = typeof window !== 'undefined' ? require('leaflet') : null;
+    if (!leaflet) return;
+
+    const bounds = leaflet.geoJSON(village.feature).getBounds();
+    if (!bounds.isValid()) return;
+
+    const positions: number[][] = [];
+    const collectPositions = (value: any) => {
+      if (!Array.isArray(value)) return;
+      if (value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') {
+        positions.push(value);
+        return;
+      }
+      value.forEach(collectPositions);
+    };
+    collectPositions(village.feature.geometry?.coordinates);
+
+    if (positions.length > 2) {
+      const projected = positions.map(([lng, lat]) => leaflet.CRS.EPSG3857.project(leaflet.latLng(lat, lng)));
+      const meanX = projected.reduce((sum: number, point: any) => sum + point.x, 0) / projected.length;
+      const meanY = projected.reduce((sum: number, point: any) => sum + point.y, 0) / projected.length;
+      let varianceX = 0;
+      let varianceY = 0;
+      let covariance = 0;
+      projected.forEach((point: any) => {
+        const dx = point.x - meanX;
+        const dy = point.y - meanY;
+        varianceX += dx * dx;
+        varianceY += dy * dy;
+        covariance += dx * dy;
+      });
+      const discriminant = Math.hypot(varianceX - varianceY, 2 * covariance);
+      const majorVariance = (varianceX + varianceY + discriminant) / 2;
+      const minorVariance = Math.max(0, (varianceX + varianceY - discriminant) / 2);
+      if (minorVariance === 0 || majorVariance / minorVariance > 1.2) {
+        const axisAngle = 0.5 * Math.atan2(2 * covariance, varianceX - varianceY);
+        const horizontalBearing = ((axisAngle * 180 / Math.PI) % 180 + 180) % 180;
+        mapRef.setBearing(horizontalBearing);
+      }
+    }
+
+    const mapHeight = mapRef.getSize().y;
+    const leftPadding = !isMobile && isLeftPanelOpen ? 400 : isMobile ? 12 : 52;
+    const rightPadding = !isMobile && rightPanelWillOpen ? 420 : 16;
+    const bottomPadding = isMobile && rightPanelWillOpen ? Math.round(mapHeight * 0.72) + 16 : 32;
+    mapRef.fitBounds(bounds, {
+      paddingTopLeft: [leftPadding, 148],
+      paddingBottomRight: [rightPadding, bottomPadding],
+      maxZoom: 14,
+      animate: true,
+      duration: 1,
+    });
+  }, [isLeftPanelOpen, isMobile, isRightPanelOpen, mapRef]);
+
   const selectVillage = (id: string) => {
     const village = villages.find(item => item.id === id);
     const area = village ?? (id === 'point' && selectedArea.id === 'point' ? selectedArea : BO_LUANG_CONTEXT);
@@ -684,8 +745,11 @@ export default function BoLuangDashboard() {
     if (village) {
       const index = geoBlock.features.findIndex((feature: { properties?: { own_villag?: string } }) => feature.properties?.own_villag === village.name);
       setActiveVillageIndex(index >= 0 ? index : null);
-    } else setActiveVillageIndex(null);
-    mapRef?.flyTo([area.lat, area.lng], village ? 13 : 11);
+      focusVillageOnMap(village);
+    } else {
+      setActiveVillageIndex(null);
+      mapRef?.flyTo([area.lat, area.lng], 11);
+    }
     if (isMobile) setIsLeftPanelOpen(false);
   };
 
@@ -697,8 +761,9 @@ export default function BoLuangDashboard() {
     setSelectedArea(area);
     const village = villages.find(item => item.id === area.id);
     setActiveVillageIndex(village ? Number(village.feature.properties.__idx) : null);
-    mapRef.flyTo([area.lat, area.lng], area.id === 'bo-luang' ? 11 : 13);
-  }, [villages, mapRef]);
+    if (village) focusVillageOnMap(village);
+    else mapRef.flyTo([area.lat, area.lng], 11);
+  }, [villages, mapRef, focusVillageOnMap]);
 
   const applyLayerPreset = (preset: 'water' | 'fire' | 'report') => {
     setShowBoluang(true); setShowBlock(true);
@@ -770,7 +835,10 @@ export default function BoLuangDashboard() {
       },
       click: (e: any) => {
         const village = villages.find(item => containsPoint([e.latlng.lng, e.latlng.lat], item.feature.geometry));
-        if (village) setSelectedArea(village);
+        if (village) {
+          setSelectedArea(village);
+          focusVillageOnMap(village, true);
+        }
         setActiveVillageIndex(props.indexId);
         setIsLeftPanelOpen(false); setIsRightPanelOpen(true);
         if (e.target.bringToFront) e.target.bringToFront();
@@ -1077,6 +1145,11 @@ export default function BoLuangDashboard() {
           </div>
 
           <MapContainer 
+          rotate
+          bearing={0}
+          touchRotate
+          dragRotate
+          shiftKeyRotate
           center={[18.1633, 98.3744]} 
           zoom={isMobile ? 10 : 11} 
           maxZoom={20} 
@@ -1086,6 +1159,7 @@ export default function BoLuangDashboard() {
           className="w-full h-full z-0" 
           ref={setMapRef}
           >
+            <MapRotationControl isMobile={isMobile} rightPanelOpen={isRightPanelOpen} />
             {!windyLayer && !satelliteLayer && <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" maxZoom={19} className="dark-map-filter" />}
             {!windyLayer && satelliteLayer && <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxZoom={19} attribution="Tiles &copy; Esri" />}
             
@@ -1868,3 +1942,4 @@ export default function BoLuangDashboard() {
     </main>
   );
 }
+
