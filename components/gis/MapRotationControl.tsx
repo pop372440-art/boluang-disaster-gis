@@ -26,7 +26,7 @@ export default function MapRotationControl({ isMobile, rightPanelOpen }: MapRota
 
   return (
     <div
-      className={`leaflet-control absolute top-[150px] z-[1000] flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-slate-700 ${isMobile ? 'right-3 w-[min(210px,calc(100vw-100px))]' : rightPanelOpen ? 'right-[420px] w-[230px]' : 'right-4 w-[230px]'}`}
+      className={`absolute z-[1000] flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-slate-700 ${isMobile ? 'top-[250px] right-3 w-[min(210px,calc(100vw-100px))]' : rightPanelOpen ? 'top-[150px] right-[420px] w-[230px]' : 'top-[150px] right-4 w-[230px]'}`}
       aria-label="ควบคุมการหมุนแผนที่"
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
