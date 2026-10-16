@@ -1154,9 +1154,8 @@ export default function BoLuangDashboard() {
           zoom={isMobile ? 10 : 11} 
           maxZoom={20} 
           zoomControl={false} 
-          attributionControl={false} 
-          preferCanvas={true} 
-          className="w-full h-full z-0" 
+          attributionControl={false}
+className="w-full h-full z-0" 
           ref={setMapRef}
           >
             <MapRotationControl isMobile={isMobile} rightPanelOpen={isRightPanelOpen} />
